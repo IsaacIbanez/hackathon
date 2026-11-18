@@ -38,3 +38,10 @@ Al terminar: haz commit, deja la rama lista y propón el texto del Pull Request.
 - Los agentes no se hablan entre sí: se coordinan leyendo `estado/` y `TAREAS.md`.
 - Una persona revisa periódicamente `estado/` y reasigna tareas si hace falta.
 - Cuando una tarea depende de otra, el agente dependiente espera a que la fila de la dependencia esté en `hecha`.
+
+## 5. Instalacion rapida (Windows)
+```
+powershell -ExecutionPolicy Bypass -File scripts\setup-windows.ps1
+```
+Instala Git, Node, Claude Code y Gemini CLI, y clona el repositorio. Despues, `claude` y `gemini` piden iniciar sesion con tu cuenta.
+Para ver el estado de todos: `bash scripts/ver-estado.sh`.
