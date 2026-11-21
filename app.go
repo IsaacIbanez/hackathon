@@ -18,6 +18,7 @@ import (
 type App struct {
 	ctx    context.Context
 	server *ws.Local
+	hub    *ws.Hub // nil when answering with fixtures
 }
 
 func NewApp() *App {
@@ -27,7 +28,7 @@ func NewApp() *App {
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 
-	h, err := newHandler()
+	h, err := a.newHandler()
 	if err != nil {
 		log.Printf("app: no WebSocket server: %v", err)
 		return
@@ -48,6 +49,9 @@ func (a *App) shutdown(context.Context) {
 	if a.server != nil {
 		_ = a.server.Close()
 	}
+	if a.hub != nil {
+		a.hub.Close()
+	}
 }
 
 // WsURL returns the URL of the app's local WebSocket (empty if it did not start).
@@ -61,12 +65,14 @@ func (a *App) WsURL() string {
 
 // newHandler serves the real sessions when there is an OpenRouter key (environment or
 // .env) and falls back to the fixtures (backend/mock) otherwise, so the app always starts.
-func newHandler() (http.Handler, error) {
+func (a *App) newHandler() (http.Handler, error) {
 	client, err := llm.NewFromEnv()
 	if err != nil {
 		log.Printf("app: %v; answering with sample fixtures", err)
 		return mock.NewMux()
 	}
 	log.Printf("app: real sessions, cheap=%s expensive=%s", client.Models[llm.Cheap], client.Models[llm.Expensive])
-	return session.NewMux(client, session.DefaultConfig()), nil
+	h, hub := session.NewMux(client, session.DefaultConfig())
+	a.hub = hub
+	return h, nil
 }

@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: LauzHack project — backend <-> frontend contract
-  version: 0.2.0
+  version: 0.3.0
   description: |
     The only interface between modules. HTTP for health and WebSocket (`/ws`) for everything else.
 
@@ -14,6 +14,9 @@ info:
     Direction: the client (browser or a local process such as the scanner) sends `document`,
     `pointer` and `utterance` (ClientMessage); Go answers with `speak` and, after each model
     call, sends `stats` (ServerMessage).
+
+    The app has ONE shared session: a message from any client (WebSocket or POST /message)
+    updates the same state, and every `speak` and `stats` is broadcast to all WebSocket clients.
 
     Coordinates: always normalized to [0, 1] relative to the cropped document image,
     origin at the top left.
@@ -31,6 +34,26 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Health"
+  /message:
+    post:
+      operationId: postMessage
+      summary: Sends one client message without a WebSocket (for local processes such as the scanner)
+      description: |
+        The body is one envelope (ClientMessage). The answers are NOT returned here: they are
+        broadcast to the WebSocket clients (the UI).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClientMessage"
+      responses:
+        "202":
+          description: Accepted; the answers go to the WebSocket clients
+        "400":
+          description: The body is not a contract envelope
+        "413":
+          description: Body larger than 4 MB
   /ws:
     get:
       operationId: openWebSocket
