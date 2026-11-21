@@ -153,12 +153,22 @@ export async function createTracker(
   };
 
   // requestAnimationFrame instead of requestVideoFrameCallback: it keeps working even if the
-  // <video> stream changes or the camera drops for a while.
-  const step = () => {
-    if (!running) return;
-    requestAnimationFrame(step);
+  // <video> stream changes or the camera drops for a while. When the page is hidden (e.g. the
+  // gesture window sits behind a video call) browsers pause requestAnimationFrame, so a timer
+  // takes over. `loop` invalidates the old chain whenever visibility changes.
+  let loop = 0;
+  const schedule = (id: number) => {
+    if (typeof document !== "undefined" && document.hidden) setTimeout(() => step(id), interval);
+    else requestAnimationFrame(() => step(id));
+  };
+  const onVisibility = () => schedule(++loop);
+  if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVisibility);
+
+  const step = (id: number) => {
+    if (!running || id !== loop) return;
+    schedule(id);
     const t = performance.now();
-    if (!hands || video.readyState < 2 || video.videoWidth === 0 || t - tLast < interval) return;
+    if (!hands || video.readyState < 2 || video.videoWidth === 0 || t - tLast < interval * 0.9) return;
 
     const dims = `${video.videoWidth}x${video.videoHeight}`;
     if (dims !== dimensions) {
@@ -184,11 +194,12 @@ export async function createTracker(
     }
     onFrame(frame);
   };
-  requestAnimationFrame(step);
+  schedule(loop);
 
   return {
     stop() {
       running = false;
+      if (typeof document !== "undefined") document.removeEventListener("visibilitychange", onVisibility);
       hands?.close();
       face?.close();
       hands = null;
