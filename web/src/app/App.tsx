@@ -1,6 +1,7 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { DocumentMessage, DocumentPayload, ServerMessage, SpeakPayload, StatsPayload } from '../api'
 import { Cost } from './Cost'
+import { collectDiagnostics, reportDiagnostics, type Diagnostics } from './diagnostics.ts'
 import { DocumentText } from './DocumentText'
 import { Gestures } from './Gestures'
 import { useSocket } from './useSocket'
@@ -33,6 +34,14 @@ export default function App() {
   const [doc, setDoc] = useState<DocumentPayload | null>(null)
   const [last, setLast] = useState<SpeakPayload | null>(null)
   const [stats, setStats] = useState<StatsPayload | null>(null)
+  const [diag, setDiag] = useState<Diagnostics | null>(null)
+
+  useEffect(() => {
+    collectDiagnostics().then((d) => {
+      setDiag(d)
+      void reportDiagnostics(d)
+    })
+  }, [])
 
   const onMessage = useCallback(
     (msg: ServerMessage) => {
@@ -87,6 +96,14 @@ export default function App() {
         >
           Send sample document
         </button>
+        {diag && (
+          <ul aria-label="Diagnostics" className="mt-4 space-y-1">
+            <li>Speech output: {diag.speechSynthesis ? `yes, ${diag.voices} voices` : 'NO'}</li>
+            <li>Spanish voices: {diag.spanishVoices.length ? diag.spanishVoices.join(', ') : 'NONE'}</li>
+            <li>Speech recognition (dictation): {diag.speechRecognition ? 'yes' : 'NO'}</li>
+            <li>Camera: {diag.camera ? `yes, ${diag.videoInputs} found` : 'NO'}</li>
+          </ul>
+        )}
       </details>
     </main>
   )

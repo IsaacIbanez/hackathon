@@ -226,3 +226,14 @@ func TestDevProfileAndDotEnv(t *testing.T) {
 		t.Fatalf("the dev profile must start with free models and end with the paid cheap one: %s", c.Models[Cheap])
 	}
 }
+
+func TestDotEnvCandidatesIncludeCwdAndExecutableParents(t *testing.T) {
+	c := DotEnvCandidates()
+	if c[0] != ".env" || len(c) < 3 {
+		t.Fatalf("candidates: %v", c)
+	}
+	exe, _ := os.Executable()
+	if c[1] != filepath.Join(filepath.Dir(exe), ".env") {
+		t.Fatalf("second candidate should be next to the executable: %v", c)
+	}
+}
