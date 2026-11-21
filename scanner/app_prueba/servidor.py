@@ -30,10 +30,11 @@ os.environ.setdefault("OPENCV_LOG_LEVEL", "ERROR")
 
 import cv2  # noqa: E402
 import numpy as np  # noqa: E402
+from PIL import Image  # noqa: E402
 
 import capturar  # noqa: E402
 import escanear  # noqa: E402
-from escaner_pdf import Opciones  # noqa: E402
+from escaner_pdf import Opciones, geometria  # noqa: E402
 
 CARPETAS_PERMITIDAS = [capturar.CARPETA_POR_DEFECTO.resolve(), escanear.CARPETA_PDF.resolve()]
 MAX_SUBIDA = 60 * 1024 * 1024
@@ -69,6 +70,23 @@ class Camara:
         if self.viva is not None:
             viva, self.viva = self.viva, None
             viva.cerrar()
+
+    def deteccion(self) -> dict:
+        """Detección de la hoja en el último frame (para dibujar el contorno sobre la vista previa)."""
+        viva = self.viva
+        if viva is None:
+            return {"abierta": False}
+        with viva.cond:
+            frame = viva.recientes[-1].frame if viva.recientes else None
+        if frame is None:
+            return {"abierta": True, "encontrada": False}
+        escala = 1280 / frame.shape[1]
+        peq = cv2.resize(frame, None, fx=escala, fy=escala, interpolation=cv2.INTER_AREA)
+        d = geometria.detectar_pagina(peq)
+        alto, ancho = peq.shape[:2]
+        esquinas = None if d.esquinas is None else [[float(x) / ancho, float(y) / alto] for x, y in d.esquinas]
+        return {"abierta": True, "encontrada": d.encontrada, "confianza": round(d.confianza, 2),
+                "toca_borde": d.toca_borde, "esquinas": esquinas}
 
     def ultimo_jpeg(self, ancho: int = 960) -> bytes | None:
         viva = self.viva
@@ -158,6 +176,8 @@ class Manejador(BaseHTTPRequestHandler):
             viva = CAMARA.viva
             return self._json({"camaras": [{"indice": c.indice, "nombre": c.nombre} for c in camaras],
                                "abierta": viva.camara.indice if viva else None})
+        if u.path == "/api/deteccion":
+            return self._json(CAMARA.deteccion())
         if u.path == "/api/camara/estado":
             viva = CAMARA.viva
             return self._json(viva.estado() if viva else {"ok": False, "abierta": False})
@@ -200,6 +220,8 @@ class Manejador(BaseHTTPRequestHandler):
                 return self._escanear(q)
             if u.path == "/api/subir":
                 return self._subir(q)
+            if u.path == "/api/reprocesar":
+                return self._reprocesar(q)
         except capturar.ErrorCaptura as e:
             return self._json({"error_captura": {"codigo": e.codigo, "mensaje": str(e)}}, 400)
         self._json({"error": "no existe"}, 404)
@@ -217,6 +239,25 @@ class Manejador(BaseHTTPRequestHandler):
             return self._json(_respuesta_escaneo(esc))
         finally:
             ESCANEANDO.release()
+
+    def _reprocesar(self, q):
+        """Regenera el PDF de una captura con esquinas puestas a mano (normalizadas a [0, 1])."""
+        png = Path(q.get("png", ""))
+        if not (_permitido(png) and png.suffix.lower() == ".png"):
+            return self._json({"error": "captura no permitida"}, 404)
+        try:
+            v = [float(x) for x in q.get("esquinas", "").split(",")]
+        except ValueError:
+            v = []
+        if len(v) != 8 or not all(0 <= x <= 1 for x in v):
+            return self._json({"error": "esquinas: 8 números entre 0 y 1"}, 400)
+        with Image.open(png) as im:   # solo lee la cabecera
+            ancho, alto = im.size
+        op = _opciones(q)
+        op.esquinas = [[v[i] * ancho, v[i + 1] * alto] for i in range(0, 8, 2)]
+        with ESCANEANDO:
+            esc = escanear.Escaneo(png, None, escanear.convertir_png(png, opciones=op))
+        return self._json(_respuesta_escaneo(esc))
 
     def _subir(self, q):
         largo = int(self.headers.get("Content-Length", 0))
