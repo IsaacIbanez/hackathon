@@ -12,7 +12,7 @@ Convenciones de estado:
 
 ## 1. Resumen
 
-**Qué es hoy la app.** Una aplicación de escritorio (Wails: Go + React/TypeScript) para personas con baja visión. Lee un documento en papel, lo explica en voz alta en lenguaje sencillo, lee el campo que se señala con el dedo y responde a preguntas por voz. La IA es frugal: lo local primero (avisos de encuadre, lectura del campo señalado, gestos), un modelo barato para explicar y uno caro solo si el barato duda. El coste se ve en pantalla.
+**Qué es hoy la app.** Una aplicación de escritorio (Wails: Go + React/TypeScript) para personas con baja visión, **pensada para** leer un documento en papel, explicarlo en voz alta en lenguaje sencillo, leer el campo que se señala con el dedo y responder a preguntas por voz. En esta integración **no se ha leído todavía ningún papel real**: el documento llega como ejemplo o desde el escáner, y la lectura de una foto real necesita Tesseract y la unión pendiente de §1.4. La IA es frugal: lo local primero (avisos de encuadre, lectura del campo señalado, gestos), un modelo barato para explicar y uno caro solo si el barato duda. El coste se ve en pantalla.
 
 **Cómo se arranca** (detalle en §4):
 ```
@@ -21,7 +21,7 @@ task server                    # solo el servidor real, sin ventana, en 127.0.0.
 task mock                      # respuestas de ejemplo, sin clave ni coste, en localhost:8080
 python scanner/service.py      # servicio de lectura de documentos (Python), 127.0.0.1:8770
 ```
-La clave de OpenRouter va en `.env` (en `.gitignore`), con `LLM_PROFILE=dev` para usar modelos gratuitos mientras se desarrolla.
+La clave de OpenRouter va en `.env` (en `.gitignore`). `LLM_PROFILE=dev` pone primero modelos gratuitos, pero **no garantiza 0 $**: el modelo «caro» de dev es Haiku (de pago), así que cualquier escalada (duda o fallo del barato) va a Haiku; y `/transcribe` prueba primero Gemini (de pago), porque dev no cambia `LLM_TRANSCRIBE_MODELS`. Para no gastar nada: `LLM_CHEAP_MODEL` y `LLM_EXPENSIVE_MODEL` con solo modelos `:free` (por ejemplo `nvidia/nemotron-3.5-super-vl:free,google/gemma-4-31b-it:free`) y `LLM_TRANSCRIBE_MODELS=nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free`. **Sin clave**, la app de escritorio responde con el mock, que no tiene `/message`, `/scan` ni `/transcribe` (404).
 
 **De punta a punta, tal como está hoy:**
 1. Un documento llega a Go de una de estas tres formas:
@@ -45,18 +45,18 @@ Orígenes: rama o PR y agente (P1 Isaac, P2 Didac, P3 Nil, P4 Pau; «-C» = Clau
 |---|---|---|---|---|---|---|---|---|
 | F1 | Contrato y tipos generados | Sobre `{type,id,ts,payload}`; mensajes `document`, `pointer`, `utterance`, `speak`, `stats`; `/health`, `/ws`, `/message`, `/scan`, `/transcribe` | `api/openapi.yaml` (0.6.0), `api/gen/`, `web/src/api/`, `api/fixtures/` | T2…T18: #2, #6, #8, #13, #14, #35, #36, #37 (P1-C) | **Verificado** | E2 (tipos al día; `api` ok) | `document` JSON reales en `api/fixtures/real/` | Cambiar el contrato sin `task gen` rompe el CI (pasó en #36 y se arregló en #37) |
 | F2 | Servidor Go y API local | `/ws` con **una sesión compartida** para todos los clientes (`ws.Hub`); `POST /message`; servidor local fijo en 8765 | `backend/ws/`, `backend/session/mux.go`, `backend/cmd/server`, `app.go`, `main.go` | #4, #10, #13, #14 (P1-C) | **Verificado** | E3 (health, WebSocket, `/message`), E2 | — | Puerto 8765 fijo (`LAUZHACK_ADDR`); si está ocupado usa otro y los procesos externos no lo encuentran |
-| F3 | Lógica de la sesión | Explicar el documento; leer el bloque señalado **en local**; responder preguntas con el bloque señalado como contexto; avisos de encuadre locales (es/en); eco del documento a la interfaz | `backend/session/` | #10, #11, #14, #23 (P1-C) | **Verificado** | E3 (explicación 6,5 s a 0 $; puntero → «Fecha del siniestro…» en 1,0 s), E2 (tests de sesión) | Criterio de escalado definitivo (hoy `DefaultDoubt`, provisional); ajustar los prompts al OCR real | Calidad dependiente del modelo gratuito si `LLM_PROFILE=dev` |
-| F4 | Cliente de modelos y coste | OpenRouter; niveles barato/caro con listas de respaldo; caché; contador de llamadas, coste y latencia (`stats`); `.env` junto al ejecutable; audio (`input_audio`) | `backend/llm/`, `backend/cmd/llmcheck` | #3, #7, #8, #17, #36 (P1-C) | **Verificado** con modelos gratuitos | E2 (tests), E3 | Volver a medir los modelos de pago (no se llamaron en la integración) | `LLM_PROFILE=dev` incluye Haiku (de pago) como último respaldo; presupuesto 10 € |
+| F3 | Lógica de la sesión | Explicar el documento; leer el bloque señalado **en local**; responder preguntas con el bloque señalado como contexto; avisos de encuadre locales (es/en); eco del documento a la interfaz | `backend/session/` | #10, #11, #14, #23 (P1-C) | **Verificado** | E3 (explicación en ~5,0 s a 0 $; puntero → «Fecha del siniestro…» casi al instante), E2 (tests de sesión) | Criterio de escalado definitivo (hoy `DefaultDoubt`, provisional); ajustar los prompts al OCR real | Calidad dependiente del modelo gratuito si `LLM_PROFILE=dev` |
+| F4 | Cliente de modelos y coste | OpenRouter; niveles barato/caro con listas de respaldo; caché; contador de llamadas, coste y latencia (`stats`); `.env` junto al ejecutable; audio (`input_audio`) | `backend/llm/`, `backend/cmd/llmcheck` | #3, #7, #8, #17, #36 (P1-C) | **Verificado** con modelos gratuitos (fijados a mano, ver E3) | E2 (tests), E3 | Volver a medir los modelos de pago (no se llamaron en la integración) | **`LLM_PROFILE=dev` no es gratis del todo:** Haiku es el último respaldo del nivel barato **y** el modelo del nivel caro (`DevExpensiveModels`), así que toda escalada paga; presupuesto 10 € |
 | F5 | Servidor mock | Respuestas fijas (fixtures) sin clave | `backend/mock/`, `backend/cmd/mock` | #2, #4, #6, #14 (P1-C) | **Verificado** | E3b | — | Responde solo a la conexión que escribe (no hay sesión compartida en el mock) |
 | F6 | `POST /scan` | La app envía la foto; Go dice «Un momento…», la pasa al servicio de lectura y trata el documento devuelto; los problemas se dicen en voz alta. `SCANNER_URL=fixture` simula el servicio | `backend/scanner/`, `Session.ScanPhoto` | #35 (P1-C) | **Verificado** con el escáner de ejemplo y con el servicio real (caso «sin hoja») | E3 (fixture: documento con 4 esquinas + explicación), E4 (servicio real → 422 → «No encuentro la hoja…») | Camino con hoja y OCR real (200) | El 503 del servicio (sin Tesseract) se dice como error genérico |
 | F7 | `POST /transcribe` | Audio WAV → texto con un modelo de audio en la nube (respaldo del reconocimiento local); coste en `stats` | `Session.Transcribe`, `web/src/app/transcribe.ts` | #36 (P1-C) | **Verificado** con el modelo gratuito; **Parcial** en la integración | E3 (Nemotron gratis: 5,3 s, 0 $, con errores); E2 (tests) | El reconocimiento de voz no lo llama (`transcribeRemote` sin uso); Gemini (de pago) no se volvió a llamar | El modelo gratuito se equivocó en una de dos pruebas |
 | F8 | API local protegida | Solo `Host` 127.0.0.1/localhost; `Origin` de la app; CORS para la app; `/message` solo JSON | `backend/ws/guard.go` | #36 (P1-C) | **Verificado** | E3 (Host ajeno 403, Origin ajeno 403, `text/plain` 415, preflight de Vite 204), tests de `guard` | — | Los servicios Python (8766, 8770) no tienen esta protección (§7) |
-| F9 | App de escritorio | Wails 2.17.1; frontend embebido; busca el `.env` junto al ejecutable; log en `lauzhack.log`; diagnóstico de voz y cámara | `main.go`, `app.go`, `wails.json`, `web/` | #2, #4, #17 (P1-C) | **Verificado** en Windows | E2 (`wails build` 13,36 MB), E4 (arranca desde `build/bin`, voces es-ES, cámara) | Linux y macOS (`docs/PRUEBA_WAILS.md`) | En Linux hace falta WebKitGTK 4.1 (`-tags webkit2_41`) |
+| F9 | App de escritorio | Wails 2.17.1; frontend embebido; busca el `.env` junto al ejecutable; log en `lauzhack.log`; diagnóstico de voz y cámara. **Sin clave** usa el mock (sin `/message`, `/scan` ni `/transcribe`) | `main.go`, `app.go`, `wails.json`, `web/` | #2, #4, #17 (P1-C) | **Verificado** en Windows | E2 (`wails build` 13,36 MB), E4 (arranca desde `build/bin`, voces es-ES, cámara) | Linux y macOS (`docs/PRUEBA_WAILS.md`) | En Linux hace falta WebKitGTK 4.1 (`-tags webkit2_41`) |
 | F10 | Interfaz principal | Pantalla: explicación grande, vista del documento en orden de lectura con resaltado (`aria-current`) y «(unclear)», contador de coste, herramientas de desarrollo con diagnóstico | `web/src/app/` (`App.tsx`, `DocumentText.tsx`, `Cost.tsx`, `diagnostics.ts`, `useSocket.ts`) | #2, #6, #14, #17 (P1-C); cambios de #29 (P3-C) | **Sin verificar** a la vista (compila; en el ejecutable el diagnóstico se ejecutó) | E2 (build y lint), E4 | Revisarla con una persona y con lector de pantalla | — |
 | F11 | Puente de gestos y puntero | Gestos → mensajes del contrato; puntero con alcance de 0,05 alrededor de cada bloque (igual en Go y TS); recuadros y punto del dedo sobre el vídeo; anillo de permanencia; mano dibujada | `web/src/app/bridge.ts`, `pointing.ts`, `Gestures.tsx` | #11, #23 (P1-C); #29 (P3-C) | **Sin verificar** con una mano real | E2 (tests de `bridge` y `pointing`) | Usar `pageCorners` (hoy `WHOLE_FRAME_AS_SEEN`) | Copias a mano de `blockAt` en Go y TS |
 | F12 | Módulo de manos | MediaPipe en el navegador: poses, deslizar, puntero suavizado, selección por permanencia, menú ✌️, volumen con pinza, cabeza (sí/no), varias manos, perfil de movilidad reducida | `web/src/input/` | #9, #20, #29 (P3-C) | **Sin verificar** con mano real | E2 (tests con manos sintéticas) | Servir MediaPipe en local | MediaPipe y su modelo se descargan de jsDelivr y Google |
 | F13 | Voz | Lector frase a frase (pausa y continúa sin IA); dictado: Whisper `small` en un Web Worker (WebGPU si hay), precarga, medidor y calibración de ruido, dictado de campos con deletreo y confirmación | `web/src/input/voice/` | #19, #29 (P3-C) | **Sin verificar** con micrófono | E2 (tests de voz); E4 (la ventana tiene 3 voces es-ES y la API de reconocimiento) | Conectar el respaldo `transcribeRemote` | Modelos de Hugging Face (~250 MB la primera vez); sin red no hay dictado |
-| F14 | Gesture Control | Programa Go aparte: gestos → teclas y clics reales del sistema; contexto de videollamada; página propia; token por ejecución y protección de `Host` | `adapters/desktop/`, `web/src/input/desktop/` | #20 (P3-C) | **Verificado** en simulación; **sin verificar** sobre el sistema real | E4 (401 sin token, 403 con Host ajeno, página 200 tras construirla), E2 (tests) | Probar con aplicaciones reales | Pulsa teclas de verdad: la protección es crítica (está) |
+| F14 | Gesture Control | Programa Go aparte: gestos → teclas y clics reales del sistema; contexto de videollamada; página propia; token por ejecución y protección de `Host` | `adapters/desktop/`, `web/src/input/desktop/` | #20 (P3-C) | **Verificado** en simulación; **sin verificar** sobre el sistema real. Ojo: `wails build` borra la página ya construida en `adapters/desktop/dist` (observado por el revisor); hay que construirla después | E4 (401 sin token, 403 con Host ajeno, página 200 tras construirla), E2 (tests) | Probar con aplicaciones reales | Pulsa teclas de verdad: la protección es crítica (está) |
 | F15 | Cámara en la app | `openCamera` (la Logitech por nombre si está, 4K), `captureStill` (la foto más nítida de ~0,5 s) | `web/src/camera/` | #31 (P4-C) | **Sin verificar** en esta integración | E2 (tests de selección y nitidez) | Que la interfaz la use (hoy `Gestures.tsx` abre la cámara por su cuenta) | — |
 | F16 | Guía de encuadre y disparo automático | Avisos hablados (es/ca/en: oscuro, borroso, se mueve, quieto, listo) y foto automática con el papel quieto y nítido; a los 8 s, la mejor | `web/src/camera/` (`guide.ts`, `framing.ts`, …) | `feature/T19-encuadre` (P4-C, sin PR) | **Sin verificar** aquí (Pau la probó con la cámara del portátil, según su estado) | E2 (tests de encuadre) | Probarla con la MX Brio; unirla a la app | — |
 | F17 | Captura de la MX Brio (Python) | Captura 4K del frame más nítido; modo servidor en 8766 (`GET /captura`) | `scanner/capturar.py` | #12 (P4-C) | **Sin verificar** (sin la cámara) | E2 (unittest del escáner) | — | `GET /captura` tiene efectos y no valida `Host` (§7) |
@@ -65,7 +65,7 @@ Orígenes: rama o PR y agente (P1 Isaac, P2 Didac, P3 Nil, P4 Pau; «-C» = Clau
 | F20 | PDF digital con modelo de visión | La página rehecha con texto real; envía la **imagen** a OpenRouter; Haiku → Sonnet si concuerda < 60 % con el OCR | `scanner/pdf/src/scanner_pdf/vision.py`, `digital.py` | #26 (P2-C) | **Sin verificar** (modelos de pago) | — | — | Desactivado por defecto (`digital=1` / `--digital`); coste fuera del contador; privacidad (§7) |
 | F21 | Documentos de prueba imprimibles | 3 PDF con datos inventados (carta, formulario, aviso en catalán) y su generador | `scanner/pdf/samples/print/`, `make_print_samples.py` | `feature/T13-real-fixtures` (P2-C, sin PR) | **Sin verificar** (no se regeneraron) | — | Su `document` JSON como fixture del contrato | — |
 | F22 | Páginas de prueba | Gesture Lab, demo de cámara, app de prueba del escáner (8780) | `web/src/input/demo/`, `web/src/camera/demo/`, `scanner/demo_app/` | #9, #31, #26 | **Sin verificar** | — | — | Duplicadas con la app (§6) |
-| F23 | CI | gofmt, `task check` (lint, tests y build del front, `go vet`, `go test`) y tipos al día, en Ubuntu 24.04 | `.github/workflows/ci.yml`, `Taskfile.yml` | #2, #5, #8 (P1-C) | **Verificado** (verde en `main` tras #37) | historial de ejecuciones de `main` | Los tests de Python no están en el CI | — |
+| F23 | CI | gofmt, `task check` (lint, tests y build del front, `go vet`, `go test`) y tipos al día, en Ubuntu 24.04 | `.github/workflows/ci.yml`, `Taskfile.yml` | #2, #5, #8 (P1-C) | **Verificado en `main`** (verde tras #37); en esta rama, ver el PR en borrador (en Windows pasa todo lo equivalente, E2) | historial de ejecuciones de `main` | Los tests de Python no están en el CI | — |
 | F24 | Documentación y pitch | Guion de 3 min con cifras medidas, guías de prueba, voz, integración del escáner | `docs/` | #15, #16, #18, #23, #25, #35, #36 | Borrador | — | Repartir el guion y ensayar | Las cifras de Haiku y Gemini se midieron antes de la integración |
 | F25 | Ideas | 16 ideas de 4 personas y su agrupación neutral | `docs/ideas/` | #27, #30, #32 | Recopiladas | — | Decidirlas (personas) | — |
 
@@ -132,7 +132,7 @@ Orígenes: rama o PR y agente (P1 Isaac, P2 Didac, P3 Nil, P4 Pau; «-C» = Clau
 | Mock | `task mock` | `GET http://localhost:8080/health` |
 | Interfaz en el navegador | `cd web` y `$env:VITE_WS_URL="ws://127.0.0.1:8765/ws"; npm run dev` | «Developer tools» → «Send sample document» |
 | Gestos | guía en `docs/PROBAR_GESTOS.md` | — |
-| Probar la IA sin pagar | `.env` con `LLM_PROFILE=dev`, o `LLM_CHEAP_MODEL` y `LLM_EXPENSIVE_MODEL` solo con modelos `:free` | coste 0 $ en el contador |
+| Probar la IA sin pagar | `LLM_CHEAP_MODEL` y `LLM_EXPENSIVE_MODEL` con solo modelos `:free` (por ejemplo `nvidia/nemotron-3.5-super-vl:free,google/gemma-4-31b-it:free`) y `LLM_TRANSCRIBE_MODELS=nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` (`LLM_PROFILE=dev` **no basta**: escala a Haiku y `/transcribe` prueba Gemini) | coste 0 $ en el contador |
 | Cliente de modelos | `go run ./backend/cmd/llmcheck "hola"` | respuesta, coste y latencia |
 | Servicio de lectura | `python scanner\service.py` (con las dependencias de `scanner/pdf`) | `GET http://127.0.0.1:8770/health` |
 | Escáner por línea de comandos | `python scanner\scan.py --send` (o `--png foto.png --send`) | documento en la app |
@@ -217,7 +217,11 @@ Decisiones que se ven en el código y no están en `AGENTS.md`:
 - **La clave del equipo se pegó en chats durante la hackathon: hay que revocarla al terminar** (ya lo anotan `scanner/ENTREGA.md` y el historial).
 - **API Go:** protegida (F8).
 - **Gesture Control:** `Host`, token y origen (F14).
-- **Servicios Python sin esa protección:** `capturar.py --servidor` (8766, `GET /captura` con efectos) y `service.py` (8770) solo escuchan en 127.0.0.1, pero no validan `Host` ni `Origin`. Con DNS rebinding, una web podría disparar capturas o escaneos y leer el resultado.
+- **Servicios Python sin esa protección:** `capturar.py --servidor` (8766, `GET /captura` con efectos), `service.py` (8770) y `scanner/demo_app/server.py` (8780) solo escuchan en 127.0.0.1, pero no validan `Host` ni `Origin`.
+  - **Sin necesidad de DNS rebinding,** una web abierta puede lanzar un escaneo con un `POST` sencillo (`text/plain`, sin preflight): el revisor lo comprobó contra 8770 (respuesta 422).
+  - **Ese escaneo puede costar dinero:** `service.py` acepta `?digital=1`, que activa el modelo de visión de pago.
+  - **`demo_app` expone más:** el vídeo de la cámara (`GET /preview.mjpg`), los archivos (`GET /file`: capturas y PDF) y `POST /api/scan?digital=1`.
+  - **Con DNS rebinding,** además se pueden leer las respuestas.
 - **Privacidad:**
   - Go solo manda texto a los modelos;
   - `/transcribe` manda audio a la nube (es un respaldo);
@@ -230,6 +234,7 @@ Decisiones que se ven en el código y no están en `AGENTS.md`:
 - Las rutas de `.env` difieren entre Go y Python.
 - El 503 del servicio de lectura se dice como error genérico.
 - Las cifras de modelos de pago se midieron antes de la integración.
+- En Windows, `wails build` reescribe los finales de línea de `go.mod`, que aparece como modificado en `git status` aunque su contenido no cambia (`git diff go.mod` vacío; `go mod tidy -diff` sin diferencias). `.gitattributes` no cubre `go.mod`.
 
 **Referencias obsoletas tras disolver las tareas por agente** (no tocadas, a propósito):
 - `README.md` (`estado/`);
@@ -279,11 +284,11 @@ Orden de integración (un merge normal por rama, sin *squash*; commits sobre `ma
 | `feature/T16-ideas-nil` | #30 | Nil | **integrada** | todo está (la diferencia son las filas de Didac añadidas después) |
 | `feature/T16-ideas-pau` | #32 | Pau | **ya estaba en main** | idem que #27 |
 | `feature/T12-camara` | #31 | Pau | **ya estaba en main** | las diferencias son la reorganización posterior de Pau en T19 (`still.ts` → `frames.ts`) |
-| `feature/B-contexto-scanner` | #26 | Didac | **ya estaba en main** | las diferencias son trabajo posterior de Didac en #34 |
+| `feature/B-contexto-scanner` | #26 | Didac | **ya estaba en main** | las diferencias son trabajo posterior: de Didac en #34 y, en `docs/INTEGRACION_SCANNER.md`, de Isaac en #35 |
 | `docs/camera-decision` | #21 | Isaac | **ya estaba en main** | ediciones posteriores de `AGENTS.md` |
 | `feature/T1-alcance-y-arquitectura` | #1 | Isaac | **ya estaba en main** | ediciones posteriores |
-| `claude/kind-cray-863b6t` | #9 | Nil | **#9 ya estaba en main**; sus commits posteriores **no se integran a propósito** | son el borrador que Nil rehízo en #19 y #29 (la versión de `listener.ts` en `main` tiene 48 líneas más). Integrarlos revertiría trabajo más nuevo. La rama no se borra, así que no se pierde nada |
-| Ramas borradas tras fusionarse (#2–#8, #10, #11, #13–#19, #22–#25, #28, #33, #35–#37) | — | Isaac, Nil | ya en main (*squash*) | — |
+| `claude/kind-cray-863b6t` | #9 | Nil | **#9 ya estaba en main**; sus commits posteriores **no se integran a propósito** | son borradores que Nil rehízo: la voz en #19 y #29 (`listener.ts` en `main`: +48/−9 líneas respecto al borrador) y Gesture Control en #20 (af203ac, 5f98a1c, 2c3853d). Integrarlos revertiría trabajo más nuevo. La rama no se borra, así que no se pierde nada |
+| Ramas borradas tras fusionarse (#2–#8, #10–#19, #22–#25, #28, #33, #35–#37; entre ellas #12 `feature/B-scanner-captura`, de Pau) | — | Isaac, Nil, Pau | ya en main (*squash*) | — |
 | Worktree local `hackathon-worktrees/P1-C-T2` | — | — | nada que integrar | limpio, en un commit antiguo de `main` |
 
 Las rutas que cambian en esta rama (`estado/` → `docs/historial/estado/`, `TAREAS.md` → `docs/historial/TAREAS_por_agente.md` y `docs/IDEAS.md` → `docs/ideas/IDEAS.md`) se movieron sin cambiar su contenido: se comprobó byte a byte.
@@ -306,14 +311,14 @@ Las rutas que cambian en esta rama (`estado/` → `docs/historial/estado/`, `TAR
   - pytest: **66 ok y 15 saltados** (los saltados necesitan Tesseract);
   - unittest: **29 OK (2 saltados)**;
   - `wails build` OK (13 362 176 bytes).
-- **E3. Servidor real (`go run ./backend/cmd/server`).** Configuración: `SCANNER_URL=fixture` y solo modelos `:free` por variables de entorno (sin respaldo de pago). Resultados:
+- **E3. Servidor real (`go run ./backend/cmd/server`).** Configuración: `SCANNER_URL=fixture` y `LLM_CHEAP_MODEL` y `LLM_EXPENSIVE_MODEL` con solo modelos `:free` (por ejemplo `nvidia/nemotron-3.5-super-vl:free,google/gemma-4-31b-it:free`) y `LLM_TRANSCRIBE_MODELS=nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` (no se usó `LLM_PROFILE=dev`, porque escala a Haiku). Resultados:
   - `GET /health` → `{"status":"ok"}`;
   - `POST /scan` con un PNG:
     - a 1,5 s, `speak` «Un momento, estoy leyendo el documento.»;
     - `document` con 4 bloques y **4 `pageCorners`**;
-    - a 6,5 s, la explicación («Este documento es una declaración de siniestro de AXA Seguros…»);
+    - la explicación («Este documento es una declaración de siniestro de AXA Seguros…»), unos 5,0 s después del `POST` (4 965 ms según el log del servidor). Los 1,5 s y 6,5 s que imprime el script se cuentan desde que abre el WebSocket e incluyen sus pausas;
     - `stats` con 0 $;
-  - `POST /message` con un `pointer` en (0,3; 0,27) → «Fecha del siniestro: __/__/____» en 1,0 s;
+  - `POST /message` con un `pointer` en (0,3; 0,27) → «Fecha del siniestro: __/__/____» casi al instante (el 1,0 s impreso es la pausa del script);
   - `POST /transcribe` con un WAV en español → `nvidia/nemotron-3-nano-omni…:free`, 5 340 ms, 0 $, «¿Qué tengo que poner aquí? en la fecha del siestru. y donde firmo.» (con errores);
   - protección:
     - `Host` ajeno → 403;
@@ -344,4 +349,8 @@ Las rutas que cambian en esta rama (`estado/` → `docs/historial/estado/`, `TAR
   - historial del clon local antiguo: **0**.
 
   No se imprimió ningún valor.
+- **E9. Revisión independiente.** Un agente que no había visto el trabajo intentó refutar este informe en un clon limpio, sin clave.
+  - Confirmó: las cifras de E1 y E2, el contrato, las 7 ramas integradas (con sus segundos padres), los traslados idénticos byte a byte, 0 secretos y lo que §2 marca como parcial.
+  - Refutó tres cosas, ya corregidas: faltaba #12 en §8, se citaba una «lupa del puntero» inexistente en `TAREAS.md`, y se decía «`LLM_PROFILE=dev` = 0 $».
+  - Añadió riesgos, también incorporados: `demo_app` (8780), `?digital=1`, el paso al mock sin clave, los tiempos de E3 y que `wails build` borra la página de Gesture Control.
 - **E8. Clon local `Documents/hackathon`.** Tiene 4 commits que nunca se subieron (857becc…fbda60a). Se buscó cada archivo de su punta en el historial de GitHub y todos estaban, menos una versión de `scripts/nueva-tarea.sh` que solo difiere en el comentario de ejemplo. Esa diferencia se integró en 0d1a557.

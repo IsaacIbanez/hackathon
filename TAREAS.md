@@ -9,12 +9,12 @@ Cada línea remite a `docs/ESTADO_PROYECTO.md` (§2, tabla por funcionalidad), d
 - Servidor Go: `/health`, `/ws` con sesión compartida, `POST /message`, `POST /scan`, `POST /transcribe`.
 - Lógica de sesión: explicar el documento, leer el campo señalado en local, responder preguntas, avisos de encuadre locales y eco del documento a la interfaz.
 - API local protegida: `Host`, `Origin`, CORS y `/message` solo JSON.
-- Cliente de modelos: listas de respaldo, caché, contador de coste y `.env`. Verificado con modelos gratuitos.
+- Cliente de modelos: listas de respaldo, caché, contador de coste y `.env`. Verificado con modelos gratuitos fijados a mano (`LLM_PROFILE=dev` no es gratis del todo: escala a Haiku).
 - Servidor mock (`task mock`) y escáner de ejemplo (`SCANNER_URL=fixture`).
 - Conexión Go ↔ servicio de lectura en Python: `/scan` → 8770 → respuesta hablada (camino «sin hoja», 422).
 - App de escritorio (`wails build`): arranca con doble clic, encuentra el `.env`, escribe el log y el diagnóstico de voz y cámara.
 - Gesture Control (`adapters/desktop`), en modo simulación: protección de `Host`, token y página servida.
-- CI: gofmt, `task check` y tipos generados al día.
+- CI: gofmt, `task check` y tipos generados al día (verde en `main`; en esta rama, ver su PR).
 
 ## Terminado sin verificar (código y tests listos; falta hardware, clave o dependencias)
 - Captura de la MX Brio (`scanner/capturar.py`): sin la cámara.
@@ -22,7 +22,7 @@ Cada línea remite a `docs/ESTADO_PROYECTO.md` (§2, tabla por funcionalidad), d
 - Servicio de lectura, camino con hoja (200 + `pageCorners`): sin Tesseract.
 - PDF digital con modelo de visión (`scanner/pdf/.../vision.py`): usa modelos de pago.
 - Cámara en la app (`openCamera`, `captureStill`) y guía de encuadre con disparo automático (`startFramingGuide`): sin cámara real en esta integración.
-- Gestos con MediaPipe, puente de gestos, puntero y lupa visual del puntero: sin mano real.
+- Gestos con MediaPipe, puente de gestos, puntero (recuadros y punto del dedo sobre el vídeo): sin mano real.
 - Voz: Whisper local en un Worker, medidor de micro, dictado de formularios y lector frase a frase: sin micrófono; los modelos se descargan de Hugging Face.
 - Gesture Control actuando sobre el sistema de verdad (teclas, clics): solo en simulación.
 - Transcripción en la nube con Gemini: no se volvió a llamar porque es de pago; con el modelo gratuito funciona, con errores.
