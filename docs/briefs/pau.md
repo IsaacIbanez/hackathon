@@ -70,7 +70,7 @@ Ejemplo concreto: digo «¿Cuándo vence el plazo del seguro?» y otra persona r
 - [ ] Después de 5 minutos, la página sigue mostrando la primera frase, y el `.txt` tiene las dos secciones.
 - [ ] El coste en pantalla coincide con la suma de lo que se usa (±10 %), y la sesión se corta en 1 $.
 - [ ] Sin red: aviso en menos de 3 s, 3 reintentos y después se ofrece Whisper local, que funciona.
-- [ ] `git grep tgp_v1` no encuentra nada, y `task check` pasa.
+- [ ] Ninguna clave en el repo: buscar el prefijo de las claves de Together (`tgp_` + `v1_`) en todo el historial solo encuentra esta línea. Y `task check` pasa.
 
 ## Carpetas que toca
 - **Propias (nuevas):** `backend/captions/` (acordado con Isaac) y `web/src/captions/`.
