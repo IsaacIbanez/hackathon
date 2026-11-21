@@ -1,45 +1,71 @@
 openapi: 3.0.3
 info:
-  title: Proyecto LauzHack — contrato backend <-> frontend
-  version: 0.1.0
+  title: LauzHack project — backend <-> frontend contract
+  version: 0.4.0
   description: |
-    Única interfaz entre módulos. HTTP para salud y WebSocket (`/ws`) para todo lo demás.
+    The only interface between modules. HTTP for health and WebSocket (`/ws`) for everything else.
 
-    Todos los mensajes del WebSocket viajan en un sobre común `{type, id, ts, payload}`:
-    - `type`: tipo de mensaje (`document`, `pointer`, `utterance`, `speak`).
-    - `id`: identificador único del mensaje (UUID o cualquier cadena única por sesión).
-    - `ts`: marca de tiempo en milisegundos desde epoch (`Date.now()` en el navegador).
-    - `payload`: el contenido, cuyo esquema depende de `type`.
+    Every WebSocket message travels in a common envelope `{type, id, ts, payload}`:
+    - `type`: message type (`document`, `pointer`, `utterance`, `speak`, `stats`).
+    - `id`: unique message id (a UUID or any string unique within the session).
+    - `ts`: timestamp in milliseconds since epoch (`Date.now()` in the browser).
+    - `payload`: the content; its schema depends on `type`.
 
-    Sentido: el navegador envía `document`, `pointer` y `utterance` (ClientMessage);
-    Go responde con `speak` (ServerMessage).
+    Direction: the client (browser or a local process such as the scanner) sends `document`,
+    `pointer` and `utterance` (ClientMessage); Go answers with `speak` and, after each model
+    call, sends `stats` (ServerMessage). When Go accepts a `document` from any client, it also
+    broadcasts that `document` to every WebSocket client, so the UI can show and highlight it
+    even when the scanner sent it.
 
-    Coordenadas: siempre normalizadas a [0, 1] respecto a la imagen del documento
-    recortado, con origen arriba a la izquierda.
+    The app has ONE shared session: a message from any client (WebSocket or POST /message)
+    updates the same state, and every `speak` and `stats` is broadcast to all WebSocket clients.
 
-    Un cambio aquí se anota en la sección Decisiones de AGENTS.md.
+    Coordinates: always normalized to [0, 1] relative to the cropped document image,
+    origin at the top left.
+
+    Record any change here in the Decisions section of AGENTS.md.
 paths:
   /health:
     get:
       operationId: getHealth
-      summary: Comprobación de vida del servidor
+      summary: Server liveness check
       responses:
         "200":
-          description: El servidor está vivo
+          description: The server is alive
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Health"
+  /message:
+    post:
+      operationId: postMessage
+      summary: Sends one client message without a WebSocket (for local processes such as the scanner)
+      description: |
+        The body is one envelope (ClientMessage). The answers are NOT returned here: they are
+        broadcast to the WebSocket clients (the UI).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClientMessage"
+      responses:
+        "202":
+          description: Accepted; the answers go to the WebSocket clients
+        "400":
+          description: The body is not a contract envelope
+        "413":
+          description: Body larger than 4 MB
   /ws:
     get:
       operationId: openWebSocket
-      summary: Abre el WebSocket de la sesión
+      summary: Opens the session WebSocket
       description: |
-        Upgrade a WebSocket. Cada frame de texto es un JSON con el sobre común:
-        el cliente envía `ClientMessage` y el servidor responde con `ServerMessage`.
+        Upgrade to WebSocket. Each text frame is a JSON envelope:
+        the client sends `ClientMessage` and the server answers with `ServerMessage`.
       responses:
         "101":
-          description: Protocolo cambiado a WebSocket
+          description: Switching protocols to WebSocket
 components:
   schemas:
     Health:
@@ -52,10 +78,10 @@ components:
 
     MessageType:
       type: string
-      enum: [document, pointer, utterance, speak]
+      enum: [document, pointer, utterance, speak, stats]
 
     Envelope:
-      description: Sobre genérico. Sirve para leer `type` antes de decodificar `payload`.
+      description: Generic envelope. Used to read `type` before decoding `payload`.
       type: object
       required: [type, id, ts, payload]
       properties:
@@ -66,16 +92,16 @@ components:
         ts:
           type: integer
           format: int64
-          description: Milisegundos desde epoch
+          description: Milliseconds since epoch
         payload:
           type: object
-          # El código generado ya importa encoding/json (por las uniones).
+          # The generated code already imports encoding/json (because of the unions).
           x-go-type: json.RawMessage
 
     # ---------- Payloads ----------
 
     Box:
-      description: Caja normalizada a [0, 1] (origen arriba a la izquierda)
+      description: Box normalized to [0, 1] (origin at the top left)
       type: object
       required: [x, y, w, h]
       properties:
@@ -90,7 +116,7 @@ components:
       properties:
         id:
           type: string
-          description: Estable dentro del documento; lo usan pointer y speak
+          description: Stable within the document; used by pointer and speak
         text:
           type: string
         box:
@@ -100,14 +126,14 @@ components:
           format: float
           minimum: 0
           maximum: 1
-          description: Confianza del OCR local
+          description: Local OCR confidence
 
     FrameIssue:
       type: string
       enum: [blurry, dark, glare, cropped, tilted, too_far]
 
     FrameQuality:
-      description: Calidad del encuadre del documento
+      description: Quality of the document framing
       type: object
       required: [score, issues]
       properties:
@@ -116,7 +142,7 @@ components:
           format: float
           minimum: 0
           maximum: 1
-          description: 1 = perfecto
+          description: 1 = perfect
         issues:
           type: array
           items:
@@ -134,13 +160,13 @@ components:
           $ref: "#/components/schemas/FrameQuality"
         imageWidth:
           type: integer
-          description: Ancho en píxeles de la imagen recortada (opcional)
+          description: Width in pixels of the cropped image (optional)
         imageHeight:
           type: integer
-          description: Alto en píxeles de la imagen recortada (opcional)
+          description: Height in pixels of the cropped image (optional)
         lang:
           type: string
-          description: Idioma detectado (BCP-47), si se conoce
+          description: Detected language (BCP-47), if known
           example: es
 
     PointerPayload:
@@ -151,7 +177,7 @@ components:
         y: { type: number, format: float, minimum: 0, maximum: 1 }
         blockId:
           type: string
-          description: Bloque señalado, si el dedo cae dentro de alguno
+          description: Pointed block, if the finger falls inside one
 
     UtterancePayload:
       type: object
@@ -161,7 +187,7 @@ components:
           type: string
         isFinal:
           type: boolean
-          description: false para resultados parciales del reconocimiento de voz
+          description: false for partial speech recognition results
         lang:
           type: string
           example: es-ES
@@ -172,21 +198,42 @@ components:
       properties:
         text:
           type: string
-          description: Texto a leer en voz alta y mostrar
+          description: Text to read aloud and display
         highlightBlockIds:
           type: array
           items:
             type: string
-          description: Ids de TextBlock a resaltar mientras se habla
+          description: TextBlock ids to highlight while speaking
         lang:
           type: string
-          description: Idioma de la voz (BCP-47)
+          description: Voice language (BCP-47)
           example: es-ES
         replyTo:
           type: string
-          description: id del mensaje al que responde, si aplica
+          description: id of the message this answers, if any
 
-    # ---------- Mensajes tipados (sobre + payload) ----------
+    TierStats:
+      description: Accumulated usage of one model tier since the app started
+      type: object
+      required: [calls, cacheHits, errors, costUsd, avgLatencyMs, lastLatencyMs]
+      properties:
+        calls: { type: integer, description: Real model calls }
+        cacheHits: { type: integer, description: Answers served from the cache (cost 0) }
+        errors: { type: integer }
+        costUsd: { type: number, format: double }
+        avgLatencyMs: { type: integer, format: int64 }
+        lastLatencyMs: { type: integer, format: int64 }
+
+    StatsPayload:
+      description: Cost and latency meter (AXA frugality criterion)
+      type: object
+      required: [cheap, expensive, totalCostUsd]
+      properties:
+        cheap: { $ref: "#/components/schemas/TierStats" }
+        expensive: { $ref: "#/components/schemas/TierStats" }
+        totalCostUsd: { type: number, format: double }
+
+    # ---------- Typed messages (envelope + payload) ----------
 
     DocumentMessage:
       type: object
@@ -224,8 +271,17 @@ components:
         ts: { type: integer, format: int64 }
         payload: { $ref: "#/components/schemas/SpeakPayload" }
 
+    StatsMessage:
+      type: object
+      required: [type, id, ts, payload]
+      properties:
+        type: { type: string, enum: [stats] }
+        id: { type: string }
+        ts: { type: integer, format: int64 }
+        payload: { $ref: "#/components/schemas/StatsPayload" }
+
     ClientMessage:
-      description: Lo que envía el navegador a Go
+      description: What the client (browser or local process) sends to Go
       oneOf:
         - $ref: "#/components/schemas/DocumentMessage"
         - $ref: "#/components/schemas/PointerMessage"
@@ -238,10 +294,14 @@ components:
           utterance: "#/components/schemas/UtteranceMessage"
 
     ServerMessage:
-      description: Lo que envía Go al navegador
+      description: What Go sends to the client (document = the current document, echoed to every client)
       oneOf:
         - $ref: "#/components/schemas/SpeakMessage"
+        - $ref: "#/components/schemas/StatsMessage"
+        - $ref: "#/components/schemas/DocumentMessage"
       discriminator:
         propertyName: type
         mapping:
           speak: "#/components/schemas/SpeakMessage"
+          stats: "#/components/schemas/StatsMessage"
+          document: "#/components/schemas/DocumentMessage"

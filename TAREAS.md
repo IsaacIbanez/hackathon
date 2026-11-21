@@ -9,13 +9,13 @@ Asigna un agente de `ROSTER.md` (por ejemplo `P2-C` o `P2-G`) como responsable.
 | T1 | Definir alcance, arquitectura y reparto | Humanos | hecha | feature/T1-alcance-y-arquitectura | #1 | — |
 | T2 | Esqueleto: monorepo, contrato `api/openapi.yaml`, mensajes WebSocket, CI, `Taskfile.yml` y servidor mock | P1-C (Isaac) — rol A | hecha | feature/T2-contrato, feature/T2-wails-ci | 5acd70f, #2 | T1 |
 | T3 | Prueba de cámara en todos los SO (Wails) según `docs/PRUEBA_WAILS.md` (Windows hecho por Isaac) y qué ofrece el SDK de Logitech para la cámara | P2 o P4 — rol B1 | pendiente | — | — | T1 |
-| T4 | Captura y visión: flujo de cámara, detección y recorte, OCR local | P2 o P4 — rol B1 | pendiente | — | — | T2 |
+| T4 | Captura y visión: flujo de cámara, detección y recorte, OCR local | P4 (Pau) — rol B1 | en curso: captura de la MX Brio (única y modo servidor en 8766) fusionada (#12); falta recorte/OCR y enviar `document` con `POST /message` | feature/B-scanner-captura | #12 | T2 |
 | T5 | Comprensión de documentos: campos, escalado al modelo caro, vista del documento | P4 o P2 — rol B2 | pendiente | — | — | T2 |
-| T6 | Interacción: gestos de mano y voz | P3 (Nil) — rol C | pendiente | — | — | T2 |
+| T6 | Interacción: gestos de mano y voz | P3 (Nil) — rol C | en curso: gestos (#9) y voz con Whisper local (#19) fusionados; Gesture Control (#20) con cambios pedidos | feature/T6-* | #9, #19, #20 | T2 |
 | T7 | Cliente de modelos frugal, caché y contador de coste y latencia | P1-C (Isaac) — rol A | hecha (falta probar con la clave real de AXA) | feature/T7-llm | #3 | T2 |
-| T8 | Integración de punta a punta y pruebas | P1-C (Isaac) — rol A | en curso: la app ya sirve `/ws` en 127.0.0.1:8765 (#4); falta la lógica real y decidir cómo llega el scanner de B | feature/T8-ws-en-app | #4 | T4–T7 |
+| T8 | Integración de punta a punta y pruebas | P1-C (Isaac) — rol A | en curso: la app sirve `/ws` (#4), `stats` (#6) y la lógica real document/pointer/utterance → speak (#10), probada con modelos gratis; falta el criterio de B2 y conectar el scanner de B y los gestos de C | feature/T8-session | #4, #6, #10 | T4–T7 |
 | T9 | Accesibilidad y flujo de la demo | Todos | pendiente | — | — | T8 |
-| T10 | Documentación y presentación | Humanos | pendiente | — | — | T9 |
+| T10 | Documentación y presentación | Humanos (borrador: P1-C) | en curso: guion en `docs/PITCH.md` | feature/T10-pitch | — | T9 |
 
 Aparcado por ahora (no empezar): ratón háptico MX Master 4 y keypad de Logitech.
 

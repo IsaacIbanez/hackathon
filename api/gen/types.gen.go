@@ -60,6 +60,7 @@ const (
 	MessageTypeDocument  MessageType = "document"
 	MessageTypePointer   MessageType = "pointer"
 	MessageTypeSpeak     MessageType = "speak"
+	MessageTypeStats     MessageType = "stats"
 	MessageTypeUtterance MessageType = "utterance"
 )
 
@@ -71,6 +72,8 @@ func (e MessageType) Valid() bool {
 	case MessageTypePointer:
 		return true
 	case MessageTypeSpeak:
+		return true
+	case MessageTypeStats:
 		return true
 	case MessageTypeUtterance:
 		return true
@@ -109,6 +112,21 @@ func (e SpeakMessageType) Valid() bool {
 	}
 }
 
+// Defines values for StatsMessageType.
+const (
+	StatsMessageTypeStats StatsMessageType = "stats"
+)
+
+// Valid indicates whether the value is a known member of the StatsMessageType enum.
+func (e StatsMessageType) Valid() bool {
+	switch e {
+	case StatsMessageTypeStats:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for UtteranceMessageType.
 const (
 	UtteranceMessageTypeUtterance UtteranceMessageType = "utterance"
@@ -124,7 +142,7 @@ func (e UtteranceMessageType) Valid() bool {
 	}
 }
 
-// Box Caja normalizada a [0, 1] (origen arriba a la izquierda)
+// Box Box normalized to [0, 1] (origin at the top left)
 type Box struct {
 	H float32 `json:"h"`
 	W float32 `json:"w"`
@@ -132,7 +150,7 @@ type Box struct {
 	Y float32 `json:"y"`
 }
 
-// ClientMessage Lo que envía el navegador a Go
+// ClientMessage What the client (browser or local process) sends to Go
 type ClientMessage struct {
 	union json.RawMessage
 }
@@ -152,27 +170,27 @@ type DocumentMessageType string
 type DocumentPayload struct {
 	Blocks []TextBlock `json:"blocks"`
 
-	// ImageHeight Alto en píxeles de la imagen recortada (opcional)
+	// ImageHeight Height in pixels of the cropped image (optional)
 	ImageHeight *int `json:"imageHeight,omitempty"`
 
-	// ImageWidth Ancho en píxeles de la imagen recortada (opcional)
+	// ImageWidth Width in pixels of the cropped image (optional)
 	ImageWidth *int `json:"imageWidth,omitempty"`
 
-	// Lang Idioma detectado (BCP-47), si se conoce
+	// Lang Detected language (BCP-47), if known
 	//
 	// Example: es
 	Lang *string `json:"lang,omitempty"`
 
-	// Quality Calidad del encuadre del documento
+	// Quality Quality of the document framing
 	Quality FrameQuality `json:"quality"`
 }
 
-// Envelope Sobre genérico. Sirve para leer `type` antes de decodificar `payload`.
+// Envelope Generic envelope. Used to read `type` before decoding `payload`.
 type Envelope struct {
 	Id      string          `json:"id"`
 	Payload json.RawMessage `json:"payload"`
 
-	// Ts Milisegundos desde epoch
+	// Ts Milliseconds since epoch
 	Ts   int64       `json:"ts"`
 	Type MessageType `json:"type"`
 }
@@ -180,11 +198,11 @@ type Envelope struct {
 // FrameIssue defines model for FrameIssue.
 type FrameIssue string
 
-// FrameQuality Calidad del encuadre del documento
+// FrameQuality Quality of the document framing
 type FrameQuality struct {
 	Issues []FrameIssue `json:"issues"`
 
-	// Score 1 = perfecto
+	// Score 1 = perfect
 	Score float32 `json:"score"`
 }
 
@@ -210,13 +228,13 @@ type PointerMessageType string
 
 // PointerPayload defines model for PointerPayload.
 type PointerPayload struct {
-	// BlockId Bloque señalado, si el dedo cae dentro de alguno
+	// BlockId Pointed block, if the finger falls inside one
 	BlockId *string `json:"blockId,omitempty"`
 	X       float32 `json:"x"`
 	Y       float32 `json:"y"`
 }
 
-// ServerMessage Lo que envía Go al navegador
+// ServerMessage What Go sends to the client (document = the current document, echoed to every client)
 type ServerMessage struct {
 	union json.RawMessage
 }
@@ -234,32 +252,69 @@ type SpeakMessageType string
 
 // SpeakPayload defines model for SpeakPayload.
 type SpeakPayload struct {
-	// HighlightBlockIds Ids de TextBlock a resaltar mientras se habla
+	// HighlightBlockIds TextBlock ids to highlight while speaking
 	HighlightBlockIds []string `json:"highlightBlockIds"`
 
-	// Lang Idioma de la voz (BCP-47)
+	// Lang Voice language (BCP-47)
 	//
 	// Example: es-ES
 	Lang string `json:"lang"`
 
-	// ReplyTo id del mensaje al que responde, si aplica
+	// ReplyTo id of the message this answers, if any
 	ReplyTo *string `json:"replyTo,omitempty"`
 
-	// Text Texto a leer en voz alta y mostrar
+	// Text Text to read aloud and display
 	Text string `json:"text"`
+}
+
+// StatsMessage defines model for StatsMessage.
+type StatsMessage struct {
+	Id string `json:"id"`
+
+	// Payload Cost and latency meter (AXA frugality criterion)
+	Payload StatsPayload     `json:"payload"`
+	Ts      int64            `json:"ts"`
+	Type    StatsMessageType `json:"type"`
+}
+
+// StatsMessageType defines model for StatsMessage.Type.
+type StatsMessageType string
+
+// StatsPayload Cost and latency meter (AXA frugality criterion)
+type StatsPayload struct {
+	// Cheap Accumulated usage of one model tier since the app started
+	Cheap TierStats `json:"cheap"`
+
+	// Expensive Accumulated usage of one model tier since the app started
+	Expensive    TierStats `json:"expensive"`
+	TotalCostUsd float64   `json:"totalCostUsd"`
 }
 
 // TextBlock defines model for TextBlock.
 type TextBlock struct {
-	// Box Caja normalizada a [0, 1] (origen arriba a la izquierda)
+	// Box Box normalized to [0, 1] (origin at the top left)
 	Box Box `json:"box"`
 
-	// Confidence Confianza del OCR local
+	// Confidence Local OCR confidence
 	Confidence float32 `json:"confidence"`
 
-	// Id Estable dentro del documento; lo usan pointer y speak
+	// Id Stable within the document; used by pointer and speak
 	Id   string `json:"id"`
 	Text string `json:"text"`
+}
+
+// TierStats Accumulated usage of one model tier since the app started
+type TierStats struct {
+	AvgLatencyMs int64 `json:"avgLatencyMs"`
+
+	// CacheHits Answers served from the cache (cost 0)
+	CacheHits int `json:"cacheHits"`
+
+	// Calls Real model calls
+	Calls         int     `json:"calls"`
+	CostUsd       float64 `json:"costUsd"`
+	Errors        int     `json:"errors"`
+	LastLatencyMs int64   `json:"lastLatencyMs"`
 }
 
 // UtteranceMessage defines model for UtteranceMessage.
@@ -275,13 +330,16 @@ type UtteranceMessageType string
 
 // UtterancePayload defines model for UtterancePayload.
 type UtterancePayload struct {
-	// IsFinal false para resultados parciales del reconocimiento de voz
+	// IsFinal false for partial speech recognition results
 	IsFinal bool `json:"isFinal"`
 
 	// Lang Example: es-ES
 	Lang *string `json:"lang,omitempty"`
 	Text string  `json:"text"`
 }
+
+// PostMessageJSONRequestBody defines body for PostMessage for application/json ContentType.
+type PostMessageJSONRequestBody = ClientMessage
 
 // AsDocumentMessage returns the union data inside the ClientMessage as a DocumentMessage
 func (t ClientMessage) AsDocumentMessage() (DocumentMessage, error) {
@@ -454,6 +512,74 @@ func (t *ServerMessage) MergeSpeakMessage(v SpeakMessage) error {
 	return err
 }
 
+// AsStatsMessage returns the union data inside the ServerMessage as a StatsMessage
+func (t ServerMessage) AsStatsMessage() (StatsMessage, error) {
+	var body StatsMessage
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromStatsMessage overwrites any union data inside the ServerMessage as the provided StatsMessage
+func (t *ServerMessage) FromStatsMessage(v StatsMessage) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"type":"stats"}`))
+	t.union = b
+	return err
+}
+
+// MergeStatsMessage performs a merge with any union data inside the ServerMessage, using the provided StatsMessage
+func (t *ServerMessage) MergeStatsMessage(v StatsMessage) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"type":"stats"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsDocumentMessage returns the union data inside the ServerMessage as a DocumentMessage
+func (t ServerMessage) AsDocumentMessage() (DocumentMessage, error) {
+	var body DocumentMessage
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromDocumentMessage overwrites any union data inside the ServerMessage as the provided DocumentMessage
+func (t *ServerMessage) FromDocumentMessage(v DocumentMessage) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"type":"document"}`))
+	t.union = b
+	return err
+}
+
+// MergeDocumentMessage performs a merge with any union data inside the ServerMessage, using the provided DocumentMessage
+func (t *ServerMessage) MergeDocumentMessage(v DocumentMessage) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"type":"document"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
 func (t ServerMessage) Discriminator() (string, error) {
 	var discriminator struct {
 		Discriminator string `json:"type"`
@@ -468,8 +594,12 @@ func (t ServerMessage) ValueByDiscriminator() (interface{}, error) {
 		return nil, err
 	}
 	switch discriminator {
+	case "document":
+		return t.AsDocumentMessage()
 	case "speak":
 		return t.AsSpeakMessage()
+	case "stats":
+		return t.AsStatsMessage()
 	default:
 		return nil, errors.New("unknown discriminator value: " + discriminator)
 	}

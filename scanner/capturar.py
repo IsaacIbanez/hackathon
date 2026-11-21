@@ -5,9 +5,9 @@ Uso:
     python scanner/capturar.py --listar        # lista las cámaras que ve el sistema
     python scanner/capturar.py --camara 0      # usa la cámara con índice 0
     python scanner/capturar.py --camara acer   # usa la primera cámara cuyo nombre contenga "acer"
-    python scanner/capturar.py --probar        # abre la cámara y lee un frame, pero no guarda nada
+    python scanner/capturar.py --probar        # hace la captura completa, pero no guarda nada
     python scanner/capturar.py --servidor      # deja la cámara abierta; cada captura con
-                                               #   curl http://127.0.0.1:8765/captura
+                                               #   curl http://127.0.0.1:8766/captura
 
 Guarda el frame tal cual (sin recortar ni procesar, a la resolución máxima) en PNG sin pérdida y,
 al lado, un JSON con los metadatos de la captura (cámara, resolución, formato, nitidez...).
@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import platform
 import re
 import shutil
@@ -32,11 +31,16 @@ import time
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+
+import cv2
 
 CARPETA_POR_DEFECTO = Path(__file__).resolve().parent / "capturas"
 PREFERENCIA_POR_DEFECTO = "brio"
-PUERTO_POR_DEFECTO = 8765
+PUERTO_POR_DEFECTO = 8766  # 8765 lo usa la app Wails (WebSocket)
+# Una nitidez por debajo de esta fracción de la de referencia indica que el autoenfoque reajusta.
+UMBRAL_CAIDA = 0.65
 
 # Códigos de salida
 OK = 0
@@ -83,15 +87,17 @@ def _listar_windows() -> list[Camara]:
 
 
 def _listar_linux() -> list[Camara]:
+    dispositivos = sorted(
+        (int(d.name[5:]), d)
+        for d in Path("/sys/class/video4linux").glob("video*")
+        if d.name[5:].isdigit()
+    )
     camaras = []
-    for d in sorted(Path("/sys/class/video4linux").glob("video*"),
-                    key=lambda p: int(p.name[5:]) if p.name[5:].isdigit() else 1_000_000):
+    for indice, d in dispositivos:
         try:
-            nombre = (d / "name").read_text().strip()
+            camaras.append(Camara(indice, (d / "name").read_text().strip()))
         except OSError:
             continue
-        if d.name[5:].isdigit():
-            camaras.append(Camara(int(d.name[5:]), nombre))
     return camaras
 
 
@@ -143,11 +149,10 @@ class Muestra:
 
 def metricas(frame) -> tuple[float, float]:
     """(brillo, nitidez) sobre una versión reducida del frame: ~5 ms en 4K."""
-    import cv2
-
     alto, ancho = frame.shape[:2]
-    escala = 960 / max(ancho, 1)
-    peque = cv2.resize(frame, (960, max(1, round(alto * escala))), interpolation=cv2.INTER_AREA)
+    peque = frame
+    if ancho > 960:  # solo se reduce; ampliar no aporta nada
+        peque = cv2.resize(frame, (960, max(1, round(alto * 960 / ancho))), interpolation=cv2.INTER_AREA)
     gris = cv2.cvtColor(peque, cv2.COLOR_BGR2GRAY) if peque.ndim == 3 else peque
     return float(gris.mean()), float(cv2.Laplacian(gris, cv2.CV_64F).var())
 
@@ -170,7 +175,7 @@ class Estabilizador:
     """
 
     def __init__(self, min_s: float = 0.3, max_s: float = 1.4, ventana: int = 4,
-                 caida: float = 0.65, tol_nitidez: float = 0.12, tol_brillo: float = 3.0):
+                 caida: float = UMBRAL_CAIDA, tol_nitidez: float = 0.12, tol_brillo: float = 3.0):
         self.min_s, self.max_s, self.ventana = min_s, max_s, ventana
         self.caida, self.tol_nitidez, self.tol_brillo = caida, tol_nitidez, tol_brillo
         self.muestras: deque[Muestra] = deque(maxlen=ventana * 2)
@@ -189,10 +194,13 @@ class Estabilizador:
         self.maxima = max(self.maxima, m.nitidez)
         return self.estado()
 
+    def _ultimas(self) -> list[Muestra]:
+        return list(self.muestras)[-self.ventana:]
+
     def _ventana_estable(self) -> bool:
         if self.indice_caida is None or self.n - self.indice_caida < self.ventana:
             return False  # la ventana tiene que ser entera posterior a la caída
-        v = list(self.muestras)[-self.ventana:]
+        v = self._ultimas()
         nit = [m.nitidez for m in v]
         bri = [m.brillo for m in v]
         tol = max(self.tol_nitidez * max(nit), 2.0)  # suelo absoluto para escenas sin textura
@@ -210,7 +218,7 @@ class Estabilizador:
 
     def mejor(self) -> Muestra:
         if self.estado() == "listo":
-            return mas_nitida(list(self.muestras)[-self.ventana:])
+            return mas_nitida(self._ultimas())
         return mas_nitida(list(self.muestras))
 
 
@@ -227,7 +235,7 @@ def nombre_captura(momento: datetime) -> str:
     return momento.strftime("%Y%m%d-%H%M%S-") + f"{momento.microsecond // 1000:03d}"
 
 
-def _backend(cv2):
+def _backend():
     sistema = platform.system()
     if sistema == "Windows":
         return cv2.CAP_DSHOW, "DSHOW"
@@ -238,9 +246,7 @@ def _backend(cv2):
 
 def abrir(camara: Camara, ancho: int, alto: int):
     """Abre la cámara a la resolución pedida en MJPG. Devuelve (cap, nombre_backend)."""
-    import cv2
-
-    backend, nombre_backend = _backend(cv2)
+    backend, nombre_backend = _backend()
     # MJPG es el formato que permite resoluciones altas por USB (YUY2 a 4K va a ~5 fps).
     # Se pasan al abrir: con cap.set() cada ajuste reinicia el stream (~1 s cada uno en la
     # MX Brio) y, si el formato va antes que el tamaño, se queda en YUY2 (comprobado).
@@ -261,8 +267,6 @@ def leer_muestra(cap) -> Muestra | None:
 
 
 def metadatos_camara(cap, camara: Camara, backend: str, ancho: int, alto: int, frame) -> dict:
-    import cv2
-
     alto_real, ancho_real = frame.shape[:2]
     return {
         "camara": {"indice": camara.indice, "nombre": camara.nombre},
@@ -290,7 +294,6 @@ def capturar(camara: Camara, ancho: int, alto: int, espera_max_s: float):
     así que se hace en paralelo con el guardado. Hay que hacer cierre.join() antes de salir.
     """
     cap, backend = abrir(camara, ancho, alto)
-    ok = False
     try:
         est = Estabilizador(max_s=espera_max_s)
         t_abierta = time.monotonic()
@@ -300,6 +303,7 @@ def capturar(camara: Camara, ancho: int, alto: int, espera_max_s: float):
             if m is None:
                 if time.monotonic() - t_abierta > espera_max_s + 3:
                     raise ErrorCaptura("La cámara se abrió pero no entregó ningún frame.", ERR_SIN_FRAME)
+                time.sleep(0.02)  # sin pausa, un read() que falla al instante ocuparía una CPU
                 continue
             estado = est.agregar(m)
         mejor = est.mejor()
@@ -315,18 +319,15 @@ def capturar(camara: Camara, ancho: int, alto: int, espera_max_s: float):
             "nitidez": round(mejor.nitidez, 1),
             "brillo": round(mejor.brillo, 1),
         }
-        cierre = threading.Thread(target=cap.release)
-        cierre.start()
-        ok = True
-        return mejor.frame, metadatos, cierre
-    finally:
-        if not ok:
-            cap.release()
+    except BaseException:
+        cap.release()
+        raise
+    cierre = threading.Thread(target=cap.release)
+    cierre.start()
+    return mejor.frame, metadatos, cierre
 
 
 def guardar(frame, metadatos: dict, carpeta: Path, momento: datetime) -> Path:
-    import cv2
-
     carpeta.mkdir(parents=True, exist_ok=True)
     base = carpeta / nombre_captura(momento)
     ruta_png = base.with_suffix(".png")
@@ -350,7 +351,8 @@ class CamaraViva:
     def __init__(self, camara: Camara, ancho: int, alto: int, espera_max_s: float):
         self.camara, self.ancho, self.alto = camara, ancho, alto
         self.cap, self.backend = abrir(camara, ancho, alto)
-        self.recientes: deque[Muestra] = deque(maxlen=12)              # con frame (~0,5 s)
+        # Con frame: ~25 MB cada uno a 4K. 6 (~0,2 s) bastan para elegir entre los `frescos`.
+        self.recientes: deque[Muestra] = deque(maxlen=6)
         self.historial: deque[tuple[float, float]] = deque(maxlen=60)  # (t, nitidez), ~3 s
         self.cond = threading.Condition()
         self.parar = False
@@ -409,7 +411,8 @@ class CamaraViva:
                 if len(candidatos) >= frescos:
                     mejor = mas_nitida(candidatos)
                     referencia = max(n for t, n in self.historial if t >= t_orden - 3.0)
-                    if mejor.nitidez >= 0.65 * referencia or time.monotonic() >= limite:
+                    enfocada = mejor.nitidez >= UMBRAL_CAIDA * referencia
+                    if enfocada or time.monotonic() >= limite:
                         break
                 elif time.monotonic() >= limite + 2.0:
                     raise ErrorCaptura("No llegan frames nuevos de la cámara.", ERR_SIN_FRAME)
@@ -417,7 +420,7 @@ class CamaraViva:
         metadatos = metadatos_camara(self.cap, self.camara, self.backend, self.ancho, self.alto, mejor.frame)
         metadatos["modo"] = "servidor"
         metadatos["seleccion"] = {
-            "estado": "listo" if mejor.nitidez >= 0.65 * referencia else "agotado",
+            "estado": "listo" if enfocada else "agotado",
             "segundos_desde_orden": round(mejor.t - t_orden, 3),
             "frames_candidatos": len(candidatos),
             "nitidez": round(mejor.nitidez, 1),
@@ -440,8 +443,6 @@ class CamaraViva:
 
 
 def servir(viva: CamaraViva, carpeta: Path, puerto: int):
-    from http.server import BaseHTTPRequestHandler, HTTPServer
-
     class Manejador(BaseHTTPRequestHandler):
         def _responder(self, codigo: int, cuerpo: dict):
             datos = json.dumps(cuerpo, ensure_ascii=False).encode("utf-8")
@@ -464,9 +465,10 @@ def servir(viva: CamaraViva, carpeta: Path, puerto: int):
                 except ErrorCaptura as e:
                     return self._responder(500, {"ok": False, "error": str(e), "codigo": e.codigo})
                 res = metadatos["resolucion_entregada"]
-                print(f"Captura {png.name} ({time.monotonic() - t:.2f} s)", file=sys.stderr, flush=True)
+                segundos = time.monotonic() - t
+                print(f"Captura {png.name} ({segundos:.2f} s)", file=sys.stderr, flush=True)
                 return self._responder(200, {"ok": True, "png": str(png), "json": str(png.with_suffix(".json")),
-                                             **res, "segundos": round(time.monotonic() - t, 3)})
+                                             **res, "segundos": round(segundos, 3)})
             self._responder(404, {"ok": False, "error": "rutas: /captura, /estado"})
 
         def log_message(self, *args):  # sin ruido por cada petición
@@ -528,11 +530,12 @@ def main(argv: list[str] | None = None) -> int:
             res, sel = metadatos["resolucion_entregada"], metadatos["seleccion"]
             print(f"Frame {res['ancho']}x{res['alto']} ({metadatos['formato'] or 'formato desconocido'}), "
                   f"nitidez {sel['nitidez']}, "
-                  f"{'tras reajustar el enfoque' if sel['estado'] == 'listo' else 'enfoque sin reajuste'} "
+                  f"{'tras reajustar el enfoque' if sel['enfoque_reajustado'] else 'enfoque sin reajuste'} "
                   f"({sel['segundos_desde_primer_frame']} s)", file=sys.stderr)
 
             if args.probar:
-                print(json.dumps(metadatos, ensure_ascii=False) if args.json else "Prueba correcta (no se guarda nada).")
+                print(json.dumps({"ok": True, **metadatos}, ensure_ascii=False) if args.json
+                      else "Prueba correcta (no se guarda nada).")
                 return OK
 
             ruta = guardar(frame, metadatos, args.salida, momento)  # mientras se cierra la cámara
@@ -550,7 +553,8 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    os.environ.setdefault("OPENCV_LOG_LEVEL", "ERROR")
+    # Por código y no con OPENCV_LOG_LEVEL: esa variable ya no se lee tras importar cv2 (comprobado).
+    cv2.utils.logging.setLogLevel(cv2.utils.logging.LOG_LEVEL_ERROR)
     # En una tubería (Git Bash, el agente...) Windows usaría cp1252 y rompería los acentos.
     for flujo in (sys.stdout, sys.stderr):
         if not flujo.isatty():

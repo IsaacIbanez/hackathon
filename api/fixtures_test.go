@@ -8,34 +8,35 @@ import (
 	"github.com/IsaacIbanez/hackathon/api/gen"
 )
 
-// Comprueba que cada fixture encaja en el sobre y en su tipo de mensaje.
-func TestFixturesEncajanEnElContrato(t *testing.T) {
-	casos := map[string]gen.MessageType{
+// Checks that each fixture fits the envelope and its message type.
+func TestFixturesMatchContract(t *testing.T) {
+	cases := map[string]gen.MessageType{
 		"document.json":        "document",
 		"pointer.json":         "pointer",
 		"utterance.json":       "utterance",
 		"speak.json":           "speak",
 		"speak-utterance.json": "speak",
+		"stats.json":           "stats",
 	}
-	for archivo, tipo := range casos {
-		t.Run(archivo, func(t *testing.T) {
-			datos, err := Fixtures.ReadFile("fixtures/" + archivo)
+	for file, msgType := range cases {
+		t.Run(file, func(t *testing.T) {
+			data, err := Fixtures.ReadFile("fixtures/" + file)
 			if err != nil {
 				t.Fatal(err)
 			}
 			var env gen.Envelope
-			if err := json.Unmarshal(datos, &env); err != nil {
-				t.Fatalf("sobre: %v", err)
+			if err := json.Unmarshal(data, &env); err != nil {
+				t.Fatalf("envelope: %v", err)
 			}
-			if env.Type != tipo || env.Id == "" || env.Ts == 0 || len(env.Payload) == 0 {
-				t.Fatalf("sobre incompleto: %+v", env)
+			if env.Type != msgType || env.Id == "" || env.Ts == 0 || len(env.Payload) == 0 {
+				t.Fatalf("incomplete envelope: %+v", env)
 			}
 			if !env.Type.Valid() {
-				t.Fatalf("tipo no válido: %q", env.Type)
+				t.Fatalf("invalid type: %q", env.Type)
 			}
 
 			var payload any
-			switch tipo {
+			switch msgType {
 			case "document":
 				var p gen.DocumentPayload
 				payload = &p
@@ -48,8 +49,11 @@ func TestFixturesEncajanEnElContrato(t *testing.T) {
 			case "speak":
 				var p gen.SpeakPayload
 				payload = &p
+			case "stats":
+				var p gen.StatsPayload
+				payload = &p
 			}
-			// Campos desconocidos = errata en la fixture o contrato desactualizado.
+			// Unknown fields = a typo in the fixture or an outdated contract.
 			dec := json.NewDecoder(bytes.NewReader(env.Payload))
 			dec.DisallowUnknownFields()
 			if err := dec.Decode(payload); err != nil {

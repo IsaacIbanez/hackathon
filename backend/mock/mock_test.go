@@ -29,7 +29,7 @@ func TestHealth(t *testing.T) {
 	}
 }
 
-func TestDocumentYUtteranceRespondenConSpeak(t *testing.T) {
+func TestDocumentAndUtteranceAnswerWithSpeakAndStats(t *testing.T) {
 	h, err := NewMux()
 	if err != nil {
 		t.Fatal(err)
@@ -47,29 +47,42 @@ func TestDocumentYUtteranceRespondenConSpeak(t *testing.T) {
 
 	for _, c := range []struct{ fixture, replyTo string }{
 		{"document.json", "doc-0001"},
-		{"pointer.json", ""}, // no responde
+		{"pointer.json", ""}, // no answer
 		{"utterance.json", "utt-0001"},
 	} {
-		datos, _ := api.Fixtures.ReadFile("fixtures/" + c.fixture)
-		if err := conn.Write(ctx, websocket.MessageText, datos); err != nil {
+		data, _ := api.Fixtures.ReadFile("fixtures/" + c.fixture)
+		if err := conn.Write(ctx, websocket.MessageText, data); err != nil {
 			t.Fatal(err)
 		}
 		if c.replyTo == "" {
 			continue
+		}
+		if c.fixture == "document.json" {
+			var echo gen.DocumentMessage
+			if err := wsjson.Read(ctx, conn, &echo); err != nil || echo.Type != "document" {
+				t.Fatalf("expected the document echo first: %+v %v", echo, err)
+			}
 		}
 		var resp gen.SpeakMessage
 		if err := wsjson.Read(ctx, conn, &resp); err != nil {
 			t.Fatal(err)
 		}
 		if resp.Type != "speak" || resp.Payload.ReplyTo == nil || *resp.Payload.ReplyTo != c.replyTo || resp.Payload.Text == "" {
-			t.Fatalf("%s: respuesta inesperada %+v", c.fixture, resp)
+			t.Fatalf("%s: unexpected answer %+v", c.fixture, resp)
+		}
+		var st gen.StatsMessage
+		if err := wsjson.Read(ctx, conn, &st); err != nil {
+			t.Fatal(err)
+		}
+		if st.Type != "stats" || st.Payload.TotalCostUsd <= 0 {
+			t.Fatalf("%s: expected stats after speak, got %+v", c.fixture, st)
 		}
 	}
 	conn.Close(websocket.StatusNormalClosure, "")
 }
 
-// Un document de página entera supera los 32 KB por defecto de la librería.
-func TestDocumentGrandeNoCierraLaConexion(t *testing.T) {
+// A full-page document exceeds the library's default 32 KB read limit.
+func TestLargeDocumentDoesNotCloseConnection(t *testing.T) {
 	h, err := NewMux()
 	if err != nil {
 		t.Fatal(err)
@@ -84,22 +97,23 @@ func TestDocumentGrandeNoCierraLaConexion(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer conn.CloseNow()
+	conn.SetReadLimit(4 << 20) // the server echoes the large document back
 
-	doc := gen.DocumentMessage{Type: "document", Id: "grande", Ts: 1, Payload: gen.DocumentPayload{Quality: gen.FrameQuality{Issues: []gen.FrameIssue{}}}}
+	doc := gen.DocumentMessage{Type: "document", Id: "large", Ts: 1, Payload: gen.DocumentPayload{Quality: gen.FrameQuality{Issues: []gen.FrameIssue{}}}}
 	for i := range 600 {
 		doc.Payload.Blocks = append(doc.Payload.Blocks, gen.TextBlock{
-			Id: fmt.Sprintf("b%d", i), Text: strings.Repeat("texto de ejemplo ", 6), Confidence: 0.9,
+			Id: fmt.Sprintf("b%d", i), Text: strings.Repeat("sample text ", 8), Confidence: 0.9,
 		})
 	}
-	datos, _ := json.Marshal(doc)
-	if len(datos) <= 32768 {
-		t.Fatalf("el mensaje de prueba debería superar 32 KB, mide %d", len(datos))
+	data, _ := json.Marshal(doc)
+	if len(data) <= 32768 {
+		t.Fatalf("the test message should exceed 32 KB, it is %d", len(data))
 	}
-	if err := conn.Write(ctx, websocket.MessageText, datos); err != nil {
+	if err := conn.Write(ctx, websocket.MessageText, data); err != nil {
 		t.Fatal(err)
 	}
-	var resp gen.SpeakMessage
+	var resp gen.DocumentMessage
 	if err := wsjson.Read(ctx, conn, &resp); err != nil {
-		t.Fatalf("sin respuesta a un document de %d bytes: %v", len(datos), err)
+		t.Fatalf("no answer to a %d-byte document: %v", len(data), err)
 	}
 }

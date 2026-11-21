@@ -11,10 +11,31 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Comprobación de vida del servidor */
+        /** Server liveness check */
         get: operations["getHealth"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/message": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sends one client message without a WebSocket (for local processes such as the scanner)
+         * @description The body is one envelope (ClientMessage). The answers are NOT returned here: they are
+         *     broadcast to the WebSocket clients (the UI).
+         */
+        post: operations["postMessage"];
         delete?: never;
         options?: never;
         head?: never;
@@ -29,9 +50,9 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Abre el WebSocket de la sesión
-         * @description Upgrade a WebSocket. Cada frame de texto es un JSON con el sobre común:
-         *     el cliente envía `ClientMessage` y el servidor responde con `ServerMessage`.
+         * Opens the session WebSocket
+         * @description Upgrade to WebSocket. Each text frame is a JSON envelope:
+         *     the client sends `ClientMessage` and the server answers with `ServerMessage`.
          */
         get: operations["openWebSocket"];
         put?: never;
@@ -51,19 +72,19 @@ export interface components {
             status: string;
         };
         /** @enum {string} */
-        MessageType: "document" | "pointer" | "utterance" | "speak";
-        /** @description Sobre genérico. Sirve para leer `type` antes de decodificar `payload`. */
+        MessageType: "document" | "pointer" | "utterance" | "speak" | "stats";
+        /** @description Generic envelope. Used to read `type` before decoding `payload`. */
         Envelope: {
             type: components["schemas"]["MessageType"];
             id: string;
             /**
              * Format: int64
-             * @description Milisegundos desde epoch
+             * @description Milliseconds since epoch
              */
             ts: number;
             payload: Record<string, never>;
         };
-        /** @description Caja normalizada a [0, 1] (origen arriba a la izquierda) */
+        /** @description Box normalized to [0, 1] (origin at the top left) */
         Box: {
             /** Format: float */
             x: number;
@@ -75,23 +96,23 @@ export interface components {
             h: number;
         };
         TextBlock: {
-            /** @description Estable dentro del documento; lo usan pointer y speak */
+            /** @description Stable within the document; used by pointer and speak */
             id: string;
             text: string;
             box: components["schemas"]["Box"];
             /**
              * Format: float
-             * @description Confianza del OCR local
+             * @description Local OCR confidence
              */
             confidence: number;
         };
         /** @enum {string} */
         FrameIssue: "blurry" | "dark" | "glare" | "cropped" | "tilted" | "too_far";
-        /** @description Calidad del encuadre del documento */
+        /** @description Quality of the document framing */
         FrameQuality: {
             /**
              * Format: float
-             * @description 1 = perfecto
+             * @description 1 = perfect
              */
             score: number;
             issues: components["schemas"]["FrameIssue"][];
@@ -99,12 +120,12 @@ export interface components {
         DocumentPayload: {
             blocks: components["schemas"]["TextBlock"][];
             quality: components["schemas"]["FrameQuality"];
-            /** @description Ancho en píxeles de la imagen recortada (opcional) */
+            /** @description Width in pixels of the cropped image (optional) */
             imageWidth?: number;
-            /** @description Alto en píxeles de la imagen recortada (opcional) */
+            /** @description Height in pixels of the cropped image (optional) */
             imageHeight?: number;
             /**
-             * @description Idioma detectado (BCP-47), si se conoce
+             * @description Detected language (BCP-47), if known
              * @example es
              */
             lang?: string;
@@ -114,28 +135,49 @@ export interface components {
             x: number;
             /** Format: float */
             y: number;
-            /** @description Bloque señalado, si el dedo cae dentro de alguno */
+            /** @description Pointed block, if the finger falls inside one */
             blockId?: string;
         };
         UtterancePayload: {
             text: string;
-            /** @description false para resultados parciales del reconocimiento de voz */
+            /** @description false for partial speech recognition results */
             isFinal: boolean;
             /** @example es-ES */
             lang?: string;
         };
         SpeakPayload: {
-            /** @description Texto a leer en voz alta y mostrar */
+            /** @description Text to read aloud and display */
             text: string;
-            /** @description Ids de TextBlock a resaltar mientras se habla */
+            /** @description TextBlock ids to highlight while speaking */
             highlightBlockIds: string[];
             /**
-             * @description Idioma de la voz (BCP-47)
+             * @description Voice language (BCP-47)
              * @example es-ES
              */
             lang: string;
-            /** @description id del mensaje al que responde, si aplica */
+            /** @description id of the message this answers, if any */
             replyTo?: string;
+        };
+        /** @description Accumulated usage of one model tier since the app started */
+        TierStats: {
+            /** @description Real model calls */
+            calls: number;
+            /** @description Answers served from the cache (cost 0) */
+            cacheHits: number;
+            errors: number;
+            /** Format: double */
+            costUsd: number;
+            /** Format: int64 */
+            avgLatencyMs: number;
+            /** Format: int64 */
+            lastLatencyMs: number;
+        };
+        /** @description Cost and latency meter (AXA frugality criterion) */
+        StatsPayload: {
+            cheap: components["schemas"]["TierStats"];
+            expensive: components["schemas"]["TierStats"];
+            /** Format: double */
+            totalCostUsd: number;
         };
         DocumentMessage: {
             /**
@@ -181,10 +223,21 @@ export interface components {
             ts: number;
             payload: components["schemas"]["SpeakPayload"];
         };
-        /** @description Lo que envía el navegador a Go */
+        StatsMessage: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "stats";
+            id: string;
+            /** Format: int64 */
+            ts: number;
+            payload: components["schemas"]["StatsPayload"];
+        };
+        /** @description What the client (browser or local process) sends to Go */
         ClientMessage: components["schemas"]["DocumentMessage"] | components["schemas"]["PointerMessage"] | components["schemas"]["UtteranceMessage"];
-        /** @description Lo que envía Go al navegador */
-        ServerMessage: components["schemas"]["SpeakMessage"];
+        /** @description What Go sends to the client (document = the current document, echoed to every client) */
+        ServerMessage: components["schemas"]["SpeakMessage"] | components["schemas"]["StatsMessage"] | components["schemas"]["DocumentMessage"];
     };
     responses: never;
     parameters: never;
@@ -203,7 +256,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description El servidor está vivo */
+            /** @description The server is alive */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -211,6 +264,42 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Health"];
                 };
+            };
+        };
+    };
+    postMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClientMessage"];
+            };
+        };
+        responses: {
+            /** @description Accepted; the answers go to the WebSocket clients */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The body is not a contract envelope */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Body larger than 4 MB */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -223,7 +312,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Protocolo cambiado a WebSocket */
+            /** @description Switching protocols to WebSocket */
             101: {
                 headers: {
                     [name: string]: unknown;

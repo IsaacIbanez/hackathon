@@ -1,10 +1,10 @@
-// Package api expone los ejemplos de mensajes (fixtures) del contrato.
-// Los tipos generados están en el subpaquete gen.
+// Package api exposes the example messages (fixtures) of the contract.
+// The generated types live in the gen subpackage.
 package api
 
 import "embed"
 
-// Fixtures contiene api/fixtures/*.json, un ejemplo de cada mensaje del WebSocket.
+// Fixtures holds api/fixtures/*.json, one example of each WebSocket message.
 //
 //go:embed fixtures/*.json
 var Fixtures embed.FS

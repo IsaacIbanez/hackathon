@@ -1,8 +1,8 @@
-// Package llm es el cliente frugal de modelos (OpenRouter): dos niveles (barato y caro),
-// caché en memoria y contador de coste y latencia.
+// Package llm is the frugal model client (OpenRouter): two tiers (cheap and expensive),
+// an in-memory cache and a cost and latency meter.
 //
-// Quién decide cuándo escalar al modelo caro es quien llama (rol B2), con
-// CompleteEscalando y su función de duda. Este paquete solo pone el mecanismo.
+// The caller (role B2) decides when to escalate to the expensive model, through
+// CompleteWithEscalation and its doubt function. This package only provides the mechanism.
 package llm
 
 import (
@@ -14,48 +14,58 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 )
 
-// Tier es el nivel de modelo.
+// Tier is the model tier.
 type Tier string
 
 const (
-	Barato Tier = "barato"
-	Caro   Tier = "caro"
+	Cheap     Tier = "cheap"
+	Expensive Tier = "expensive"
 )
 
-// Modelos por defecto (precios de OpenRouter el 2026-11-21, USD por millón de tokens
-// de entrada/salida). Los dos aceptan imágenes. Se cambian con LLM_MODELO_BARATO y LLM_MODELO_CARO.
+// Default models (OpenRouter prices on 2026-11-21, USD per million input/output tokens).
+// Both accept images. Override with LLM_CHEAP_MODEL and LLM_EXPENSIVE_MODEL.
 const (
-	ModeloBaratoPorDefecto = "anthropic/claude-haiku-5.5"  // 0,10 / 0,50
-	ModeloCaroPorDefecto   = "anthropic/claude-sonnet-5.5" // 2 / 10
-	URLPorDefecto          = "https://openrouter.ai/api/v1"
+	DefaultCheapModel     = "anthropic/claude-haiku-5.5"  // 0.10 / 0.50
+	DefaultExpensiveModel = "anthropic/claude-sonnet-5.5" // 2 / 10
+	DefaultURL            = "https://openrouter.ai/api/v1"
 )
 
-// Message es un turno de la conversación. Images son URLs o data URLs
-// ("data:image/jpeg;base64,...") para los modelos multimodales.
+// Development profile (LLM_PROFILE=dev): free vision models first and, when they are
+// rate-limited (429), Haiku as a very cheap last resort, so development does not burn the
+// AXA budget. Checked on 2026-11-21: nemotron handles text and images well; :free models
+// often return 429, hence several of them.
+const (
+	DevCheapModels     = "nvidia/nemotron-3.5-super-vl:free,google/gemma-4-31b-it:free,google/gemma-4-26b-a4b-it:free," + DefaultCheapModel
+	DevExpensiveModels = DefaultCheapModel
+)
+
+// Message is one conversation turn. Images are URLs or data URLs
+// ("data:image/jpeg;base64,...") for multimodal models.
 type Message struct {
-	Role   string   `json:"role"` // "user" o "assistant"
+	Role   string   `json:"role"` // "user" or "assistant"
 	Text   string   `json:"text"`
 	Images []string `json:"images,omitempty"`
 }
 
-// Request es una petición al modelo.
+// Request is a model request.
 type Request struct {
 	Tier      Tier      `json:"tier"`
 	System    string    `json:"system,omitempty"`
 	Messages  []Message `json:"messages"`
 	MaxTokens int       `json:"maxTokens,omitempty"` // 0 = 1024
-	JSON      bool      `json:"json,omitempty"`      // pide la respuesta como objeto JSON
+	JSON      bool      `json:"json,omitempty"`      // ask for a JSON object answer
 }
 
-// Response es la respuesta, con lo que ha costado.
+// Response is the answer, with what it cost.
 type Response struct {
 	Text             string        `json:"text"`
 	Model            string        `json:"model"`
 	Tier             Tier          `json:"tier"`
-	CostUSD          float64       `json:"costUsd"` // 0 si viene de la caché
+	CostUSD          float64       `json:"costUsd"` // 0 when served from the cache
 	Latency          time.Duration `json:"-"`
 	LatencyMs        int64         `json:"latencyMs"`
 	Cached           bool          `json:"cached"`
@@ -63,43 +73,55 @@ type Response struct {
 	CompletionTokens int           `json:"completionTokens"`
 }
 
-// ErrSinClave indica que falta OPENROUTER_API_KEY.
-var ErrSinClave = errors.New("llm: falta la variable de entorno OPENROUTER_API_KEY")
+// ErrNoAPIKey means OPENROUTER_API_KEY is missing.
+var ErrNoAPIKey = errors.New("llm: OPENROUTER_API_KEY environment variable is not set")
 
-// Client habla con OpenRouter (API compatible con OpenAI).
+// Client talks to OpenRouter (OpenAI-compatible API).
 type Client struct {
 	BaseURL string
 	APIKey  string
-	Models  map[Tier]string
-	HTTP    *http.Client
-	Cache   *Cache // nil = sin caché
-	Meter   *Meter // nunca nil si se crea con New
+	// Models holds the model of each tier. It accepts a comma-separated list: if one
+	// fails (rate-limited, down or empty answer) the next one is tried.
+	Models map[Tier]string
+	HTTP   *http.Client
+	Cache  *Cache // nil = no cache
+	Meter  *Meter // never nil when created with New
 }
 
-// New crea un cliente con caché y contador.
+// New creates a client with a cache and a meter.
 func New(apiKey string) *Client {
 	return &Client{
-		BaseURL: URLPorDefecto,
+		BaseURL: DefaultURL,
 		APIKey:  apiKey,
-		Models:  map[Tier]string{Barato: ModeloBaratoPorDefecto, Caro: ModeloCaroPorDefecto},
+		Models:  map[Tier]string{Cheap: DefaultCheapModel, Expensive: DefaultExpensiveModel},
 		HTTP:    &http.Client{Timeout: 90 * time.Second},
 		Cache:   NewCache(500),
 		Meter:   &Meter{},
 	}
 }
 
-// NewFromEnv lee OPENROUTER_API_KEY y, si existen, LLM_MODELO_BARATO, LLM_MODELO_CARO y OPENROUTER_URL.
+// NewFromEnv reads the configuration from the environment and from the first .env files
+// found (see DotEnvCandidates; values already set are never overridden):
+// OPENROUTER_API_KEY and, optionally, LLM_PROFILE (dev), LLM_CHEAP_MODEL,
+// LLM_EXPENSIVE_MODEL and OPENROUTER_URL.
 func NewFromEnv() (*Client, error) {
+	for _, p := range DotEnvCandidates() {
+		LoadDotEnv(p)
+	}
 	key := os.Getenv("OPENROUTER_API_KEY")
 	if key == "" {
-		return nil, ErrSinClave
+		return nil, ErrNoAPIKey
 	}
 	c := New(key)
-	if v := os.Getenv("LLM_MODELO_BARATO"); v != "" {
-		c.Models[Barato] = v
+	if os.Getenv("LLM_PROFILE") == "dev" {
+		c.Models[Cheap] = DevCheapModels
+		c.Models[Expensive] = DevExpensiveModels
 	}
-	if v := os.Getenv("LLM_MODELO_CARO"); v != "" {
-		c.Models[Caro] = v
+	if v := os.Getenv("LLM_CHEAP_MODEL"); v != "" {
+		c.Models[Cheap] = v
+	}
+	if v := os.Getenv("LLM_EXPENSIVE_MODEL"); v != "" {
+		c.Models[Expensive] = v
 	}
 	if v := os.Getenv("OPENROUTER_URL"); v != "" {
 		c.BaseURL = v
@@ -107,14 +129,15 @@ func NewFromEnv() (*Client, error) {
 	return c, nil
 }
 
-// Complete hace una petición. Si la misma petición ya se hizo, responde desde la caché sin coste.
+// Complete sends a request. If the exact same request was already made, it answers
+// from the cache at no cost.
 func (c *Client) Complete(ctx context.Context, req Request) (Response, error) {
 	if req.Tier == "" {
-		req.Tier = Barato
+		req.Tier = Cheap
 	}
 	model, ok := c.Models[req.Tier]
 	if !ok {
-		return Response{}, fmt.Errorf("llm: nivel desconocido %q", req.Tier)
+		return Response{}, fmt.Errorf("llm: unknown tier %q", req.Tier)
 	}
 
 	key := cacheKey(model, req)
@@ -126,15 +149,25 @@ func (c *Client) Complete(ctx context.Context, req Request) (Response, error) {
 		}
 	}
 
-	inicio := time.Now()
-	r, err := c.call(ctx, model, req)
-	r.Latency = time.Since(inicio)
-	r.LatencyMs = r.Latency.Milliseconds()
-	r.Tier = req.Tier
-	if err != nil {
+	start := time.Now()
+	var r Response
+	var err error
+	for _, m := range strings.Split(model, ",") {
+		r, err = c.call(ctx, strings.TrimSpace(m), req)
+		if err == nil {
+			break
+		}
 		c.meter().RecordError(req.Tier)
+		if ctx.Err() != nil {
+			break
+		}
+	}
+	if err != nil {
 		return Response{}, err
 	}
+	r.Latency = time.Since(start)
+	r.LatencyMs = r.Latency.Milliseconds()
+	r.Tier = req.Tier
 	c.meter().Record(r)
 	if c.Cache != nil {
 		c.Cache.Put(key, r)
@@ -142,19 +175,22 @@ func (c *Client) Complete(ctx context.Context, req Request) (Response, error) {
 	return r, nil
 }
 
-// CompleteEscalando prueba primero el modelo barato y, si duda(respuesta) es true,
-// repite la petición con el caro. Devuelve la respuesta final y si escaló.
-// Si el barato falla, escala también.
-func (c *Client) CompleteEscalando(ctx context.Context, req Request, duda func(Response) bool) (Response, bool, error) {
-	req.Tier = Barato
+// CompleteWithEscalation tries the cheap model first and, if doubt(response) is true,
+// repeats the request with the expensive one. It returns the final response and whether
+// it escalated. It also escalates when the cheap model fails.
+func (c *Client) CompleteWithEscalation(ctx context.Context, req Request, doubt func(Response) bool) (Response, bool, error) {
+	req.Tier = Cheap
 	r, err := c.Complete(ctx, req)
-	if err == nil && (duda == nil || !duda(r)) {
+	if err == nil && (doubt == nil || !doubt(r)) {
 		return r, false, nil
 	}
-	req.Tier = Caro
+	req.Tier = Expensive
 	r, err = c.Complete(ctx, req)
 	return r, true, err
 }
+
+// Stats returns a snapshot of the client's meter.
+func (c *Client) Stats() Stats { return c.meter().Snapshot() }
 
 func (c *Client) meter() *Meter {
 	if c.Meter == nil {
@@ -163,7 +199,7 @@ func (c *Client) meter() *Meter {
 	return c.Meter
 }
 
-// ---------- Formato de OpenRouter (compatible con OpenAI) ----------
+// ---------- OpenRouter wire format (OpenAI-compatible) ----------
 
 type orPart struct {
 	Type     string      `json:"type"`
@@ -177,7 +213,7 @@ type orImageURL struct {
 
 type orMessage struct {
 	Role    string `json:"role"`
-	Content any    `json:"content"` // string o []orPart
+	Content any    `json:"content"` // string or []orPart
 }
 
 type orRequest struct {
@@ -235,7 +271,7 @@ func toOpenRouter(model string, req Request) orRequest {
 
 func (c *Client) call(ctx context.Context, model string, req Request) (Response, error) {
 	if c.APIKey == "" {
-		return Response{}, ErrSinClave
+		return Response{}, ErrNoAPIKey
 	}
 	body, err := json.Marshal(toOpenRouter(model, req))
 	if err != nil {
@@ -253,15 +289,15 @@ func (c *Client) call(ctx context.Context, model string, req Request) (Response,
 		return Response{}, fmt.Errorf("llm: %s: %w", model, err)
 	}
 	defer resp.Body.Close()
-	datos, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
 	if err != nil {
-		return Response{}, fmt.Errorf("llm: %s: leyendo respuesta: %w", model, err)
+		return Response{}, fmt.Errorf("llm: %s: reading response: %w", model, err)
 	}
 
 	var or orResponse
-	_ = json.Unmarshal(datos, &or)
+	_ = json.Unmarshal(data, &or)
 	if resp.StatusCode != http.StatusOK || or.Error != nil {
-		msg := string(datos)
+		msg := string(data)
 		if or.Error != nil {
 			msg = or.Error.Message
 		}
@@ -271,7 +307,11 @@ func (c *Client) call(ctx context.Context, model string, req Request) (Response,
 		return Response{}, fmt.Errorf("llm: %s: HTTP %d: %s", model, resp.StatusCode, msg)
 	}
 	if len(or.Choices) == 0 {
-		return Response{}, fmt.Errorf("llm: %s: respuesta sin choices", model)
+		return Response{}, fmt.Errorf("llm: %s: response without choices", model)
+	}
+	if strings.TrimSpace(or.Choices[0].Message.Content) == "" {
+		// Happens with reasoning models that run out of tokens before answering.
+		return Response{}, fmt.Errorf("llm: %s: empty answer (max_tokens too low?)", model)
 	}
 	if or.Model == "" {
 		or.Model = model
