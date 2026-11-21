@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -172,5 +174,54 @@ func TestCacheExpulsaLaMasAntigua(t *testing.T) {
 	}
 	if _, ok := c.Get("c"); !ok {
 		t.Fatal("falta c")
+	}
+}
+
+func TestListaDeModelosPruebaElSiguienteSiUnoFalla(t *testing.T) {
+	roto, bueno := &atomic.Int32{}, &atomic.Int32{}
+	srv := openRouterFalso(t, map[string]*atomic.Int32{"roto": roto, "barato-m": bueno})
+	defer srv.Close()
+	c := clientePrueba(srv.URL)
+	c.Models[Barato] = "roto, barato-m"
+
+	r, err := c.Complete(context.Background(), pregunta("hola"))
+	if err != nil || r.Model != "barato-m" || roto.Load() != 1 || bueno.Load() != 1 {
+		t.Fatalf("r=%+v err=%v roto=%d bueno=%d", r, err, roto.Load(), bueno.Load())
+	}
+	if st := c.Meter.Snapshot(); st.Barato.Errors != 1 || st.Barato.Calls != 1 {
+		t.Fatalf("contador: %+v", st)
+	}
+}
+
+func TestRespuestaVaciaCuentaComoFallo(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"content":""}}],"usage":{"completion_tokens":300}}`))
+	}))
+	defer srv.Close()
+	c := clientePrueba(srv.URL)
+	if _, err := c.Complete(context.Background(), pregunta("hola")); err == nil || !strings.Contains(err.Error(), "vacía") {
+		t.Fatalf("esperaba error de respuesta vacía, llegó %v", err)
+	}
+}
+
+func TestPerfilPruebasYDotEnv(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv("OPENROUTER_API_KEY", "")
+	os.Unsetenv("OPENROUTER_API_KEY")
+	t.Setenv("LLM_PERFIL", "")
+	os.Unsetenv("LLM_PERFIL")
+	if err := os.WriteFile(filepath.Join(dir, ".env"), []byte("# comentario\nOPENROUTER_API_KEY=\"clave-de-env\"\nexport LLM_PERFIL=pruebas\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	c, err := NewFromEnv()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.APIKey != "clave-de-env" || c.Models[Barato] != ModelosBaratoPruebas || c.Models[Caro] != ModelosCaroPruebas {
+		t.Fatalf("config: key=%q modelos=%v", c.APIKey, c.Models)
+	}
+	if !strings.HasPrefix(c.Models[Barato], "nvidia/") || !strings.HasSuffix(c.Models[Barato], ModeloBaratoPorDefecto) {
+		t.Fatalf("el perfil de pruebas debe empezar por gratuitos y acabar en el barato de pago: %s", c.Models[Barato])
 	}
 }
