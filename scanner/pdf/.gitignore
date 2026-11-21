@@ -1,0 +1,4 @@
+salida/
+.venv/
+*.pyc
+.pytest_cache/
