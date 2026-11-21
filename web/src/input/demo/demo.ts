@@ -159,7 +159,7 @@ function pintarChuleta() {
     ["☝️ señalar", "mover el puntero", false],
     ["☝️ señalar quieto ~1 s", m.seleccion, false],
     ["👎 pulgar abajo", m.pulgar_abajo, true],
-    ["🤏 junta las puntas de pulgar e índice, luego sepáralas", `${m.pinza ?? "—"} en pasos de 10 %: 0 % juntas, 100 % abiertas del todo; quieto ~1 s (o puño) para fijarlo`, true],
+    ["🤏 junta las puntas de pulgar e índice, luego sepáralas", `${m.pinza ?? "—"} en pasos de 10 %: la medida de la línea entre 0 % y 100 %; quieto ~1 s (o puño) para fijarlo`, true],
     ["✌️ victoria → menú", "después ☝️ lleva el puntero a una opción y mantén ~0,5 s", true],
     ...(Object.entries(menuPara(interaccion.manoUsada)) as [SectorMenu, string][]).map(
       ([s, a]) => [`   menú ${FLECHA[s]} ${s}`, a, true] as [string, string, boolean],
@@ -242,7 +242,7 @@ function dibujarPinza(w: number, h: number) {
   const n = interaccion.nivelActivo(performance.now());
   const [ax, ay, bx, by] = [d.pulgar.x * w, d.pulgar.y * h, d.indice.x * w, d.indice.y * h];
   const op = interaccion.opciones;
-  const juntos = d.separacion < op.umbrales.pinza && d.alcance >= op.umbrales.indiceFuera;
+  const juntos = d.separacion <= op.nivelCero && d.alcance >= op.umbrales.indiceFuera;
   ctx.strokeStyle = n ? `hsl(${Math.round(120 * n.valor)}, 90%, 55%)` : juntos ? "#00e0ff" : "#ffffff99";
   ctx.lineWidth = n ? 8 : 3;
   ctx.lineCap = "round";
@@ -260,6 +260,8 @@ function dibujarPinza(w: number, h: number) {
   }
   const mx = (ax + bx) / 2;
   const my = Math.min(ay, by) - 30;
+  // La medida de la línea, siempre visible junto a ella.
+  texto(d.separacion.toFixed(2), mx + 40, (ay + by) / 2, 20, "#fff");
   if (n) {
     texto(`🔊 ${Math.round(n.valor * 100)} %`, mx, my - 10, 40, "#ffd400");
     // Anillo de confirmación: se llena si te quedas quieto en el mismo valor.
@@ -351,7 +353,7 @@ function dibujar() {
   const d = interaccion.diagnostico;
   const esc = interaccion.escalaNivel;
   $("separacion").textContent = d
-    ? `${d.separacion.toFixed(2)} (0 % = ${esc.cero === null ? "al juntar" : esc.cero.toFixed(2)} · recorrido ${esc.amplitud.toFixed(2)})`
+    ? `${d.separacion.toFixed(2)} (0 % ≤ ${esc.cero.toFixed(2)} · 100 % ≥ ${esc.lleno.toFixed(2)})`
     : "—";
   $("alcance").textContent = d ? `${d.alcance.toFixed(2)} (arranca ≥ ${interaccion.opciones.umbrales.indiceFuera.toFixed(2)} · puño < ${interaccion.opciones.indiceCerrado.toFixed(2)})` : "—";
   // Puntero por encima del menú (la capa del menú tapa el lienzo). El lienzo va en espejo.
@@ -403,16 +405,14 @@ async function reconectar(intentos = 20): Promise<void> {
 $("reiniciar").addEventListener("click", () => void reconectar(1));
 // ---------- Ajustes de la pinza (deslizadores) ----------
 
-type ClaveAjuste = "pinza" | "indiceFuera" | "indiceCerrado" | "amplitudNivel";
+type ClaveAjuste = "nivelCero" | "nivelLleno" | "indiceFuera" | "indiceCerrado";
 function valorAjuste(k: ClaveAjuste): number {
   const o = interaccion.opciones;
-  if (k === "pinza" || k === "indiceFuera") return o.umbrales[k];
-  if (k === "amplitudNivel") return interaccion.escalaNivel.amplitud;
-  return o[k];
+  return k === "indiceFuera" ? o.umbrales.indiceFuera : o[k];
 }
 function aplicarAjuste(k: ClaveAjuste, v: number) {
   const o = interaccion.opciones;
-  if (k === "pinza" || k === "indiceFuera") interaccion.configurar({ umbrales: { ...o.umbrales, [k]: v } });
+  if (k === "indiceFuera") interaccion.configurar({ umbrales: { ...o.umbrales, indiceFuera: v } });
   else interaccion.configurar({ [k]: v });
 }
 function pintarAjustes() {
@@ -460,7 +460,7 @@ $("recalibrar").addEventListener("click", async () => {
     $("estado").textContent = "No se pudo calibrar: no se veía bien la mano. Inténtalo otra vez.";
     return;
   }
-  interaccion.fijarAmplitudNivel(juntos, abiertos);
+  interaccion.fijarEscalaNivel(juntos, abiertos);
   pintarAjustes();
   $("estado").textContent = `Volumen calibrado: juntos ${juntos.toFixed(2)}, abiertos ${abiertos.toFixed(2)}.`;
   mostrarAccion("calibrado");

@@ -6,7 +6,7 @@
 import { DetectorCabeza, type OpcionesCabeza } from "./cabeza.ts";
 import { FiltroOneEuro } from "./filtro.ts";
 import { aplicarHomografia, distancia2D, homografiaDocumento, media } from "./geometria.ts";
-import { alcanceIndice, clasificarPose, puntosParaForma, separacionPinza, UMBRALES_POR_DEFECTO, type Umbrales } from "./poses.ts";
+import { alcanceIndice, clasificarPose, puntosParaForma, UMBRALES_POR_DEFECTO, type Umbrales } from "./poses.ts";
 import {
   P,
   type Esquinas,
@@ -57,13 +57,14 @@ export interface OpcionesInteraccion {
   /** Tiempo sin actividad para volver a dormir. */
   dormirMs: number;
   /**
-   * Recorrido de la escala: cuánto hay que separar pulgar e índice (relativo al tamaño de la mano)
-   * desde la pinza hasta el 100 %. El 0 % es siempre la separación al empezar la pinza.
-   * Se puede ajustar a cada mano con fijarAmplitudNivel() (calibración guiada).
+   * Escala del volumen. La medida es simple: distancia EN PANTALLA entre las puntas de pulgar e
+   * índice dividida por el tamaño de la mano en pantalla (muñeca → nudillo del corazón), para que no
+   * dependa de lo cerca que esté la mano de la cámara. Es la línea que se dibuja.
+   * Con esa medida ≤ nivelCero es 0 %, ≥ nivelLleno es 100 %, y en medio, lineal.
+   * Para empezar, hay que juntar los dedos hasta la zona del 0 %.
    */
-  amplitudNivel: number;
-  /** Zona de tolerancia en cada extremo (fracción de la escala): cerca del final ya es 0 % o 100 %. */
-  zonaExtremosNivel: number;
+  nivelCero: number;
+  nivelLleno: number;
   /** Tamaño del escalón del nivel (0,1 = 0 %, 10 %, 20 %…). */
   pasoNivel: number;
   /** Margen extra (fracción del escalón) para cambiar de escalón: evita saltos en el límite. */
@@ -101,10 +102,10 @@ export const OPCIONES_POR_DEFECTO: OpcionesInteraccion = {
   requiereDespertar: false,
   despertarMs: 1000,
   dormirMs: 10000,
-  amplitudNivel: 0.45,
-  zonaExtremosNivel: 0.08,
+  nivelCero: 0.25,
+  nivelLleno: 1.0,
   pasoNivel: 0.1,
-  histeresisNivel: 0.4,
+  histeresisNivel: 0.25,
   confirmarNivelMs: 1000,
   inicioNivelMs: 150,
   indiceCerrado: 0.9,
@@ -155,8 +156,6 @@ export interface Diagnostico {
 }
 
 interface EstadoNivel {
-  /** Separación con los dedos juntos en esta pinza: es el 0 %. */
-  separacionCero: number;
   /** Valor en escalones (0, 0,1, 0,2…). */
   valor: number;
   /** Valor continuo sin redondear (para mostrar la posición dentro del escalón). */
@@ -216,19 +215,14 @@ export class InteraccionManos {
   private votoMano = 0;
   private manoEstable: LadoMano | null = null;
   private tPinzaInicio: number | null = null;
-  /** Separación mínima vista mientras se detectaba la pinza: es el 0 % de la escala. */
-  private minPinza = Infinity;
   private nivel: EstadoNivel | null = null;
   private fSeparacion = new FiltroOneEuro({ minCorte: 1.0, beta: 0.3, corteDerivada: 1.0 });
-  /** Recorrido de la escala (de la calibración guiada o el de por defecto). */
-  private amplitud: number;
   /** Tras confirmar un nivel, hay que soltar la pinza antes de empezar otro. */
   private esperarSoltarPinza = false;
   private cabeza: DetectorCabeza;
 
   constructor(op: Partial<OpcionesInteraccion> = {}) {
     this.op = { ...OPCIONES_POR_DEFECTO, ...op };
-    this.amplitud = this.op.amplitudNivel;
     this.despierto = !this.op.requiereDespertar;
     this.cabeza = new DetectorCabeza(this.op.cabeza);
   }
@@ -244,7 +238,6 @@ export class InteraccionManos {
     const antesInvertir = this.op.invertirLateralidad;
     this.op = { ...this.op, ...op };
     if (op.cabeza) this.cabeza = new DetectorCabeza(this.op.cabeza);
-    if (op.amplitudNivel !== undefined) this.amplitud = op.amplitudNivel;
     if (op.invertirLateralidad !== undefined && op.invertirLateralidad !== antesInvertir) {
       this.votoMano = -this.votoMano;
       this.manoEstable = this.manoEstable && (this.manoEstable === "derecha" ? "izquierda" : "derecha");
@@ -325,18 +318,18 @@ export class InteraccionManos {
     return { valor: n.valor, continuo: n.continuo, progresoConfirmar, pulgar: n.pulgar, indice: n.indice };
   }
 
-  /** Escala actual: separación del 0 % (de la pinza en curso, si hay) y recorrido hasta el 100 %. */
-  get escalaNivel(): { cero: number | null; amplitud: number } {
-    return { cero: this.nivel?.separacionCero ?? null, amplitud: this.amplitud };
+  /** Medida que es 0 % y medida que es 100 %. */
+  get escalaNivel(): { cero: number; lleno: number } {
+    return { cero: this.op.nivelCero, lleno: this.op.nivelLleno };
   }
 
   /**
-   * Calibración guiada: separación medida con los dedos juntos y abiertos del todo. null vuelve
-   * al recorrido por defecto.
+   * Calibración guiada: medida con los dedos juntos y abiertos del todo. Se deja un pequeño margen
+   * hacia dentro para que el 0 % y el 100 % se alcancen sin esfuerzo.
    */
-  fijarAmplitudNivel(juntos: number | null, abiertos?: number): void {
-    this.amplitud =
-      juntos === null || abiertos === undefined ? this.op.amplitudNivel : Math.max(0.1, abiertos - juntos);
+  fijarEscalaNivel(juntos: number, abiertos: number): void {
+    const margen = 0.1 * (abiertos - juntos);
+    this.configurar({ nivelCero: juntos + margen, nivelLleno: abiertos - margen });
   }
 
   procesar(frame: FrameManos): void {
@@ -379,7 +372,7 @@ export class InteraccionManos {
     const pts = puntosParaForma(mano, aspecto);
     this.actualizarLateralidad(mano);
     this.diag = {
-      separacion: separacionPinza(pts),
+      separacion: separacionEnPantalla(mano, aspecto),
       alcance: alcanceIndice(pts),
       pulgar: { x: mano.puntos[P.PULGAR_PUNTA].x, y: mano.puntos[P.PULGAR_PUNTA].y },
       indice: { x: mano.puntos[P.INDICE_PUNTA].x, y: mano.puntos[P.INDICE_PUNTA].y },
@@ -545,22 +538,24 @@ export class InteraccionManos {
   // ---------- Experimental: nivel con la pinza ----------
 
   /**
-   * Se empieza juntando las puntas de pulgar e índice (pinza) ~0,15 s. Después, el nivel es la
-   * separación entre ambas puntas, de 0 (juntas) a 1 (muy separadas). Se termina cerrando la mano
-   * (puño) o sacándola de la cámara. Devuelve true si el frame lo ha consumido el control de nivel.
+   * Volumen con la pinza:
+   * 1. Se empieza juntando las puntas de pulgar e índice hasta la zona del 0 % (~0,15 s).
+   * 2. El valor es la medida de la línea pulgar–índice entre nivelCero (0 %) y nivelLleno (100 %),
+   *    redondeado a escalones de 10 %.
+   * 3. Se confirma quedándose quieto ~1 s en el mismo valor, o cerrando el puño.
+   * Devuelve true si el frame lo ha consumido el control de volumen.
    */
   private actualizarNivel(t: number, pose: Gesto, centro: Punto): boolean {
     const diag = this.diag!;
+    const juntos = diag.separacion <= this.op.nivelCero && diag.alcance >= this.op.umbrales.indiceFuera;
     if (!this.nivel) {
-      if (pose !== "pinza") {
+      if (!juntos) {
         this.tPinzaInicio = null;
-        this.minPinza = Infinity;
         this.esperarSoltarPinza = false;
         return false;
       }
       if (this.esperarSoltarPinza) return false;
       this.tPinzaInicio ??= t;
-      this.minPinza = Math.min(this.minPinza, diag.separacion);
       if (t - this.tPinzaInicio < this.op.inicioNivelMs) return false;
       this.tPinzaInicio = null;
       this.fSeparacion.reiniciar();
@@ -572,22 +567,15 @@ export class InteraccionManos {
       return false;
     }
 
-    // Escala: 0 % = separación al empezar esta pinza (dedos juntos); 100 % = esa más el recorrido.
-    // No se aprende de un frame a otro, así no se desfasa.
     const sep = this.fSeparacion.filtrar(diag.separacion, t);
-    const cero = Math.min(this.nivel?.separacionCero ?? this.minPinza, sep);
-    this.minPinza = Infinity;
-    const bruto = (sep - cero) / this.amplitud;
-    // Zonas de tolerancia: cerca de los extremos ya es 0 % o 100 %.
-    const z = this.op.zonaExtremosNivel;
-    const continuo = Math.min(1, Math.max(0, (bruto - z) / (1 - 2 * z)));
+    const { nivelCero, nivelLleno } = this.op;
+    const continuo = Math.min(1, Math.max(0, (sep - nivelCero) / (nivelLleno - nivelCero || 1)));
     const { pulgar, indice } = diag;
     this.ultimoPuntero = null;
 
     if (!this.nivel) {
       const valor = redondearNivel(continuo, this.op.pasoNivel);
       this.nivel = {
-        separacionCero: cero,
         valor,
         continuo,
         tCambio: t,
@@ -602,15 +590,13 @@ export class InteraccionManos {
     }
 
     const n = this.nivel;
-    n.separacionCero = cero;
     n.continuo = continuo;
     n.pulgar = pulgar;
     n.indice = indice;
     n.tUltimoValido = t;
     // Histéresis: solo se cambia de escalón al entrar claramente en el siguiente.
     const paso = this.op.pasoNivel;
-    const extremo = (continuo <= 0 && n.valor > 0) || (continuo >= 1 && n.valor < 1);
-    if (extremo || Math.abs(continuo - n.valor) > paso * (0.5 + this.op.histeresisNivel)) {
+    if (Math.abs(continuo - n.valor) > paso * (0.5 + this.op.histeresisNivel)) {
       n.valor = redondearNivel(continuo, paso);
       n.tCambio = t;
       n.movido = true;
@@ -789,6 +775,16 @@ export function direccionIndice(mano: Mano, aspecto: number, espejo: boolean): S
   if (Math.abs(dx) > 1.3 * Math.abs(dy)) return dx > 0 ? "derecha" : "izquierda";
   if (Math.abs(dy) > 1.3 * Math.abs(dx)) return dy > 0 ? "abajo" : "arriba";
   return null;
+}
+
+/**
+ * Distancia en pantalla entre las puntas de pulgar e índice, dividida por el tamaño de la mano en
+ * pantalla (muñeca → nudillo del corazón). Es exactamente la línea que se ve dibujada.
+ */
+export function separacionEnPantalla(mano: Mano, aspecto: number): number {
+  const p = mano.puntos;
+  const tam = distancia2D(p[P.MUNECA], p[P.CORAZON_MCP], aspecto) || 1;
+  return distancia2D(p[P.PULGAR_PUNTA], p[P.INDICE_PUNTA], aspecto) / tam;
 }
 
 /**

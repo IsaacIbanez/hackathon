@@ -25,17 +25,16 @@ Opciones experimentales (en `OpcionesInteraccion`):
 - `requiereDespertar`: modo dormido/despierto. Se ignoran los gestos hasta mantener ✋ ~1 s (o asentir);
   vuelve a dormirse tras `dormirMs` sin actividad. Evita gestos accidentales.
 - `PERFIL_MOVILIDAD_REDUCIDA`: tiempos más largos y radios más amplios para temblor o movilidad reducida.
-- Pinza de nivel: se activa al juntar las puntas de pulgar e índice ~0,15 s con el índice por delante
-  (no metido en un puño; da igual cómo estén los otros dedos). El evento `nivel` da un valor en
-  escalones de `pasoNivel` (10 %). El 0 % es la separación al empezar cada pinza (volver a juntar los
-  dedos siempre da 0 %) y el 100 % esa más `amplitudNivel`. La escala no se aprende sola (eso la
-  desfasaba): se ajusta con una calibración guiada (`fijarAmplitudNivel(juntos, abiertos)`; en la demo,
-  botón «Calibrar volumen»). Hay zonas de tolerancia en los extremos (`zonaExtremosNivel`) y
-  histéresis entre escalones (`histeresisNivel`). Se confirma quedándose quieto `confirmarNivelMs`
-  (~1 s) en el mismo valor, o cerrando el puño. En la demo ajusta de verdad el volumen de la voz.
-  Umbrales por defecto: pinza si las puntas están a menos de 0,5 (`umbrales.pinza`) y el alcance del
-  índice es ≥ 1,0 (`umbrales.indiceFuera`); termina con alcance < 0,9 (`indiceCerrado`); recorrido
-  hasta el 100 % de 0,45 (`amplitudNivel`). La demo tiene deslizadores para ajustarlos en directo.
+- Volumen con la pinza (evento `nivel`), deliberadamente simple:
+  - Medida = distancia en pantalla entre las puntas de pulgar e índice ÷ tamaño de la mano en
+    pantalla (muñeca → nudillo del corazón), `separacionEnPantalla`. Es la línea que se dibuja; dividir
+    por el tamaño de la mano hace que no dependa de la distancia a la cámara.
+  - Medida ≤ `nivelCero` (0,25) = 0 %; ≥ `nivelLleno` (1,0) = 100 %; en medio, lineal, redondeado a
+    escalones de 10 % (`pasoNivel`) con un poco de histéresis (`histeresisNivel`).
+  - Para empezar se juntan los dedos por debajo de `nivelCero` ~0,15 s (con el índice no metido en un
+    puño). Se confirma quedándose quieto ~1 s (`confirmarNivelMs`) o cerrando el puño.
+  - Calibración guiada: `fijarEscalaNivel(juntos, abiertos)`; en la demo, botón «Calibrar volumen» y
+    deslizadores para los umbrales. En la demo ajusta de verdad el volumen de la voz.
 - Menú: tras abrirlo con ✌️, se pone ☝️ y se lleva el puntero (la punta del índice) encima de una
   opción, manteniéndolo `elegirMenuMs` (~0,5 s). Las opciones ocupan zonas fijas de la pantalla en
   cruz (tercios, `sectorEnPantalla`); con ✌️ o en el centro no se elige nada; se cierra solo a los 5 s.

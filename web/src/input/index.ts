@@ -12,6 +12,7 @@ export {
   PERFIL_MOVILIDAD_REDUCIDA,
   direccionIndice,
   sectorEnPantalla,
+  separacionEnPantalla,
   type Diagnostico,
   type OpcionesInteraccion,
 } from "./interaccion.ts";

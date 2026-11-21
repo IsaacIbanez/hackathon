@@ -81,8 +81,8 @@ test("pinza: el nivel va en escalones de 10 % y la escala llega de 0 % a 100 %",
   const ctl = new InteraccionManos();
   const frames = [
     ...repetir(mano(FORMAS.pinza), 8),
-    ...Array.from({ length: 30 }, (_, i) => pinzaAbierta(0.2 * ((i + 1) / 30))),
-    ...repetir(pinzaAbierta(0.2), 5),
+    ...Array.from({ length: 30 }, (_, i) => pinzaAbierta(0.25 * ((i + 1) / 30))),
+    ...repetir(pinzaAbierta(0.25), 5),
   ];
   const valores = simular(ctl, frames)
     .filter((e) => e.tipo === "nivel")
@@ -109,8 +109,8 @@ test("pinza: quedarse quieto ~1 s en el mismo valor lo confirma", () => {
 
 test("pinza: volver a juntar los dedos siempre da 0 % y la escala no se desfasa", () => {
   const ctl = new InteraccionManos({ confirmarNivelMs: 10000 });
-  const ida = Array.from({ length: 15 }, (_, i) => pinzaAbierta(0.2 * ((i + 1) / 15)));
-  const vuelta = Array.from({ length: 15 }, (_, i) => pinzaAbierta(0.2 * (1 - (i + 1) / 15)));
+  const ida = Array.from({ length: 15 }, (_, i) => pinzaAbierta(0.25 * ((i + 1) / 15)));
+  const vuelta = Array.from({ length: 15 }, (_, i) => pinzaAbierta(0.25 * (1 - (i + 1) / 15)));
   const frames = [...repetir(mano(FORMAS.pinza), 8), ...ida, ...vuelta, ...ida, ...vuelta, ...repetir(pinzaAbierta(0), 10)];
   const movs = simular(ctl, frames)
     .filter((e) => e.tipo === "nivel" && e.fase === "mover")
@@ -119,12 +119,18 @@ test("pinza: volver a juntar los dedos siempre da 0 % y la escala no se desfasa"
   assert.equal(movs[movs.length - 1], 0, `vuelve a 0 %: ${movs}`);
 });
 
-test("pinza: la calibración guiada cambia el recorrido", () => {
+test("pinza: la calibración guiada fija el 0 % y el 100 % con un pequeño margen", () => {
   const ctl = new InteraccionManos();
-  ctl.fijarAmplitudNivel(0.1, 1.6);
-  assert.equal(ctl.escalaNivel.amplitud, 1.5);
-  ctl.fijarAmplitudNivel(null);
-  assert.equal(ctl.escalaNivel.amplitud, 0.45);
+  ctl.fijarEscalaNivel(0.1, 1.1);
+  assert.deepEqual(ctl.escalaNivel, { cero: 0.2, lleno: 1.0 });
+});
+
+test("pinza: el valor es lineal con la medida de la línea pulgar–índice", () => {
+  const ctl = new InteraccionManos({ confirmarNivelMs: 10000, histeresisNivel: 0 });
+  // Tamaño de la mano sintética en pantalla ≈ 0,2: separar 0,125 da una medida ≈ 0,62 → 50 %.
+  const ev = simular(ctl, [...repetir(mano(FORMAS.pinza), 8), ...repetir(pinzaAbierta(0.125), 15)]);
+  const ultimo = ev.filter((e) => e.tipo === "nivel").pop()!;
+  assert.ok(ultimo.tipo === "nivel" && ultimo.valor === 0.5, JSON.stringify(ultimo));
 });
 
 test("pinza: temblar en el límite entre dos escalones no hace saltar el valor", () => {
@@ -133,11 +139,11 @@ test("pinza: temblar en el límite entre dos escalones no hace saltar el valor",
   const frames = [
     ...repetir(mano(FORMAS.pinza), 8),
     ...repetir(pinzaAbierta(0.2), 10),
-    ...repetir(pinzaAbierta(0.05), 15),
+    ...repetir(pinzaAbierta(0.1), 15),
   ];
   const ev1 = simular(ctl, frames).filter((e) => e.tipo === "nivel" && e.fase === "mover").length;
   // Oscila un poco alrededor del mismo punto.
-  const temblor = Array.from({ length: 30 }, (_, i) => pinzaAbierta(0.05 + (i % 2 ? 0.003 : -0.003)));
+  const temblor = Array.from({ length: 30 }, (_, i) => pinzaAbierta(0.1 + (i % 2 ? 0.003 : -0.003)));
   const ev2 = simular(ctl, temblor, 25 * 33).filter((e) => e.tipo === "nivel" && e.fase === "mover");
   assert.ok(ev1 > 0);
   assert.equal(ev2.length, 0, `cambios por temblor: ${ev2.length}`);
