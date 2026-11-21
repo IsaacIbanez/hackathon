@@ -15,7 +15,7 @@ Asigna un agente de `ROSTER.md` (por ejemplo `P2-C` o `P2-G`) como responsable.
 | T7 | Cliente de modelos frugal, caché y contador de coste y latencia | P1-C (Isaac) — rol A | hecha (falta probar con la clave real de AXA) | feature/T7-llm | #3 | T2 |
 | T8 | Integración de punta a punta y pruebas | P1-C (Isaac) — rol A | en curso: la app sirve `/ws` (#4), `stats` (#6) y la lógica real document/pointer/utterance → speak (#10), probada con modelos gratis; falta el criterio de B2 y conectar el scanner de B y los gestos de C | feature/T8-session | #4, #6, #10 | T4–T7 |
 | T9 | Accesibilidad y flujo de la demo | Todos | pendiente | — | — | T8 |
-| T10 | Documentación y presentación | Humanos | pendiente | — | — | T9 |
+| T10 | Documentación y presentación | Humanos (borrador: P1-C) | en curso: guion en `docs/PITCH.md` | feature/T10-pitch | — | T9 |
 
 Aparcado por ahora (no empezar): ratón háptico MX Master 4 y keypad de Logitech.
 
