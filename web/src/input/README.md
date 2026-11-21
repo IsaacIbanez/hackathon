@@ -14,19 +14,31 @@ defined in `actions.ts` (`MAPS`). Items marked BETA are experimental.
 | ✋ open palm facing the camera, held still | pause | pause | Escape |
 | ✋↔ swipe to the user's right / left | next / previous | next / previous field | next / previous tab |
 | ☝️ point | pointer | pointer | pointer |
-| ☝️ point and hold still ~0.9 s | explain here | dictate field | click |
+| ☝️ point and hold still ~0.9 s | explain here | dictate field | — (holding still only confirms wake/volume/brightness, never clicks) |
+| ☝️ point + heart finger on thumb (middle fingertip) | — | — | click · twice: right click · hold: drag |
 | 👎 thumbs down (BETA) | undo | clear field | undo |
-| ✌️ victory → quick menu; ☝️ hold the pointer on an option ~0.5 s (BETA) | ↑ adjust volume · ↓ repeat · ask for help on the side opposite the hand (no hand detected: → dictate, ← ask for help) | same | same |
-| ✌️ menu → adjust volume, then 🤏 pinch and open; hold still ~1 s to set it (BETA) | volume | volume | volume |
+| ✊ fist held ~0.5 s → quick menu; ☝️ point at an option and tap the middle fingertip on the thumb (BETA) | ↑ adjust volume · ↓ repeat · ask for help on the side opposite the hand (no hand detected: → dictate, ← ask for help) | same | same |
+| ✊ menu → adjust volume / brightness, then 🤏 pinch and open; hold still ~1 s to set it (BETA) | volume / brightness | volume / brightness | volume / brightness |
 | 🙂 nod (BETA, head) | read | confirm field | Enter |
 | 🙂 shake (BETA, head) | pause | clear field | Escape |
 
 Experimental options (in `InteractionOptions`):
-- `requireWake`: sleep/wake mode. Gestures are ignored until an open palm is held ~1 s (or the
-  user nods); it goes back to sleep after `sleepMs` without activity. Avoids accidental gestures.
+- `requireWake`: strict sleep/wake mode. Gestures are ignored until a strict open palm is held ~1.2 s
+  (all 5 fingers straight ≥ 0.93, wide spread ≥ 0.8, palm facing camera, upright angle ≤ 40°).
+  Provides hints on what is missing (`wakeHint`). Goes back to sleep after `sleepMs` without activity.
+- `mouseClicks`: mouse button emulation while pointing. Bringing the middle fingertip to touch the thumb
+  triggers a click. Two quick taps trigger a right click. Holding fingers together for > 300 ms begins dragging
+  (`down` event) and separating releases (`up` event). The victory gesture (✌️) has been removed to avoid
+  conflicts with pointing and clicking.
+- `setMenuCells`: allows configuring the active menu sectors (such as the 8 cells of a 3×3 grid, or custom
+  submenus). Supports submenus where the newly chosen cell is temporarily blocked until the pointer leaves it.
+- Menu: opened with a steady ✊ fist held ~0.5 s. Inside the menu, a new ✊ fist held ~0.5 s closes it.
+  While open, the user points with ☝️ at an option and taps the middle fingertip on the thumb (`menuSelect: "click"`, the default; holding the pointer still never chooses). `menuSelect: "dwell"` brings back choosing by holding the pointer for `menuSelectMs` (~0.5 s).
+  Options fill configurable sectors; in the centre or with a fist nothing is chosen; it closes by itself after 5 s.
+  A 👎 thumbs down held ~0.3 s or a lateral swipe ✋← emits a `back` phase, navigating back to previous menu pages or closing it.
 - `REDUCED_MOBILITY_PROFILE`: longer times and larger radii for tremor or reduced mobility.
-- Volume with the pinch (`level` event), deliberately simple. **Only enabled from the menu**
-  ("adjust volume" option, which calls `startLevel()`) so it can't trigger by accident; if the fingers
+- Level control (volume and brightness) with the pinch (`level` event), deliberately simple. **Only enabled from the menu**
+  ("adjust volume" or "adjust brightness" options, which call `startLevel()`) so it can't trigger by accident; if the fingers
   don't touch within `levelArmMs` (8 s), it is cancelled:
   - Measure = on-screen distance between the thumb and index fingertips ÷ the hand's on-screen size
     (wrist → middle knuckle), `screenSeparation`. It is the line that gets drawn; dividing by hand
@@ -39,10 +51,7 @@ Experimental options (in `InteractionOptions`):
     and sliders for the thresholds. In the demo it really changes the voice volume.
 - Palm: only counts when the palm (not the back of the hand) faces the camera (`palmMustFaceCamera`),
   based on the detected hand and the order of the knuckles in the image.
-- Fist: disabled by default (`useFist: false`): it is neither emitted nor ends the volume control.
-- Menu: after opening it with ✌️, the user shows ☝️ and holds the pointer (the index tip) over an
-  option for `menuSelectMs` (~0.5 s). Options fill fixed screen zones in a cross (thirds,
-  `screenSector`); with ✌️ or in the centre nothing is chosen; it closes by itself after 5 s.
+- Fist: `useFist` allows a closed fist to end the pinch level control.
 - Hand in use: detects which hand the user is using (`handInUse`, a smoothed vote over MediaPipe's
   label; `invertHandedness` in case it comes out swapped). The menu removes that hand's side
   (`menuSectors`, `menuFor`): ↑ adjust volume, ↓ repeat and, on the opposite side, ask for help.

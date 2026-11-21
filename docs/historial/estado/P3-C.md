@@ -1,35 +1,58 @@
 # Estado — P3-C
 
 - **Persona:** Nil
-- **Herramienta:** Claude Code
-- **Tarea actual:** T6 (rol C): voz (hablar y escuchar) y gestos que actúan sobre el ordenador real (Gesture Control).
-- **Ramas:** `feature/T6-voice` y `feature/T6-gesture-control` (cada una con su PR).
-- **Estado:** en revisión.
+- **Herramienta:** Gemini CLI (relevo de Claude Code)
+- **Tarea actual:** T6 (rol C): controles de cámara y escritorio en Gesture Control (menú con puño, ratón completo, brillo, micro, energía y lanzador de apps).
+- **Rama:** `feature/T6-camera-controls` (sale de `feature/T17-voice` #29).
+- **Estado:** lista para PR (PR #41 abierto y actualizado).
 - **Último cambio:** 2026-11-21
 
 ## Hecho
-- Módulo de manos en `web/src/input/` (fusionado en #9): poses, gestos estables, deslizar, puntero suavizado con selección por permanencia, puntero en coordenadas del documento, acciones por contexto y demo «Gesture Lab». Código en inglés.
-- **Voz** (`feature/T6-voice`, carpeta `web/src/input/voice/`):
-  - `Speaker` lee frase a frase: pausar y reanudar siguen donde se quedó, «repite» dice la última frase, elige la mejor voz del idioma y no corta los textos largos. Sustituye a `app/voice.ts` con la misma interfaz.
-  - `VoiceInput` escucha solo cuando se pide (señalar y mantener, o menú → dictar), con pitidos y subtítulos. Las órdenes cortas («para», «sigue», «repite», «más alto»…) se resuelven en local, sin modelo; el resto va a Go como `utterance`; si no se dice nada, se envía la pregunta por defecto.
-  - Reconocimiento: el del navegador y, si no funciona (por ejemplo dentro de Wails), Whisper local en la página (transformers.js); el audio no sale del ordenador.
-  - Conectado en `app/App.tsx` y `app/Gestures.tsx` (archivos del rol A, cambio pequeño para que lo revise Isaac).
-- **Gesture Control** (`feature/T6-gesture-control`): programa local en Go (`adapters/desktop/`) y su página (`web/src/input/desktop/`). Hace atajos de teclado, ratón, volumen del sistema y controles de videollamada (Meet, Zoom, Teams: silenciar, cámara, levantar la mano, salir) en Windows, Linux y macOS. Solo escucha en 127.0.0.1:8767 y pide un token que cambia en cada arranque.
-  - Contexto nuevo `call`: ✋ levantar la mano, 👍 silenciar, 👎 cámara, ✌️ menú ↓ salir.
-  - Varias manos y caras: sigue la más cercana a la cámara y no salta a otra salvo que esté claramente más cerca.
-  - El seguimiento sigue funcionando con la ventana en segundo plano.
+- **Módulo compartido de gestos (`web/src/input/`):**
+  - **Menú con el puño (✊):** abrir y cerrar menú con ✊ mantenido 500 ms y quieto. Soltar el puño para cerrarlo con un nuevo ✊ mantenido.
+  - **Gestos para tirar atrás (`back`):** pulgar abajo 👎 mantenido ~0,3 s o barrido lateral ✋← para volver a la página anterior del menú o cerrarlo.
+  - **Eliminación del gesto de victoria (✌️):** se elimina para evitar conflictos con el gesto de clic; índice y corazón arriba ahora cuentan como apuntar (`point`).
+  - **Control del ratón:** apuntando con el índice ☝️, juntar corazón y pulgar hace clic; dos toques rápidos hacen clic derecho; mantener juntos > 300 ms inicia arrastre (`down`) y separar suelta (`up`). Se congela el cursor durante el toque y se desactiva la selección por permanencia (`select`).
+  - **Control de brillo:** objetivo de nivel (`LevelTarget = "brightness"`) paralelo al volumen por pinza (🤏), con mínimo del 5 % para evitar pantalla negra.
+  - **Rejilla 3×3 y submenús:** celdas configurables con `setMenuCells`; bloqueo temporal de la celda elegida (`blocked`) para evitar pulsaciones accidentales al cambiar de página.
+  - **Menú simplificado cuando no hacen falta 4 opciones:** la página de confirmación de energía pasa de 4 opciones redundantes a 2 opciones limpias (↑ ↩ Back y ↓ ✔ Yes, <action>).
+  - **Despertar estricto (`requireWake`):** requiere palma abierta estricta durante ~1,2 s (5 dedos rectos ≥ 0,93, extendidos con separación ≥ 0,8, palma hacia la cámara y vertical ≤ 40°), con avisos visuales de lo que falta.
+- **Ventana de cámara (`web/src/input/desktop/`):**
+  - Menú por páginas (`menu.ts`): Principal (volumen, brillo, micro, apps ▸, computer ▸, levantar mano y salir de llamada), Computer (suspender, reiniciar, apagar), Confirmación (sólo 2 opciones: ↑ ↩ Back y ↓ ✔ Yes, <action>) y Apps (hasta 7 accesos rápidos o huecos).
+  - Soporte de marcha atrás con `goBack`: `confirm` -> `computer` -> `main` -> cerrar.
+  - Cliente (`client.ts`): método `mouse(action)` con cola secuencial estricta, `latestOnly` para volumen y brillo, carga de lanzadores desde `/api/status`.
+  - Interfaz (`main.ts`, `index.html`): indicador visual de estado dormido, anillo indicador de clic/arrastre en el puntero y tabla de gestos actualizada (incluye 👎 Thumbs down / ✋← Swipe para volver atrás).
+- **Backend Go de Gesture Control (`adapters/desktop/`):**
+  - Interfaz `Desktop` ampliada: `MouseDown()`, `MouseUp()`, `RightClick()`, `SetBrightness(v)`, `ToggleMicMute()`, `Power(kind)`, `OpenApp(argv)`.
+  - Implementación en `DryRun` y en cada sistema (`desktop_linux.go`, `desktop_windows.go`, `desktop_darwin.go`, `desktop_other.go`).
+  - Endpoints nuevos: `POST /api/mouse` y lista de `launchers` en `GET /api/status`.
+  - Acciones de energía con confirmación obligatoria (`ErrNeedsConfirm` -> HTTP 428).
+  - Carga y validación segura de aplicaciones configurables (`apps.json`, `apps.example.json`): sólo ejecuta `id` registrado localmente.
+  - Flags: `-apps <ruta>`.
+- **Pruebas y verificación:**
+  - 137 tests web en verde (`npm test`), lint limpio (`oxlint`), build de la app y build de la página de desktop.
+  - 13 tests unitarios en Go (`adapters/desktop`), con `go vet` y tests pasando en Linux, Windows y macOS.
+
+- **Decisiones tomadas:**
+- **Clic exclusivo con corazón y pulgar:** se elimina cualquier clic por permanencia (`select: null` en `pc` y `call`). Quedarse quieto NUNCA hace clic; sólo confirma gestos explícitos (despertar ~1,2 s, fijar nivel de volumen/brillo ~1 s, o elegir celda de menú ~0,5 s). El ratón y sus clics vienen activos por defecto al abrir Gesture Control.
+- **Eliminación de ✌️:** eliminado porque colisionaba con el clic (corazón + pulgar mientras se apunta con el índice).
+- **Rejilla 3×3 completa:** se usan las 8 celdas en la ventana de cámara. El lector de documentos mantiene su cruz sin el lado de la mano activa.
+- **Menú con menos opciones cuando no hacen falta:** en la confirmación de energía se muestran sólo 2 opciones (↑ Volver, ↓ Confirmar) en vez de rellenar 4 celdas con 3 "Cancel" idénticos.
+- **Gesto para tirar atrás:** 👎 pulgar abajo mantenido o ✋← barrido lateral emiten fase `back` en el menú para retroceder de submenú o cerrarlo limpiamente.
+- **Seguridad en apagado:** confirmación obligatoria en celda ↓ (`confirm: true`); cualquier otra opción o gesto atrás cancela. Se bloquea la celda elegida para no activar opciones por permanencia.
+- **Micrófono:** en llamada conmuta el de la aplicación (`toggle_mic`); fuera de llamada conmuta el del sistema operativo (`mic_mute`).
+- **Brillo mínimo:** umbral inferior del 5 % para que la pantalla no se quede a oscuras.
+- **Lanzador seguro:** la web sólo envía el `id` de la aplicación; el ejecutable resuelve el comando local de `apps.json`.
+- **Umbrales de palma estricta:** ajustables para calibrar con hardware real si es necesario.
 
 ## Pendiente
-- Probar voz y Gesture Control en un ordenador real (micrófono, altavoces, llamada de verdad). Whisper local no se ha podido probar desde mi entorno (Hugging Face está bloqueado).
-- Probar con la webcam y una mano real; ajustar umbrales (`DEFAULT_OPTIONS`, `DEFAULT_THRESHOLDS`).
-- Añadir `@mediapipe/tasks-vision@0.10.21` a `web/package.json` y servir el modelo en local, para no depender de la red en la demo.
-- Pasar a español `web/src/input/README.md` (sigue en inglés desde #9).
-
-## Bloqueos y preguntas para humanos
-- **Carpeta nueva `adapters/desktop/`** (programa en Go del rol C): sigue la decisión de que los adaptadores viven en `adapters/` y hablan con la app en local. Es un programa aparte y no toca la app Wails. Confirmadlo y añadidlo a «Decisiones» en `AGENTS.md`.
-- **Puerto 8767** para Gesture Control: el 8766 lo usa el scanner (`scanner/capturar.py --servidor`).
-- **Cámara compartida:** la videollamada y la ventana de gestos usan la misma webcam; en Linux puede estar ocupada (ver `adapters/desktop/README.md`).
+- Probar con cámara y micrófono reales delante del ordenador; ajustar umbrales si a Nil le cuesta el clic o el despertar estricto.
+- Avisar a Isaac (rol A):
+  - `docs/PROBAR_GESTOS.md` (línea 29) aún menciona ✌️ para el menú (es archivo de `docs/`, pertenece a Isaac).
+  - `web/src/app/test/bridge.test.ts` envía `'victory'` y espera `null` (sigue pasando, pero conviene limpiarlo cuando Isaac actualice el bridge).
+- Unir en el futuro el lector de documentos y Gesture Control si el equipo lo decide (Nil prefirió aplazarlo).
 
 ## Archivos tocados
-- `web/src/input/**`, `adapters/desktop/**`, `estado/P3-C.md`
-- `web/src/app/App.tsx` y `web/src/app/Gestures.tsx` (solo en `feature/T6-voice`)
+- `web/src/input/**` (`types.ts`, `poses.ts`, `interaction.ts`, `actions.ts`, `overlay.ts`, `demo/`, `desktop/**`, `test/**`, `README.md`)
+- `adapters/desktop/**` (`executor.go`, `server.go`, `main.go`, `launchers.go`, `desktop_*.go`, `desktop_test.go`, `apps.example.json`, `.gitignore`, `README.md`)
+- `estado/P3-C.md`

@@ -103,12 +103,12 @@ test("the pointer is mapped to document coordinates", () => {
 });
 
 test("losing the hand emits 'hand absent' and resets the gesture", () => {
-  const ctl = new HandInteraction({ useFist: true });
-  const ev = simulate(ctl, [...repeat(makeHand(SHAPES.fist), 15), ...repeat(null, 15)]);
+  const ctl = new HandInteraction();
+  const ev = simulate(ctl, [...repeat(makeHand(SHAPES.thumbs_up), 15), ...repeat(null, 15)]);
   const kinds = ev.map((e) =>
     e.type === "gesture" ? `gesture:${e.gesture}` : e.type === "hand" ? `hand:${e.present}` : e.type,
   );
-  assert.deepEqual(kinds, ["hand:true", "gesture:fist", "gesture:none", "hand:false"]);
+  assert.deepEqual(kinds, ["hand:true", "gesture:thumbs_up", "gesture:none", "hand:false"]);
 });
 
 // ---- Several hands ----

@@ -2,7 +2,7 @@
 // actions on the real computer. Kept free of DOM code so it can be tested.
 
 import type { Action } from "../actions.ts";
-import type { Point } from "../types.ts";
+import type { MouseAction, Point } from "../types.ts";
 
 /** Actions the helper can perform on the computer. The rest belong to the document reader. */
 export const OS_ACTIONS: ReadonlySet<Action> = new Set<Action>([
@@ -17,6 +17,12 @@ export const OS_ACTIONS: ReadonlySet<Action> = new Set<Action>([
   "toggle_camera",
   "raise_hand",
   "leave_call",
+  "brightness",
+  "mic_mute",
+  "suspend",
+  "restart",
+  "shutdown",
+  "open_app",
 ]);
 
 export type CallAppId = "meet" | "zoom" | "teams";
@@ -26,6 +32,19 @@ export interface HelperStatus {
   desktop: string;
   dryRun: boolean;
   apps: { id: CallAppId; name: string }[];
+  /** Apps the helper can open (its apps.json); empty when none is configured. */
+  launchers?: { id: string; name: string }[];
+}
+
+export interface ActionOptions {
+  /** 0–1, for volume and brightness. */
+  value?: number;
+  /** Video-call app. */
+  app?: CallAppId;
+  /** Required for suspend, restart and shut down (the user confirmed in the menu). */
+  confirm?: boolean;
+  /** App to open (an id from launchers). */
+  target?: string;
 }
 
 /**
@@ -42,6 +61,8 @@ export function toScreen(p: Point, mirror = true, margin = 0.15): Point {
 
 export class HelperClient {
   private pointerBusy = false;
+  /** Mouse buttons are never dropped and keep their order (a "down" must be followed by its "up"). */
+  private buttons: Promise<unknown> = Promise.resolve();
   private readonly token: string;
   private readonly fetchImpl: typeof fetch;
 
@@ -67,11 +88,24 @@ export class HelperClient {
   }
 
   /** Performs an action; returns what the helper did. Throws with the helper's message on error. */
-  async action(action: Action, options: { value?: number; app?: CallAppId } = {}): Promise<string> {
+  async action(action: Action, options: ActionOptions = {}): Promise<string> {
     const r = await this.request("/api/action", "POST", { action, ...options });
     const data = (await r.json().catch(() => ({}))) as { did?: string; error?: string };
     if (!r.ok) throw new Error(data.error ?? `HTTP ${r.status}`);
     return data.did ?? action;
+  }
+
+  /** Presses or releases the mouse button, clicks or right-clicks at the current cursor position. */
+  mouse(action: MouseAction): Promise<void> {
+    const next = this.buttons.then(async () => {
+      const r = await this.request("/api/mouse", "POST", { action });
+      if (!r.ok) {
+        const data = (await r.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error ?? `HTTP ${r.status}`);
+      }
+    });
+    this.buttons = next.catch(() => {});
+    return next;
   }
 
   /** Moves the mouse. Drops the update if the previous one hasn't finished (no queue build-up). */
@@ -84,4 +118,30 @@ export class HelperClient {
       this.pointerBusy = false;
     }
   }
+}
+
+/**
+ * Sends only the newest value: while a request is running, newer values replace each other and only
+ * the last one is sent when it finishes. For volume and brightness, whose system calls can be slower
+ * than the hand moves.
+ */
+export function latestOnly<T>(send: (v: T) => Promise<unknown>): (v: T) => void {
+  let busy = false;
+  let pending: { v: T } | null = null;
+  const push = (v: T): void => {
+    if (busy) {
+      pending = { v };
+      return;
+    }
+    busy = true;
+    void send(v)
+      .catch(() => {})
+      .finally(() => {
+        busy = false;
+        const next = pending;
+        pending = null;
+        if (next) push(next.v);
+      });
+  };
+  return push;
 }

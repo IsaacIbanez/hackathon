@@ -43,14 +43,22 @@
       #action:empty { display: none; }
       #action.error { background: var(--bad); color: #fff; }
       #menu { position: absolute; inset: 0; display: grid; background: #0b0d12a6;
-        grid-template: ". up ." 1fr "left center right" 1fr ". down ." 1fr / 1fr 1fr 1fr; }
+        grid-template: "ul up ur" 1fr "left center right" 1fr "dl down dr" 1fr / 1fr 1fr 1fr; }
       #menu[hidden] { display: none; }
       #menu .op { --p: 0; margin: 8px; display: flex; align-items: center; justify-content: center; text-align: center;
         border-radius: 14px; font-size: clamp(13px, 3vw, 20px); font-weight: 800; background: #141821ee; box-shadow: 0 0 0 2px #ffffff22;
         background-image: linear-gradient(90deg, #ffd23f55 calc(var(--p) * 100%), transparent 0); }
       #menu .op.active { box-shadow: 0 0 0 3px var(--accent); color: var(--accent); }
       #menu .op.chosen { background: var(--accent); color: var(--accent-ink); }
-      #menu .center { grid-area: center; display: flex; align-items: center; justify-content: center; text-align: center; color: #cfd6e4; font-size: 12px; }
+      #menu .center { grid-area: center; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #cfd6e4; font-size: 12px; }
+      #menu .center strong { font-size: clamp(14px, 3vw, 20px); color: var(--text); }
+      /* Asleep: the image dims and a hint says how to wake the detector. */
+      .stage.asleep canvas { filter: brightness(.45); }
+      #sleep { --p: 0; position: absolute; top: 12px; left: 50%; transform: translateX(-50%); white-space: nowrap; max-width: calc(100% - 24px);
+        overflow: hidden; text-overflow: ellipsis; font-size: clamp(13px, 2.6vw, 18px); font-weight: 800; padding: 6px 16px; border-radius: 999px;
+        background: #141821ee; box-shadow: 0 0 0 2px #ffffff22;
+        background-image: linear-gradient(90deg, #3ddc9766 calc(var(--p) * 100%), transparent 0); }
+      #sleep[hidden] { display: none; }
       #cursor { position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%;
         background: var(--bad); border: 3px solid #fff; pointer-events: none; }
       #cursor[hidden] { display: none; }
@@ -93,12 +101,17 @@
       <video id="video" autoplay playsinline muted></video>
       <canvas id="canvas" aria-label="Camera view with hand tracking"></canvas>
       <div id="action" aria-live="assertive"></div>
+      <div id="sleep" role="status" hidden></div>
       <div id="menu" hidden>
+        <div class="op" data-s="up_left" style="grid-area: ul"></div>
         <div class="op" data-s="up" style="grid-area: up"></div>
+        <div class="op" data-s="up_right" style="grid-area: ur"></div>
         <div class="op" data-s="left" style="grid-area: left"></div>
-        <div class="center">☝️ Hold the pointer<br />on an option</div>
+        <div class="center"><strong id="menuTitle">Menu</strong>☝️ Point at an option and tap<br />middle finger on thumb · ✊ closes</div>
         <div class="op" data-s="right" style="grid-area: right"></div>
+        <div class="op" data-s="down_left" style="grid-area: dl"></div>
         <div class="op" data-s="down" style="grid-area: down"></div>
+        <div class="op" data-s="down_right" style="grid-area: dr"></div>
       </div>
       <div id="cursor" hidden></div>
     </div>
@@ -113,7 +126,7 @@
         <option value="zoom">Zoom</option>
         <option value="teams">Microsoft Teams</option>
       </select>
-      <label class="check"><input type="checkbox" id="mouse" /> Move the mouse with ☝️</label>
+      <label class="check"><input type="checkbox" id="mouse" checked /> Move the mouse with ☝️ (middle/heart finger + thumb clicks)</label>
     </div>
 
     <section class="card">
@@ -124,7 +137,8 @@
       <h2>Done</h2>
       <ol id="log"></ol>
     </section>
-    <p class="hint">Keep this window open (it can sit behind the call). The call app should be open; shortcuts go to its window.</p>
+    <p class="hint">Keep this window open (it can sit behind the call). The call app should be open; shortcuts go to its window.
+      The detector sleeps after a few seconds without gestures: show an open palm, fingers spread, to wake it.</p>
     <script type="module" src="./main.ts"></script>
   </body>
 </html>

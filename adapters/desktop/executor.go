@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 )
 
@@ -14,22 +15,33 @@ type Desktop interface {
 	// MoveMouse moves the cursor to (x, y), normalized to [0, 1] over the primary screen.
 	MoveMouse(x, y float64) error
 	Click() error
+	MouseDown() error
+	MouseUp() error
+	RightClick() error
 	// SetVolume sets the system output volume, from 0 to 1.
 	SetVolume(v float64) error
+	SetBrightness(v float64) error
+	ToggleMicMute() (state string, err error)
+	Power(kind string) error
+	OpenApp(argv []string) error
 	// FocusWindow brings the call app's window to the front before sending its shortcuts.
 	FocusWindow(app CallApp) error
 }
 
 var (
-	ErrUnsupported   = errors.New("not supported on this system")
-	ErrUnknownAction = errors.New("unknown action")
+	ErrUnsupported     = errors.New("not supported on this system")
+	ErrUnknownAction   = errors.New("unknown action")
+	ErrNeedsConfirm    = errors.New("action requires confirmation")
+	ErrUnknownLauncher = errors.New("unknown launcher")
 )
 
 // Request is what the gesture page sends for each recognized action.
 type Request struct {
-	Action string   `json:"action"`
-	Value  *float64 `json:"value,omitempty"`
-	App    string   `json:"app,omitempty"`
+	Action  string   `json:"action"`
+	Value   *float64 `json:"value,omitempty"`
+	App     string   `json:"app,omitempty"`
+	Confirm bool     `json:"confirm,omitempty"`
+	Target  string   `json:"target,omitempty"`
 }
 
 // Executor turns requests into operations on a Desktop.
@@ -38,6 +50,7 @@ type Executor struct {
 	GOOS    string
 	// Pause between focusing a window and sending its shortcut (the window needs a moment).
 	FocusDelay time.Duration
+	Launchers  []Launcher
 }
 
 // Do performs the request and returns a short human-readable description of what was done.
@@ -50,6 +63,55 @@ func (e *Executor) Do(r Request) (string, error) {
 			return "", fmt.Errorf("volume needs a value between 0 and 1")
 		}
 		return fmt.Sprintf("volume %d %%", int(*r.Value*100+0.5)), e.Desktop.SetVolume(*r.Value)
+	case "brightness":
+		if r.Value == nil || *r.Value < 0 || *r.Value > 1 {
+			return "", fmt.Errorf("brightness needs a value between 0 and 1")
+		}
+		val := *r.Value
+		if val < 0.05 {
+			val = 0.05
+		}
+		return fmt.Sprintf("brightness %d %%", int(val*100+0.5)), e.Desktop.SetBrightness(val)
+	case "mic_mute":
+		state, err := e.Desktop.ToggleMicMute()
+		if err != nil {
+			return "", err
+		}
+		switch state {
+		case "muted":
+			return "microphone muted", nil
+		case "unmuted":
+			return "microphone on", nil
+		default:
+			return "microphone toggled", nil
+		}
+	case "suspend", "restart", "shutdown":
+		if !r.Confirm {
+			return "", ErrNeedsConfirm
+		}
+		if err := e.Desktop.Power(r.Action); err != nil {
+			return "", err
+		}
+		return r.Action, nil
+	case "open_app":
+		var launcher *Launcher
+		for i := range e.Launchers {
+			if e.Launchers[i].ID == r.Target {
+				launcher = &e.Launchers[i]
+				break
+			}
+		}
+		if launcher == nil {
+			return "", fmt.Errorf("%w: %q", ErrUnknownLauncher, r.Target)
+		}
+		argv, err := launcher.Argv(e.GOOS)
+		if err != nil {
+			return "", err
+		}
+		if err := e.Desktop.OpenApp(argv); err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("opened %s", launcher.Name), nil
 	}
 
 	combos, ok := Shortcuts(r.Action, r.App, e.GOOS)
@@ -78,6 +140,22 @@ func (e *Executor) Do(r Request) (string, error) {
 	return did, nil
 }
 
+// Mouse performs a mouse button action: down, up, click, or right_click.
+func (e *Executor) Mouse(action string) error {
+	switch action {
+	case "down":
+		return e.Desktop.MouseDown()
+	case "up":
+		return e.Desktop.MouseUp()
+	case "click":
+		return e.Desktop.Click()
+	case "right_click":
+		return e.Desktop.RightClick()
+	default:
+		return fmt.Errorf("unknown mouse action %q", action)
+	}
+}
+
 // MovePointer moves the mouse; x and y are normalized to [0, 1].
 func (e *Executor) MovePointer(x, y float64) error {
 	if x < 0 || x > 1 || y < 0 || y > 1 {
@@ -100,5 +178,17 @@ func (d *DryRun) record(s string) error {
 func (d *DryRun) PressKeys(c Combo) error       { return d.record("keys " + c.String()) }
 func (d *DryRun) MoveMouse(x, y float64) error  { return d.record(fmt.Sprintf("move %.2f %.2f", x, y)) }
 func (d *DryRun) Click() error                  { return d.record("click") }
+func (d *DryRun) MouseDown() error              { return d.record("mouse down") }
+func (d *DryRun) MouseUp() error                { return d.record("mouse up") }
+func (d *DryRun) RightClick() error             { return d.record("mouse right_click") }
 func (d *DryRun) SetVolume(v float64) error     { return d.record(fmt.Sprintf("volume %.2f", v)) }
+func (d *DryRun) SetBrightness(v float64) error { return d.record(fmt.Sprintf("brightness %.2f", v)) }
+func (d *DryRun) ToggleMicMute() (string, error) {
+	_ = d.record("mic toggle")
+	return "toggled", nil
+}
+func (d *DryRun) Power(kind string) error { return d.record("power " + kind) }
+func (d *DryRun) OpenApp(argv []string) error {
+	return d.record("open " + strings.Join(argv, " "))
+}
 func (d *DryRun) FocusWindow(app CallApp) error { return d.record("focus " + app.ID) }

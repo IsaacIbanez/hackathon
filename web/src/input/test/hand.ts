@@ -8,6 +8,12 @@ export interface HandShape {
   ring?: boolean;
   pinky?: boolean;
   pinch?: boolean;
+  /** Degrees between neighbouring extended fingers (0: side by side, as a relaxed open hand). */
+  spread?: number;
+  /** The middle finger bends forward until its tip touches the thumb tip (the click gesture). */
+  middleOnThumb?: boolean;
+  /** MediaPipe's handedness label. This synthetic hand shows the palm for "Left". */
+  handedness?: "Left" | "Right";
   /** Offset of the whole hand in the image. */
   dx?: number;
   dy?: number;
@@ -48,9 +54,12 @@ export function makeHand(s: HandShape = {}): Hand {
     const b = 5 + i * 4;
     pts[b] = p(x, 0.6);
     if (extended) {
-      pts[b + 1] = p(x, 0.55);
-      pts[b + 2] = p(x, 0.51);
-      pts[b + 3] = p(x, 0.48);
+      // Phalanges of 0.05, 0.04 and 0.03, fanned out by `spread` around the middle of the hand.
+      const a = (((i - 1.5) * (s.spread ?? 0)) * Math.PI) / 180;
+      const at = (d: number) => p(x + d * Math.sin(a), 0.6 - d * Math.cos(a));
+      pts[b + 1] = at(0.05);
+      pts[b + 2] = at(0.09);
+      pts[b + 3] = at(0.12);
     } else {
       pts[b + 1] = p(x, 0.55);
       pts[b + 2] = p(x, 0.58);
@@ -63,21 +72,37 @@ export function makeHand(s: HandShape = {}): Hand {
     pts[8] = p(0.4, 0.54);
     pts[4] = p(0.4, 0.555);
   }
+  if (s.middleOnThumb) {
+    pts[10] = p(0.47, 0.55);
+    pts[11] = p(0.44, 0.53);
+    pts[12] = p(0.41, 0.54);
+    pts[2] = p(0.4, 0.7);
+    pts[3] = p(0.39, 0.63);
+    pts[4] = p(0.405, 0.552);
+  }
   const dx = s.dx ?? 0;
   const dy = s.dy ?? 0;
-  return { points: pts.map((q) => p(q.x + dx, q.y + dy, q.z)), score: 0.9 };
+  const hand: Hand = { points: pts.map((q) => p(q.x + dx, q.y + dy, q.z)), score: 0.9 };
+  if (s.handedness) hand.handedness = s.handedness;
+  return hand;
 }
 
 /** One shape per gesture; the key is the gesture the classifier must return. */
 export const SHAPES = {
   palm: { thumb: "out", index: true, middle: true, ring: true, pinky: true },
   point: { index: true },
-  victory: { index: true, middle: true },
   fist: {},
   thumbs_up: { thumb: "up" },
   thumbs_down: { thumb: "down" },
   pinch: { pinch: true, middle: true, ring: true, pinky: true },
 } satisfies Record<string, HandShape>;
+
+/** Strict wake palm: fingers straight and spread, palm facing the camera, upright. */
+export const WAKE_PALM: HandShape = { ...SHAPES.palm, spread: 12, handedness: "Left" };
+
+/** Click gesture: resting (index and middle up, thumb out) and pressed (middle fingertip on the thumb). */
+export const CLICK_REST: HandShape = { index: true, middle: true, thumb: "out" };
+export const CLICK_PRESS: HandShape = { index: true, middleOnThumb: true };
 
 /** Rotates the whole hand around the wrist (degrees; positive = clockwise in the image). */
 export function rotate(h: Hand, degrees: number): Hand {

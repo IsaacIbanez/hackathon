@@ -105,8 +105,10 @@ export function classifyPose(hand: Hand, aspect = 1, th: Thresholds = DEFAULT_TH
   // fist). The other three fingers don't matter.
   if (pinchSeparation(pts) < th.pinch && indexReach(pts) >= th.indexOut) return "pinch";
   if (f.index && f.middle && f.ring && f.pinky) return "palm";
-  if (f.index && f.middle && !f.ring && !f.pinky) return "victory";
-  if (f.index && nOthers === 0) return "point";
+  // Index pointing. With the middle finger also up it still counts as pointing: there is no
+  // "victory" gesture any more, because it was too similar to the click gesture (index pointing
+  // while the middle finger moves to touch the thumb).
+  if (f.index && !f.ring && !f.pinky) return "point";
   if (!f.index && nOthers === 0) {
     if (f.thumb) {
       const d = thumbDirection(hand, aspect);

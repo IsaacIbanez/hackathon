@@ -11,7 +11,10 @@ import (
 // macDesktop uses AppleScript (osascript). The terminal running this program needs the
 // Accessibility permission (System Settings → Privacy & Security → Accessibility).
 // Mouse control needs `cliclick` (brew install cliclick).
-type macDesktop struct{ w, h int }
+type macDesktop struct {
+	w, h          int
+	savedInputVol int
+}
 
 func newDesktop(w, h int) Desktop { return &macDesktop{w: w, h: h} }
 
@@ -78,8 +81,88 @@ func (d *macDesktop) Click() error {
 	return exec.Command("cliclick", "c:.").Run()
 }
 
+func (d *macDesktop) MouseDown() error {
+	if _, err := exec.LookPath("cliclick"); err != nil {
+		return fmt.Errorf("%w: install cliclick (brew install cliclick)", ErrUnsupported)
+	}
+	return exec.Command("cliclick", "dd:.").Run()
+}
+
+func (d *macDesktop) MouseUp() error {
+	if _, err := exec.LookPath("cliclick"); err != nil {
+		return fmt.Errorf("%w: install cliclick (brew install cliclick)", ErrUnsupported)
+	}
+	return exec.Command("cliclick", "du:.").Run()
+}
+
+func (d *macDesktop) RightClick() error {
+	if _, err := exec.LookPath("cliclick"); err != nil {
+		return fmt.Errorf("%w: install cliclick (brew install cliclick)", ErrUnsupported)
+	}
+	return exec.Command("cliclick", "rc:.").Run()
+}
+
 func (d *macDesktop) SetVolume(v float64) error {
 	return osascript(fmt.Sprintf("set volume output volume %d", int(v*100+0.5)))
+}
+
+func (d *macDesktop) SetBrightness(v float64) error {
+	if _, err := exec.LookPath("brightness"); err == nil {
+		return exec.Command("brightness", fmt.Sprintf("%.2f", v)).Run()
+	}
+	steps := int(v*16 + 0.5)
+	script := fmt.Sprintf(`tell application "System Events"
+		repeat 16 times
+			key code 145
+		end repeat
+		repeat %d times
+			key code 144
+		end repeat
+	end tell`, steps)
+	return osascript(script)
+}
+
+func (d *macDesktop) ToggleMicMute() (string, error) {
+	out, err := exec.Command("osascript", "-e", "input volume of (get volume settings)").Output()
+	if err != nil {
+		return "", fmt.Errorf("osascript: %v", err)
+	}
+	var current int
+	if _, err := fmt.Sscanf(strings.TrimSpace(string(out)), "%d", &current); err != nil {
+		return "", fmt.Errorf("parse input volume %q: %v", string(out), err)
+	}
+	if current > 0 {
+		d.savedInputVol = current
+		if err := osascript("set volume input volume 0"); err != nil {
+			return "", err
+		}
+		return "muted", nil
+	}
+	restore := d.savedInputVol
+	if restore <= 0 {
+		restore = 75
+	}
+	if err := osascript(fmt.Sprintf("set volume input volume %d", restore)); err != nil {
+		return "", err
+	}
+	return "unmuted", nil
+}
+
+func (d *macDesktop) Power(kind string) error {
+	switch kind {
+	case "suspend":
+		return exec.Command("pmset", "sleepnow").Run()
+	case "restart":
+		return osascript(`tell application "System Events" to restart`)
+	case "shutdown":
+		return osascript(`tell application "System Events" to shut down`)
+	default:
+		return fmt.Errorf("unknown power action %q", kind)
+	}
+}
+
+func (d *macDesktop) OpenApp(argv []string) error {
+	return openProcess(argv)
 }
 
 func (d *macDesktop) FocusWindow(app CallApp) error {
