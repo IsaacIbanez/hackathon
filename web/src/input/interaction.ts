@@ -130,7 +130,7 @@ export interface InteractionOptions {
   menuSelect: "click" | "dwell";
   /** Menu tap: the fingers must let go within this time after touching (longer is not a tap). */
   menuTapMs: number;
-  /** Menu tap: the middle fingertip must be this far from the ring fingertip (÷ hand size). */
+  /** Menu tap and mouse click: the middle fingertip must be this far from the ring fingertip (÷ hand size). */
   menuTapRingSep: number;
   /** After opening the menu, the hand is ignored for this long (it is still settling). */
   menuSettleMs: number;
@@ -1050,9 +1050,14 @@ export class HandInteraction {
     if (!pointing) this.clickReady = false;
     else if (gap > this.opts.clickRelease) this.clickReady = true;
     const outInFront = distance(pts[L.WRIST], pts[L.MIDDLE_TIP]) / size >= this.opts.clickReach;
+    // Resting in the pointing pose, the curled middle finger lies next to the ring finger: to click
+    // it has to leave it and go to the thumb.
+    const offTheRing = distance(pts[L.MIDDLE_TIP], pts[L.RING_TIP]) / size > this.opts.menuTapRingSep;
     this.clickTouching =
       pointing &&
-      (this.clickTouching ? gap < this.opts.clickRelease : this.clickReady && outInFront && gap < this.opts.clickPress);
+      (this.clickTouching
+        ? gap < this.opts.clickRelease
+        : this.clickReady && outInFront && offTheRing && gap < this.opts.clickPress);
     const touching = this.clickTouching;
 
     switch (this.click) {
