@@ -151,7 +151,7 @@ Cada persona es dueña de sus carpetas; no se edita código de otro rol sin avis
 | Rol | Persona | Carpetas | Responsabilidad |
 |-----|---------|----------|-----------------|
 | A. Núcleo e integración | Isaac (P1) | `api/`, `backend/`, `web/src/app/` (salvo `Gestures.tsx`), `main.go`, `app.go`, CI, `docs/` | Contrato, servidor Go y orquestación, lógica de respuestas, modelos frugales, pantalla, empaquetado, revisión de PRs y pitch |
-| B1. Cámara en la app | Pau (P4) | `web/src/camera/`, `scanner/capturar.py` | Abrir la cámara (la Logitech si está), sacar la foto más nítida, avisos de calidad en directo |
+| B1. Cámara en la app | Pau (P4) | `web/src/camera/`, `scanner/capturar.py`, `backend/captions/`, `web/src/captions/` | Abrir la cámara (la Logitech si está), sacar la foto más nítida, avisos de calidad en directo; subtítulos en directo con traducción (`docs/briefs/pau.md`) |
 | B2. Lectura de documentos | Didac (P2) | `scanner/` (pipeline y servicio), `web/src/document/` | Foto → hoja, orientación, OCR, `document` con esquinas; servicio local para la app |
 | C. Interacción | Nil (P3) | `web/src/input/`, `web/src/app/Gestures.tsx`, `adapters/desktop/` | Gestos, voz (dictado y lectura), orden «lee el documento», puntero sobre el papel real |
 
@@ -202,12 +202,24 @@ Relación con lo anterior:
 - Las secciones «Plan actual» y «Roles y carpetas» describen el reparto anterior: **úsalas solo como mapa de quién conoce cada parte.** El reparto vigente es el de `TAREAS.md`.
 
 ## Decisiones
+<<<<<<< HEAD
 - 2026-11-21 — **App overlay** (rama `overlay`, detalle en `docs/OVERLAY.md`):
   - la app de escritorio es una ventana siempre encima que se abre desde cualquier programa con **Ctrl+Alt+Espacio** (`LAUZHACK_HOTKEY`; el MX Keypad envía la misma combinación desde Logi Options+);
   - opciones: **1** gestos (Nil, lanza `gesture-control.exe`), **2** leer un papel (Pau y Didac: cámara → servicio de lectura → lectura guiada) y **3** leer un archivo del PC (Didac: PDF, imágenes, TXT/MD → lectura guiada);
   - la app arranca y para el servicio de lectura y Gesture Control;
   - ninguna opción usa IA y el contrato no cambia.
   - Motivo: juntar las funcionalidades en un solo ejecutable.
+=======
+- 2026-11-21 — **Subtítulos en directo (Pau, brief en `docs/briefs/pau.md`):**
+  - Qué hacen: subtítulos del micrófono y del audio de una llamada, con quién habla, traducción y la transcripción guardada en un `.txt`.
+  - Cómo:
+    - el navegador manda el audio a Go por `GET /captions` (WebSocket);
+    - Go lo pasa a Together AI (subtítulos en directo; diarización con Whisper por lotes; traducción con un modelo pequeño).
+  - Carpetas nuevas de Pau: `backend/captions/` (acordado con Isaac; de su código solo se toca el registro de la ruta) y `web/src/captions/`.
+  - Clave `TOGETHER_API_KEY`: solo en `.env`, nunca en el repo ni en el navegador.
+  - Coste visible, con un tope por sesión (`CAPTIONS_LIMIT_USD`, 1 $). Si Together falla, se ofrece el Whisper local de Nil.
+  - Isaac pone el botón «Live captions» en la app.
+>>>>>>> 131bcf4 (docs: Pau's brief (live captions with speakers and translation) and AGENTS note)
 - 2026-11-21 — **Arranque por persona:** no se reparten más tareas cerradas.
   - Cada persona trabaja con su agente en lo que decida: Nil, en la cámara y su entorno (voz, cara, manos, teclado); Didac y Pau, en una funcionalidad grande y distinta cada uno; Isaac decide entre el backend, una funcionalidad o ayudar a otra persona.
   - El agente entrevista primero a su persona (`docs/arranque/<persona>.md`) y deja un brief confirmado en `docs/briefs/<persona>.md`.
