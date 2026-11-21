@@ -186,6 +186,9 @@ func (c *Client) CompleteWithEscalation(ctx context.Context, req Request, doubt 
 	return r, true, err
 }
 
+// Stats returns a snapshot of the client's meter.
+func (c *Client) Stats() Stats { return c.meter().Snapshot() }
+
 func (c *Client) meter() *Meter {
 	if c.Meter == nil {
 		c.Meter = &Meter{}

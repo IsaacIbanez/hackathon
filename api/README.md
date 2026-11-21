@@ -28,7 +28,9 @@ Coordenadas normalizadas a [0, 1] sobre el documento recortado, origen arriba a 
 | `speak` | Go → navegador | `text`, `highlightBlockIds[]`, `lang`, opcional `replyTo` |
 | `stats` | Go → navegador | coste y latencia acumulados: `cheap` y `expensive` (`calls`, `cacheHits`, `errors`, `costUsd`, `avgLatencyMs`, `lastLatencyMs`) y `totalCostUsd`. Se envía tras cada llamada a un modelo |
 
-## Servidor mock y app
+## Servidor mock, servidor real y app
+`task server` arranca la lógica real (sesiones + modelos) sin ventana en `ws://127.0.0.1:8765/ws`; necesita la clave en `.env`. Es lo que hay que usar para probar el scanner o el frontend con respuestas de verdad.
+
 La app de escritorio (`task dev` o el ejecutable) sirve lo mismo en `ws://127.0.0.1:8765/ws`, por ahora con las mismas respuestas de ejemplo. Cualquier proceso local puede conectarse (no hace falta un navegador).
 
 `task mock` (o `go run ./backend/cmd/mock -addr localhost:8080`):

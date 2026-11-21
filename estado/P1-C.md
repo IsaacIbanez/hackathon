@@ -3,7 +3,7 @@
 - **Persona:** Isaac
 - **Herramienta:** Claude Code
 - **Tarea actual:** T8 (integración)
-- **Rama:** feature/T8-mensaje-stats (PR #6, pendiente de visto bueno)
+- **Rama:** feature/T8-session
 - **Estado:** en curso
 - **Último cambio:** 2026-11-21
 
@@ -13,9 +13,9 @@
 - T8 parte 1: la app Wails sirve `/health` y `/ws` en `127.0.0.1:8765` (#4). Probado con el ejecutable y un cliente WebSocket sin navegador.
 - Tests de módulos del frontend (`node --test`) dentro de `task check`, y `test/` y `demo/` fuera del build de la app (#5).
 - Limpieza: `.gitattributes` (LF en el código), `task fmt` y comprobación de `gofmt` en el CI.
+- T8 parte 2: lógica real en `backend/session` (document → explicación, pointer → lectura local, utterance → respuesta con contexto, consejos de encuadre locales, `stats`). Probada de punta a punta con la clave real y modelos gratis: 0 $. `task server` para probar sin ventana.
 
 ## Pendiente
-- **PR #6 (mensaje `stats`, solo añade): necesita el visto bueno del equipo.** CI en verde.
 - T8: sustituir las respuestas de ejemplo por la lógica real (`backend/llm` + B2).
 
 ## Bloqueos y preguntas para humanos

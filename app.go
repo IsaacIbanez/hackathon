@@ -3,9 +3,12 @@ package main
 import (
 	"context"
 	"log"
+	"net/http"
 	"os"
 
+	"github.com/IsaacIbanez/hackathon/backend/llm"
 	"github.com/IsaacIbanez/hackathon/backend/mock"
+	"github.com/IsaacIbanez/hackathon/backend/session"
 	"github.com/IsaacIbanez/hackathon/backend/ws"
 )
 
@@ -24,8 +27,7 @@ func NewApp() *App {
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 
-	// For now the app answers with the fixtures (backend/mock); the real logic comes with T8.
-	h, err := mock.NewMux()
+	h, err := newHandler()
 	if err != nil {
 		log.Printf("app: no WebSocket server: %v", err)
 		return
@@ -55,4 +57,16 @@ func (a *App) WsURL() string {
 		return ""
 	}
 	return a.server.WSURL()
+}
+
+// newHandler serves the real sessions when there is an OpenRouter key (environment or
+// .env) and falls back to the fixtures (backend/mock) otherwise, so the app always starts.
+func newHandler() (http.Handler, error) {
+	client, err := llm.NewFromEnv()
+	if err != nil {
+		log.Printf("app: %v; answering with sample fixtures", err)
+		return mock.NewMux()
+	}
+	log.Printf("app: real sessions, cheap=%s expensive=%s", client.Models[llm.Cheap], client.Models[llm.Expensive])
+	return session.NewMux(client, session.DefaultConfig()), nil
 }
