@@ -222,6 +222,28 @@ test("menu: holding ✌️ chooses nothing and the menu closes by itself", () =>
   );
 });
 
+// ---- Video call context ----
+
+test("call: palm raises your hand, thumbs up mutes, thumbs down toggles the camera", () => {
+  const palm = simulate(new HandInteraction(), repeat(makeHand(SHAPES.palm), 20)).find((e) => e.type === "gesture")!;
+  assert.equal(actionFor(palm, "call"), "raise_hand");
+  const up = simulate(new HandInteraction(), repeat(makeHand(SHAPES.thumbs_up), 20)).find((e) => e.type === "gesture")!;
+  assert.equal(actionFor(up, "call"), "toggle_mic");
+  const down = simulate(new HandInteraction(), repeat(makeHand(SHAPES.thumbs_down), 20)).find((e) => e.type === "gesture")!;
+  assert.equal(actionFor(down, "call"), "toggle_camera");
+});
+
+test("call: swipes do nothing and leaving the call is in the quick menu (↓)", () => {
+  const swipe = simulate(
+    new HandInteraction(),
+    Array.from({ length: 10 }, (_, i) => makeHand({ ...SHAPES.palm, dx: -0.04 * i })),
+  ).find((e) => e.type === "swipe")!;
+  assert.equal(actionFor(swipe, "call"), null);
+  const choose = simulate(new HandInteraction(), pointerInMenu(0, 0.3)).find((e) => e.type === "menu" && e.phase === "choose")!;
+  assert.equal(actionFor(choose, "call"), "leave_call");
+  assert.equal(actionFor(choose, "document"), "repeat");
+});
+
 // ---- Hand in use ----
 
 /** Adds MediaPipe's raw handedness label (by default it matches the real hand). */

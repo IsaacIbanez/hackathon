@@ -2,11 +2,11 @@
 // "what the user wants to do", without landmark details.
 //
 // Few gestures, many actions: the same gesture means different things depending on the context
-// (reading a document, filling in a form, or using the computer).
+// (reading a document, filling in a form, using the computer, or in a video call).
 
 import type { HandEvent, HandSide, HeadGesture, MenuSector } from "./types.ts";
 
-export type Context = "document" | "form" | "pc";
+export type Context = "document" | "form" | "pc" | "call";
 
 export type Action =
   // Document
@@ -27,6 +27,11 @@ export type Action =
   | "next_tab"
   | "previous_tab"
   | "click"
+  // Video call
+  | "toggle_mic"
+  | "toggle_camera"
+  | "raise_hand"
+  | "leave_call"
   // Shared
   | "undo"
   | "volume"
@@ -43,8 +48,8 @@ interface ContextMap {
   thumbs_up: Action;
   thumbs_down: Action;
   palm: Action;
-  swipe_right: Action;
-  swipe_left: Action;
+  swipe_right: Action | null;
+  swipe_left: Action | null;
   select: Action;
   /** Continuous control with the pinch; the value is in event.value (0–1). */
   pinch: Action | null;
@@ -82,6 +87,18 @@ export const MAPS: Record<Context, ContextMap> = {
     pinch: "volume",
     head: { nod: "enter", shake: "escape" },
   },
+  // In a video call: ✋ raises your hand, 👍 mutes/unmutes, 👎 turns the camera on/off. Swipes do
+  // nothing (people move their hands while talking); leaving the call is in the quick menu.
+  call: {
+    thumbs_up: "toggle_mic",
+    thumbs_down: "toggle_camera",
+    palm: "raise_hand",
+    swipe_right: null,
+    swipe_left: null,
+    select: "click",
+    pinch: "volume",
+    head: { nod: "raise_hand", shake: "toggle_mic" },
+  },
 };
 
 /** Quick menu (✌️) options when the hand in use is unknown; the same in every context. */
@@ -93,13 +110,15 @@ export const QUICK_MENU: Record<MenuSector, Action> = {
 };
 
 /**
- * Menu for a given hand: that hand's side is removed (moving the pointer outwards is awkward) and
- * "ask for help" always sits on the comfortable side, so it is never lost. "Dictate" is dropped.
+ * Menu for a given hand and context: that hand's side is removed (moving the pointer outwards is
+ * awkward) and "ask for help" always sits on the comfortable side, so it is never lost. "Dictate" is
+ * dropped. In a video call, ↓ leaves the call (behind the menu so it can't happen by accident).
  */
-export function menuFor(hand: HandSide | null): Partial<Record<MenuSector, Action>> {
-  if (!hand) return QUICK_MENU;
+export function menuFor(hand: HandSide | null, context: Context = "document"): Partial<Record<MenuSector, Action>> {
+  const base: Record<MenuSector, Action> = context === "call" ? { ...QUICK_MENU, down: "leave_call" } : QUICK_MENU;
+  if (!hand) return base;
   const otherSide: MenuSector = hand === "right" ? "left" : "right";
-  return { up: QUICK_MENU.up, down: QUICK_MENU.down, [otherSide]: "ask_for_help" };
+  return { up: base.up, down: base.down, [otherSide]: "ask_for_help" };
 }
 
 /**
@@ -122,7 +141,7 @@ export function actionFor(event: HandEvent, context: Context = "document"): Acti
     case "level":
       return event.phase === "move" || event.phase === "end" ? m.pinch : null;
     case "menu":
-      return event.phase === "choose" && event.sector ? (menuFor(event.hand)[event.sector] ?? null) : null;
+      return event.phase === "choose" && event.sector ? (menuFor(event.hand, context)[event.sector] ?? null) : null;
     case "head":
       return m.head[event.gesture];
     case "mode":
