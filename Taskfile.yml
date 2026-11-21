@@ -1,7 +1,11 @@
 # Tareas del proyecto. Instala task una vez:
 #   go install github.com/go-task/task/v3/cmd/task@latest
-# Uso: task gen | task mock | task check
+# Uso: task gen | task mock | task dev | task check
 version: "3"
+
+vars:
+  # En Linux, Wails usa WebKitGTK 4.1 (Ubuntu 24.04+ / Debian 13): hace falta esta etiqueta.
+  GOTAGS: '{{if eq OS "linux"}}-tags webkit2_41{{end}}'
 
 tasks:
   gen:
@@ -21,19 +25,23 @@ tasks:
     cmds:
       - go run ./backend/cmd/mock {{.CLI_ARGS}}
 
-  check:
-    desc: go vet, go test y build del frontend (si existe web/package.json)
+  dev:
+    desc: Arranca la app de escritorio con recarga en caliente (wails dev)
     cmds:
-      - go vet ./...
-      - go test ./...
+      - wails dev {{.GOTAGS}}
+
+  check:
+    desc: build y lint del frontend, go vet y go test
+    cmds:
+      # Primero el front: main.go embebe web/dist y sin él Go no compila.
       - task: web-build
+      - go vet {{.GOTAGS}} ./...
+      - go test {{.GOTAGS}} ./...
 
   web-build:
     internal: true
-    status:
-      # Se salta si todavía no hay frontend.
-      - test ! -f package.json
     dir: web
     cmds:
       - npm ci
+      - npm run lint
       - npm run build
