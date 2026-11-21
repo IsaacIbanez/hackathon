@@ -43,13 +43,14 @@ const ACTION_LABELS: Record<string, string> = {
   dictate_field: "Dictate field", clear_field: "Clear field", enter: "Enter", escape: "Escape",
   next_tab: "Next tab", previous_tab: "Previous tab", click: "Click", undo: "Undo",
   volume: "Volume", wake: "Awake", sleep: "Asleep", adjust_volume: "Adjust volume",
+  toggle_mic: "Mute / unmute", toggle_camera: "Camera on / off", raise_hand: "Raise hand", leave_call: "Leave call",
   repeat: "Repeat", copy_text: "Copy text", dictate: "Dictate", ask_for_help: "Ask for help",
 };
 const GESTURE_LABELS: Record<string, string> = {
   none: "—", point: "Pointing", palm: "Open palm", fist: "Fist", thumbs_up: "Thumbs up",
   thumbs_down: "Thumbs down", victory: "Victory", pinch: "Pinch",
 };
-const CONTEXT_LABELS: Record<Context, string> = { document: "Reading", form: "Form", pc: "Computer" };
+const CONTEXT_LABELS: Record<Context, string> = { document: "Reading", form: "Form", pc: "Computer", call: "Video call" };
 const HAND_LABELS: Record<HandSide, string> = { right: "Right", left: "Left" };
 const PHASE_LABELS: Record<string, string> = {
   open: "open", highlight: "highlight", choose: "chosen", close: "closed",
@@ -199,7 +200,7 @@ function listenForQuestion(where: Point) {
 function paintGuide() {
   const m = MAPS[context];
   $("contextName").textContent = CONTEXT_LABELS[context];
-  const rows: [string, string, boolean][] = [
+  const rows: [string, string | null, boolean][] = [
     ["👍 Thumbs up (hold)", m.thumbs_up, false],
     ["✋ Open palm facing the camera (hold still)", m.palm, false],
     ["✋→ Swipe to your right", m.swipe_right, false],
@@ -208,7 +209,7 @@ function paintGuide() {
     ["☝️ Point and hold still ~1 s", m.select, false],
     ["👎 Thumbs down", m.thumbs_down, true],
     ["✌️ Victory", "Open the quick menu, then move the pointer onto an option and hold ~0.5 s", true],
-    ...(Object.entries(menuFor(interaction.handInUse)) as [MenuSector, string][]).map(
+    ...(Object.entries(menuFor(interaction.handInUse, context)) as [MenuSector, string][]).map(
       ([s, a]) => [`      Menu ${ARROWS[s]} ${s}`, a, true] as [string, string, boolean],
     ),
     ["🤏 After “Adjust volume”: pinch, then open", "Volume in 10 % steps; hold still ~1 s to set it", true],
@@ -216,7 +217,7 @@ function paintGuide() {
     ["🙂 Shake your head", m.head.shake, true],
   ];
   $("guide").innerHTML = rows
-    .map(([g, a, beta]) => `<tr><td>${g}${beta ? '<i class="badge">BETA</i>' : ""}</td><td>${label(a)}</td></tr>`)
+    .map(([g, a, beta]) => `<tr><td>${g}${beta ? '<i class="badge">BETA</i>' : ""}</td><td>${a ? label(a) : "—"}</td></tr>`)
     .join("");
 }
 paintGuide();
@@ -269,7 +270,7 @@ function paintMenu() {
   const open = interaction.menuOpen(t);
   const chosen = chosenMenu && t - chosenMenu.t < 700 ? chosenMenu : null;
   $("menu").hidden = !open && !chosen;
-  const options = menuFor(open?.hand ?? chosen?.hand ?? null);
+  const options = menuFor(open?.hand ?? chosen?.hand ?? null, context);
   for (const op of document.querySelectorAll<HTMLElement>("#menu .op")) {
     const s = op.dataset.s as MenuSector;
     const action = options[s];
