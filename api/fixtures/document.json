@@ -4,14 +4,77 @@
   "ts": 1795262400000,
   "payload": {
     "blocks": [
-      { "id": "b1", "text": "AXA Seguros — Declaración de siniestro", "box": { "x": 0.08, "y": 0.05, "w": 0.84, "h": 0.06 }, "confidence": 0.97 },
-      { "id": "b2", "text": "Nombre y apellidos: ____________", "box": { "x": 0.08, "y": 0.18, "w": 0.6, "h": 0.04 }, "confidence": 0.92 },
-      { "id": "b3", "text": "Fecha del siniestro: __/__/____", "box": { "x": 0.08, "y": 0.25, "w": 0.5, "h": 0.04 }, "confidence": 0.88 },
-      { "id": "b4", "text": "Firma del asegurado", "box": { "x": 0.55, "y": 0.85, "w": 0.35, "h": 0.04 }, "confidence": 0.61 }
+      {
+        "id": "b1",
+        "text": "AXA Seguros — Declaración de siniestro",
+        "box": {
+          "x": 0.08,
+          "y": 0.05,
+          "w": 0.84,
+          "h": 0.06
+        },
+        "confidence": 0.97
+      },
+      {
+        "id": "b2",
+        "text": "Nombre y apellidos: ____________",
+        "box": {
+          "x": 0.08,
+          "y": 0.18,
+          "w": 0.6,
+          "h": 0.04
+        },
+        "confidence": 0.92
+      },
+      {
+        "id": "b3",
+        "text": "Fecha del siniestro: __/__/____",
+        "box": {
+          "x": 0.08,
+          "y": 0.25,
+          "w": 0.5,
+          "h": 0.04
+        },
+        "confidence": 0.88
+      },
+      {
+        "id": "b4",
+        "text": "Firma del asegurado",
+        "box": {
+          "x": 0.55,
+          "y": 0.85,
+          "w": 0.35,
+          "h": 0.04
+        },
+        "confidence": 0.61
+      }
     ],
-    "quality": { "score": 0.82, "issues": ["glare"] },
+    "quality": {
+      "score": 0.82,
+      "issues": [
+        "glare"
+      ]
+    },
     "imageWidth": 1240,
     "imageHeight": 1754,
-    "lang": "es"
+    "lang": "es",
+    "pageCorners": [
+      {
+        "x": 0.31,
+        "y": 0.07
+      },
+      {
+        "x": 0.7,
+        "y": 0.09
+      },
+      {
+        "x": 0.72,
+        "y": 0.94
+      },
+      {
+        "x": 0.29,
+        "y": 0.92
+      }
+    ]
   }
 }

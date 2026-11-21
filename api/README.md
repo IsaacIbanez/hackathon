@@ -22,12 +22,15 @@ Coordenadas normalizadas a [0, 1] sobre el documento recortado, origen arriba a 
 
 | type | Sentido | payload |
 |------|---------|---------|
-| `document` | navegador → Go | `blocks[]` (`id`, `text`, `box {x,y,w,h}`, `confidence`), `quality {score, issues[]}`, opcional `imageWidth`, `imageHeight`, `lang` |
+| `document` | cliente → Go | `blocks[]` (`id`, `text`, `box {x,y,w,h}`, `confidence`), `quality {score, issues[]}`, opcional `imageWidth`, `imageHeight`, `lang` |
 | `pointer` | navegador → Go | `x`, `y`, opcional `blockId` |
 | `utterance` | navegador → Go | `text`, `isFinal`, opcional `lang` |
 | `speak` | Go → navegador | `text`, `highlightBlockIds[]`, `lang`, opcional `replyTo` |
 | `document` (eco) | Go → todos | el documento aceptado, tal cual, para que la pantalla lo muestre aunque lo enviara el scanner |
 | `stats` | Go → todos | coste y latencia acumulados: `cheap` y `expensive` (`calls`, `cacheHits`, `errors`, `costUsd`, `avgLatencyMs`, `lastLatencyMs`) y `totalCostUsd`. Se envía tras cada llamada a un modelo |
+
+## `POST /scan` (contrato 0.5)
+La app envía la foto de la cámara (`image/jpeg`, `image/png` o `image/webp`, hasta 40 MB) → `202`. Go dice «Un momento, estoy leyendo el documento», la pasa al servicio de lectura (`SCANNER_URL`, por defecto `http://127.0.0.1:8770/scan`) y trata el documento devuelto como cualquier otro. Los problemas se dicen en voz alta. `SCANNER_URL=fixture` responde con el formulario de ejemplo, sin servicio. El `document` puede llevar `pageCorners`: las esquinas de la hoja en la foto (ver `docs/INTEGRACION_SCANNER.md`).
 
 ## Sesión compartida y `POST /message`
 La app tiene **una sola sesión** para todos sus clientes: un mensaje de cualquiera (la interfaz por WebSocket o el scanner con `POST /message`) actualiza el mismo estado, y cada `speak` y `stats` se envía a **todos** los clientes WebSocket.

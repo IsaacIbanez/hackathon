@@ -9,6 +9,7 @@ package session
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"math"
@@ -19,12 +20,18 @@ import (
 
 	"github.com/IsaacIbanez/hackathon/api/gen"
 	"github.com/IsaacIbanez/hackathon/backend/llm"
+	"github.com/IsaacIbanez/hackathon/backend/scanner"
 )
 
 // Model is what the session needs from backend/llm (an interface so tests can fake it).
 type Model interface {
 	CompleteWithEscalation(ctx context.Context, req llm.Request, doubt func(llm.Response) bool) (llm.Response, bool, error)
 	Stats() llm.Stats
+}
+
+// Scanner reads a document from a camera photo (backend/scanner talks to role B2's service).
+type Scanner interface {
+	Scan(ctx context.Context, photo []byte, contentType string) (gen.DocumentPayload, error)
 }
 
 // Config tunes the session. The zero value is not valid: use DefaultConfig.
@@ -39,6 +46,8 @@ type Config struct {
 	ModelTimeout time.Duration
 	// MaxTokens for each model call (reasoning models spend part of them thinking).
 	MaxTokens int
+	// Scanner reads photos sent to POST /scan. Nil = the reading service at SCANNER_URL.
+	Scanner Scanner
 }
 
 // DefaultConfig returns the configuration used by the app.
@@ -63,6 +72,36 @@ type Session struct {
 // New creates a session.
 func New(model Model, cfg Config) *Session {
 	return &Session{model: model, cfg: cfg}
+}
+
+// ScanPhoto reads a document from a camera photo (the "lee el documento" command): it says
+// that it is reading, asks the Scanner and then handles the result like any other document
+// (echo, explanation, highlights). Problems are spoken, never silent.
+func (s *Session) ScanPhoto(ctx context.Context, photo []byte, contentType string, send func(any)) {
+	s.mu.Lock()
+	lang := "es-ES"
+	if s.doc != nil {
+		lang = speechLang(deref(s.doc.Lang))
+	}
+	s.mu.Unlock()
+	send(s.speak("", localText(lang, "scanning"), nil, lang))
+
+	doc, err := s.cfg.Scanner.Scan(ctx, photo, contentType)
+	if err != nil {
+		key := "scanError"
+		switch {
+		case errors.Is(err, scanner.ErrNoPage):
+			key = "noPage"
+		case errors.Is(err, scanner.ErrUnavailable):
+			key = "scannerDown"
+		}
+		log.Printf("session: scan: %v", err)
+		if ctx.Err() == nil {
+			send(s.speak("", localText(lang, key), nil, lang))
+		}
+		return
+	}
+	s.onDocument(ctx, fmt.Sprintf("scan-%d", time.Now().UnixMilli()), &doc, send)
 }
 
 // Handle implements ws.Session.
