@@ -10,4 +10,8 @@ Criterios (ver `docs/PITCH.md`): sirve de verdad a una persona con baja visión 
 | **Plazos e importes**: «tienes que responder antes del 15 de diciembre; importe: 230 €» al leer una carta | Isaac | IMC, AXA | 3 | 1 | Solo prompt + resaltar los bloques |
 | **Aviso de posible estafa** (cartas que piden datos o pagos urgentes) | Isaac | IMC | 2 | 1 | Solo prompt; cuidado con no asustar |
 | **Varias páginas**: «siguiente página» con ✋↔ y el documento se acumula | Isaac | Logitech | 2 | 2 | El contrato ya tiene ids por bloque |
+| **Disparo automático**: la foto se hace sola cuando el papel está quieto y nítido, sin buscar un botón | Pau | Logitech, IMC | 3 | 1 | `captureStill` ya mide la nitidez; falta comparar frames seguidos para saber que no se mueve. Se avisa con un pitido |
+| **Guía de encuadre por voz** antes de la foto: «acércalo», «muévelo a la izquierda», «hay un reflejo» | Pau | IMC, AXA | 3 | 2 | En local, sin IA: brillo, nitidez y `pageCorners` (si la hoja se sale o está lejos). Sin esto, quien no ve no sabe si el papel está dentro |
+| **Lupa sobre la zona señalada**: ampliar en pantalla, con alto contraste, lo que hay bajo el dedo | Pau | IMC, Logitech | 2 | 1 | Para quien tiene resto visual. Es recortar la foto 4K alrededor del puntero; no gasta IA |
+| **«El papel está al revés»**: detectarlo y pedir que lo gire antes de leer | Pau | IMC, AXA | 2 | 2 | Con la confianza del OCR (baja al revés) o probando la foto girada 180°; evita una lectura absurda y una llamada cara |
 | | | | | | |
