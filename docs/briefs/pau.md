@@ -19,7 +19,7 @@ Subtítulos en directo de lo que se oye en una conferencia o una reunión (el mi
 - **Traducción:** solo de las frases finales, con `Qwen/Qwen3.5-9B` en Together (`CAPTIONS_TRANSLATE_MODEL`). Las frases repetidas salen de una caché. El idioma de destino se elige y se puede cambiar en directo, o se deja en «no traducir».
 - **Idioma hablado:** se detecta solo o se elige. Lo que importa es el español y el inglés; el catalán no es prioritario.
 - **Diarización (quién habla):**
-  - En directo, aproximada: cada 30 s, con tramos solapados 10 s, Go manda el audio a `openai/whisper-large-v3` por lotes con `diarize=true` y etiqueta por la hora las frases ya mostradas. Las voces de un tramo y del siguiente se emparejan con el texto que comparten.
+  - En directo, aproximada: cada 15 s, con tramos de 25 s solapados 10 s, Go manda el audio a `openai/whisper-large-v3` por lotes con `diarize=true` y etiqueta por la hora las frases ya mostradas. Las voces de un tramo y del siguiente se emparejan con el texto que comparten.
   - Al parar, exacta: una pasada con diarización sobre toda la grabación, para el documento guardado.
 - **Página propia (`web/src/captions/`):**
   - el micrófono que se elija (la MX Brio si está) y, opcionalmente, el audio de una pestaña o de una llamada (`getDisplayMedia`), mezclados y convertidos a 16 kHz mono de 16 bits;
@@ -99,7 +99,7 @@ Ejemplo concreto: digo «¿Cuándo vence el plazo del seguro?» y otra persona r
 | Para qué | Modelo | Coste |
 |---|---|---|
 | Subtítulos en directo | Nemotron 3.5 (o Parakeet si Nemotron no entiende español) | 0,0045 $/min (Parakeet, 0,0035) ≈ 0,27 $/h |
-| Diarización en directo | `whisper-large-v3` por lotes, tramos de 30 s con 10 s de solape | ≈ 0,0015 $/min × 1,33 ≈ 0,12 $/h |
+| Diarización en directo | `whisper-large-v3` por lotes, tramos de 25 s cada 15 s | ≈ 0,0015 $/min × 1,67 ≈ 0,15 $/h |
 | Diarización final | `whisper-large-v3` por lotes, una sola pasada | ≈ 0,09 $/h |
 | Traducción | `Qwen/Qwen3.5-9B` (0,17 $ / 0,25 $ por millón de tokens), solo frases finales y con caché | < 0,01 $/h |
 | Respaldo | Whisper local | 0 $ |
@@ -131,4 +131,10 @@ Total: unos 0,5 $/h. El tope por sesión es de 1 $ (`CAPTIONS_LIMIT_USD`).
 - Dónde exactamente registra Isaac la ruta, si prefiere otro sitio que `mux.go`.
 
 ## Cambios del brief
+- 2026-11-21 23:50 — Probado con Together de verdad (diálogo sintético de 2 voces, 17 y 52 s):
+  - Nemotron 3.5 entiende el español y se queda como modelo por defecto: primer parcial ~0,7 s después de empezar a hablar; la frase se cierra ~0,3 s tras la pausa.
+  - Traducción con el razonamiento de Qwen desactivado: 0,1–0,4 s por frase.
+  - Quién habla: 18/18 frases bien en el `.txt` y 10/10 en directo.
+  - La diarización en directo pasa de cada 30 s a cada 15 s, para que las etiquetas lleguen antes (+0,03 $/h).
+  - Coste real: 0,0025 $ por 17 s de audio, con todo.
 - 2026-11-21 23:12 — Primera versión, confirmada por Pau: diarización (en directo aproximada y final exacta), transcripción guardada en `.txt`, historial que no desaparece y catalán no prioritario.

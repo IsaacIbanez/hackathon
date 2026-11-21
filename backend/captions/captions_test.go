@@ -128,9 +128,13 @@ func (f *fakeTogether) server() *httptest.Server {
 			return
 		}
 		var req struct {
-			Messages []struct{ Role, Content string }
+			Messages  []struct{ Role, Content string }
+			Reasoning *struct{ Enabled bool }
 		}
 		_ = json.NewDecoder(r.Body).Decode(&req)
+		if req.Reasoning == nil || req.Reasoning.Enabled {
+			f.t.Errorf("translation must disable reasoning (Qwen3.5 spends every token thinking)")
+		}
 		text := req.Messages[len(req.Messages)-1].Content
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"choices": []any{map[string]any{"message": map[string]string{"content": "<think>hm</think>EN: " + text}}},
@@ -508,6 +512,36 @@ func TestCleanLang(t *testing.T) {
 	for in, want := range map[string]string{"es": "es", "en-US": "en-US", "": "auto", "x;drop": "auto", "auto": "auto"} {
 		if got := cleanLang(in, "auto"); got != want {
 			t.Errorf("cleanLang(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestCleanCaptionRemovesTheServiceNoise(t *testing.T) {
+	// Real finals from nvidia/nemotron-3.5-asr-streaming-0.6b (2026-11-21).
+	for in, want := range map[string]string{
+		" Cuando vence el plazo del seguro del coche": "Cuando vence el plazo del seguro del coche",
+		" . .  El 15 de diciembre":                    "El 15 de diciembre",
+		" . . . .  Abajo a la derecha":                "Abajo a la derecha",
+		"  Tiene que enviar el formulario":            "Tiene que enviar el formulario",
+		" . . ":                                       "",
+		". ":                                          "",
+		"Hola. ¿Qué tal?":                             "Hola. ¿Qué tal?",
+	} {
+		if got := cleanCaption(in); got != want {
+			t.Errorf("cleanCaption(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestStreamClockFollowsGapsInTheRecording(t *testing.T) {
+	var c streamClock
+	c.sending(0, 1) // recording 0-1 s = stream 0-1 s
+	c.sending(1, 1) // contiguous
+	c.sending(5, 1) // 3 s dropped while reconnecting: stream 2-3 s = recording 5-6 s
+	c.sent += 0.5   // flush silence (not in the recording)
+	for stream, want := range map[float64]float64{0.5: 0.5, 1.9: 1.9, 2.25: 5.25, 2.9: 5.9} {
+		if got := c.toSession(stream); math.Abs(got-want) > 1e-9 {
+			t.Errorf("toSession(%v) = %v, want %v", stream, got, want)
 		}
 	}
 }

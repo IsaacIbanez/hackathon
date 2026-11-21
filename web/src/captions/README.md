@@ -12,7 +12,7 @@ navegador (AudioWorklet, 16 kHz PCM16) --WebSocket /captions--> Go (backend/capt
                                                                         chat: traducción (Qwen3.5-9B)
 ```
 - **Subtítulos:** el texto parcial se va actualizando mientras se habla y la frase queda fija con la pausa.
-- **Quién habla:** cada 30 s de audio, Go diariza los últimos 40 s; los 10 s de solape sirven para reconocer a las mismas personas. Al pulsar *Stop* repite la diarización sobre toda la grabación, para que el `.txt` tenga las etiquetas bien.
+- **Quién habla:** cada 15 s de audio, Go diariza los últimos 25 s; los 10 s de solape sirven para reconocer a las mismas personas. Al pulsar *Stop* repite la diarización sobre toda la grabación, para que el `.txt` tenga las etiquetas bien.
 - **Traducción:** solo de las frases terminadas, con caché. El idioma se cambia en directo.
 - **Coste:** se ve en pantalla. Al llegar al tope por sesión (`CAPTIONS_LIMIT_USD`, 1 $ por defecto), la sesión se para.
 - **Documento:** se guarda en `Documentos/LauzHack/captions-AAAA-MM-DD-HHMM.txt`, fuera del repo, cada minuto y al parar. El botón *Download transcript* descarga lo mismo desde la página.

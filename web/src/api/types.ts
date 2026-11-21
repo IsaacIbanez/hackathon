@@ -102,7 +102,7 @@ export interface paths {
          * Live captions WebSocket (speech to text, speakers and translation)
          * @description Upgrade to WebSocket. Separate from `/ws`: it carries audio, not contract envelopes.
          *     Go relays the audio to a streaming speech-to-text service (Together AI realtime,
-         *     `CAPTIONS_ASR_MODEL`), labels speakers with a batch diarization pass every ~30 s and
+         *     `CAPTIONS_ASR_MODEL`), labels speakers with a batch diarization pass every ~15 s and
          *     once more over the whole recording when the client stops, translates each final
          *     sentence (`CAPTIONS_TRANSLATE_MODEL`) and saves the transcript as a `.txt` file outside
          *     the repository. The API key (`TOGETHER_API_KEY`) stays in Go.

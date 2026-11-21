@@ -20,9 +20,13 @@ import (
 )
 
 // asrEvent is what the speech service reports: the sentence being spoken, or a finished one.
+// Finished sentences carry their place in the audio when the service sends it (Timed): in
+// seconds of the audio sent on this connection until pump converts them to session time.
 type asrEvent struct {
-	Final bool
-	Text  string
+	Final      bool
+	Text       string
+	Timed      bool
+	Start, End float64
 }
 
 // asrStream is one realtime transcription connection.
@@ -125,6 +129,8 @@ func (s *realtimeStream) read(ctx context.Context) {
 			Type       string `json:"type"`
 			Delta      string `json:"delta"`
 			Transcript string `json:"transcript"`
+			StartMs    *int64 `json:"audio_start_ms"`
+			EndMs      *int64 `json:"audio_end_ms"`
 			Message    string `json:"message"`
 			Error      struct {
 				Message string `json:"message"`
@@ -138,7 +144,11 @@ func (s *realtimeStream) read(ctx context.Context) {
 		case "conversation.item.input_audio_transcription.delta":
 			s.events <- asrEvent{Text: ev.Delta}
 		case "conversation.item.input_audio_transcription.completed":
-			s.events <- asrEvent{Final: true, Text: ev.Transcript}
+			e := asrEvent{Final: true, Text: ev.Transcript}
+			if ev.StartMs != nil && ev.EndMs != nil && *ev.EndMs >= *ev.StartMs {
+				e.Timed, e.Start, e.End = true, float64(*ev.StartMs)/1000, float64(*ev.EndMs)/1000
+			}
+			s.events <- e
 		case "error":
 			msg := cmp(ev.Error.Message, ev.Message)
 			if ev.Error.Code == "invalid_api_key" || ev.Error.Code == "missing_api_key" {
@@ -243,6 +253,9 @@ func (t *together) translate(ctx context.Context, text, target string) (string, 
 		},
 		"temperature": 0,
 		"max_tokens":  400,
+		// Qwen3.5 thinks by default: it spent all 400 tokens reasoning and answered nothing
+		// (2.3 s). Without reasoning it answers in ~0.2 s with ~10 tokens.
+		"reasoning": map[string]bool{"enabled": false},
 	}
 	data, _ := json.Marshal(reqBody)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, t.cfg.APIURL+"/chat/completions", bytes.NewReader(data))
@@ -268,8 +281,11 @@ func (t *together) translate(ctx context.Context, text, target string) (string, 
 	if len(out.Choices) == 0 {
 		return "", out.Usage.Prompt, out.Usage.Completion, errors.New("translation: empty answer")
 	}
-	tr := strings.TrimSpace(thinkBlock.ReplaceAllString(out.Choices[0].Message.Content, ""))
-	return strings.Trim(tr, `"`), out.Usage.Prompt, out.Usage.Completion, nil
+	tr := strings.Trim(strings.TrimSpace(thinkBlock.ReplaceAllString(out.Choices[0].Message.Content, "")), `"`)
+	if tr == "" {
+		return "", out.Usage.Prompt, out.Usage.Completion, errors.New("translation: empty answer")
+	}
+	return tr, out.Usage.Prompt, out.Usage.Completion, nil
 }
 
 func (t *together) do(req *http.Request, out any) error {

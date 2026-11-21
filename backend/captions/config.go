@@ -3,7 +3,7 @@
 //
 // The browser streams raw PCM (s16le, 16 kHz, mono) over a WebSocket. Go relays it to a
 // streaming speech-to-text service (Together AI realtime), labels speakers with a batch
-// diarization pass every ~30 s of audio and once more over the whole recording when the
+// diarization pass every ~15 s of audio and once more over the whole recording when the
 // session stops, translates each final sentence and saves the transcript as a .txt file.
 // The API key never leaves Go.
 package captions
@@ -50,7 +50,7 @@ type Config struct {
 	DiarizePricePerMin  float64       // default 0.0015
 	TranslateInPerMTok  float64       // default 0.17
 	TranslateOutPerMTok float64       // default 0.25
-	DiarizeEvery        time.Duration // live diarization step (audio time), default 30 s
+	DiarizeEvery        time.Duration // live diarization step (audio time), default 15 s
 	DiarizeOverlap      time.Duration // overlap between live windows, default 10 s
 	FinalWindow         time.Duration // final pass window (upload limit is 80 MB), default 20 min
 	SaveEvery           time.Duration // wall time between transcript saves, default 1 min
@@ -116,7 +116,7 @@ func (c Config) withDefaults() Config {
 		c.TranslateOutPerMTok = 0.25
 	}
 	if c.DiarizeEvery <= 0 {
-		c.DiarizeEvery = 30 * time.Second
+		c.DiarizeEvery = 15 * time.Second
 	}
 	if c.DiarizeOverlap <= 0 {
 		c.DiarizeOverlap = 10 * time.Second

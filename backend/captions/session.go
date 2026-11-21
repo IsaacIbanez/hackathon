@@ -6,10 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"net/http"
 	"regexp"
+	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/IsaacIbanez/hackathon/api/gen"
 	"github.com/coder/websocket"
@@ -56,7 +59,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		lang:      cleanLang(q.Get("lang"), "auto"),
 		target:    cleanLang(q.Get("target"), "none"),
 		started:   h.cfg.Now(),
-		audio:     make(chan []byte, 64),
+		audio:     make(chan chunk, 64),
 		translate: make(chan *sentence, 256),
 		flushReq:  make(chan chan struct{}),
 		stop:      make(chan struct{}),
@@ -73,7 +76,7 @@ type session struct {
 	started time.Time
 	path    string
 
-	audio     chan []byte        // client audio for the speech service
+	audio     chan chunk         // client audio for the speech service
 	translate chan *sentence     // final sentences to translate
 	flushReq  chan chan struct{} // ask the speech service to finish the current sentence
 	stop      chan struct{}      // closed when the session must end (client stop or cost limit)
@@ -201,11 +204,12 @@ func (s *session) addAudio(ctx context.Context, pcm []byte) {
 		s.mu.Unlock()
 		return
 	}
+	at := secondsOf(len(s.recording))
 	s.recording = append(s.recording, pcm...)
 	s.vad.write(pcm)
 	s.mu.Unlock()
 	select {
-	case s.audio <- pcm:
+	case s.audio <- chunk{pcm, at}:
 	default: // the speech service is reconnecting or slow: the audio is still recorded
 	}
 	s.maybeDiarize(ctx)
@@ -252,19 +256,54 @@ func (s *session) currentTarget() string {
 	return s.target
 }
 
+// chunk is client audio and where it starts in the recording (seconds).
+type chunk struct {
+	pcm []byte
+	at  float64
+}
+
+// streamClock converts times of one speech connection (seconds of audio sent on it) to
+// session time. Audio dropped while reconnecting or when the service is slow leaves gaps in
+// the recording that the connection does not see, so it keeps an anchor at each gap.
+type streamClock struct {
+	sent    float64
+	anchors []clockAnchor
+}
+
+type clockAnchor struct{ stream, rec float64 }
+
+func (c *streamClock) sending(at, sec float64) {
+	n := len(c.anchors)
+	if n == 0 || math.Abs(c.anchors[n-1].rec+(c.sent-c.anchors[n-1].stream)-at) > 0.005 {
+		c.anchors = append(c.anchors, clockAnchor{c.sent, at})
+	}
+	c.sent += sec
+}
+
+func (c *streamClock) toSession(t float64) float64 {
+	for i := len(c.anchors) - 1; i >= 0; i-- {
+		if a := c.anchors[i]; a.stream <= t || i == 0 {
+			return a.rec + t - a.stream
+		}
+	}
+	return t
+}
+
 func (s *session) pump(ctx context.Context, stream asrStream) error {
 	defer stream.Close()
 	events := stream.Events()
+	var clock streamClock
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
-		case pcm := <-s.audio:
-			if err := stream.Send(ctx, pcm); err != nil {
+		case c := <-s.audio:
+			if err := stream.Send(ctx, c.pcm); err != nil {
 				return fmt.Errorf("send audio: %w", err)
 			}
+			clock.sending(c.at, secondsOf(len(c.pcm)))
 			s.mu.Lock()
-			s.asrBytes += len(pcm)
+			s.asrBytes += len(c.pcm)
 			s.mu.Unlock()
 			s.checkCost(false)
 		case done := <-s.flushReq:
@@ -273,6 +312,7 @@ func (s *session) pump(ctx context.Context, stream asrStream) error {
 			s.mu.Unlock()
 			// Half a second of silence and a commit make the service close the sentence.
 			_ = stream.Send(ctx, make([]byte, bytesPerSecond/2))
+			clock.sent += 0.5
 			_ = stream.Commit(ctx)
 		case ev, ok := <-events:
 			if !ok {
@@ -281,12 +321,16 @@ func (s *session) pump(ctx context.Context, stream asrStream) error {
 				}
 				return errors.New("the speech service closed the connection")
 			}
+			if ev.Timed {
+				ev.Start, ev.End = clock.toSession(ev.Start), clock.toSession(ev.End)
+			}
 			s.onASR(ev)
 		}
 	}
 }
 
 func (s *session) onASR(ev asrEvent) {
+	ev.Text = cleanCaption(ev.Text)
 	if !ev.Final {
 		s.mu.Lock()
 		changed := ev.Text != s.partial
@@ -297,7 +341,7 @@ func (s *session) onASR(ev asrEvent) {
 		}
 		return
 	}
-	sent := s.addSentence(ev.Text)
+	sent := s.addSentence(ev)
 	if sent == nil {
 		return
 	}
@@ -314,8 +358,10 @@ func (s *session) onASR(ev asrEvent) {
 
 func round2(v float64) float64 { return float64(int(v*100+0.5)) / 100 }
 
-// addSentence records a final sentence (nil if it is empty) and wakes a pending flush.
-func (s *session) addSentence(text string) *sentence {
+// addSentence records a final sentence (nil if it is empty) and wakes a pending flush. Its
+// place in time is the service's (which includes the silence before it), narrowed to the
+// voice the detector heard; without the service's times, the voice since the last sentence.
+func (s *session) addSentence(ev asrEvent) *sentence {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.partial = ""
@@ -323,25 +369,36 @@ func (s *session) addSentence(text string) *sentence {
 		close(s.flushed)
 		s.flushed = nil
 	}
-	if text = trimSpace(text); text == "" {
+	if ev.Text == "" {
 		return nil
 	}
-	at := secondsOf(len(s.recording))
-	sp := s.vad.sentenceSpan(s.lastEnd, at)
-	s.lastEnd = sp.End
-	sent := &sentence{ID: fmt.Sprintf("s%d", len(s.sentences)+1), span: sp, Text: text, Translations: map[string]string{}}
+	var sp span
+	if ev.Timed {
+		sp = s.vad.sentenceSpan(max(ev.Start, s.lastEnd), max(ev.End, ev.Start))
+	} else {
+		sp = s.vad.sentenceSpan(s.lastEnd, secondsOf(len(s.recording)))
+	}
+	s.lastEnd = max(s.lastEnd, sp.End)
+	sent := &sentence{ID: fmt.Sprintf("s%d", len(s.sentences)+1), span: sp, Text: ev.Text, Translations: map[string]string{}}
 	sent.Speaker = s.live.speakerOf(sp)
 	s.sentences = append(s.sentences, sent)
 	s.dirty = true
 	return sent
 }
 
-func trimSpace(t string) string {
-	for len(t) > 0 && (t[0] == ' ' || t[0] == '\n' || t[0] == '\t') {
-		t = t[1:]
-	}
-	for len(t) > 0 && (t[len(t)-1] == ' ' || t[len(t)-1] == '\n' || t[len(t)-1] == '\t') {
-		t = t[:len(t)-1]
+var (
+	dotRuns      = regexp.MustCompile(`(\s*\.){2,}`)
+	leadingNoise = regexp.MustCompile(`^[\s.,·…]+`)
+)
+
+// cleanCaption removes what the speech service adds around silences (" . .  El 15", " . . ")
+// and extra spaces; text without a letter or digit is empty.
+func cleanCaption(t string) string {
+	t = dotRuns.ReplaceAllString(t, " ")
+	t = leadingNoise.ReplaceAllString(t, "")
+	t = strings.Join(strings.Fields(t), " ")
+	if strings.IndexFunc(t, func(r rune) bool { return unicode.IsLetter(r) || unicode.IsDigit(r) }) < 0 {
+		return ""
 	}
 	return t
 }
