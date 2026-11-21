@@ -361,6 +361,8 @@ function draw() {
   }
 
   for (const hand of lastFrame?.hands ?? []) {
+    // Several hands may be in view: the one being followed (the nearest) is drawn bright.
+    ctx.globalAlpha = hand === interaction.activeHand ? 1 : 0.3;
     ctx.strokeStyle = "#ffffffb3";
     ctx.lineWidth = 4;
     ctx.lineCap = "round";
@@ -389,6 +391,8 @@ function draw() {
       ctx.stroke();
     }
   }
+
+  ctx.globalAlpha = 1;
 
   const face = lastFrame?.face;
   if (face) {

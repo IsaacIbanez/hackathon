@@ -48,7 +48,10 @@ export interface TrackerOptions {
   handModel: string;
   faceModel: string;
   loadVision?: () => Promise<VisionModuleMP>;
+  /** Hands detected per frame; the interaction follows the one nearest the camera. */
   numHands: number;
+  /** Faces detected per frame; the nearest one (largest in the image) is used. */
+  numFaces: number;
   /** Maximum frames per second analysed (saves CPU and battery). */
   maxFps: number;
   delegate: "GPU" | "CPU";
@@ -62,7 +65,8 @@ const DEFAULTS: TrackerOptions = {
   mediapipeBase: MEDIAPIPE_BASE,
   handModel: HAND_MODEL,
   faceModel: FACE_MODEL,
-  numHands: 1,
+  numHands: 2,
+  numFaces: 2,
   maxFps: 30,
   delegate: "GPU",
   face: false,
@@ -117,7 +121,7 @@ export async function createTracker(
       },
       o.handModel,
     );
-  const createFace = () => withFallback(vision.FaceLandmarker, { numFaces: 1 }, o.faceModel);
+  const createFace = () => withFallback(vision.FaceLandmarker, { numFaces: o.numFaces }, o.faceModel);
 
   let hands: DetectorMP<HandResultMP> | null = await createHands();
   let face: DetectorMP<FaceResultMP> | null = o.face ? await createFace() : null;
@@ -231,8 +235,18 @@ function toHandFrame(r: HandResultMP, t: number, aspect: number): HandFrame {
   return { t, hands, aspect };
 }
 
+/** Picks the face nearest the camera: the widest one in the image (cheek to cheek). */
 function toFace(r: FaceResultMP): Face | null {
-  const points = r.faceLandmarks[0];
+  let points: LandmarkMP[] | undefined;
+  let widest = -1;
+  for (const f of r.faceLandmarks) {
+    if (f.length < 455) continue;
+    const width = Math.hypot(f[234].x - f[454].x, f[234].y - f[454].y);
+    if (width > widest) {
+      widest = width;
+      points = f;
+    }
+  }
   if (!points) return null;
   return { points: points.map(({ x, y, z }) => ({ x, y, z })) };
 }
