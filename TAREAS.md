@@ -9,7 +9,7 @@ Asigna un agente de `ROSTER.md` (por ejemplo `P2-C` o `P2-G`) como responsable.
 | T1 | Definir alcance, arquitectura y reparto | Humanos | hecha | feature/T1-alcance-y-arquitectura | #1 | — |
 | T2 | Esqueleto: monorepo, contrato `api/openapi.yaml`, mensajes WebSocket, CI, `Taskfile.yml` y servidor mock | P1-C (Isaac) — rol A | hecha | feature/T2-contrato, feature/T2-wails-ci | 5acd70f, #2 | T1 |
 | T3 | Prueba de cámara en todos los SO (Wails) según `docs/PRUEBA_WAILS.md` (Windows hecho por Isaac) y qué ofrece el SDK de Logitech para la cámara | P2 o P4 — rol B1 | pendiente | — | — | T1 |
-| T4 | Captura y visión: flujo de cámara, detección y recorte, OCR local | P2 o P4 — rol B1 | pendiente | — | — | T2 |
+| T4 | Captura y visión: flujo de cámara, detección y recorte, OCR local | P4 (Pau) — rol B1 | en curso: captura de la MX Brio (única y modo servidor en 8766) fusionada (#12); falta recorte/OCR y enviar `document` con `POST /message` | feature/B-scanner-captura | #12 | T2 |
 | T5 | Comprensión de documentos: campos, escalado al modelo caro, vista del documento | P4 o P2 — rol B2 | pendiente | — | — | T2 |
 | T6 | Interacción: gestos de mano y voz | P3 (Nil) — rol C | en curso: gestos hechos (#9); falta el dictado por voz | claude/kind-cray-863b6t | #9 | T2 |
 | T7 | Cliente de modelos frugal, caché y contador de coste y latencia | P1-C (Isaac) — rol A | hecha (falta probar con la clave real de AXA) | feature/T7-llm | #3 | T2 |
