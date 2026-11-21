@@ -5,7 +5,7 @@ import { collectDiagnostics, reportDiagnostics, type Diagnostics } from './diagn
 import { DocumentText } from './DocumentText'
 import { Gestures } from './Gestures'
 import { useSocket } from './useSocket'
-import { Voice } from './voice.ts'
+import { Speaker } from '../input/voice/speaker.ts'
 
 /** Language of the spoken requests and default voice. */
 const LANG = 'es-ES'
@@ -30,7 +30,8 @@ function sampleDocument(): DocumentMessage {
 }
 
 export default function App() {
-  const [voice] = useState(() => new Voice())
+  // Role C's speaker: sentence by sentence, so pause/resume continue where they stopped.
+  const [voice] = useState(() => new Speaker())
   const [doc, setDoc] = useState<DocumentPayload | null>(null)
   const [last, setLast] = useState<SpeakPayload | null>(null)
   const [stats, setStats] = useState<StatsPayload | null>(null)
