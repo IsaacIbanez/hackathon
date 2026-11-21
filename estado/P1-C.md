@@ -20,11 +20,13 @@
 - T8 parte 5: Go reenvía el `document` aceptado a la pantalla (contrato 0.4.0) y vista accesible del documento (`DocumentText.tsx`: letra grande, orden de lectura, línea resaltada con `aria-current`, «(unclear)» si el OCR duda). Pantalla reorganizada: explicación + gestos + coste | documento; herramientas de desarrollo plegadas.
 - T10: guion del pitch y de la demo en `docs/PITCH.md`, con cifras medidas (Haiku: 1,8 s y 0,00012 $ por explicación; 0 $ con modelos gratis), plan B, encaje con cada challenge, preguntas difíciles y checklist.
 - Ejecutable de escritorio comprobado: arrancado desde `build/bin` encuentra el `.env` de la raíz, responde al scanner y escribe `lauzhack.log`. Diagnóstico de la ventana (WebView2): voz de salida sí (3 voces es-ES), cámara sí, API de reconocimiento de voz presente (falta probar que funcione de verdad: rol C).
+- Revisada la rama de Didac (`feature/B-contexto-scanner`): `Resultado.documento()` ya cumple el contrato. Añadido a `docs/INTEGRACION_SCANNER.md` el código exacto para `escanear.py` (`enviar_a_app`, POST /message). Su estado tenía desfasados el conflicto de puertos (resuelto: Pau en 8766) y el modo de envío (ahora POST).
 
 ## Pendiente
 - T8: sustituir las respuestas de ejemplo por la lógica real (`backend/llm` + B2).
 
 ## Bloqueos y preguntas para humanos
+- **Qué dispara el escaneo en la demo** (botón/tecla en la app de B, automático cuando la hoja está quieta, o un gesto → haría falta un mensaje nuevo en el contrato).
 - **Para Nil:** en la ventana de escritorio existe `webkitSpeechRecognition`, pero hay que probar que reconoce de verdad (en Edge/WebView2 depende de un servicio en la nube). Probarlo pronto con el micro dentro de `task dev`.
 - **Decidir quién es dueño de la cámara** (el scanner de B en Python y los gestos de Nil en el navegador no pueden abrir la misma cámara a la vez en Windows). Opciones: A) dos cámaras; B) el navegador captura y envía la imagen al scanner (recomendada: el dedo y el papel en la misma imagen); C) el Python captura y envía frames. Mientras tanto, `Gestures.tsx` usa la imagen entera como documento.
 - **Cómo llega el scanner de B a Go.** B trabaja en Python (`scanner/`: captura con la MX Brio, OCR con Tesseract, PDF buscable), no en el navegador. Propuesta: el scanner envía `document` (bloques con caja y confianza, que Tesseract ya da) a `ws://127.0.0.1:8765/ws`, y Go responde con `speak`. Encaja con el contrato sin cambiarlo. Falta que Didac, Pau e Isaac lo acuerden.

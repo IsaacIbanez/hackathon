@@ -44,11 +44,39 @@ Para ver lo que oye la interfaz: `npm run dev` en `web/` con `VITE_WS_URL=ws://1
 
 Probado el 2026-11-21: `--demo-ocr` → la interfaz oye «Este documento es una declaración de siniestro de AXA Seguros. Debe escribir su nombre y apellidos… También debe escribir su número de póliza…», con los 3 bloques resaltados. Coste: 0 $ (`LLM_PROFILE=dev`).
 
+## Para `scanner/escanear.py` (Didac): lo que falta, listo para pegar
+Revisado en la rama `feature/B-contexto-scanner` (2026-11-21): `Resultado.documento()` **ya cumple el contrato** (bloques por línea, cajas normalizadas sobre la página recortada, `confidence` en [0, 1], `issues` con los valores del contrato, `lang` en BCP-47). Solo falta enviarlo:
+
+```python
+import json, time, uuid, urllib.request
+
+APP_URL = "http://127.0.0.1:8765/message"
+
+def enviar_a_app(resultado, url: str = APP_URL) -> bool:
+    """Envía el documento escaneado a la app (POST /message). Devuelve False si la app no está abierta."""
+    sobre = {"type": "document", "id": f"doc-{uuid.uuid4()}", "ts": int(time.time() * 1000),
+             "payload": resultado.documento()}
+    req = urllib.request.Request(url, data=json.dumps(sobre, ensure_ascii=False).encode("utf-8"),
+                                 headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=5) as r:
+            return r.status == 202
+    except OSError:
+        return False
+```
+
+Llamarlo tras `convertir(...)` cuando `resultado.ok` (por ejemplo, una opción `--enviar` en `main()` y en `escanear_viva`). Notas:
+- La app **no gasta IA** si `quality.score` < 0,5: da un consejo de encuadre en voz alta. Con vuestras penalizaciones, solo «borroso» deja 0,65 y sí se explica; ajustad si queréis que «borroso» corte antes.
+- El `id` del sobre debe ser único por escaneo; los `id` de los bloques (`b1`, `b2`…) solo tienen que ser estables dentro del documento.
+- El documento digital con modelo de visión (`ia.py`) gasta del mismo presupuesto de OpenRouter, pero su coste no sale en el contador de la app; el envío a la app usa solo el OCR local (0 $).
+- Pendiente de decidir en equipo: **qué dispara el escaneo** en la demo (botón o tecla en vuestra app, escaneo automático cuando la hoja está quieta, o un gesto). Si queréis un gesto, hace falta un mensaje nuevo en el contrato: avisad.
+
 ## Puertos
 | Puerto | Quién | Para qué |
 |---|---|---|
 | 8765 | app Go (`task dev` / `task server`) | `/ws`, `POST /message`, `/health` |
 | 8766 | `scanner/capturar.py --servidor` (Pau) | `GET /captura` |
+| 8780 | `scanner/app_prueba` (Didac, provisional) | vista previa y escaneo |
 | 8080 | `task mock` | respuestas de ejemplo |
 
 ## Pendiente de decidir (equipo)
