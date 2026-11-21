@@ -25,7 +25,16 @@ export function useSocket(onMessage: (msg: ServerMessage) => void) {
       const ws = new WebSocket(WS_URL)
       wsRef.current = ws
       ws.onopen = () => setStatus('conectado')
-      ws.onmessage = (e) => onMessageRef.current(JSON.parse(e.data) as ServerMessage)
+      ws.onmessage = (e) => {
+        let msg: ServerMessage
+        try {
+          msg = JSON.parse(e.data) as ServerMessage
+        } catch {
+          console.warn('ws: mensaje que no es JSON, se ignora', e.data)
+          return
+        }
+        onMessageRef.current(msg)
+      }
       ws.onclose = () => {
         setStatus('desconectado')
         if (!cerrado) timer = setTimeout(conectar, 2000)
