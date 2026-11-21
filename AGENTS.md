@@ -61,12 +61,14 @@ Cuatro personas, cada una con una cuenta de Claude Pro y una de Gemini Plus (ver
 ## Estructura de carpetas
 ```
 main.go, app.go, wails.json, go.mod   en la raíz (lo exige Wails; rol A)
-Taskfile.yml               task gen | task mock | task check (rol A)
-api/                       contrato (rol A): openapi.yaml, fixtures/, gen/ (tipos Go generados)
-backend/cmd/mock           servidor mock sin Wails (A)
-backend/mock               respuestas de ejemplo (fixtures), las usan el mock y la app hasta T8 (A)
+Taskfile.yml               task gen | mock | server | dev | fmt | check (rol A)
+api/                       contrato (rol A): openapi.yaml, fixtures/, gen/ (tipos Go), examples/ (cliente Python)
+backend/cmd/mock           servidor mock sin Wails: respuestas fijas, puerto 8080 (A)
+backend/cmd/server         servidor real sin Wails: sesión + modelos, puerto 8765 (A)
+backend/cmd/llmcheck       prueba rápida del cliente de modelos con la clave real (A)
+backend/mock               respuestas de ejemplo (fixtures) (A)
 backend/ws                 WebSocket (A)
-backend/session            lógica real: una sesión por conexión, prompts, respuestas locales (A)
+backend/session            lógica real: una sesión compartida, prompts, respuestas locales (A)
 backend/llm                modelos, caché, coste (A)
 backend/ocr                comprensión de documentos (B2)
 web/src/api                tipos TypeScript generados del contrato (A; no editar types.ts)
@@ -74,9 +76,25 @@ web/src/app                app y pantallas comunes (A)
 web/src/camera             cámara, recorte y OCR local (B1)
 web/src/document           vista del documento (B2)
 web/src/input              gestos y voz (C)
-docs/                      documentación
+scanner/                   captura MX Brio y OCR a PDF en Python (B; reglas en scanner/AGENTS.md)
+docs/                      documentación: PITCH.md, INTEGRACION_SCANNER.md, ARQUITECTURA.md
 ```
-Para trabajar contra el contrato sin Wails: `task mock` (servidor en `localhost:8080`, WebSocket en `/ws`, ver `api/README.md`). La app de escritorio levanta su propio WebSocket en `ws://127.0.0.1:8765/ws`.
+## Cómo probar
+1. **Clave (una vez):** crea `.env` en la raíz (está en `.gitignore`; la clave se pasa por chat, nunca por git):
+   ```
+   OPENROUTER_API_KEY=sk-or-v1-...
+   LLM_PROFILE=dev
+   ```
+   `LLM_PROFILE=dev` usa modelos **gratuitos** (0 $; a veces lentos o saturados). Quítalo solo para la demo.
+2. **Servidor:**
+   - `task server` → lógica real (sesión + modelos) en `127.0.0.1:8765` (`/ws`, `POST /message`, `/health`).
+   - `task mock` → respuestas fijas en `localhost:8080`, sin clave ni coste.
+   - `task dev` → la app de escritorio completa (Wails), con el servidor real dentro si hay clave.
+3. **Interfaz en el navegador:** `cd web` y `VITE_WS_URL=ws://127.0.0.1:8765/ws npm run dev` (PowerShell: `$env:VITE_WS_URL="ws://127.0.0.1:8765/ws"; npm run dev`). «Developer tools» → **Send sample document** para probar sin scanner; «Turn on hand gestures» para los gestos.
+4. **Scanner (B):** envía tu `document` con `POST /message` → guía `docs/INTEGRACION_SCANNER.md`, ejemplo `python api/examples/send_message.py --demo-ocr`.
+5. **Antes del PR:** `task check`.
+
+Puertos: 8765 app/servidor real · 8766 `scanner/capturar.py --servidor` · 8080 mock. Guion de la demo: `docs/PITCH.md`.
 
 **Reglas de estructura (comprobadas, no cambiar sin avisar):**
 - Nada de carpetas `internal/`: el `main.go` de la raíz no puede importarlas (Go lo rechaza). Los paquetes van en `backend/<nombre>` y se importan como `<módulo>/backend/<nombre>`.
