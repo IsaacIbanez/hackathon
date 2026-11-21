@@ -157,7 +157,7 @@ function pintarChuleta() {
     ["☝️ señalar", "mover el puntero", false],
     ["☝️ señalar quieto ~1 s", m.seleccion, false],
     ["👎 pulgar abajo", m.pulgar_abajo, true],
-    ["🤏 junta las puntas de pulgar e índice, luego sepáralas", `${m.pinza ?? "—"}: 0 % juntas, 100 % separadas; cierra el puño para fijarlo`, true],
+    ["🤏 junta las puntas de pulgar e índice, luego sepáralas", `${m.pinza ?? "—"} en pasos de 10 %: 0 % juntas, 100 % abiertas del todo; quieto ~1 s (o puño) para fijarlo`, true],
     ["✌️ victoria → menú", "después ☝️ señala hacia una opción y mantén ~0,5 s", true],
     ...(Object.entries(MENU_RADIAL) as [SectorMenu, string][]).map(
       ([s, a]) => [`   menú ${FLECHA[s]} ${s}`, a, true] as [string, string, boolean],
@@ -233,7 +233,7 @@ function pintarMenu() {
 function dibujarPinza(w: number, h: number) {
   const d = interaccion.diagnostico;
   if (!d) return;
-  const n = interaccion.nivelActivo;
+  const n = interaccion.nivelActivo(performance.now());
   const [ax, ay, bx, by] = [d.pulgar.x * w, d.pulgar.y * h, d.indice.x * w, d.indice.y * h];
   const op = interaccion.opciones;
   const juntos = d.separacion < op.umbrales.pinza && d.alcance >= op.umbrales.indiceFuera;
@@ -255,14 +255,28 @@ function dibujarPinza(w: number, h: number) {
   const mx = (ax + bx) / 2;
   const my = Math.min(ay, by) - 30;
   if (n) {
-    texto(`🔊 ${Math.round(n.valor * 100)} %`, mx, my - 10, 34, "#ffd400");
-    // Barra de nivel en el borde derecho de la imagen (a la izquierda del usuario, que ve en espejo).
-    const altoBarra = h * 0.6;
+    texto(`🔊 ${Math.round(n.valor * 100)} %`, mx, my - 10, 40, "#ffd400");
+    // Anillo de confirmación: se llena si te quedas quieto en el mismo valor.
+    if (n.progresoConfirmar > 0) {
+      ctx.strokeStyle = "#34c759";
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.arc(mx, my + 30, 18, -Math.PI / 2, -Math.PI / 2 + n.progresoConfirmar * Math.PI * 2);
+      ctx.stroke();
+    }
+    // Barra en escalones de 10 % en el borde derecho de la imagen (a la izquierda del usuario).
+    const altoBarra = h * 0.7;
     const y0 = (h - altoBarra) / 2;
-    ctx.fillStyle = "#0009";
-    ctx.fillRect(w - 50, y0, 30, altoBarra);
-    ctx.fillStyle = ctx.strokeStyle;
-    ctx.fillRect(w - 50, y0 + altoBarra * (1 - n.valor), 30, altoBarra * n.valor);
+    const xb = w - 70;
+    const alto10 = altoBarra / 10;
+    for (let i = 0; i < 10; i++) {
+      const lleno = (i + 1) / 10 <= n.valor + 1e-6;
+      ctx.fillStyle = lleno ? `hsl(${Math.round(12 * (i + 1))}, 90%, 55%)` : "#000a";
+      ctx.fillRect(xb, y0 + altoBarra - (i + 1) * alto10 + 2, 44, alto10 - 4);
+    }
+    // Marca fina con la posición real de los dedos (sin redondear).
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(xb - 10, y0 + altoBarra * (1 - n.continuo) - 2, 64, 4);
   } else if (juntos) {
     texto("🤏 pinza: sepáralos para ajustar", mx, my, 22, "#00e0ff");
   }
@@ -329,7 +343,8 @@ function dibujar() {
   dibujarPinza(w, h);
   pintarMenu();
   const d = interaccion.diagnostico;
-  $("separacion").textContent = d ? `${d.separacion.toFixed(2)} (0 % ≤ ${interaccion.opciones.nivelMin} · 100 % ≥ ${interaccion.opciones.nivelMax})` : "—";
+  const cal = interaccion.calibracionNivel;
+  $("separacion").textContent = d ? `${d.separacion.toFixed(2)} (escala: 0 % = ${cal.min.toFixed(2)} · 100 % = ${cal.max.toFixed(2)})` : "—";
   $("apunta").textContent = d?.direccionIndice ?? "—";
 
   if (performance.now() - tAccion > 1500) $("accion").textContent = "";
@@ -366,6 +381,10 @@ async function reconectar(intentos = 20): Promise<void> {
 }
 
 $("reiniciar").addEventListener("click", () => void reconectar(1));
+$("recalibrar").addEventListener("click", () => {
+  interaccion.reiniciarCalibracionNivel();
+  $("estado").textContent = "Escala de volumen reiniciada: junta los dedos y ábrelos del todo una vez.";
+});
 
 async function iniciar() {
   try {

@@ -16,7 +16,7 @@ definido en `acciones.ts` (`MAPAS`). Los marcados como EXP son experimentales.
 | ☝️ señalar | puntero | puntero | puntero |
 | ☝️ señalar quieto ~0,9 s | explicar aquí | dictar campo | clic |
 | 👎 pulgar abajo (EXP) | deshacer | borrar campo | deshacer |
-| 🤏 juntar las puntas de pulgar e índice y separarlas; puño para fijar (EXP) | volumen | volumen | volumen |
+| 🤏 juntar las puntas de pulgar e índice y separarlas; quieto ~1 s o puño para fijar (EXP) | volumen | volumen | volumen |
 | ✌️ victoria → menú; ☝️ señalar hacia un lado ~0,5 s (EXP) | ↑ repetir · → copiar texto · ↓ dictar · ← pedir ayuda | igual | igual |
 | 🙂 asentir (EXP, cabeza) | leer | confirmar campo | Intro |
 | 🙂 negar (EXP, cabeza) | pausar | borrar campo | Escape |
@@ -26,10 +26,12 @@ Opciones experimentales (en `OpcionesInteraccion`):
   vuelve a dormirse tras `dormirMs` sin actividad. Evita gestos accidentales.
 - `PERFIL_MOVILIDAD_REDUCIDA`: tiempos más largos y radios más amplios para temblor o movilidad reducida.
 - Pinza de nivel: se activa al juntar las puntas de pulgar e índice ~0,15 s con el índice por delante
-  (no metido en un puño; da igual cómo estén los otros dedos). El evento `nivel` da un valor de 0
-  (juntas) a 1 (muy separadas), según `nivelMin` y `nivelMax` (separación relativa al tamaño de la
-  mano). Cerrar el puño o sacar la mano fija el valor. En la demo ajusta de verdad el volumen de la voz,
-  y la línea pulgar–índice se ve siempre, con la medida en el panel, para calibrar.
+  (no metido en un puño; da igual cómo estén los otros dedos). El evento `nivel` da un valor en
+  escalones de `pasoNivel` (10 %): 0 % con los dedos juntos y 100 % abiertos del todo. La escala se
+  calibra sola con la mano del usuario (`calibracionNivel`, `reiniciarCalibracionNivel()`), y la
+  histéresis (`histeresisNivel`) evita que el valor salte por un temblor en el límite de un escalón.
+  Se confirma quedándose quieto `confirmarNivelMs` (~1 s) en el mismo valor, o cerrando el puño.
+  En la demo ajusta de verdad el volumen de la voz.
 - Menú radial: tras abrirlo con ✌️, se elige señalando con ☝️ hacia un lado: se lee la dirección del
   dedo (nudillo → punta), no la posición de la mano. Hay que mantenerla `elegirMenuMs` (~0,5 s). En
   diagonal o con ✌️ no elige nada; se cierra solo a los 5 s.

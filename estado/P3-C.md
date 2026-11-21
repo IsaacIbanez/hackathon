@@ -14,7 +14,7 @@
 - Traducción a acciones: `leer`, `pausar`, `repetir`, `siguiente`, `anterior`, `explicar_aqui`.
 - Puntero en coordenadas del documento mediante homografía a partir de las 4 esquinas del papel.
 - Tests con manos sintéticas (`node --test 'web/src/input/test/*.test.ts'`) y comprobación de tipos con `tsc`.
-- Gestos experimentales: modo dormido/despierto, 👎 pulgar abajo, 🤏 pinza de nivel (volumen según la separación pulgar–índice, con la línea entre ambos en pantalla), ✌️ menú radial que se elige señalando hacia un lado, gestos de cabeza (asentir y negar; el parpadeo se quitó a petición del equipo), contextos (documento, formulario, PC), perfil de movilidad reducida y señalar + voz (solo en la demo). 30 tests.
+- Gestos experimentales: modo dormido/despierto, 👎 pulgar abajo, 🤏 pinza de nivel (volumen en pasos de 10 % según la separación pulgar–índice, escala calibrada con la mano, confirmación quedándose quieto ~1 s, línea entre ambos dedos en pantalla), ✌️ menú radial que se elige señalando hacia un lado, gestos de cabeza (asentir y negar; el parpadeo se quitó a petición del equipo), contextos (documento, formulario, PC), perfil de movilidad reducida y señalar + voz (solo en la demo). 33 tests.
 - Demo en `web/src/input/demo/`, con interruptores para cada experimental y chuleta del contexto actual. Probada en Chromium sin interfaz con cámara falsa: el modelo carga y analiza frames. Falta probarla con una mano real.
 
 ## Pendiente

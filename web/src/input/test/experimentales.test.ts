@@ -71,10 +71,56 @@ test("pinza: la separación pulgar–índice controla un nivel de 0 a 1 (volumen
 });
 
 test("pinza: con el control activo no se disparan otros gestos", () => {
-  const ctl = new InteraccionManos();
+  const ctl = new InteraccionManos({ confirmarNivelMs: 5000 });
   const ev = simular(ctl, [...repetir(mano(FORMAS.pinza), 8), ...repetir(pinzaAbierta(0.2), 30)]);
   assert.ok(ev.some((e) => e.tipo === "nivel"));
   assert.ok(!ev.some((e) => e.tipo === "gesto" || e.tipo === "deslizar"));
+});
+
+test("pinza: el nivel va en escalones de 10 % y la escala llega de 0 % a 100 %", () => {
+  const ctl = new InteraccionManos();
+  const frames = [
+    ...repetir(mano(FORMAS.pinza), 8),
+    ...Array.from({ length: 30 }, (_, i) => pinzaAbierta(0.2 * ((i + 1) / 30))),
+    ...repetir(pinzaAbierta(0.2), 5),
+  ];
+  const valores = simular(ctl, frames)
+    .filter((e) => e.tipo === "nivel")
+    .map((e) => (e.tipo === "nivel" ? e.valor : -1));
+  assert.equal(valores[0], 0, "dedos juntos = 0 %");
+  assert.equal(valores[valores.length - 1], 1, "abiertos del todo = 100 %");
+  for (const v of valores) assert.ok(Math.abs(v * 10 - Math.round(v * 10)) < 1e-9, `escalón: ${v}`);
+});
+
+test("pinza: quedarse quieto ~1 s en el mismo valor lo confirma", () => {
+  const ctl = new InteraccionManos();
+  const frames = [
+    ...repetir(mano(FORMAS.pinza), 8),
+    ...Array.from({ length: 10 }, (_, i) => pinzaAbierta(0.01 * (i + 1))), // abre un poco
+    ...repetir(pinzaAbierta(0.1), 40), // y se queda quieto
+  ];
+  const ev = simular(ctl, frames).filter((e) => e.tipo === "nivel");
+  const fin = ev.filter((e) => e.tipo === "nivel" && e.fase === "fin");
+  assert.equal(fin.length, 1, "se confirma una vez y no vuelve a empezar");
+  const ultimoMover = ev.filter((e) => e.tipo === "nivel" && e.fase === "mover").pop()!;
+  assert.ok(fin[0].tipo === "nivel" && ultimoMover.tipo === "nivel" && fin[0].valor === ultimoMover.valor);
+  assert.ok(fin[0].t - ultimoMover.t >= 1000);
+});
+
+test("pinza: temblar en el límite entre dos escalones no hace saltar el valor", () => {
+  const ctl = new InteraccionManos({ confirmarNivelMs: 10000, nivelMin: 0, nivelMax: 1 });
+  // Fijamos la escala abriendo del todo y volviendo a la mitad.
+  const frames = [
+    ...repetir(mano(FORMAS.pinza), 8),
+    ...repetir(pinzaAbierta(0.2), 10),
+    ...repetir(pinzaAbierta(0.1), 15),
+  ];
+  const ev1 = simular(ctl, frames).filter((e) => e.tipo === "nivel" && e.fase === "mover").length;
+  // Oscila un poco alrededor del mismo punto.
+  const temblor = Array.from({ length: 30 }, (_, i) => pinzaAbierta(0.1 + (i % 2 ? 0.006 : -0.006)));
+  const ev2 = simular(ctl, temblor, 25 * 33).filter((e) => e.tipo === "nivel" && e.fase === "mover");
+  assert.ok(ev1 > 0);
+  assert.equal(ev2.length, 0, `cambios por temblor: ${ev2.length}`);
 });
 
 test("pinza: también funciona con los otros tres dedos doblados", () => {

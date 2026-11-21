@@ -50,10 +50,19 @@ export interface OpcionesInteraccion {
   despertarMs: number;
   /** Tiempo sin actividad para volver a dormir. */
   dormirMs: number;
-  /** Separación pulgar–índice (relativa al tamaño de la mano) que corresponde al nivel 0. */
+  /**
+   * Separación pulgar–índice (relativa al tamaño de la mano) para el 0 % y el 100 % al empezar.
+   * Se calibran solos: el 0 % baja hasta la separación con los dedos juntos que se observe y el
+   * 100 % sube hasta la máxima apertura que se observe.
+   */
   nivelMin: number;
-  /** Separación pulgar–índice que corresponde al nivel 1. */
   nivelMax: number;
+  /** Tamaño del escalón del nivel (0,1 = 0 %, 10 %, 20 %…). */
+  pasoNivel: number;
+  /** Margen extra (fracción del escalón) para cambiar de escalón: evita saltos en el límite. */
+  histeresisNivel: number;
+  /** Tiempo quieto en el mismo escalón para confirmar el valor. */
+  confirmarNivelMs: number;
   /** Tiempo que hay que mantener la pinza para empezar a controlar el nivel. */
   inicioNivelMs: number;
   /** Alcance del índice por debajo del cual se considera la mano cerrada (fin del nivel). */
@@ -84,8 +93,11 @@ export const OPCIONES_POR_DEFECTO: OpcionesInteraccion = {
   requiereDespertar: false,
   despertarMs: 1000,
   dormirMs: 10000,
-  nivelMin: 0.25,
-  nivelMax: 1.1,
+  nivelMin: 0.3,
+  nivelMax: 0.9,
+  pasoNivel: 0.1,
+  histeresisNivel: 0.3,
+  confirmarNivelMs: 1000,
   inicioNivelMs: 150,
   indiceCerrado: 1.05,
   elegirMenuMs: 500,
@@ -131,11 +143,17 @@ export interface Diagnostico {
 }
 
 interface EstadoNivel {
+  /** Valor en escalones (0, 0,1, 0,2…). */
   valor: number;
-  /** Valores recientes: al terminar se usa uno de antes de cerrar la mano. */
+  /** Valor continuo sin redondear (para mostrar la posición dentro del escalón). */
+  continuo: number;
+  /** Momento del último cambio de escalón. */
+  tCambio: number;
+  /** Si el valor ya ha cambiado alguna vez (no se confirma el valor inicial sin tocarlo). */
+  movido: boolean;
+  /** Valores recientes: al cerrar el puño se usa uno de antes de cerrar la mano. */
   historial: { t: number; valor: number }[];
   tUltimoValido: number;
-  tUltimoEvento: number;
   pulgar: Punto;
   indice: Punto;
 }
@@ -182,11 +200,18 @@ export class InteraccionManos {
   private diag: Diagnostico | null = null;
   private tPinzaInicio: number | null = null;
   private nivel: EstadoNivel | null = null;
-  private fNivel = new FiltroOneEuro({ minCorte: 1.5, beta: 0.5, corteDerivada: 1.0 });
+  private fSeparacion = new FiltroOneEuro({ minCorte: 1.0, beta: 0.3, corteDerivada: 1.0 });
+  /** Calibración de la escala del nivel, aprendida de la mano del usuario. */
+  private calMin: number;
+  private calMax: number;
+  /** Tras confirmar un nivel, hay que soltar la pinza antes de empezar otro. */
+  private esperarSoltarPinza = false;
   private cabeza: DetectorCabeza;
 
   constructor(op: Partial<OpcionesInteraccion> = {}) {
     this.op = { ...OPCIONES_POR_DEFECTO, ...op };
+    this.calMin = this.op.nivelMin;
+    this.calMax = this.op.nivelMax;
     this.despierto = !this.op.requiereDespertar;
     this.cabeza = new DetectorCabeza(this.op.cabeza);
   }
@@ -249,10 +274,31 @@ export class InteraccionManos {
     return this.diag;
   }
 
-  /** Control de nivel activo: valor y puntas de pulgar e índice (imagen) para dibujar la línea. */
-  get nivelActivo(): { valor: number; pulgar: Punto; indice: Punto } | null {
+  /**
+   * Control de nivel activo: valor en escalones, valor continuo, progreso [0,1] de la confirmación
+   * por quietud y puntas de pulgar e índice (imagen) para dibujar la línea.
+   */
+  nivelActivo(t: number): {
+    valor: number;
+    continuo: number;
+    progresoConfirmar: number;
+    pulgar: Punto;
+    indice: Punto;
+  } | null {
     const n = this.nivel;
-    return n ? { valor: n.valor, pulgar: n.pulgar, indice: n.indice } : null;
+    if (!n) return null;
+    const progresoConfirmar = n.movido ? Math.min(1, (t - n.tCambio) / this.op.confirmarNivelMs) : 0;
+    return { valor: n.valor, continuo: n.continuo, progresoConfirmar, pulgar: n.pulgar, indice: n.indice };
+  }
+
+  /** Escala aprendida: separación para el 0 % y para el 100 %. */
+  get calibracionNivel(): { min: number; max: number } {
+    return { min: this.calMin, max: this.calMax };
+  }
+
+  reiniciarCalibracionNivel(): void {
+    this.calMin = this.op.nivelMin;
+    this.calMax = this.op.nivelMax;
   }
 
   procesar(frame: FrameManos): void {
@@ -474,51 +520,82 @@ export class InteraccionManos {
     if (!this.nivel) {
       if (pose !== "pinza") {
         this.tPinzaInicio = null;
+        this.esperarSoltarPinza = false;
         return false;
       }
+      if (this.esperarSoltarPinza) return false;
       this.tPinzaInicio ??= t;
       if (t - this.tPinzaInicio < this.op.inicioNivelMs) return false;
       this.tPinzaInicio = null;
-      this.fNivel.reiniciar();
+      this.fSeparacion.reiniciar();
     } else if (diag.alcance < this.op.indiceCerrado) {
-      // Mano cerrada. Toleramos fallos breves de la detección.
+      // Puño: termina. Toleramos fallos breves de la detección.
       if (t - this.nivel.tUltimoValido <= 200) return true;
-      this.terminarNivel(t);
+      this.terminarNivel(t, true);
       this.reiniciarCandidato(t, pose, centro);
       return false;
     }
 
-    const crudo = (diag.separacion - this.op.nivelMin) / (this.op.nivelMax - this.op.nivelMin);
-    const valor = Math.min(1, Math.max(0, this.fNivel.filtrar(Math.min(1, Math.max(0, crudo)), t)));
+    // Escala real: se aprende de la mano. Dedos juntos = 0 %, abiertos del todo = 100 %.
+    const sep = this.fSeparacion.filtrar(diag.separacion, t);
+    if (sep < this.calMin) this.calMin = sep;
+    if (sep > this.calMax) this.calMax = sep;
+    const continuo = Math.min(1, Math.max(0, (sep - this.calMin) / (this.calMax - this.calMin || 1)));
     const { pulgar, indice } = diag;
     this.ultimoPuntero = null;
 
     if (!this.nivel) {
-      this.nivel = { valor, historial: [{ t, valor }], tUltimoValido: t, tUltimoEvento: t, pulgar, indice };
+      const valor = redondearNivel(continuo, this.op.pasoNivel);
+      this.nivel = {
+        valor,
+        continuo,
+        tCambio: t,
+        movido: false,
+        historial: [{ t, valor }],
+        tUltimoValido: t,
+        pulgar,
+        indice,
+      };
       this.emitir({ tipo: "nivel", fase: "inicio", valor, t });
       return true;
     }
+
     const n = this.nivel;
-    n.valor = valor;
+    n.continuo = continuo;
     n.pulgar = pulgar;
     n.indice = indice;
     n.tUltimoValido = t;
-    n.historial.push({ t, valor });
+    // Histéresis: solo se cambia de escalón al entrar claramente en el siguiente.
+    const paso = this.op.pasoNivel;
+    if (Math.abs(continuo - n.valor) > paso * (0.5 + this.op.histeresisNivel)) {
+      n.valor = redondearNivel(continuo, paso);
+      n.tCambio = t;
+      n.movido = true;
+      this.emitir({ tipo: "nivel", fase: "mover", valor: n.valor, t });
+    }
+    n.historial.push({ t, valor: n.valor });
     while (n.historial.length && t - n.historial[0].t > 400) n.historial.shift();
-    if (t - n.tUltimoEvento >= this.op.intervaloPunteroMs) {
-      n.tUltimoEvento = t;
-      this.emitir({ tipo: "nivel", fase: "mover", valor, t });
+
+    // Confirmar: quieto en el mismo escalón el tiempo indicado.
+    if (n.movido && t - n.tCambio >= this.op.confirmarNivelMs) {
+      this.terminarNivel(t, false);
+      this.esperarSoltarPinza = true;
+      this.gestoEstable = pose;
+      this.reiniciarCandidato(t, pose, centro);
     }
     return true;
   }
 
-  private terminarNivel(t: number): void {
+  /** @param alCerrar true si termina por cerrar el puño o perder la mano (se usa el valor de antes). */
+  private terminarNivel(t: number, alCerrar = true): void {
     const n = this.nivel;
     if (!n) return;
     this.nivel = null;
     // Al cerrar la mano, pulgar e índice se mueven: nos quedamos con el valor de ~0,3 s antes.
-    const previo = n.historial.find((h) => h.t >= n.tUltimoValido - 300) ?? n.historial[0];
-    this.emitir({ tipo: "nivel", fase: "fin", valor: previo?.valor ?? n.valor, t });
+    const valor = alCerrar
+      ? (n.historial.find((h) => h.t >= n.tUltimoValido - 300) ?? n.historial[0])?.valor ?? n.valor
+      : n.valor;
+    this.emitir({ tipo: "nivel", fase: "fin", valor, t });
   }
 
   // ---------- Experimental: menú radial ----------
@@ -628,6 +705,10 @@ export function direccionIndice(mano: Mano, aspecto: number, espejo: boolean): S
   if (Math.abs(dx) > 1.3 * Math.abs(dy)) return dx > 0 ? "derecha" : "izquierda";
   if (Math.abs(dy) > 1.3 * Math.abs(dx)) return dy > 0 ? "abajo" : "arriba";
   return null;
+}
+
+function redondearNivel(v: number, paso: number): number {
+  return Math.min(1, Math.max(0, Number((Math.round(v / paso) * paso).toFixed(4))));
 }
 
 /** Centro de la palma en la imagen, con x corregida por aspecto (unidades de alto). */
