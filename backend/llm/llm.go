@@ -8,6 +8,7 @@ package llm
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -49,6 +50,13 @@ type Message struct {
 	Role   string   `json:"role"` // "user" or "assistant"
 	Text   string   `json:"text"`
 	Images []string `json:"images,omitempty"`
+	Audio  *Audio   `json:"audio,omitempty"`
+}
+
+// Audio is a recording sent to an audio-capable model (for example, to transcribe it).
+type Audio struct {
+	Data   []byte `json:"data"`   // the file's bytes (sent base64-encoded)
+	Format string `json:"format"` // "wav" or "mp3"
 }
 
 // Request is a model request.
@@ -58,6 +66,9 @@ type Request struct {
 	Messages  []Message `json:"messages"`
 	MaxTokens int       `json:"maxTokens,omitempty"` // 0 = 1024
 	JSON      bool      `json:"json,omitempty"`      // ask for a JSON object answer
+	// Models overrides the tier's models (same comma-separated syntax); the cost is still
+	// counted under Tier. Used for tasks that need a specific capability, such as audio.
+	Models string `json:"models,omitempty"`
 }
 
 // Response is the answer, with what it cost.
@@ -136,6 +147,9 @@ func (c *Client) Complete(ctx context.Context, req Request) (Response, error) {
 		req.Tier = Cheap
 	}
 	model, ok := c.Models[req.Tier]
+	if req.Models != "" {
+		model, ok = req.Models, true
+	}
 	if !ok {
 		return Response{}, fmt.Errorf("llm: unknown tier %q", req.Tier)
 	}
@@ -202,9 +216,15 @@ func (c *Client) meter() *Meter {
 // ---------- OpenRouter wire format (OpenAI-compatible) ----------
 
 type orPart struct {
-	Type     string      `json:"type"`
-	Text     string      `json:"text,omitempty"`
-	ImageURL *orImageURL `json:"image_url,omitempty"`
+	Type       string        `json:"type"`
+	Text       string        `json:"text,omitempty"`
+	ImageURL   *orImageURL   `json:"image_url,omitempty"`
+	InputAudio *orInputAudio `json:"input_audio,omitempty"`
+}
+
+type orInputAudio struct {
+	Data   string `json:"data"` // base64
+	Format string `json:"format"`
 }
 
 type orImageURL struct {
@@ -256,13 +276,18 @@ func toOpenRouter(model string, req Request) orRequest {
 		out.Messages = append(out.Messages, orMessage{Role: "system", Content: req.System})
 	}
 	for _, m := range req.Messages {
-		if len(m.Images) == 0 {
+		if len(m.Images) == 0 && m.Audio == nil {
 			out.Messages = append(out.Messages, orMessage{Role: m.Role, Content: m.Text})
 			continue
 		}
 		parts := []orPart{{Type: "text", Text: m.Text}}
 		for _, img := range m.Images {
 			parts = append(parts, orPart{Type: "image_url", ImageURL: &orImageURL{URL: img}})
+		}
+		if m.Audio != nil {
+			parts = append(parts, orPart{Type: "input_audio", InputAudio: &orInputAudio{
+				Data: base64.StdEncoding.EncodeToString(m.Audio.Data), Format: m.Audio.Format,
+			}})
 		}
 		out.Messages = append(out.Messages, orMessage{Role: m.Role, Content: parts})
 	}

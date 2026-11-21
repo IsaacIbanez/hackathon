@@ -22,6 +22,11 @@ Misma frase en español, generada con la voz «Helena» de Windows (audio **limp
 | `qwen/qwen3.8-omni-flash` | 7,0 s | 0,00006 $ | exacta ✅, lenta |
 | `mistralai/voxtral-small-24b-2507` | 7,5 s | 0,00056 $ | ❌ cambia palabras («debo» en vez de «tengo») |
 
+## Respaldo en la nube: hecho (T18, 2026-11-21)
+- **Go:** `POST /transcribe?lang=es-ES` con el audio en `audio/wav` → `{"text", "model", "costUsd", "latencyMs"}`; el coste sale en el contador (`stats`). Modelos: `LLM_TRANSCRIBE_MODELS` (por defecto `google/gemini-2.5-flash-lite,nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free`).
+- **Probado** con la frase de arriba: «que tengo que poner aquí en la fecha del siniestro y dónde firmo», 2,3 s, 0,00006 $.
+- **Para Nil:** en `web/src/app/transcribe.ts` está `transcribeRemote(samples, sampleRate, lang, wsUrl)`: codifica el audio en WAV, busca el servidor a partir de la URL del WebSocket (`resolveWsUrl()`) y devuelve el texto. Llamadla solo si el reconocimiento local falla o sale vacío.
+
 ## Decisión
 1. **Local primero (Nil, T17):** `whisper-small`. Con WebGPU si la ventana lo tiene; si no, WASM `q8`. Idioma forzado (`spanish`). **Precargar el modelo al abrir la app**, con un aviso «preparando la voz…», para no hacer esperar en la primera pregunta. `whisper-tiny` solo como último recurso en equipos lentos.
 2. **Nube como respaldo (Isaac, T18):** `POST /transcribe` en Go (cuerpo: audio WAV 16 kHz mono) → `{"text": "..."}` con `google/gemini-2.5-flash-lite` y, si falla, `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free`. Se usa **solo** si el local falla, sale vacío o el usuario lo activa. El coste sale en el contador (`stats`).

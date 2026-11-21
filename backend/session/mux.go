@@ -24,6 +24,7 @@ const MaxPhotoBytes = 40 << 20
 //	GET  /ws       WebSocket: send contract messages, receive every document, speak and stats
 //	POST /message  one contract envelope as the body (for the scanner); answers 202
 //	POST /scan     a camera photo: Go has it read by the reading service; answers 202
+//	POST /transcribe?lang=es-ES  a WAV recording -> {"text": ...} (cloud backup of the voice)
 //
 // The hub is returned so the caller can Close it on shutdown.
 func NewMux(model Model, cfg Config) (http.Handler, *ws.Hub) {
@@ -42,7 +43,10 @@ func NewMux(model Model, cfg Config) (http.Handler, *ws.Hub) {
 	mux.HandleFunc("POST /scan", func(w http.ResponseWriter, r *http.Request) {
 		handleScan(w, r, sess, hub)
 	})
-	return mux, hub
+	mux.HandleFunc("POST /transcribe", func(w http.ResponseWriter, r *http.Request) {
+		handleTranscribe(w, r, sess, hub)
+	})
+	return ws.Guard(mux, OriginPatterns), hub
 }
 
 func handleScan(w http.ResponseWriter, r *http.Request, sess *Session, hub *ws.Hub) {
@@ -72,4 +76,47 @@ func handleScan(w http.ResponseWriter, r *http.Request, sess *Session, hub *ws.H
 	go sess.ScanPhoto(hub.Context(), photo, ct, hub.Broadcast)
 	w.WriteHeader(http.StatusAccepted)
 	_, _ = io.WriteString(w, `{"ok":true}`)
+}
+
+// MaxAudioBytes bounds a recording sent to POST /transcribe (~5 min of 16 kHz mono WAV).
+const MaxAudioBytes = 10 << 20
+
+// Transcription is the answer of POST /transcribe.
+type Transcription struct {
+	Text      string  `json:"text"`
+	Model     string  `json:"model"`
+	CostUSD   float64 `json:"costUsd"`
+	LatencyMs int64   `json:"latencyMs"`
+}
+
+func handleTranscribe(w http.ResponseWriter, r *http.Request, sess *Session, hub *ws.Hub) {
+	w.Header().Set("Content-Type", "application/json")
+	ct, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if ct != "audio/wav" && ct != "audio/x-wav" && ct != "audio/wave" {
+		w.WriteHeader(http.StatusUnsupportedMediaType)
+		_, _ = io.WriteString(w, `{"ok":false,"error":"send the recording as audio/wav (16 kHz mono is enough)"}`)
+		return
+	}
+	wav, err := io.ReadAll(io.LimitReader(r.Body, MaxAudioBytes+1))
+	switch {
+	case err != nil || len(wav) == 0:
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = io.WriteString(w, `{"ok":false,"error":"empty or unreadable recording"}`)
+		return
+	case len(wav) > MaxAudioBytes:
+		w.WriteHeader(http.StatusRequestEntityTooLarge)
+		_, _ = io.WriteString(w, `{"ok":false,"error":"recording larger than 10 MB"}`)
+		return
+	}
+	lang := r.URL.Query().Get("lang")
+	if lang == "" {
+		lang = "es-ES"
+	}
+	resp, err := sess.Transcribe(r.Context(), wav, lang, hub.Broadcast)
+	if err != nil {
+		w.WriteHeader(http.StatusBadGateway)
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(Transcription{Text: resp.Text, Model: resp.Model, CostUSD: resp.CostUSD, LatencyMs: resp.LatencyMs})
 }

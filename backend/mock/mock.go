@@ -88,6 +88,7 @@ func NewMux() (http.Handler, error) {
 		_ = json.NewEncoder(w).Encode(gen.Health{Status: "ok"})
 	})
 	// Extra origins: Vite, wails dev/build on Windows (wails.localhost) and on Linux/macOS (wails://wails).
-	mux.Handle("/ws", &ws.Server{Handle: handle, OriginPatterns: []string{"localhost:*", "127.0.0.1:*", "wails.localhost*", "wails"}})
-	return mux, nil
+	origins := []string{"localhost:*", "127.0.0.1:*", "wails.localhost*", "wails"}
+	mux.Handle("/ws", &ws.Server{Handle: handle, OriginPatterns: origins})
+	return ws.Guard(mux, origins), nil
 }

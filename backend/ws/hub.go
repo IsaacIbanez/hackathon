@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -134,6 +135,11 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // HandlePost accepts one envelope as the body of POST /message and answers 202 Accepted.
 // The session's replies are broadcast to the WebSocket clients (the UI), not returned here.
 func (h *Hub) HandlePost(w http.ResponseWriter, r *http.Request) {
+	// JSON only: a cross-site form or text/plain POST cannot send it without a CORS preflight.
+	if ct, _, _ := strings.Cut(r.Header.Get("Content-Type"), ";"); strings.TrimSpace(ct) != "application/json" {
+		http.Error(w, `{"ok":false,"error":"send the envelope as application/json"}`, http.StatusUnsupportedMediaType)
+		return
+	}
 	data, err := io.ReadAll(io.LimitReader(r.Body, MaxMessageBytes+1))
 	if err != nil || len(data) > MaxMessageBytes {
 		http.Error(w, `{"ok":false,"error":"body too large or unreadable"}`, http.StatusRequestEntityTooLarge)
