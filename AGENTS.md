@@ -7,7 +7,7 @@ Este archivo lo leen todos los agentes (Claude Code, Gemini CLI) al empezar. Es 
 - **Evento:** LauzHack 2026. Duración total: 24 horas.
 - **Objetivo:** app de escritorio que usa la cámara (webcam Logitech), el micro y gestos para leer y entender documentos en papel, y ayudar a rellenarlos. Combina tres challenges: Logitech (la webcam como "ojos y oídos" de la IA, flujos con contexto), IMC Tech for Good (inclusión y accesibilidad) y AXA (uso frugal de IA multimodal).
 - **Historia de la demo:** una persona con baja visión sostiene un documento (carta o formulario de seguros) delante de la cámara; la app lo lee, lo explica en lenguaje sencillo y la ayuda a rellenarlo por voz o señalando con la mano.
-- **Stack previsto:** Go (backend y orquestación, IDE GoLand), Wails para la app de escritorio, interfaz en React + Vite + TypeScript + Tailwind, MediaPipe y Web Speech API en el navegador, modelos vía OpenRouter (AXA da una clave de 10 USD por equipo). Wails está pendiente de confirmar con la prueba de cámara (T3); plan B: Electron con Go como proceso aparte.
+- **Stack:** Go (backend y orquestación, IDE GoLand), Wails para la app de escritorio, interfaz en React + Vite + TypeScript + Tailwind, MediaPipe y Web Speech API en el navegador, modelos vía OpenRouter (AXA da una clave de 10 USD por equipo). Wails confirmado en Windows (compila, `getUserMedia` funciona sin pedir permiso en `wails dev`); falta repetir la prueba en Linux y en los otros equipos (`docs/PRUEBA_WAILS.md`). Plan B: Electron con Go como proceso aparte.
 - **Reglas de la hackathon, incluido el uso de IA:** no hay restricciones sobre el uso de IA (confirmado por el equipo).
 
 ## Orden de prioridades
@@ -55,12 +55,13 @@ Cuatro personas, cada una con una cuenta de Claude Pro y una de Gemini Plus (ver
 
 ## Estructura de carpetas
 ```
+main.go, app.go, wails.json, go.mod   en la raíz (lo exige Wails; rol A)
 api/                       contrato (rol A)
-backend/cmd/server         servidor (A)
-backend/internal/ws        WebSocket (A)
-backend/internal/session   sesiones (A)
-backend/internal/llm       modelos, caché, coste (A)
-backend/internal/ocr       comprensión de documentos (B2)
+backend/cmd/mock           servidor mock sin Wails (A)
+backend/ws                 WebSocket (A)
+backend/session            sesiones (A)
+backend/llm                modelos, caché, coste (A)
+backend/ocr                comprensión de documentos (B2)
 web/src/app                app y pantallas comunes (A)
 web/src/camera             cámara, recorte y OCR local (B1)
 web/src/document           vista del documento (B2)
@@ -68,6 +69,12 @@ web/src/input              gestos y voz (C)
 docs/                      documentación
 ```
 Las carpetas están creadas vacías (`.gitkeep`); el código llega con T2 y las tareas siguientes.
+
+**Reglas de estructura (comprobadas, no cambiar sin avisar):**
+- Nada de carpetas `internal/`: el `main.go` de la raíz no puede importarlas (Go lo rechaza). Los paquetes van en `backend/<nombre>` y se importan como `<módulo>/backend/<nombre>`.
+- El frontend vive en `web/`, con `"frontend:dir": "web"` en `wails.json` y `//go:embed all:web/dist` en `main.go`.
+- `backend/cmd/mock` es un `main` aparte para probar sin Wails.
+- `web/wailsjs/` lo genera Wails: no se edita a mano.
 
 ## Arquitectura
 Detalle en `docs/ARQUITECTURA.md`. Resumen:
@@ -81,9 +88,9 @@ Cada persona es dueña de sus carpetas; no se edita código de otro rol sin avis
 
 | Rol | Persona | Carpetas | Responsabilidad |
 |-----|---------|----------|-----------------|
-| A. Núcleo e integración | Isaac (P1) | `backend/cmd`, `backend/internal/{ws,session,llm}`, `api/`, CI, empaquetado Wails | Contrato, servidor Go, cliente de modelos frugal, contador, integración y pitch |
+| A. Núcleo e integración | Isaac (P1) | `backend/cmd`, `backend/{ws,session,llm}`, `api/`, CI, empaquetado Wails | Contrato, servidor Go, cliente de modelos frugal, contador, integración y pitch |
 | B1. Captura y visión | Didac (P2) o Pau (P4) | `web/src/camera` | Flujo de cámara, detección y recorte del papel, calidad de imagen, OCR local |
-| B2. Comprensión de documentos | Pau (P4) o Didac (P2) | `backend/internal/ocr`, `web/src/document` | Texto a campos y significado, decidir cuándo escalar al modelo caro, vista del documento |
+| B2. Comprensión de documentos | Pau (P4) o Didac (P2) | `backend/ocr`, `web/src/document` | Texto a campos y significado, decidir cuándo escalar al modelo caro, vista del documento |
 | C. Interacción | Nil (P3) | `web/src/input` | Gestos de mano y voz |
 
 B1 y B2 acuerdan en la primera hora el mensaje `document` (bloques de texto con caja en la imagen y confianza).
@@ -91,6 +98,7 @@ Didac y Pau se reparten B1 y B2 entre ellos (por decidir). La asignación comple
 
 
 ## Decisiones
+- 2026-11-21 — Estructura definitiva: Wails en la raíz, frontend en `web/`, paquetes Go en `backend/<nombre>` sin `internal/`, mock en `backend/cmd/mock` — comprobado: Go rechaza importar `internal/` desde la raíz, y Wails acepta `frontend:dir` y paquetes propios (prueba de Isaac en Windows, Wails v2.17.1).
 - 2026-11-21 — Un agente principal (Claude) por persona y Gemini de apoyo o revisión; los agentes no editan `TAREAS.md` — menos conflictos y más control con cuatro personas.
 - 2026-11-21 — PRs pequeños, revisados por otra persona y fusionados cada 30–60 minutos — el proceso no debe frenar el desarrollo.
 - 2026-11-21 — Monorepo único con Go + frontend web dentro de una app de escritorio — queda todo en un sitio y los agentes se coordinan por archivos.

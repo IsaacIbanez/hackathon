@@ -9,8 +9,8 @@ hackathon/
 ├── Makefile              # make dev / gen / test / check
 ├── api/openapi.yaml      # contrato backend <-> frontend
 ├── backend/              # Go
-│   ├── cmd/server/
-│   └── internal/{ws,session,llm,ocr}/
+│   ├── cmd/mock/         # servidor mock sin Wails
+│   └── {ws,session,llm,ocr}/   # sin "internal/"
 ├── web/                  # React + Vite + TS + Tailwind
 │   └── src/{app,camera,document,input}/
 ├── adapters/logitech/    # solo si el SDK exige Python o C#

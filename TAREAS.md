@@ -8,7 +8,7 @@ Asigna un agente de `ROSTER.md` (por ejemplo `P2-C` o `P2-G`) como responsable.
 |----|-------|--------------------|--------|------|----|------------|
 | T1 | Definir alcance, arquitectura y reparto | Humanos | hecha | feature/T1-alcance-y-arquitectura | #1 | — |
 | T2 | Esqueleto: monorepo, contrato `api/openapi.yaml`, mensajes WebSocket, CI, `Makefile` y servidor mock | P1 (Isaac) — rol A | pendiente | — | — | T1 |
-| T3 | Prueba de cámara en todos los SO (Wails) y qué ofrece el SDK de Logitech para la cámara | P2 o P4 — rol B1 | pendiente | — | — | T1 |
+| T3 | Prueba de cámara en todos los SO (Wails) según `docs/PRUEBA_WAILS.md` (Windows hecho por Isaac) y qué ofrece el SDK de Logitech para la cámara | P2 o P4 — rol B1 | pendiente | — | — | T1 |
 | T4 | Captura y visión: flujo de cámara, detección y recorte, OCR local | P2 o P4 — rol B1 | pendiente | — | — | T2 |
 | T5 | Comprensión de documentos: campos, escalado al modelo caro, vista del documento | P4 o P2 — rol B2 | pendiente | — | — | T2 |
 | T6 | Interacción: gestos de mano y voz | P3 (Nil) — rol C | pendiente | — | — | T2 |
