@@ -4,7 +4,10 @@ package main
 
 import (
 	"embed"
+	"io"
 	"log"
+	"os"
+	"path/filepath"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -15,6 +18,7 @@ import (
 var assets embed.FS
 
 func main() {
+	logToFile()
 	app := NewApp()
 
 	err := wails.Run(&options.App{
@@ -34,4 +38,19 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+// logToFile also writes the log to lauzhack.log next to the executable: a desktop build has
+// no console, and this is where to look when something fails during the demo.
+func logToFile() {
+	exe, err := os.Executable()
+	if err != nil {
+		return
+	}
+	f, err := os.OpenFile(filepath.Join(filepath.Dir(exe), "lauzhack.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	if err != nil {
+		return
+	}
+	log.SetOutput(io.MultiWriter(os.Stderr, f))
+	log.Printf("---- start (%s)", exe)
 }

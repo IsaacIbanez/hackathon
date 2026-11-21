@@ -76,3 +76,12 @@ func (a *App) newHandler() (http.Handler, error) {
 	a.hub = hub
 	return h, nil
 }
+
+// ReportDiagnostics lets the UI write what the embedded browser supports (speech synthesis,
+// Spanish voices, speech recognition, camera) to the app log (lauzhack.log).
+func (a *App) ReportDiagnostics(report string) {
+	if len(report) > 2000 {
+		report = report[:2000]
+	}
+	log.Printf("ui diagnostics: %s", report)
+}

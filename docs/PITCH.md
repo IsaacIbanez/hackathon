@@ -60,7 +60,8 @@ Preparación: ver «Checklist». Pantalla: izquierda explicación + gestos + cos
 - **¿Qué habéis construido vosotros?** Contrato y servidor en Go con sesión compartida, enrutado frugal con caché y contador, captura 4K con selección del frame más nítido, OCR a PDF buscable (⏳ en la rama de Didac), módulo de gestos con MediaPipe, puente gestos → IA. Ver `AGENTS.md` y los PRs.
 
 ## Checklist antes de presentar
-- [ ] `git pull` en `main` y `task check` en verde en el portátil de la demo.
+- [ ] `git pull` en `main` y `task check` en verde en el portátil de la demo; `wails build` y abrir `build/bin/lauzhack.exe`.
+- [ ] «Developer tools»: voces en español y cámara en «yes»; si algo falla, mirar `build/bin/lauzhack.log`.
 - [ ] `.env` con la clave y **sin** `LLM_PROFILE=dev` (Haiku: más rápido y sin 429; coste de la demo < 0,01 $).
 - [ ] MX Brio conectada y probada; webcam para las manos si se usan dos cámaras (decisión pendiente).
 - [ ] Formulario impreso en grande, buena luz, sin reflejos.

@@ -3,6 +3,7 @@ package llm
 import (
 	"bufio"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -35,4 +36,25 @@ func LoadDotEnv(path string) {
 			_ = os.Setenv(key, value)
 		}
 	}
+}
+
+// DotEnvCandidates returns where NewFromEnv looks for .env, in priority order: the current
+// directory, then the executable's directory and up to three parents (so a desktop build in
+// build/bin, started with a double click, still finds the .env at the repository root).
+func DotEnvCandidates() []string {
+	paths := []string{".env"}
+	exe, err := os.Executable()
+	if err != nil {
+		return paths
+	}
+	dir := filepath.Dir(exe)
+	for range 4 {
+		paths = append(paths, filepath.Join(dir, ".env"))
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+	return paths
 }

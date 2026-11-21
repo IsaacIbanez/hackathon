@@ -100,11 +100,14 @@ func New(apiKey string) *Client {
 	}
 }
 
-// NewFromEnv reads the configuration from the environment (and from a .env file, if any):
+// NewFromEnv reads the configuration from the environment and from the first .env files
+// found (see DotEnvCandidates; values already set are never overridden):
 // OPENROUTER_API_KEY and, optionally, LLM_PROFILE (dev), LLM_CHEAP_MODEL,
 // LLM_EXPENSIVE_MODEL and OPENROUTER_URL.
 func NewFromEnv() (*Client, error) {
-	LoadDotEnv(".env")
+	for _, p := range DotEnvCandidates() {
+		LoadDotEnv(p)
+	}
 	key := os.Getenv("OPENROUTER_API_KEY")
 	if key == "" {
 		return nil, ErrNoAPIKey
