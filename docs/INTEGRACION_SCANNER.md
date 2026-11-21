@@ -58,11 +58,33 @@ Nombres en inglés desde el 2026-11-21 (antes `escanear.py`, `enviar_a_app`, `Re
 - El documento digital con modelo de visión (`vision.py`) gasta del mismo presupuesto de OpenRouter, pero su coste no sale en el contador de la app; el envío a la app usa solo el OCR local (0 $).
 - Pendiente de decidir en equipo: **qué dispara el escaneo** en la demo (botón o tecla en vuestra app, escaneo automático cuando la hoja está quieta, o un gesto). Si queréis un gesto, hace falta un mensaje nuevo en el contrato: avisad.
 
+## Servicio de lectura para la app (T13, Didac): lo que Go espera
+Desde el contrato 0.5, la app manda la foto a Go (`POST /scan`) y **Go se la pasa a vuestro servicio**:
+
+```
+POST http://127.0.0.1:8770/scan        (Go lo lee de SCANNER_URL)
+Content-Type: image/jpeg | image/png | image/webp
+<bytes de la foto, hasta 40 MB>
+
+200  application/json   → un DocumentPayload (lo de Result.document()) + pageCorners
+422  {"error": "..."}   → no hay hoja en la foto (Go le dice al usuario «No encuentro la hoja…»)
+otro                     → error (Go dice «No he podido leer el documento»)
+```
+
+**`pageCorners`** (nuevo, opcional): las 4 esquinas de la hoja **en la foto recibida**, normalizadas a [0, 1] sobre esa foto (`x / ancho_foto`, `y / alto_foto`), en este orden: **arriba-izquierda, arriba-derecha, abajo-derecha, abajo-izquierda de la hoja tal como se lee** (después de orientarla). Si giráis la hoja 90° o 180° para leerla, rotad también el orden de las esquinas: el puntero las usa para saber qué parte del papel señala el dedo. Si no se detectó la hoja (se usó la foto entera), no lo pongáis.
+
+Ejemplo: `api/fixtures/document.json` (`"pageCorners": [{"x":0.31,"y":0.07}, {"x":0.70,"y":0.09}, {"x":0.72,"y":0.94}, {"x":0.29,"y":0.92}]`).
+
+**Cómo probarlo de punta a punta:** vuestro servicio en 8770 + `task server` (o `task dev`) + `curl -X POST -H "Content-Type: image/png" --data-binary @foto.png http://127.0.0.1:8765/scan`. La interfaz oye «Un momento, estoy leyendo el documento», recibe el documento y lo explica.
+
+**Mientras el servicio no existe**, el resto del equipo prueba con `SCANNER_URL=fixture`: Go responde a cada foto con el formulario de ejemplo (con esquinas).
+
 ## Puertos
 | Puerto | Quién | Para qué |
 |---|---|---|
 | 8765 | app Go (`task dev` / `task server`) | `/ws`, `POST /message`, `/health` |
 | 8766 | `scanner/capturar.py --servidor` (Pau) | `GET /captura` |
+| 8770 | servicio de lectura (Didac, T13) | `POST /scan`: foto → `document` con `pageCorners` |
 | 8780 | `scanner/demo_app` (Didac, provisional) | vista previa y escaneo |
 | 8080 | `task mock` | respuestas de ejemplo |
 

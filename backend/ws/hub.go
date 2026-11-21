@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -47,6 +48,10 @@ func NewHub(sess Session, originPatterns []string) *Hub {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Hub{sess: sess, OriginPatterns: originPatterns, ctx: ctx, cancel: cancel, clients: map[*hubClient]struct{}{}}
 }
+
+// Context lives as long as the hub: use it for work started on the session's behalf
+// (for example, a scan triggered by POST /scan) so it is not cancelled with one request.
+func (h *Hub) Context() context.Context { return h.ctx }
 
 // Close cancels the session's pending work (model calls). Connections close with the server.
 func (h *Hub) Close() { h.cancel() }
@@ -130,6 +135,11 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // HandlePost accepts one envelope as the body of POST /message and answers 202 Accepted.
 // The session's replies are broadcast to the WebSocket clients (the UI), not returned here.
 func (h *Hub) HandlePost(w http.ResponseWriter, r *http.Request) {
+	// JSON only: a cross-site form or text/plain POST cannot send it without a CORS preflight.
+	if ct, _, _ := strings.Cut(r.Header.Get("Content-Type"), ";"); strings.TrimSpace(ct) != "application/json" {
+		http.Error(w, `{"ok":false,"error":"send the envelope as application/json"}`, http.StatusUnsupportedMediaType)
+		return
+	}
 	data, err := io.ReadAll(io.LimitReader(r.Body, MaxMessageBytes+1))
 	if err != nil || len(data) > MaxMessageBytes {
 		http.Error(w, `{"ok":false,"error":"body too large or unreadable"}`, http.StatusRequestEntityTooLarge)

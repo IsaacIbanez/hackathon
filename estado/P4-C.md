@@ -2,30 +2,29 @@
 
 - **Persona:** Pau
 - **Herramienta:** Claude Code
-- **Tarea actual:** rol B1 (captura y visión) — prototipo aislado `scanner/`: captura del frame completo de la MX Brio por comando
-- **Rama:** feature/B-scanner-captura (parte de `main` 35dddc1 + el commit de contexto de `feature/B-contexto-scanner`)
+- **Tarea actual:** T12 — `web/src/camera` (`openCamera`, `captureStill`); después, traducir `capturar.py` avisando a Didac
+- **Rama:** feature/T12-camara
 - **Estado:** en revisión
-- **Último cambio:** 2026-11-21 15:05
+- **Último cambio:** 2026-11-21 21:00
 
 ## Hecho
-- `scanner/capturar.py`: CLI en Python + OpenCV. Busca la cámara por nombre ("brio" por defecto), pide 3840x2160 MJPG,
-  descarta 1,5 s de calentamiento y guarda el frame completo en PNG sin pérdida + JSON de metadatos en `scanner/capturas/`.
-  Opciones `--listar`, `--camara`, `--probar`, `--json`. Si no está la Brio, falla en vez de usar otra cámara.
-- Tests sin cámara (`python -m unittest discover -s scanner`): 10 OK.
-- Probado en Windows 11 con la cámara integrada (ACER HD, entrega 1280x720) y guardado verificado sin pérdida.
+- #12 (fusionado): `scanner/capturar.py`, captura de la MX Brio (única ≈2,7 s, modo servidor ≈0,4 s, puerto 8766).
+- T12: `web/src/camera`:
+  - `openCamera(opts?)`: prefiere la cámara cuyo nombre lleve «Brio» > «Logitech» > «Logi»; ignora las virtuales; si no hay, abre la que haya. Pide 3840x2160 a 30 fps.
+  - `captureStill(video, opts?)`: el frame más nítido de ~0,5 s (varianza del laplaciano sobre una copia de 960 px, como `capturar.py`), a resolución completa, PNG sin pérdida (o JPEG 0,95).
+  - Tests sin DOM (11) en `src/camera/test/`; página de prueba en `src/camera/demo/` (`npx vite web/src/camera` → `/demo/`).
+  - `tsc -b`, `npm run build`, `npm test` (80 tests) y oxlint en verde.
 
 ## Pendiente
-- Probar con la MX Brio conectada: resolución real entregada, formato y si el autoenfoque se estabiliza en 1,5 s.
-- Siguientes pasos del subproyecto (según `AGENTS_B.md`): detección y corrección de perspectiva, OCR local, PDF buscable.
-
-- Reparto: Pau es B1 (captura); su compañero hace la conversión a PDF y parte de esta rama o de `main` una vez fusionada.
+- Probar la página de prueba con la MX Brio dentro de la ventana de Wails (WebView2): resolución entregada y tiempo de `captureStill`.
+- Traducir `capturar.py` al inglés en un PR aparte, dejando `capturar.py` como alias de los nombres antiguos para no romper `scan.py` ni `demo_app` de Didac.
+- T16: 3 ideas en `docs/IDEAS.md` (PR aparte).
 
 ## Bloqueos y preguntas para humanos
-- `scanner/` no figura en la estructura de `AGENTS.md`. Lo uso como prototipo aislado (lo permite `TAREAS.md`).
-  Falta que un humano apruebe la carpeta y la anote en Decisiones, o decida moverla (p. ej. a `adapters/`).
-- La rama `feature/B-contexto-scanner` parte de un `main` antiguo y, fusionada tal cual, borraría el contrato de T2.
-  Esta rama ya incluye su commit sobre el `main` actual; se puede cerrar aquella.
+- Isaac (A) / Nil (C): `openCamera` pide 4K por defecto para que se lea la letra a mano. Si los gestos van lentos con 4K, se puede abrir a 1080p con `openCamera({ width: 1920, height: 1080 })`; la decisión es vuestra al integrarlo en `Gestures.tsx`.
+- `oxlint` de `web/node_modules` no arranca en Windows (falta el binario nativo `@oxlint/binding-win32-*` en `package-lock.json`); con `npx oxlint@1.90.0` funciona. No es de mi carpeta: aviso a A.
+- La MX Brio no la pueden usar dos programas a la vez: con `capturar.py --servidor` abierto, la app no puede abrirla.
 
 ## Archivos tocados
-- `scanner/capturar.py`, `scanner/test_capturar.py`, `scanner/README.md`, `scanner/requirements.txt`, `scanner/.gitignore`
+- `web/src/camera/{index,open,still,select,sharpness}.ts`, `web/src/camera/README.md`, `web/src/camera/test/*`, `web/src/camera/demo/*`
 - `estado/P4-C.md`

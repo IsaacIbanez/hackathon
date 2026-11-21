@@ -16,14 +16,15 @@ Asigna un agente de `ROSTER.md` (por ejemplo `P2-C` o `P2-G`) como responsable.
 | T8 | Integración de punta a punta y pruebas | P1-C (Isaac) — rol A | en curso: la app sirve `/ws` (#4), `stats` (#6) y la lógica real document/pointer/utterance → speak (#10), probada con modelos gratis; falta el criterio de B2 y conectar el scanner de B y los gestos de C | feature/T8-session | #4, #6, #10 | T4–T7 |
 | T9 | Accesibilidad y flujo de la demo | Todos | pendiente | — | — | T8 |
 | T10 | Documentación y presentación | Humanos (borrador: P1-C) | en curso: guion en `docs/PITCH.md` | feature/T10-pitch | — | T9 |
-| T11 | Contrato 0.5 (`document.pageCorners`) y `POST /scan` en Go → servicio de lectura | P1-C (Isaac) — rol A | pendiente | — | — | — |
-| T12 | Cámara en la app: `openCamera` (Logitech si está) y `captureStill` (foto más nítida); traducir `capturar.py` avisando a Didac | P4 (Pau) — rol B1 | pendiente | — | — | — |
+| T11 | Contrato 0.5 (`document.pageCorners`) y `POST /scan` en Go → servicio de lectura; `SCANNER_URL=fixture` para probar sin él | P1-C (Isaac) — rol A | hecha | feature/T11-scan | #35 | — |
+| T12 | Cámara en la app: `openCamera` (Logitech si está) y `captureStill` (foto más nítida) | P4 (Pau) — rol B1 | hecha | feature/T12-camara | #31 | — |
 | T13 | Servicio de lectura `POST /scan` (8770) que recibe la foto y devuelve `document` + `pageCorners`; 2–3 documentos reales anonimizados en `api/fixtures/real/` | P2 (Didac) — rol B2 | pendiente | — | — | T5 (PR), T11 (contrato) |
 | T14 | Unión en la app: botón «Read document», foto → `/scan`, esquinas al puntero; explicaciones ajustadas al OCR real | P1-C (Isaac) — rol A | pendiente | — | — | T11–T13, T15 |
 | T15 | Orden `scan_document` (voz y gesto), puntero y recuadros sobre el papel real con `pageCorners`; arreglo de #20 (`Host`); MediaPipe en local | P3 (Nil) — rol C | pendiente | — | — | T11 (contrato) |
 | T16 | Lluvia de ideas de funciones en `docs/IDEAS.md` | Todos | pendiente | — | — | — |
 | T17 | Reconocimiento de voz mejor: `whisper-small` local (WebGPU/WASM), idioma forzado, precarga; respaldo T18 si falla (`docs/VOZ.md`) | P3 (Nil) — rol C | pendiente | — | — | — |
-| T18 | `POST /transcribe` en Go: audio → texto con `google/gemini-2.5-flash-lite` (+ respaldo gratuito), coste en `stats` | P1-C (Isaac) — rol A | pendiente | — | — | — |
+| T18 | `POST /transcribe` en Go: audio → texto con `google/gemini-2.5-flash-lite` (+ respaldo gratuito), coste en `stats`; `transcribeRemote()` para el rol C; API local protegida (Host, Origin, CORS) | P1-C (Isaac) — rol A | hecha | feature/T18-transcribe | #36 | — |
+| T19 | Guía de encuadre por voz y disparo automático (`startFramingGuide` en `web/src/camera`, ver AGENTS.md); traducir `capturar.py` avisando a Didac | P4 (Pau) — rol B1 | pendiente | — | — | T12 |
 
 Aparcado por ahora (no empezar): ratón háptico MX Master 4 y keypad de Logitech.
 

@@ -9,9 +9,11 @@ package session
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"math"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -19,12 +21,23 @@ import (
 
 	"github.com/IsaacIbanez/hackathon/api/gen"
 	"github.com/IsaacIbanez/hackathon/backend/llm"
+	"github.com/IsaacIbanez/hackathon/backend/scanner"
 )
 
 // Model is what the session needs from backend/llm (an interface so tests can fake it).
 type Model interface {
+	Complete(ctx context.Context, req llm.Request) (llm.Response, error)
 	CompleteWithEscalation(ctx context.Context, req llm.Request, doubt func(llm.Response) bool) (llm.Response, bool, error)
 	Stats() llm.Stats
+}
+
+// DefaultTranscribeModels: measured on 2026-11-21 (docs/VOZ.md). Gemini 2.5 Flash Lite is
+// correct in ~2.3 s for $0.00006; the free Nemotron omni is correct but slow (~7 s): backup.
+const DefaultTranscribeModels = "google/gemini-2.5-flash-lite,nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"
+
+// Scanner reads a document from a camera photo (backend/scanner talks to role B2's service).
+type Scanner interface {
+	Scan(ctx context.Context, photo []byte, contentType string) (gen.DocumentPayload, error)
 }
 
 // Config tunes the session. The zero value is not valid: use DefaultConfig.
@@ -39,11 +52,19 @@ type Config struct {
 	ModelTimeout time.Duration
 	// MaxTokens for each model call (reasoning models spend part of them thinking).
 	MaxTokens int
+	// Scanner reads photos sent to POST /scan. Nil = the reading service at SCANNER_URL.
+	Scanner Scanner
+	// TranscribeModels for POST /transcribe (comma-separated, tried in order).
+	TranscribeModels string
 }
 
 // DefaultConfig returns the configuration used by the app.
 func DefaultConfig() Config {
-	return Config{MinQuality: 0.5, Doubt: DefaultDoubt, ModelTimeout: 45 * time.Second, MaxTokens: 1500}
+	models := os.Getenv("LLM_TRANSCRIBE_MODELS")
+	if models == "" {
+		models = DefaultTranscribeModels
+	}
+	return Config{MinQuality: 0.5, Doubt: DefaultDoubt, ModelTimeout: 45 * time.Second, MaxTokens: 1500, TranscribeModels: models}
 }
 
 // Session holds the conversation state (last document, pointed block). It implements
@@ -63,6 +84,60 @@ type Session struct {
 // New creates a session.
 func New(model Model, cfg Config) *Session {
 	return &Session{model: model, cfg: cfg}
+}
+
+// ScanPhoto reads a document from a camera photo (the "lee el documento" command): it says
+// that it is reading, asks the Scanner and then handles the result like any other document
+// (echo, explanation, highlights). Problems are spoken, never silent.
+func (s *Session) ScanPhoto(ctx context.Context, photo []byte, contentType string, send func(any)) {
+	s.mu.Lock()
+	lang := "es-ES"
+	if s.doc != nil {
+		lang = speechLang(deref(s.doc.Lang))
+	}
+	s.mu.Unlock()
+	send(s.speak("", localText(lang, "scanning"), nil, lang))
+
+	doc, err := s.cfg.Scanner.Scan(ctx, photo, contentType)
+	if err != nil {
+		key := "scanError"
+		switch {
+		case errors.Is(err, scanner.ErrNoPage):
+			key = "noPage"
+		case errors.Is(err, scanner.ErrUnavailable):
+			key = "scannerDown"
+		}
+		log.Printf("session: scan: %v", err)
+		if ctx.Err() == nil {
+			send(s.speak("", localText(lang, key), nil, lang))
+		}
+		return
+	}
+	s.onDocument(ctx, fmt.Sprintf("scan-%d", time.Now().UnixMilli()), &doc, send)
+}
+
+// Transcribe turns a recording (WAV) into text with an audio-capable model. It is the cloud
+// backup of the on-device recognizer (role C), used only when that one fails. The cost is
+// counted under the cheap tier and the updated meter is sent with send.
+func (s *Session) Transcribe(ctx context.Context, wav []byte, lang string, send func(any)) (llm.Response, error) {
+	ctx, cancel := context.WithTimeout(ctx, s.cfg.ModelTimeout)
+	defer cancel()
+	r, err := s.model.Complete(ctx, llm.Request{
+		Tier:      llm.Cheap,
+		Models:    s.cfg.TranscribeModels,
+		MaxTokens: 800, // the free backup reasons before answering
+		Messages: []llm.Message{{
+			Role:  "user",
+			Text:  transcribePrompt(lang),
+			Audio: &llm.Audio{Data: wav, Format: "wav"},
+		}},
+	})
+	send(s.stats())
+	if err != nil {
+		return r, err
+	}
+	r.Text = cleanTranscript(r.Text)
+	return r, nil
 }
 
 // Handle implements ws.Session.

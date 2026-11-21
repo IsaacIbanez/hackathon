@@ -2,7 +2,7 @@
 
 - **Persona:** Isaac
 - **Herramienta:** Claude Code
-- **Tarea actual:** T11 (contrato 0.5 + `POST /scan`), según el plan de AGENTS.md
+- **Tarea actual:** T14 (unión en la app)
 - **Rama:** feature/T8-desktop-build
 - **Estado:** en curso
 - **Último cambio:** 2026-11-21
@@ -25,6 +25,10 @@
 - Arreglado el apuntar con el dedo: (1) el puntero iba en espejo respecto a lo que ve el usuario; (2) los campos se dibujan sobre la imagen con el punto del dedo y el campo bajo el dedo en grande; (3) alcance de 0,05 alrededor de cada campo (mismo criterio en Go y en TS); (4) se relee un campo al volver a él; (5) vista previa más grande e indicador de «Pointing». Probado de punta a punta con el servidor real. Guía: `docs/PROBAR_GESTOS.md`.
 - Plan de trabajo en paralelo escrito en AGENTS.md («Plan actual»): una cámara en la app, orden «lee el documento», interfaces entre carriles y siguiente tarea de cada uno (T11–T16); lluvia de ideas en `docs/IDEAS.md`.
 - Distribución actualizada en AGENTS.md tras lo subido por Didac (envío a la app, inglés, `scanner/ENTREGA.md`) y lo pendiente de Nil (carpeta `adapters/desktop/`, #20). Voz investigada y medida (`docs/VOZ.md`): T17 Nil (`whisper-small` local), T18 Isaac (`POST /transcribe` con Gemini como respaldo).
+
+- T11: contrato 0.5 (`pageCorners`, `POST /scan`), cliente del servicio de lectura (`backend/scanner`), `Session.ScanPhoto` con avisos hablados, `SCANNER_URL=fixture`. Probado de punta a punta con el servidor real: foto → «Un momento…» → documento con esquinas → explicación (0 $); sin servicio → «El lector de documentos no está abierto».
+
+- T18: `POST /transcribe` (Gemini 2.5 Flash Lite + respaldo gratuito; 2,3 s, 0,00006 $ probado) y `transcribeRemote()` para Nil. API local protegida con `ws.Guard` (Host, Origin, CORS; `/message` solo JSON), probada contra DNS rebinding y webs ajenas.
 
 ## Pendiente
 - T8: sustituir las respuestas de ejemplo por la lógica real (`backend/llm` + B2).
