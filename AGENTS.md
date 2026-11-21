@@ -77,7 +77,8 @@ web/src/camera             cámara, recorte y OCR local (B1)
 web/src/document           vista del documento (B2)
 web/src/input              gestos y voz (C)
 scanner/                   captura MX Brio y OCR a PDF en Python (B; reglas en scanner/AGENTS.md)
-docs/                      documentación: PITCH.md, INTEGRACION_SCANNER.md, ARQUITECTURA.md
+docs/                      documentación: PITCH.md, INTEGRACION_SCANNER.md, PROBAR_GESTOS.md, VOZ.md, IDEAS.md, ARQUITECTURA.md
+adapters/desktop/          Gesture Control: gestos → teclas reales del sistema, puerto 8767 (C)
 ```
 ## Cómo probar
 1. **Clave (una vez):** crea `.env` en la raíz (está en `.gitignore`; la clave se pasa por chat, nunca por git):
@@ -115,16 +116,62 @@ Cada persona es dueña de sus carpetas; no se edita código de otro rol sin avis
 
 | Rol | Persona | Carpetas | Responsabilidad |
 |-----|---------|----------|-----------------|
-| A. Núcleo e integración | Isaac (P1) | `backend/cmd`, `backend/{ws,session,llm}`, `api/`, CI, empaquetado Wails | Contrato, servidor Go, cliente de modelos frugal, contador, integración y pitch |
-| B1. Captura y visión | Didac (P2) o Pau (P4) | `web/src/camera` | Flujo de cámara, detección y recorte del papel, calidad de imagen, OCR local |
-| B2. Comprensión de documentos | Pau (P4) o Didac (P2) | `backend/ocr`, `web/src/document` | Texto a campos y significado, decidir cuándo escalar al modelo caro, vista del documento |
-| C. Interacción | Nil (P3) | `web/src/input` | Gestos de mano y voz |
+| A. Núcleo e integración | Isaac (P1) | `api/`, `backend/`, `web/src/app/` (salvo `Gestures.tsx`), `main.go`, `app.go`, CI, `docs/` | Contrato, servidor Go y orquestación, lógica de respuestas, modelos frugales, pantalla, empaquetado, revisión de PRs y pitch |
+| B1. Cámara en la app | Pau (P4) | `web/src/camera/`, `scanner/capturar.py` | Abrir la cámara (la Logitech si está), sacar la foto más nítida, avisos de calidad en directo |
+| B2. Lectura de documentos | Didac (P2) | `scanner/` (pipeline y servicio), `web/src/document/` | Foto → hoja, orientación, OCR, `document` con esquinas; servicio local para la app |
+| C. Interacción | Nil (P3) | `web/src/input/`, `web/src/app/Gestures.tsx`, `adapters/desktop/` | Gestos, voz (dictado y lectura), orden «lee el documento», puntero sobre el papel real |
 
-B1 y B2 acuerdan en la primera hora el mensaje `document` (bloques de texto con caja en la imagen y confianza).
-Didac y Pau se reparten B1 y B2 entre ellos (por decidir). La asignación completa está en `ROSTER.md`.
+Si necesitas algo de otro carril, pídelo mediante el **contrato** (`api/openapi.yaml`): lo cambia el rol A primero, en un PR pequeño, y luego cada uno lo implementa en lo suyo.
 
+## Plan actual: una cámara que hace gestos y, con una orden, lee documentos
+Decidido por Isaac el 2026-11-21. La app abre **una sola cámara** (la que haya; la Logitech si está) y la deja en **modo gestos**. Con la orden **«lee el documento»** (botón, frase o gesto):
+1. La app avisa «sujeta el papel quieto» y saca la **foto más nítida** de esa misma cámara (B1).
+2. La envía a Go con `POST /scan` (A).
+3. Go la pasa al **servicio de lectura** de Didac, `POST http://127.0.0.1:8770/scan` (B2), que devuelve el `document` con las **esquinas de la hoja** en esa foto.
+4. Go lo guarda, lo envía a la pantalla y lo explica en voz alta (A).
+5. El puntero usa esas esquinas: señalar con el dedo apunta a los campos del **papel real** (C).
+
+### Interfaces entre carriles (así se trabaja en paralelo, cada uno con un falso de los demás)
+| Interfaz | Forma | La implementa | La usa |
+|---|---|---|---|
+| `document.pageCorners` (contrato 0.5, opcional) | 4 puntos normalizados [0, 1] sobre la foto: arriba-izq, arriba-der, abajo-der, abajo-izq | B2 | C (puntero), A (pantalla) |
+| `POST /scan` en Go (8765) | cuerpo: la foto (`image/jpeg` o `image/png`) → `202`; el resultado llega por WebSocket (`document` + `speak` + `stats`) | A | la app |
+| `POST /scan` del servicio de lectura (8770) | cuerpo: la foto → `200` con un `DocumentPayload` (con `pageCorners`) o `422 {"error": "..."}` si no hay hoja | B2 | Go (A) |
+| `web/src/camera`: `openCamera(): Promise<MediaStream>` y `captureStill(video): Promise<Blob>` | la Logitech por nombre si está; la foto más nítida de ~0,5 s | B1 | la app (A), gestos (C) |
+| Acción `scan_document` | la emite el módulo de gestos y voz (frase «lee el documento» y un gesto u opción del menú) | C | la app (A) |
+
+Puertos: 8765 app · 8766 captura de Pau (pruebas) · 8767 Gesture Control (Nil) · 8770 servicio de lectura (Didac) · 8780 app de prueba de Didac · 8080 mock.
+
+### Siguiente tarea de cada uno (actualizado 2026-11-21, 20:30)
+| Quién | Ya hecho | Ahora | Para probar sin los demás |
+|---|---|---|---|
+| **Didac (B2)** | Pipeline foto → PDF + `document`; envío a la app (`scan.py --send`); cámara disponible sin Brio; OCR en paralelo; código en inglés; `scanner/ENTREGA.md` (todo en `feature/B-contexto-scanner`) | **1)** Abrir **ya** el PR de su rama (lo revisa Isaac). **2)** T13: servicio `POST /scan` en 8770 que reciba la foto (su pipeline ya admite `--png`) y devuelva `document()` + `pageCorners`. **3)** 2–3 documentos reales anonimizados en `api/fixtures/real/` | `curl --data-binary @foto.png http://127.0.0.1:8770/scan` |
+| **Pau (B1)** | Captura de la MX Brio (#12) | **1)** T12: `web/src/camera` (`openCamera` prefiriendo la Logitech por nombre; `captureStill` con la nitidez del laplaciano de `capturar.py`). **2)** Traducir `capturar.py` al inglés **avisando a Didac**: `scan.py` y `demo_app` usan sus nombres | una página de prueba propia |
+| **Nil (C)** | Gestos (#9), voz con Whisper local (#19), arreglo del puntero (#23, de Isaac) | **1)** Arreglar #20 (cabecera `Host`). **2)** T17: **mejorar el reconocimiento de voz** (ver abajo). **3)** T15: acción `scan_document` (frase «lee el documento» y gesto) y puntero con `pageCorners` en `Gestures.tsx`. **4)** MediaPipe y modelos servidos en local para la demo | `docs/PROBAR_GESTOS.md`; las esquinas de un ejemplo de `api/fixtures/real/` |
+| **Isaac (A)** | Contrato, servidor, sesión, modelos, pantalla, puente de gestos, empaquetado, pitch | **1)** Revisar y fusionar el PR de Didac. **2)** T11: contrato 0.5 (`pageCorners`) y `POST /scan` en Go → servicio de Didac. **3)** T18: `POST /transcribe` en Go (respaldo de voz en la nube, ver abajo). **4)** T14: botón «Read document» y unión en la app | servicios falsos en los tests de Go |
+| **Todos** | — | T16: lluvia de ideas en `docs/IDEAS.md` (3 ideas cada uno como mínimo) | — |
+
+### Voz: reconocimiento mejor que el actual (T17 Nil, T18 Isaac)
+Hoy el dictado usa `whisper-tiny` en la CPU y se equivoca mucho. Medido el 2026-11-21 con la misma frase en español («¿Qué tengo que poner aquí, en la fecha del siniestro? ¿Y dónde firmo?»), detalle en `docs/VOZ.md`:
+
+| Opción | Resultado | Tiempo | Coste |
+|---|---|---|---|
+| `whisper-tiny` local (lo de hoy) | falla («firma» en vez de «firmo») ya con audio limpio | 0,4 s | 0 $ |
+| **`whisper-small` local** (q8) | **exacta** | **1,1 s** (descarga ~250 MB la primera vez) | 0 $ |
+| **`google/gemini-2.5-flash-lite`** (OpenRouter, audio) | **correcta** (solo puntuación) | **2,3 s** | **0,00006 $** |
+| nemotron omni (gratis) / qwen omni | correctas | ~7 s | 0 $ / 0,00006 $ |
+| voxtral-small | cambia palabras | 7,5 s | 0,00056 $ |
+
+**Plan (frugal):** primero en local, y la nube solo si falla.
+- **Nil (T17):** pasar a `whisper-small` (WebGPU si está, si no WASM q8), forzar el idioma, **precargar el modelo al abrir la app** para que la primera pregunta no espere, y dejar `whisper-tiny` para equipos lentos. Si el resultado local sale vacío o con error, usar el respaldo de Isaac.
+- **Isaac (T18):** `POST /transcribe` en Go (audio → texto) con `google/gemini-2.5-flash-lite` y respaldo gratuito; el coste aparece en `stats`.
+
+Sincronización corta cada hora: qué he fusionado y qué necesito del contrato.
 
 ## Decisiones
+- 2026-11-21 — **Voz:** reconocimiento local con `whisper-small` (T17, Nil) y respaldo en la nube con `POST /transcribe` en Go y `google/gemini-2.5-flash-lite` (T18, Isaac), solo si el local falla. Medido: `whisper-tiny` falla, `whisper-small` acierta en 1,1 s; Gemini acierta en 2,3 s por 0,00006 $ (`docs/VOZ.md`).
+- 2026-11-21 — **Carpetas aceptadas:** `adapters/desktop/` (Gesture Control de Nil, programa Go aparte, puerto 8767) y `scanner/` (rol B, Python). `scanner/demo_app/` es una herramienta de prueba de Didac, no parte del producto.
+- 2026-11-21 — **Qué dispara el escaneo:** la orden «lee el documento» por **botón** (plan B de la demo), **frase** y **gesto** (acción `scan_document`).
 - 2026-11-21 — **Cámara: se usa la que haya.** En desarrollo, la webcam del portátil; si hay una cámara Logitech conectada (MX Brio), se usa esa, porque es la del reto de Logitech (decisión de Isaac). Consecuencias pendientes: (1) con **una sola cámara**, el scanner (Python) y los gestos (navegador) no pueden abrirla a la vez: hay que decidir cuál la abre; (2) `scanner/capturar.py` hoy falla si no encuentra la Brio: debe usar la cámara disponible si no está (rol B); (3) la interfaz elegirá la Logitech por nombre si está conectada (rol A).
 - 2026-11-21 — Go reenvía a todos los clientes WebSocket cada `document` que acepta (contrato 0.4.0, `ServerMessage` incluye `document`): la pantalla muestra y resalta el documento aunque lo haya enviado el scanner. Los documentos con mal encuadre no se reenvían. Vista mínima en `web/src/app/DocumentText.tsx`; B2 puede sustituirla en `web/src/document`.
 - 2026-11-21 — Una sola sesión compartida por toda la app (`ws.Hub`): los mensajes de cualquier cliente (interfaz por WebSocket, scanner por `POST /message`) actualizan el mismo estado y cada `speak`/`stats` se envía a todos los clientes WebSocket — es una app de escritorio para una persona; sin esto, la explicación del documento del scanner volvía al scanner y no a la pantalla.
