@@ -59,13 +59,20 @@ Además del PDF escaneado, `<nombre>-digital.pdf`: una **página en blanco con e
 y **las imágenes donde estaban** (firma, logos, sellos), como si el documento se hubiera hecho en el ordenador.
 
 **Con modelo de visión (por defecto si hay clave)** — `ia.py` + `digital.digitalizar_maqueta`:
-1. Haiku 5.5 (OpenRouter) transcribe la página por bloques: líneas exactas, alineación, negrita, firma/logos.
-2. Cada bloque se coloca con la geometría precisa local (palabras del OCR que coinciden con su texto).
-3. Tipografía coherente: tamaño de cuerpo e interlineado uniformes; cada bloque se compone dentro de su
-   caja (justificado, centrado...), así que no se pisan. Imágenes: solo sus trazos, sobre blanco.
-4. Control: concordancia con el OCR local; si es < 60 % (o el JSON falla) se repite con Sonnet 5.5.
-   Medido con una carta real: Haiku, 343/344 palabras, concordancia 0,88, **0,002 $** y ~14 s.
-   Coste, tokens y modelo quedan en `resultado.digital["llamadas_ia"]`; la maqueta en `maqueta_ia.json`.
+1. **Transcripción**: Haiku 5.5 (OpenRouter) devuelve la maqueta por bloques en orden de lectura: líneas
+   exactas, alineación, negrita, y firmas/logos/sellos/fotos/QR como imágenes.
+2. **Geometría**: cada bloque de texto se sitúa con las palabras del OCR local que coinciden con su texto
+   (si el modelo lo situó desplazado, se busca en una ventana amplia y se exige más coincidencia).
+3. **Tipografía uniforme**: tamaño de cuerpo deducido del ancho de los párrafos justificados (el ancho del
+   OCR es preciso; la altura de las letras sale inflada en fotos borrosas). Un bloque solo es mayor si es
+   un título (negrita o centrado, 1-2 líneas); nunca menor. Interlineado común medido en los párrafos.
+4. **Imágenes como imágenes**: el rectángulo de la firma/logo con sus trazos claros y su color, sin el
+   texto vecino (se blanquean solo las palabras del OCR) y con el papel en blanco limpio.
+5. **Flujo vertical**: en el orden de lectura del modelo, cada elemento debajo del anterior de su columna;
+   huecos normales entre párrafos iguales, saltos grandes (antes de una firma) respetados. Nada se pisa.
+6. **Control**: concordancia con el OCR local; si es < 60 % (o el JSON falla) se repite con Sonnet 5.5.
+   Carta real: 344/344 palabras, firma completa, concordancia 0,88, **0,002 $**, ~14 s de modelo.
+   Coste, tokens y modelo en `resultado.digital["llamadas_ia"]`; la maqueta en `maqueta_ia.json`.
 
 **Sin clave o sin conexión**: reconstrucción con el OCR local (`digital.digitalizar`), con aviso
 `digital_ia_no_disponible:<código>`. Palabras ilegibles como recorte; dudosas en `digital["a_revisar"]`.
@@ -146,7 +153,7 @@ a ~180-200 DPI. Lo que no se puede arreglar después: una foto desenfocada (p. e
 puede orientar. La app de prueba avisa en directo si la imagen está borrosa.
 
 ## Estado de las pruebas
-`pytest` (74 tests, ~36 s; sin red: el modelo se simula): entrada, geometría con 7 poses de cámara realistas, casos sin hoja
+`pytest` (77 tests, ~37 s; sin red: el modelo se simula): entrada, geometría con 7 poses de cámara realistas, casos sin hoja
 (textura, negro, hoja que llena el encuadre), iluminación, calidad, extremo a extremo con acentos,
 página girada, modos y formatos, fallos (sin Tesseract, entrada inválida, opciones inválidas).
 Las imágenes de prueba son **sintéticas** (`tests/sinteticos.py`).

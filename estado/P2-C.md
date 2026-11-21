@@ -4,8 +4,8 @@
 - **Herramienta:** Claude Code
 - **Tarea actual:** Subproyecto B / scanner: PNG a PDF buscable (`scanner/pdf/`)
 - **Rama:** feature/B-contexto-scanner
-- **Estado:** en curso (primera versión funcionando)
-- **Último cambio:** 2026-11-21 20:30
+- **Estado:** listo para revisión (escaneo + PDF buscable + documento digital)
+- **Último cambio:** 2026-11-21 21:30
 
 ## Hecho
 - `scanner/AGENTS.md` (y copia `AGENTS_B.md`): reglas y contexto del subproyecto scanner.
@@ -46,6 +46,10 @@
   ajusta al OCR local y se compone con tipografía uniforme (sin superposiciones); escalado a Sonnet si la
   concordancia con el OCR es < 60 %; respaldo local sin clave o sin red. Carta real: 343/344 palabras, 0,002 $.
   Clave en `scanner/.env` (ignorado por git). 74 tests (el modelo se simula: sin red).
+
+- Documento digital cerrado: imágenes (firmas, logos) como rectángulo con sus trazos claros y color; tamaño de
+  cuerpo por ancho de párrafo; títulos solo mayores, nunca menores; flujo vertical en orden de lectura con huecos
+  uniformes. Carta real: 344/344 palabras, firma completa, sin superposiciones, 0,002 $. 77 tests.
 
 ## Pendiente
 - Probar con documentos en papel reales (A4, formulario) con la MX Brio y calibrar los umbrales de calidad (nitidez, brillo, reflejos).

@@ -168,3 +168,50 @@ def test_bloques_no_se_pisan():
     cajas.sort(key=lambda b: -b[3])
     for a, b in zip(cajas, cajas[1:]):
         assert b[3] <= a[1] + 0.5                               # cada bloque empieza por debajo del anterior
+
+
+def _pagina_con_bloques():
+    """Página blanca: un párrafo arriba, "Signat," y una firma de trazo claro debajo."""
+    pagina = np.full((1754, 1240, 3), 255, np.uint8)
+    t = np.linspace(0, 4 * np.pi, 400)
+    xs = (300 + t / (4 * np.pi) * 300).astype(np.int32)
+    ys = (1100 + np.sin(t * 1.5) * 40).astype(np.int32)
+    cv2.polylines(pagina, [np.stack([xs, ys], axis=1).reshape(-1, 1, 2)], False, (205, 190, 160), 3)  # bolígrafo suave
+    return pagina
+
+
+def test_firma_de_trazo_claro_sale_entera():
+    maqueta = ia._limpiar({"bloques": [{"tipo": "imagen", "bbox": [230, 600, 510, 660], "descripcion": "firma"}]})
+    datos, info = digital.digitalizar_maqueta(_pagina_con_bloques(), maqueta, [], 150.0)
+    assert info["regiones_imagen"] == 1
+    with pikepdf.open(io.BytesIO(datos)) as pdf:
+        (w, h), = [(int(i.Width), int(i.Height)) for i in pdf.pages[0].get_images().values()]
+    assert w >= 290 and h >= 70                                   # toda la firma (300 x 80 px), no solo lo oscuro
+
+
+def test_manda_el_orden_de_lectura_aunque_la_caja_venga_desplazada():
+    # El modelo sitúa "Signat," por debajo de la firma, pero lo lista antes: debe quedar encima.
+    maqueta = ia._limpiar({"bloques": [
+        {"tipo": "texto", "bbox": [230, 640, 320, 650], "lineas": ["Signat,"], "alineacion": "izquierda", "negrita": False},
+        {"tipo": "imagen", "bbox": [230, 600, 510, 660], "descripcion": "firma"},
+    ]})
+    pagina = _pagina_con_bloques()
+    alto = pagina.shape[0]
+    textos, _ = digital._bloques_texto(maqueta, [], [], 1240, alto, 20.0, 72 / 150)
+    digital._tipografia(textos, 72 / 150)
+    imagenes = digital._bloques_imagen(maqueta, pagina, cv2.cvtColor(pagina, cv2.COLOR_BGR2GRAY), [], 20.0)
+    for t_ in textos:
+        t_["alto_px"] = ((len(t_["lineas"]) - 1) * t_["interlineado"] + 0.925 * t_["tam"]) / (72 / 150)
+    digital._flujo(textos + imagenes, 20.0, alto)
+    assert textos[0]["y"] + textos[0]["alto_px"] <= imagenes[0]["y"]
+
+
+def test_cabecera_corta_no_sale_mas_pequena_que_el_cuerpo():
+    textos = [
+        {"lineas": ["Un párrafo normal con bastantes palabras para llenar la línea entera",
+                    "y una segunda línea del mismo párrafo justificado"], "alineacion": "justificado",
+         "negrita": False, "caja": [100, 300, 1100, 360], "tam_ocr": None},
+        {"lineas": ["CERTIFICA"], "alineacion": "izquierda", "negrita": True, "caja": [100, 250, 180, 262], "tam_ocr": 6.0},
+    ]
+    comun = digital._tipografia(textos, 72 / 150)
+    assert textos[1]["tam"] == comun

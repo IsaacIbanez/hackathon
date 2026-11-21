@@ -32,6 +32,7 @@ ALTURA_X = 0.523             # Helvetica: altura de la "x" / tamaño de fuente
 DESCENDENTE = 0.207          # Helvetica: lo que baja una "p" bajo la línea base / tamaño de fuente
 CONFIANZA_TEXTO = 50.0       # por debajo, la palabra es ilegible: va como recorte de la imagen
 CONFIANZA_SEGURA = 75.0      # entre las dos: se escribe como texto pero se marca para revisar
+MARGEN_PAGINA = 0.05        # margen derecho mínimo (fracción del ancho) al dejar crecer una línea
 UMBRAL_TINTA = 170           # gris (página realzada: papel 255, tinta ~40) por debajo del cual hay "algo"
 DESCENDENTES = set("gjpqyçQ,;()[]{}|/")
 ASCENDENTES = set("bdfhkltß0123456789ÁÉÍÓÚÀÈÒÏÜÑÇ'\"!?%&@#")
@@ -374,10 +375,15 @@ def concordancia(maqueta: dict, palabras: list[dict]) -> dict:
 
 def digitalizar_maqueta(pagina: np.ndarray, maqueta: dict, palabras: list[dict], dpi: float,
                         titulo: str | None = None) -> tuple[bytes, dict]:
-    """PDF digital a partir de la maqueta del modelo, con la posición de cada bloque ajustada al OCR local.
+    """PDF digital a partir de la maqueta del modelo, con la geometría ajustada al OCR local.
 
-    Cada bloque de texto se compone dentro de su propia caja (líneas repartidas en su altura, tamaño que
-    encaja), así que los bloques no se pueden pisar. Imágenes: la tinta real dentro de su zona.
+    1. Texto: cada bloque se sitúa con las palabras del OCR que coinciden con su texto (geometría precisa).
+    2. Imágenes (firma, logo, sello, foto, QR): el rectángulo de la página, con sus trazos claros y su
+       color, sin el texto vecino (que ya va escrito) y con el papel blanco limpio.
+    3. Tipografía uniforme: un tamaño de cuerpo (los títulos pueden ser mayores, nunca menores) e
+       interlineado común.
+    4. Flujo vertical: cada elemento se coloca respecto al de encima; los huecos normales entre párrafos
+       se igualan al típico del documento y los grandes (antes de una firma) se conservan. Nada se pisa.
     """
     if pagina.ndim == 2:
         pagina = cv2.cvtColor(pagina, cv2.COLOR_GRAY2BGR)
@@ -386,90 +392,33 @@ def digitalizar_maqueta(pagina: np.ndarray, maqueta: dict, palabras: list[dict],
     ancho_pt, alto_pt = ancho * s, alto * s
     gris = cv2.cvtColor(pagina, cv2.COLOR_BGR2GRAY)
     cajas_ocr = [_caja_px(p, ancho, alto) for p in palabras]
+    alto_letra = float(np.median([c[3] - c[1] for c in cajas_ocr])) if cajas_ocr else 0.012 * alto
 
-    # 1. Caja de cada bloque de texto: unión de las palabras del OCR que coinciden con su texto.
-    #    Solo palabras de 3+ letras y a menos de media altura de letra de la caja del modelo: las cortas
-    #    y comunes ("de", "la") de la línea vecina estiraban la caja y separaban las líneas.
-    alto_letra = float(np.median([c[3] - c[1] for c in cajas_ocr])) if cajas_ocr else 0.01 * alto
-    usadas: set[int] = set()
-    textos, ajustados = [], 0
-    for b in maqueta["bloques"]:
-        if b["tipo"] != "texto":
-            continue
-        x0, y0, x1, y1 = b["bbox"][0] * ancho, b["bbox"][1] * alto, b["bbox"][2] * ancho, b["bbox"][3] * alto
-        mx, my = 0.02 * ancho, 0.5 * alto_letra
-        suyas = {w for w in (_norm(w) for l in b["lineas"] for w in l.split()) if len(w) >= 3}
-        coinciden = []
-        for i, (cx0, cy0, cx1, cy1) in enumerate(cajas_ocr):
-            cx, cy = (cx0 + cx1) / 2, (cy0 + cy1) / 2
-            if i in usadas or not (x0 - mx <= cx <= x1 + mx and y0 - my <= cy <= y1 + my):
-                continue
-            w = _norm(palabras[i]["text"])
-            if len(w) >= 3 and _parecida(w, suyas):
-                coinciden.append(i)
-        n_largas = len(suyas)
-        tam_ocr = None
-        if coinciden and len(coinciden) >= max(1, 0.3 * min(n_largas, 20)):
-            usadas.update(coinciden)
-            rx0, ry0, rx1, ry1 = _union([cajas_ocr[i] for i in coinciden])
-            # En vertical manda el OCR (preciso); en horizontal, nunca más estrecha que la del modelo
-            # (si solo coinciden unas pocas palabras, la caja del OCR se queda corta).
-            caja = [min(rx0, x0), ry0, max(rx1, x1), ry1]
-            tam_ocr = _tamano_por_palabras([palabras[i]["text"] for i in coinciden],
-                                           [cajas_ocr[i] for i in coinciden], s)
-            ajustados += 1
-        else:
-            caja = [x0, y0, x1, y1]
-        textos.append({**b, "caja": [float(v) for v in caja], "tam_ocr": tam_ocr})
+    textos, ajustados = _bloques_texto(maqueta, palabras, cajas_ocr, ancho, alto, alto_letra, s)
     _separar(textos)
+    comun = _tipografia(textos, s)
+    # Para blanquear el texto dentro de una imagen se usan las palabras del OCR, no los bloques: la caja de
+    # un bloque puede solapar la firma (medido con una maqueta real) y la borraba casi entera.
+    palabras_ocr = [cajas_ocr[i] for i, p in enumerate(palabras) if p["conf"] >= 50 and len(_norm(p["text"])) >= 2]
+    imagenes = _bloques_imagen(maqueta, pagina, gris, palabras_ocr, alto_letra)
 
-    # 2. Imágenes: tinta real dentro de su zona (sin la de los bloques de texto).
-    tinta = (gris < UMBRAL_TINTA).astype(np.uint8)
-    margen_texto = max(2, int(0.35 * alto_letra))      # acentos y astas que asoman fuera de la caja del OCR
+    elementos = []
     for t_ in textos:
-        x0, y0, x1, y1 = (int(round(v)) for v in t_["caja"])
-        tinta[max(0, y0 - margen_texto):y1 + margen_texto, max(0, x0 - margen_texto):x1 + margen_texto] = 0
-    imagenes = []
-    for b in maqueta["bloques"]:
-        if b["tipo"] != "imagen":
-            continue
-        mx, my = int(0.02 * ancho), int(0.015 * alto)
-        x0, y0 = max(0, int(b["bbox"][0] * ancho) - mx), max(0, int(b["bbox"][1] * alto) - my)
-        x1, y1 = min(ancho, int(b["bbox"][2] * ancho) + mx), min(alto, int(b["bbox"][3] * alto) + my)
-        # Solo los trazos cuyo centro cae dentro de la zona que marcó el modelo: lo que solo roza el margen
-        # (la parte alta de una línea de texto vecina) no es de la imagen.
-        zona = tinta[y0:y1, x0:x1].copy()
-        k = max(3, int(0.01 * ancho))
-        unida = cv2.morphologyEx(zona, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (k, k)))
-        n_comp, etiquetas, est, centros = cv2.connectedComponentsWithStats(unida, connectivity=8)
-        bx0, by0 = b["bbox"][0] * ancho - x0, b["bbox"][1] * alto - y0
-        bx1, by1 = b["bbox"][2] * ancho - x0, b["bbox"][3] * alto - y0
-        dentro = [j for j in range(1, n_comp) if bx0 <= centros[j][0] <= bx1 and by0 <= centros[j][1] <= by1]
-        zona[~np.isin(etiquetas, dentro)] = 0
-        tinta[y0:y1, x0:x1] = zona
-        ys, xs = np.nonzero(zona)
-        if len(xs) < 20:
-            continue
-        m = max(2, int(0.004 * ancho))
-        caja = (max(0, x0 + int(xs.min()) - m), max(0, y0 + int(ys.min()) - m),
-                min(ancho, x0 + int(xs.max()) + m), min(alto, y0 + int(ys.max()) + m))
-        imagenes.append((caja, b.get("descripcion", "otro")))
+        n = len(t_["lineas"])
+        t_["alto_px"] = ((n - 1) * t_["interlineado"] + (ALTURA_MAYUSCULA + DESCENDENTE) * t_["tam"]) / s
+        elementos.append(t_)
+    elementos += imagenes
+    _flujo(elementos, comun / s, alto)
 
     buf = io.BytesIO()
     c = rl_canvas.Canvas(buf, pagesize=(ancho_pt, alto_pt), pageCompression=1)
     if titulo:
         c.setTitle(titulo)
     c.setCreator("escaner_pdf (LauzHack 2026) - documento digital")
-
-    mascara = cv2.dilate(tinta, np.ones((3, 3), np.uint8))
-    for (x0, y0, x1, y1), _ in imagenes:
-        trozo = np.full_like(pagina[y0:y1, x0:x1], 255)
-        sel = mascara[y0:y1, x0:x1] > 0
-        trozo[sel] = pagina[y0:y1, x0:x1][sel]
-        c.drawImage(ImageReader(Image.fromarray(cv2.cvtColor(trozo, cv2.COLOR_BGR2RGB))),
-                    x0 * s, alto_pt - y1 * s, width=(x1 - x0) * s, height=(y1 - y0) * s)
-
-    _tipografia(textos, s)
+    for im in imagenes:
+        x0, _, x1, _ = im["caja"]
+        c.drawImage(ImageReader(Image.fromarray(cv2.cvtColor(im["recorte"], cv2.COLOR_BGR2RGB))),
+                    x0 * s, alto_pt - (im["y"] + im["alto_px"]) * s, width=(x1 - x0) * s, height=im["alto_px"] * s)
     tamanos = [_componer_bloque(c, t_, s, alto_pt, pagina, gris) for t_ in textos]
     c.showPage()
     c.save()
@@ -477,13 +426,119 @@ def digitalizar_maqueta(pagina: np.ndarray, maqueta: dict, palabras: list[dict],
         "metodo": "modelo",
         "bloques_texto": len(textos),
         "bloques_ajustados_ocr": ajustados,
-        "imagenes": [d for _, d in imagenes],
+        "imagenes": [im["descripcion"] for im in imagenes],
         "regiones_imagen": len(imagenes),
         "palabras_texto": sum(len(l.split()) for t_ in textos for l in t_["lineas"]),
         "palabras_imagen": 0,
         "tamano_letra_pt": round(statistics.median(tamanos), 1) if tamanos else None,
     }
     return buf.getvalue(), info
+
+
+def _bloques_texto(maqueta: dict, palabras: list[dict], cajas_ocr: list, ancho: int, alto: int,
+                   alto_letra: float, s: float) -> tuple[list[dict], int]:
+    """Caja de cada bloque de texto: unión de las palabras del OCR que coinciden con su texto.
+
+    Solo palabras de 3+ letras y a menos de media altura de letra de la caja del modelo (las cortas y
+    comunes de la línea vecina estiraban la caja). En vertical manda el OCR; en horizontal la caja nunca
+    es más estrecha que la del modelo (si coinciden pocas palabras, la del OCR se queda corta).
+    """
+    usadas: set[int] = set()
+    textos, ajustados = [], 0
+    for orden, b in enumerate(maqueta["bloques"]):
+        if b["tipo"] != "texto":
+            continue
+        x0, y0, x1, y1 = b["bbox"][0] * ancho, b["bbox"][1] * alto, b["bbox"][2] * ancho, b["bbox"][3] * alto
+        suyas = {w for w in (_norm(w) for l in b["lineas"] for w in l.split()) if len(w) >= 3}
+
+        def buscar(mx: float, my: float) -> list[int]:
+            encontradas = []
+            for i, (cx0, cy0, cx1, cy1) in enumerate(cajas_ocr):
+                cx, cy = (cx0 + cx1) / 2, (cy0 + cy1) / 2
+                if i in usadas or not (x0 - mx <= cx <= x1 + mx and y0 - my <= cy <= y1 + my):
+                    continue
+                w = _norm(palabras[i]["text"])
+                if len(w) >= 3 and _parecida(w, suyas):
+                    encontradas.append(i)
+            return encontradas
+
+        coinciden = buscar(0.02 * ancho, 0.5 * alto_letra)
+        if not (coinciden and len(coinciden) >= max(1, 0.3 * min(len(suyas), 20))):
+            # El modelo a veces sitúa un bloque unos % más arriba o abajo: ventana amplia pero más exigente,
+            # y de cada palabra, la aparición más cercana a donde dijo el modelo.
+            cercanas: dict[str, int] = {}
+            for i in buscar(0.05 * ancho, 0.06 * alto):
+                w = _norm(palabras[i]["text"])
+                cy = (cajas_ocr[i][1] + cajas_ocr[i][3]) / 2
+                if w not in cercanas or abs(cy - (y0 + y1) / 2) < abs(
+                        (cajas_ocr[cercanas[w]][1] + cajas_ocr[cercanas[w]][3]) / 2 - (y0 + y1) / 2):
+                    cercanas[w] = i
+            coinciden = list(cercanas.values()) if len(cercanas) >= max(1, 0.6 * len(suyas)) else []
+        tam_ocr = None
+        if coinciden and len(coinciden) >= max(1, 0.3 * min(len(suyas), 20)):
+            usadas.update(coinciden)
+            rx0, ry0, rx1, ry1 = _union([cajas_ocr[i] for i in coinciden])
+            caja = [min(rx0, x0), ry0, max(rx1, x1), ry1]
+            tam_ocr = _tamano_por_palabras([palabras[i]["text"] for i in coinciden],
+                                           [cajas_ocr[i] for i in coinciden], s)
+            ajustados += 1
+        else:
+            caja = [x0, y0, x1, y1]
+        textos.append({**b, "tipo": "texto", "caja": [float(v) for v in caja], "tam_ocr": tam_ocr, "orden": orden,
+                       "ajustado": tam_ocr is not None})
+    return textos, ajustados
+
+
+def _bloques_imagen(maqueta: dict, pagina: np.ndarray, gris: np.ndarray, cajas_texto: list,
+                    alto_letra: float) -> list[dict]:
+    """Recorte de cada imagen que marca el modelo (firma, logo, sello, foto, QR).
+
+    Se toma el rectángulo ajustado a sus trazos (incluidos los claros y de color: un recorte solo de la
+    tinta oscura perdía el bolígrafo suave y las partes de color de un logo), se blanquea el texto vecino
+    que cae dentro (ya va escrito aparte) y el papel casi blanco pasa a blanco.
+    """
+    alto, ancho = gris.shape
+    hsv = cv2.cvtColor(pagina, cv2.COLOR_BGR2HSV)
+    algo = ((gris < 225) | (hsv[..., 1] > 60)).astype(np.uint8)
+    texto_mask = np.zeros_like(algo)
+    m_txt = max(2, int(0.3 * alto_letra))
+    for x0, y0, x1, y1 in cajas_texto:
+        texto_mask[max(0, y0 - m_txt):y1 + m_txt, max(0, x0 - m_txt):x1 + m_txt] = 1
+    algo[texto_mask > 0] = 0
+
+    imagenes = []
+    for orden, b in enumerate(maqueta["bloques"]):
+        if b["tipo"] != "imagen":
+            continue
+        mx, my = int(0.02 * ancho), int(0.015 * alto)
+        zx0, zy0 = max(0, int(b["bbox"][0] * ancho) - mx), max(0, int(b["bbox"][1] * alto) - my)
+        zx1, zy1 = min(ancho, int(b["bbox"][2] * ancho) + mx), min(alto, int(b["bbox"][3] * alto) + my)
+        zona = algo[zy0:zy1, zx0:zx1]
+        k = max(3, int(0.01 * ancho))
+        unida = cv2.morphologyEx(zona, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (k, k)))
+        n_comp, etiquetas, est, centros = cv2.connectedComponentsWithStats(unida, connectivity=8)
+        bx0, by0 = b["bbox"][0] * ancho - zx0, b["bbox"][1] * alto - zy0
+        bx1, by1 = b["bbox"][2] * ancho - zx0, b["bbox"][3] * alto - zy0
+        # Solo lo que tiene su centro en la zona del modelo (lo que roza el margen es del vecino).
+        dentro = [j for j in range(1, n_comp) if bx0 <= centros[j][0] <= bx1 and by0 <= centros[j][1] <= by1
+                  and est[j][cv2.CC_STAT_AREA] >= 15]
+        if not dentro:
+            continue
+        sel = np.isin(etiquetas, dentro) & (zona > 0)
+        ys, xs = np.nonzero(sel)
+        if len(xs) < 20:
+            continue
+        m = max(2, int(0.004 * ancho))
+        x0, y0 = max(0, zx0 + int(xs.min()) - m), max(0, zy0 + int(ys.min()) - m)
+        x1, y1 = min(ancho, zx0 + int(xs.max()) + m + 1), min(alto, zy0 + int(ys.max()) + m + 1)
+        recorte = pagina[y0:y1, x0:x1].copy()
+        recorte[texto_mask[y0:y1, x0:x1] > 0] = 255                       # el texto va escrito aparte
+        g = gris[y0:y1, x0:x1]
+        papel = (g >= 225) & (hsv[y0:y1, x0:x1, 1] <= 60)
+        recorte[papel] = 255                                              # fondo blanco limpio
+        imagenes.append({"tipo": "imagen", "orden": orden, "caja": [float(x0), float(y0), float(x1), float(y1)],
+                         "alto_px": float(y1 - y0), "recorte": recorte, "descripcion": b.get("descripcion", "otro")})
+    return imagenes
 
 
 def _tamano_por_palabras(textos: list[str], cajas: list, s: float) -> float | None:
@@ -500,80 +555,119 @@ def _tamano_por_palabras(textos: list[str], cajas: list, s: float) -> float | No
     return float(np.median(tams)) if tams else None
 
 
-def _tipografia(textos: list[dict], s: float) -> None:
-    """Tamaño de letra, interlineado y posición de cada bloque, coherentes en todo el documento.
+def _tipografia(textos: list[dict], s: float) -> float:
+    """Tamaño de letra e interlineado coherentes en todo el documento. Devuelve el tamaño de cuerpo (pt).
 
-    Un documento real tiene un tamaño de cuerpo y un interlineado uniformes. Medidos bloque a bloque
-    en una foto con la hoja en abanico salían irregulares (párrafos muy separados junto a otros pegados).
-    - tamaño: común (mediana de los bloques de varias líneas), salvo bloques claramente distintos (títulos);
-    - interlineado: proporción mediana interlineado/tamaño medida en los párrafos de varias líneas;
-    - posición: cada bloque empieza en su altura real, pero nunca encima del anterior.
+    - tamaño de cuerpo: el que hace que la línea más larga de cada párrafo llene el ancho de su caja
+      (mediana del documento). El ancho del OCR es preciso; la altura de las letras sale inflada en
+      fotos borrosas o en abanico (medido: 12 pt por altura frente a ~10,5 por ancho en una carta real);
+    - un bloque solo es mayor si es un título (negrita o centrado, 1-2 líneas) y su ancho lo confirma;
+    - interlineado: proporción mediana interlineado/tamaño medida en los párrafos de varias líneas.
     """
     if not textos:
-        return
+        return 10.0
     for t_ in textos:
+        fuente = FUENTE_NEGRITA if t_["negrita"] else FUENTE
+        ancho_pt = (t_["caja"][2] - t_["caja"][0]) * s
+        mas_ancha = max(stringWidth(l, fuente, 1.0) for l in t_["lineas"]) or 1.0
+        t_["tam_ancho"] = ancho_pt / mas_ancha
         n = len(t_["lineas"])
         alto = (t_["caja"][3] - t_["caja"][1]) * s
-        t_["tam"] = t_.get("tam_ocr") or alto / ((n - 1) * 1.2 + ALTURA_MAYUSCULA + DESCENDENTE)
-    varias = [t_ for t_ in textos if len(t_["lineas"]) >= 2] or textos
-    comun = float(np.median([t_["tam"] for t_ in varias]))
+        t_["tam_alto"] = t_.get("tam_ocr") or alto / ((n - 1) * 1.2 + ALTURA_MAYUSCULA + DESCENDENTE)
+    parrafos = [t_ for t_ in textos if len(t_["lineas"]) >= 2]
+    justificados = [t_ for t_ in parrafos if t_["alineacion"] == "justificado"]
+    base = justificados or parrafos
+    if base:
+        comun = float(np.median([t_["tam_ancho"] for t_ in base]))
+    else:
+        comun = float(np.median([t_["tam_alto"] for t_ in textos]))
     razones = []
-    for t_ in varias:
+    for t_ in parrafos:
         n = len(t_["lineas"])
-        if n >= 2:
-            alto = (t_["caja"][3] - t_["caja"][1]) * s
-            razones.append((alto - (ALTURA_MAYUSCULA + DESCENDENTE) * t_["tam"]) / ((n - 1) * t_["tam"]))
-    razon = float(np.clip(np.median(razones), 1.05, 1.6)) if razones else 1.2
+        alto = (t_["caja"][3] - t_["caja"][1]) * s
+        razones.append((alto - (ALTURA_MAYUSCULA + DESCENDENTE) * comun) / ((n - 1) * comun))
+    razon = float(np.clip(np.median(razones), 1.1, 1.5)) if razones else 1.2
     for t_ in textos:
-        if abs(t_["tam"] - comun) <= 0.2 * comun:
-            t_["tam"] = comun
+        titulo = (t_["negrita"] or t_["alineacion"] == "centro") and len(t_["lineas"]) <= 2
+        t_["tam"] = t_["tam_ancho"] if titulo and t_["tam_ancho"] > 1.1 * comun else comun
+        t_["tam"] = min(t_["tam"], 2.5 * comun)
         t_["interlineado"] = razon * t_["tam"]
-    # Cada bloque se queda en su altura real. Si el anterior no cabe antes de él, primero se aprieta el
-    # interlineado del anterior (hasta 1,0 x tamaño); solo si aun así no cabe, se baja este bloque
-    # (bajarlo sin más lo metía encima de la firma).
-    orden = sorted(textos, key=lambda x: x["caja"][1])
-    for anterior, t_ in zip(orden, orden[1:]):
-        ca, cb = anterior["caja"], t_["caja"]
-        if not (ca[0] < cb[2] and cb[0] < ca[2]):          # no se cruzan en horizontal: nada que hacer
+    return comun
+
+
+def _flujo(elementos: list[dict], tam_px: float, alto_pagina: int) -> None:
+    """Posición vertical ("y", en px) de cada elemento: debajo del elemento de encima con el que comparte
+    columna, con un hueco que se iguala al típico del documento salvo que sea claramente mayor.
+
+    El orden es el de lectura del modelo (fiable), no la altura medida: la de un bloque que no se pudo
+    ajustar al OCR puede estar desplazada (medido: "Signat," quedaba debajo de la firma). Los huecos se
+    miden entre centros (robusto a cajas infladas por una hoja en abanico).
+    """
+    orden = sorted(elementos, key=lambda e: e.get("orden", 0))
+    centro = {id(e): (e["caja"][1] + e["caja"][3]) / 2 for e in orden}
+    previo, huecos = {}, {}
+    for k, e in enumerate(orden):
+        encima = [p for p in orden[:k] if p["caja"][0] < e["caja"][2] and e["caja"][0] < p["caja"][2]]
+        if not encima:
             continue
-        n = len(anterior["lineas"])
-        alto_fijo = (ALTURA_MAYUSCULA + DESCENDENTE) * anterior["tam"]
-        disponible = (cb[1] - ca[1]) * s - 0.25 * t_["tam"]
-        if n > 1 and (n - 1) * anterior["interlineado"] + alto_fijo > disponible:
-            anterior["interlineado"] = max(anterior["tam"], (disponible - alto_fijo) / (n - 1))
-        fin_anterior = ca[1] + ((n - 1) * anterior["interlineado"] + alto_fijo) / s
-        minimo = fin_anterior + 0.25 * t_["tam"] / s
-        if cb[1] < minimo:
-            alto = cb[3] - cb[1]
-            cb[1], cb[3] = minimo, minimo + alto
+        p = encima[-1]                                   # el último anterior en lectura que comparte columna
+        previo[id(e)] = p
+        huecos[id(e)] = (centro[id(e)] - centro[id(p)]) - (e["alto_px"] + p["alto_px"]) / 2
+    entre_textos = [h for e in orden if id(e) in huecos and e["tipo"] == "texto" and previo[id(e)]["tipo"] == "texto"
+                    for h in [huecos[id(e)]] if h > 0]
+    tipico = float(np.median(entre_textos)) if entre_textos else 0.8 * tam_px
+    tipico = float(np.clip(tipico, 0.4 * tam_px, 2.0 * tam_px))
+    for e in orden:
+        if id(e) not in previo:
+            e["y"] = centro[id(e)] - e["alto_px"] / 2
+            continue
+        p, h = previo[id(e)], huecos[id(e)]
+        if e["tipo"] == "texto" and p["tipo"] == "texto":
+            hueco = tipico if h < 3.0 * tipico else h                 # entre párrafos: uniforme salvo saltos grandes
+        else:
+            hueco = h                                                 # junto a una imagen: el medido
+        e["y"] = p["y"] + p["alto_px"] + max(hueco, 0.25 * tam_px)
+    # Si el flujo se sale por abajo, se comprime todo proporcionalmente hacia arriba.
+    fondo = max(e["y"] + e["alto_px"] for e in orden)
+    limite = alto_pagina * 0.985
+    if fondo > limite:
+        inicio = min(e["y"] for e in orden)
+        factor = (limite - inicio) / (fondo - inicio)
+        for e in orden:
+            e["y"] = inicio + (e["y"] - inicio) * factor
 
 
 def _separar(textos: list[dict]) -> None:
-    """Si dos bloques se solapan (en vertical, con columnas que se cruzan), se parte la diferencia."""
+    """Si dos cajas de texto se solapan (en vertical, con columnas que se cruzan), se parte la diferencia."""
     textos.sort(key=lambda t: t["caja"][1])
     for a, b in zip(textos, textos[1:]):
         ca, cb = a["caja"], b["caja"]
-        cruzan = ca[0] < cb[2] and cb[0] < ca[2]
-        if cruzan and ca[3] > cb[1]:
+        if ca[0] < cb[2] and cb[0] < ca[2] and ca[3] > cb[1]:
             medio = (ca[3] + cb[1]) / 2
             ca[3], cb[1] = max(ca[1] + 2, medio - 1), min(cb[3] - 2, medio + 1)
 
 
 def _componer_bloque(c, bloque: dict, s: float, alto_pt: float, pagina: np.ndarray, gris: np.ndarray) -> float:
-    """Escribe las líneas del bloque ocupando su caja; devuelve el tamaño de letra usado (pt)."""
-    x0, y0, x1, y1 = bloque["caja"]
-    ancho_pt, alto_bloque = (x1 - x0) * s, (y1 - y0) * s
+    """Escribe las líneas del bloque a partir de su posición del flujo; devuelve el tamaño usado (pt)."""
+    x0, _, x1, _ = bloque["caja"]
+    y0 = bloque.get("y", bloque["caja"][1])
+    ancho_pt = (x1 - x0) * s
     lineas = bloque["lineas"]
     n = len(lineas)
     fuente = FUENTE_NEGRITA if bloque["negrita"] else FUENTE
-    # Altura de la caja: de lo alto de la primera línea al pie de la última
-    # = (n - 1) * interlineado + (altura de mayúscula + descendente) * tamaño, con interlineado ~1,2 * tamaño.
-    # Tamaño e interlineado fijados por _tipografia; si la línea más larga no cabe, letra más pequeña.
-    tam = bloque.get("tam") or alto_bloque / ((n - 1) * 1.2 + ALTURA_MAYUSCULA + DESCENDENTE)
-    interlineado = bloque.get("interlineado") or 1.2 * tam
+    tam, interlineado = bloque["tam"], bloque["interlineado"]
     mas_ancha = max(stringWidth(l, fuente, tam) for l in lineas) or 1.0
-    if mas_ancha > ancho_pt * 1.02:
-        factor = ancho_pt / mas_ancha
+    if bloque["alineacion"] in ("izquierda", "centro") and mas_ancha > ancho_pt:
+        # Texto que no cabe en su caja: se deja crecer (hacia la derecha o a ambos lados) hasta el margen
+        # de la página antes que comprimirlo (la caja puede ser estrecha si el OCR vio pocas palabras).
+        disponible = (c._pagesize[0] * (1 - MARGEN_PAGINA)) - x0 * s
+        if bloque["alineacion"] == "centro":
+            centro = (x0 + x1) / 2 * s
+            disponible = 2 * min(centro, c._pagesize[0] - centro) * (1 - MARGEN_PAGINA)
+            x0 = (centro - min(mas_ancha, disponible) / 2) / s
+        ancho_pt = min(mas_ancha, disponible)
+    if mas_ancha > ancho_pt * 1.02:                       # no cabe ni así: letra algo más pequeña
+        factor = max(0.75, ancho_pt / mas_ancha)
         tam, interlineado = tam * factor, interlineado * factor
     tam = max(4.0, min(tam, 72.0))
     color = _color_tinta(pagina, gris, tuple(int(round(v)) for v in bloque["caja"]))
