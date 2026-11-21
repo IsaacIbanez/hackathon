@@ -90,3 +90,26 @@ export function resampleTo16k(input: Float32Array, fromRate: number): Float32Arr
   }
   return out;
 }
+
+/**
+ * Resampling to 16 kHz with the browser's audio engine (it filters before downsampling, so it
+ * doesn't add the aliasing the linear version does). Falls back to the linear one without it.
+ */
+export async function resampleTo16kHQ(input: Float32Array, fromRate: number): Promise<Float32Array> {
+  if (fromRate === 16000 || input.length === 0) return input;
+  if (typeof OfflineAudioContext === "undefined") return resampleTo16k(input, fromRate);
+  try {
+    const length = Math.ceil((input.length * 16000) / fromRate);
+    const offline = new OfflineAudioContext(1, length, 16000);
+    const buffer = offline.createBuffer(1, input.length, fromRate);
+    buffer.copyToChannel(Float32Array.from(input), 0);
+    const source = offline.createBufferSource();
+    source.buffer = buffer;
+    source.connect(offline.destination);
+    source.start();
+    const out = await offline.startRendering();
+    return out.getChannelData(0).slice();
+  } catch {
+    return resampleTo16k(input, fromRate);
+  }
+}

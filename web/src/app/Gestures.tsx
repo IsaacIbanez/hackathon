@@ -94,6 +94,19 @@ export function Gestures({ send, voice, lang, doc, highlight, values = NO_VALUES
   }, [askByVoice])
   const [heard, setHeard] = useState<VoiceState | null>(null)
   const listener = useMemo(() => new AutoListener(), [])
+  // Download the speech model as soon as the app opens, so the first question doesn't wait
+  // (whisper-small: ~250 MB the first time, then from the browser's cache).
+  const [voiceStatus, setVoiceStatus] = useState('Preparing the voice…')
+  useEffect(() => {
+    let alive = true
+    listener
+      .preload((t) => alive && setVoiceStatus(t))
+      .then(() => alive && setVoiceStatus('Voice ready.'))
+      .catch(() => alive && setVoiceStatus("Couldn't download the speech model: using the browser's recognizer."))
+    return () => {
+      alive = false
+    }
+  }, [listener])
   const voiceInput = useMemo(
     () => new VoiceInput({ lang, listener, speaker: voice, send, beep, onState: setHeard }),
     [lang, listener, voice, send],
@@ -345,6 +358,11 @@ export function Gestures({ send, voice, lang, doc, highlight, values = NO_VALUES
         />
         Fill in a form
       </label>
+      {voiceStatus && (
+        <p role="status" className={`mt-2 text-lg ${voiceStatus === 'Voice ready.' ? 'text-emerald-300' : 'text-amber-200'}`}>
+          🎙️ {voiceStatus}
+        </p>
+      )}
       {fillMode && draft === null && (
         <p className="mt-2 text-lg text-emerald-200">
           {fields.length

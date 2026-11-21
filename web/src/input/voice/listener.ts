@@ -6,7 +6,7 @@
 // - AutoListener: inside the desktop app (Wails) goes straight to Whisper; in a browser it tries
 //   the browser recognizer first and switches to Whisper for good if it doesn't really work.
 
-import { EnergyVad, resampleTo16k } from "./vad.ts";
+import { EnergyVad, resampleTo16kHQ } from "./vad.ts";
 
 export interface ListenOptions {
   /** BCP-47 language, e.g. "es-ES". */
@@ -26,6 +26,8 @@ export interface Listener {
   available(): boolean;
   /** Listens to one phrase and resolves with its text ("" if nothing was said). */
   listen(options: ListenOptions): Promise<string>;
+  /** Whether it can answer at once (false while a model is still downloading). Default: true. */
+  readonly ready?: boolean;
   /** Stops listening now and keeps what was said so far (the user says they're done). */
   finish(): void;
   cancel(): void;
@@ -141,7 +143,49 @@ export class WebSpeechListener implements Listener {
 // Local Whisper
 
 export const TRANSFORMERS_URL = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1";
-export const WHISPER_MODEL = "onnx-community/whisper-tiny";
+/** Whisper models by size. Measured in docs/VOZ.md: small is exact in Spanish, tiny is not. */
+export const WHISPER_MODELS = {
+  small: "onnx-community/whisper-small", // ~250 MB, ~1 s per question
+  tiny: "onnx-community/whisper-tiny", // ~40 MB, for slow computers only
+} as const;
+export type WhisperSize = keyof typeof WHISPER_MODELS;
+
+/**
+ * Model for this computer: small, unless it looks slow (little memory or few cores) or the user
+ * chose one (localStorage "whisper" = "small" | "tiny", or ?whisper=tiny in the URL).
+ */
+export function chooseWhisperSize(env: { deviceMemory?: number; cores?: number; override?: string | null }): WhisperSize {
+  if (env.override === "small" || env.override === "tiny") return env.override;
+  if ((env.deviceMemory !== undefined && env.deviceMemory < 4) || (env.cores !== undefined && env.cores <= 2)) return "tiny";
+  return "small";
+}
+
+function whisperSizeHere(): WhisperSize {
+  if (typeof navigator === "undefined") return "small";
+  let override: string | null = null;
+  try {
+    override = new URLSearchParams(globalThis.location?.search ?? "").get("whisper") ?? globalThis.localStorage?.getItem("whisper") ?? null;
+  } catch {
+    // storage blocked: use the automatic choice
+  }
+  const nav = navigator as Navigator & { deviceMemory?: number };
+  return chooseWhisperSize({ deviceMemory: nav.deviceMemory, cores: nav.hardwareConcurrency, override });
+}
+
+/** WebGPU if the window has it (faster); otherwise WebAssembly on the CPU. */
+async function whisperDevice(): Promise<{ device: "webgpu" | "wasm"; dtype: unknown }> {
+  const gpu = (navigator as Navigator & { gpu?: { requestAdapter(): Promise<{ features: Set<string> } | null> } }).gpu;
+  try {
+    const adapter = await gpu?.requestAdapter();
+    if (adapter) {
+      const f16 = adapter.features.has("shader-f16");
+      return { device: "webgpu", dtype: { encoder_model: f16 ? "fp16" : "fp32", decoder_model_merged: "q4" } };
+    }
+  } catch {
+    // no usable GPU
+  }
+  return { device: "wasm", dtype: "q8" };
+}
 
 const WHISPER_LANGUAGES: Record<string, string> = {
   es: "spanish", en: "english", ca: "catalan", fr: "french", de: "german", it: "italian", pt: "portuguese",
@@ -153,6 +197,7 @@ interface TransformersModule {
 }
 
 export interface WhisperOptions {
+  /** Model id; by default small, or tiny on slow computers (chooseWhisperSize). */
   model: string;
   transformersUrl: string;
 }
@@ -161,30 +206,56 @@ export class WhisperListener implements Listener {
   readonly name = "local Whisper";
   private o: WhisperOptions;
   private model: Promise<AsrPipeline> | null = null;
+  private loaded = false;
   private stopNow: (() => void) | null = null;
   private finishNow: (() => void) | null = null;
 
   constructor(options: Partial<WhisperOptions> = {}) {
-    this.o = { model: WHISPER_MODEL, transformersUrl: TRANSFORMERS_URL, ...options };
+    this.o = { model: WHISPER_MODELS[whisperSizeHere()], transformersUrl: TRANSFORMERS_URL, ...options };
+  }
+
+  get ready(): boolean {
+    return this.loaded;
+  }
+
+  get modelName(): string {
+    return this.o.model.split("/").pop() ?? this.o.model;
   }
 
   available(): boolean {
     return typeof navigator !== "undefined" && !!navigator.mediaDevices?.getUserMedia && typeof AudioContext !== "undefined";
   }
 
-  /** Loads the model in advance (it is also loaded on first use). */
+  /**
+   * Loads the model in advance (call it when the app opens, so the first question doesn't wait);
+   * it is also loaded on first use. Downloaded once, then kept in the browser's cache.
+   */
   preload(onStatus?: (text: string) => void): Promise<AsrPipeline> {
     this.model ??= (async () => {
       const tf = (await import(/* @vite-ignore */ `${this.o.transformersUrl}`)) as TransformersModule;
-      return tf.pipeline("automatic-speech-recognition", this.o.model, {
-        dtype: "q8",
-        device: "wasm",
-        progress_callback: (p: { status?: string; progress?: number }) => {
-          if (p.status === "progress" && typeof p.progress === "number") {
-            onStatus?.(`Downloading the speech model… ${Math.round(p.progress)} %`);
-          }
-        },
-      });
+      // Several files download at once: show the overall progress.
+      const files = new Map<string, { loaded: number; total: number }>();
+      const progress_callback = (p: { status?: string; file?: string; loaded?: number; total?: number }) => {
+        if (p.status !== "progress" || !p.file || !p.total) return;
+        files.set(p.file, { loaded: p.loaded ?? 0, total: p.total });
+        let loaded = 0;
+        let total = 0;
+        for (const f of files.values()) [loaded, total] = [loaded + f.loaded, total + f.total];
+        onStatus?.(`Preparing the voice (${this.modelName})… ${Math.round((100 * loaded) / total)} %`);
+      };
+      const load = (device: string, dtype: unknown) =>
+        tf.pipeline("automatic-speech-recognition", this.o.model, { device, dtype, progress_callback });
+      const { device, dtype } = await whisperDevice();
+      let asr: AsrPipeline;
+      try {
+        asr = await load(device, dtype);
+      } catch (err) {
+        if (device === "wasm") throw err;
+        asr = await load("wasm", "q8"); // the GPU path failed: the CPU always works
+      }
+      this.loaded = true;
+      onStatus?.("Voice ready.");
+      return asr;
     })();
     this.model.catch(() => (this.model = null));
     return this.model;
@@ -192,8 +263,9 @@ export class WhisperListener implements Listener {
 
   async listen(o: ListenOptions): Promise<string> {
     const modelPromise = this.preload(o.onStatus);
-    const audio = await this.record(o);
-    if (!audio) return "";
+    const recorded = await this.record(o);
+    if (!recorded) return "";
+    const audio = await resampleTo16kHQ(recorded.samples, recorded.rate);
     o.onPartial?.("…");
     const asr = await modelPromise;
     const base = o.lang.split("-")[0].toLowerCase();
@@ -203,9 +275,9 @@ export class WhisperListener implements Listener {
   }
 
   /** Records one phrase: waits for speech, stops after a silence. null if nobody spoke. */
-  private async record(o: ListenOptions): Promise<Float32Array | null> {
+  private async record(o: ListenOptions): Promise<{ samples: Float32Array; rate: number } | null> {
     const stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 },
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
     });
     const ctx = new AudioContext();
     const source = ctx.createMediaStreamSource(stream);
@@ -217,7 +289,7 @@ export class WhisperListener implements Listener {
     let started = false;
 
     try {
-      return await new Promise<Float32Array | null>((resolve) => {
+      return await new Promise<{ samples: Float32Array; rate: number } | null>((resolve) => {
         const finish = (ok: boolean) => {
           clearTimeout(startTimer);
           clearTimeout(maxTimer);
@@ -230,7 +302,7 @@ export class WhisperListener implements Listener {
             all.set(c, at);
             at += c.length;
           }
-          resolve(resampleTo16k(all, ctx.sampleRate));
+          resolve({ samples: all, rate: ctx.sampleRate });
         };
         const startTimer = setTimeout(() => !started && finish(false), o.startTimeoutMs ?? 6000);
         const maxTimer = setTimeout(() => finish(started), o.maxMs ?? 12000);
@@ -279,6 +351,11 @@ export class WhisperListener implements Listener {
 export interface AutoListenerOptions {
   /** Skip the browser recognizer (default: inside the desktop app). */
   preferLocal: boolean;
+  /**
+   * Local Whisper first (docs/VOZ.md: whisper-small is exact in Spanish). While its model is
+   * still downloading, the browser recognizer answers instead, so nobody waits. Default true.
+   */
+  localFirst: boolean;
   /** An empty result faster than this means the browser recognizer isn't really working. */
   suspiciousMs: number;
   now: () => number;
@@ -298,12 +375,24 @@ export class AutoListener implements Listener {
   ) {
     this.web = web;
     this.local = local;
-    this.o = { preferLocal: isDesktopWebview(), suspiciousMs: 700, now: () => Date.now(), ...options };
+    this.o = { preferLocal: isDesktopWebview(), localFirst: true, suspiciousMs: 700, now: () => Date.now(), ...options };
     this.webBroken = this.o.preferLocal;
   }
 
   get name(): string {
-    return this.useWeb() ? this.web.name : this.local.name;
+    return this.useLocalNow() || !this.useWeb() ? this.local.name : this.web.name;
+  }
+
+  /** Starts downloading the local model now (when the app opens). */
+  preload(onStatus?: (text: string) => void): Promise<unknown> {
+    const local = this.local as Listener & { preload?: (onStatus?: (text: string) => void) => Promise<unknown> };
+    return local.preload?.(onStatus) ?? Promise.resolve();
+  }
+
+  /** Local first, if it can answer now (or if there is nothing else to use). */
+  private useLocalNow(): boolean {
+    if (!this.o.localFirst || !this.local.available()) return false;
+    return (this.local.ready ?? true) || !this.useWeb();
   }
 
   available(): boolean {
@@ -315,6 +404,18 @@ export class AutoListener implements Listener {
   }
 
   async listen(o: ListenOptions): Promise<string> {
+    if (this.useLocalNow()) {
+      this.active = this.local;
+      try {
+        return await this.local.listen(o);
+      } catch (localError) {
+        // The model couldn't load (e.g. no network) or the recording failed: try the browser.
+        if (!this.useWeb()) throw localError;
+        o.onStatus?.("Switching to the browser's speech recognition…");
+        this.active = this.web;
+        return this.web.listen(o);
+      }
+    }
     if (this.useWeb()) {
       const started = this.o.now();
       let webError: unknown = null;
