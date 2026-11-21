@@ -14,6 +14,10 @@ MODOS = ("color", "gris", "bn")
 BLANCO_PAPEL = 245.0       # nivel al que se lleva el papel (no 255, para no quemar detalle)
 GANANCIA_MAXIMA = 1.8      # suficiente para sombras normales; las zonas negras grandes siguen oscuras
 GANANCIA_MINIMA = 0.85
+TINTA_OBJETIVO = 40.0      # gris al que se lleva la tinta típica (no 0: no se aplastan trazos)
+BLANCO_REALCE = 250.0
+REALCE_MAXIMO = 3.0        # más ganancia amplifica el ruido y las sombras (medido con capturas reales)
+NITIDEZ = 0.5              # cantidad de la máscara de enfoque
 MEDIANA_PAPEL_CLARO = 150.0  # mediana de gris de la página para considerarla papel claro
 
 
@@ -24,6 +28,55 @@ def papel_claro(img: np.ndarray) -> bool:
     escala = 400.0 / max(gris.shape[:2])
     peq = cv2.resize(gris, None, fx=escala, fy=escala, interpolation=cv2.INTER_AREA)
     return float(np.median(peq)) >= MEDIANA_PAPEL_CLARO
+
+
+def gris_1600(img: np.ndarray) -> tuple[np.ndarray, float]:
+    """Gris reducido a 1600 px de lado mayor (para análisis rápido) y la escala usada."""
+    gris = img if img.ndim == 2 else cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    escala = 1600.0 / max(gris.shape[:2])
+    return cv2.resize(gris, None, fx=escala, fy=escala, interpolation=cv2.INTER_AREA), escala
+
+
+def mascara_letras(gris: np.ndarray) -> np.ndarray:
+    """Píxeles de manchas oscuras con tamaño de letra (sobre gris de ~1600 px). Teclas, ratón y
+    sombras (manchas grandes) quedan fuera."""
+    b = cv2.adaptiveThreshold(gris, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 25, 15)
+    _, etiquetas, est, _ = cv2.connectedComponentsWithStats(b, connectivity=8)
+    alto, ancho, area = est[:, cv2.CC_STAT_HEIGHT], est[:, cv2.CC_STAT_WIDTH], est[:, cv2.CC_STAT_AREA]
+    letra = (alto >= 3) & (alto <= 40) & (ancho <= 60) & (area >= 4) & (area <= 600)
+    letra[0] = False
+    return letra[etiquetas].astype(np.float32)
+
+
+def realzar_documento(img: np.ndarray) -> tuple[np.ndarray, dict]:
+    """Aspecto de escáner para papel claro: tinta casi negra, papel blanco liso y nitidez suave.
+
+    Con capturas reales de la MX Brio, tras igualar la luz el papel queda blanco pero la tinta sigue
+    en gris claro (180-210): el texto se ve lavado y al OCR y al giro les cuesta leer. Se estira
+    linealmente (igual en los tres canales: firmas y sellos conservan su color) para llevar el gris
+    típico de las letras a TINTA_OBJETIVO; lo que queda casi blanco pasa a blanco (así no se ven los
+    bloques de compresión de la cámara) y se aplica una máscara de enfoque suave.
+    """
+    g, _ = gris_1600(img)
+    letras = mascara_letras(g) > 0
+    if letras.sum() < 200:
+        return img, {"aplicado": False, "motivo": "sin texto"}
+    tinta = float(np.median(g[letras]))
+    papel = float(np.percentile(g, 60))
+    if papel - tinta < 20:
+        return img, {"aplicado": False, "motivo": "sin contraste", "tinta": round(tinta), "papel": round(papel)}
+    k = min(REALCE_MAXIMO, (BLANCO_REALCE - TINTA_OBJETIVO) / (papel - tinta))
+    f = (img.astype(np.float32) - tinta) * k + TINTA_OBJETIVO
+    # Papel y sombras sin color: al amplificar, una dominante leve (violeta, amarilla) se vuelve muy visible.
+    # Se mezcla hacia gris según lo claro que sea el píxel; la tinta oscura (firma azul, sello) conserva su color.
+    lum = cv2.cvtColor(np.clip(f, 0, 255).astype(np.uint8), cv2.COLOR_BGR2GRAY).astype(np.float32)
+    papelidad = np.clip((lum - 140.0) / 80.0, 0.0, 1.0)[..., None]
+    f = f * (1.0 - papelidad) + lum[..., None] * papelidad
+    f = f + (255.0 - f) * np.clip((f - 225.0) / 20.0, 0.0, 1.0)      # casi blanco -> blanco (papel liso)
+    sigma = max(0.8, min(img.shape[:2]) / 1800.0)
+    f = f + NITIDEZ * (f - cv2.GaussianBlur(f, (0, 0), sigma))
+    return np.clip(f + 0.5, 0, 255).astype(np.uint8), {"aplicado": True, "tinta": round(tinta), "papel": round(papel),
+                                                        "ganancia": round(k, 2)}
 
 
 def corregir_iluminacion(img: np.ndarray) -> np.ndarray:

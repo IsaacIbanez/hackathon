@@ -7,6 +7,8 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 
+from . import imagen
+
 LADO_ANALISIS = 1000       # px: la detección trabaja sobre una copia reducida
 AREA_MINIMA = 0.08         # la hoja debe ocupar al menos el 8 % del encuadre (si es poco, aviso too_far)
 CONFIANZA_MINIMA = 0.65    # por debajo, no se recorta (mejor sin recortar que mal recortado).
@@ -16,7 +18,7 @@ SOPORTE_MINIMO = 0.40      # fracción del perímetro sobre bordes reales. Móvi
 MARGEN_BORDE = 0.01        # esquina a menos del 1 % del borde = hoja posiblemente cortada
 CONTRASTE_MINIMO = 25.0    # niveles de gris entre la hoja y lo que la rodea
 SALTO_MINIMO = 18.0        # contraste mínimo a través de cada lado (niveles de gris)
-CONTENIDO_MINIMO = 0.004   # densidad de bordes dentro: una mesa vacía da ~0, una hoja con texto > 0,01
+CONTENIDO_MINIMO = 0.002   # fracción de píxeles de letra dentro: mesa vacía ~0, carta con letra pequeña > 0,005
 CANNY_BAJO, CANNY_ALTO = 40, 120  # umbrales fijos: los calculados con la mediana del brillo salían
                            # altísimos sobre una mesa blanca y el contorno del documento desaparecía
 RAZON_LADOS_MAXIMA = 1.75  # lado opuesto más largo / más corto; una hoja inclinada ~45° da ~1,7.
@@ -64,12 +66,14 @@ def detectar_pagina(img: np.ndarray) -> Deteccion:
     # El marco de la imagen cuenta como borde: un documento cortado por el encuadre también cierra
     # su contorno (se recorta lo que se ve y se avisa con "cropped").
     cv2.rectangle(bordes, (0, 0), (bordes.shape[1] - 1, bordes.shape[0] - 1), 255, 2)
+    # Letras: sobre gris sin suavizar (el desenfoque gaussiano borra la letra pequeña).
+    letras = imagen.mascara_letras(cv2.cvtColor(peq, cv2.COLOR_BGR2GRAY))
     candidatos: list[tuple[float, np.ndarray, str]] = []
     fuentes = (("bordes", _cuadrilateros(bordes)), ("umbral", _cuadrilateros(_mascara_umbral(gris))),
                ("lineas", _cuadrilateros_lineas(canny, bordes)))
     for metodo, quads in fuentes:
         for quad in quads:
-            puntuacion = _puntuar(quad, gris, bordes, canny)
+            puntuacion = _puntuar(quad, gris, bordes, letras)
             if puntuacion > 0:
                 candidatos.append((puntuacion, quad, metodo))
 
@@ -184,7 +188,7 @@ def _soporte_rapido(q: np.ndarray, bordes: np.ndarray, muestras: int = 40) -> fl
     return float((bordes[pts[:, 1], pts[:, 0]] > 0).mean())
 
 
-def _puntuar(quad: np.ndarray, gris: np.ndarray, bordes: np.ndarray, canny: np.ndarray) -> float:
+def _puntuar(quad: np.ndarray, gris: np.ndarray, bordes: np.ndarray, letras: np.ndarray) -> float:
     """0..1: qué tanto parece una hoja. 0 = descartado.
 
     - soporte (25 %): fracción del perímetro que cae sobre bordes reales (o sobre el marco de la imagen);
@@ -216,21 +220,26 @@ def _puntuar(quad: np.ndarray, gris: np.ndarray, bordes: np.ndarray, canny: np.n
                               max(lados[1], lados[3]) / min(lados[1], lados[3])) > RAZON_LADOS_MAXIMA:
         return 0.0               # lados opuestos demasiado distintos: forma recortada, no una hoja
     en_marco = [_sobre_marco(q[i], q[(i + 1) % 4], gris.shape) for i in range(4)]
-    if sum(en_marco) >= 2:
-        return 0.0               # dos lados en el marco = una región del fondo, no un documento
+    opuestos = en_marco in ([True, False, True, False], [False, True, False, True])
+    if sum(en_marco) >= 3 or (sum(en_marco) == 2 and not opuestos):
+        return 0.0               # esquina del encuadre = una región del fondo, no un documento
+    # Dos lados opuestos en el marco: hoja más alta (o ancha) que el encuadre. Vale si los otros dos
+    # lados son bordes reales y claros (lo exigen el soporte y el salto, más estrictos en este caso).
     soporte = _soporte_bordes(q, bordes, saltar=en_marco)
     if soporte < SOPORTE_MINIMO:
         return 0.0
+    if sum(en_marco) == 2 and soporte < 0.7:
+        return 0.0
     salto = _salto_lados(q, gris, saltar=en_marco)
-    if salto < SALTO_MINIMO:
+    if salto < (2 * SALTO_MINIMO if sum(en_marco) == 2 else SALTO_MINIMO):
         return 0.0               # algún lado no separa nada (p. ej. una fila de texto dentro del documento)
-    contenido = _contenido(quad, canny)
+    contenido = _contenido(quad, letras)
     if contenido < CONTENIDO_MINIMO:
         return 0.0
     angulos = 1.0 - max(0.0, peor - 0.2) / 0.4   # hasta ~78°/102° puntúa entero
     tam = min(1.0, area / 0.25)
     return float(0.20 * soporte + 0.10 * min(1.0, contraste / 80.0) + 0.25 * min(1.0, salto / 60.0)
-                 + 0.10 * min(1.0, contenido / 0.03) + 0.20 * angulos + 0.15 * tam)
+                 + 0.10 * min(1.0, contenido / 0.02) + 0.20 * angulos + 0.15 * tam)
 
 
 def _salto_lados(q: np.ndarray, gris: np.ndarray, saltar: list[bool] | None = None, muestras: int = 30) -> float:
@@ -261,14 +270,18 @@ def _salto_lados(q: np.ndarray, gris: np.ndarray, saltar: list[bool] | None = No
     return min(saltos) if saltos else 0.0
 
 
-def _contenido(quad: np.ndarray, canny: np.ndarray) -> float:
-    """Densidad de bordes (sin dilatar) en el interior del cuadrilátero, sin su contorno."""
-    dentro = np.zeros(canny.shape, np.uint8)
+def _contenido(quad: np.ndarray, letras: np.ndarray) -> float:
+    """Fracción de píxeles de letra (imagen.mascara_letras) en el interior del cuadrilátero, sin su contorno.
+
+    Con bordes Canny una carta con letra pequeña y gris daba ~0 (medido con capturas reales de la MX Brio)
+    y se descartaba como si fuera mesa vacía; las manchas con tamaño de letra sí la ven.
+    """
+    dentro = np.zeros(letras.shape, np.uint8)
     cv2.fillConvexPoly(dentro, quad.astype(np.int32), 255)
-    lado = max(3, int(0.02 * min(canny.shape)))
-    dentro = cv2.erode(dentro, np.ones((lado, lado), np.uint8))
-    n = cv2.countNonZero(dentro)
-    return cv2.countNonZero(canny & dentro) / n if n else 0.0
+    lado = max(3, int(0.02 * min(letras.shape)))
+    dentro = cv2.erode(dentro, np.ones((lado, lado), np.uint8)) > 0
+    n = int(dentro.sum())
+    return float(letras[dentro].sum()) / n if n else 0.0
 
 
 def _contraste(quad: np.ndarray, gris: np.ndarray) -> float:

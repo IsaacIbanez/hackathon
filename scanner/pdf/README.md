@@ -75,16 +75,19 @@ Si el nombre ya existe se crea `<nombre>-2`, `-3`…: nunca se sobrescribe un re
    razón de lados y como mucho un lado sobre el marco. Entre los fiables gana el de mayor área. Luego refina
    las esquinas a resolución completa, calcula la **proporción real** (Zhang y He) y ajusta a A4/Letter/A5/Legal
    si coincide. Si no está segura, **no recorta** y avisa (`pagina_no_detectada`).
-3. `ocr.py` — orientación 90/180/270: OSD de Tesseract y, si duda, comprobación leyendo de verdad 0°/180°
-   (un cartel real del revés: 0 palabras seguras frente a 22). OCR que da a la vez la capa de texto invisible
-   (renderizador "sandwich") y las palabras con caja y confianza: psm 3 y, **solo si duda**, psm 11 (texto
-   disperso: carteles, tarjetas, pantallas). Páginas de menos de 300 DPI se leen ampliadas (tope 8,5 MP).
-4. `imagen.py` — iluminación **solo en papel claro recortado** (ganancia por canal limitada a 1,8; en carteles
-   oscuros o en la escena entera lo dejaba todo lavado), modos `color` / `gris` / `bn` (este último solo si se pide) y calidad con el
-   vocabulario `FrameIssue` del contrato (`blurry`, `dark`, `glare`, `cropped`, `tilted`, `too_far`).
+3. `ocr.py` — orientación 90/180/270: OSD de Tesseract sobre un **recorte de la zona con más letras a
+   resolución nativa** (sobre la página entera reducida fallaba; sobre el recorte da confianza 8-15 en ~0,5 s)
+   y, si duda, se lee de verdad cada orientación (para en cuanto una gana, o si el texto es ilegible).
+   Con las capturas reales: 12/12 bien, incluida la hoja vertical fotografiada en horizontal.
+   OCR que da a la vez la capa de texto invisible (renderizador "sandwich") y las palabras con caja y
+   confianza: psm 3 y, **solo si duda**, psm 11 (carteles, tarjetas, pantallas). Tope de 8,5 MP.
+4. `imagen.py` — en **papel claro recortado**: iluminación (ganancia por canal limitada a 1,8) y **realce de
+   documento**: la tinta (gris típico de las letras) a casi negro, papel blanco liso sin dominantes de color y
+   nitidez suave (la cámara entrega el texto en gris 180-210). En carteles oscuros o la escena entera no se toca.
+   Calidad con el vocabulario `FrameIssue` del contrato (`blurry`, `dark`, `glare`, `cropped`, `tilted`, `too_far`).
 5. `pdf.py` — img2pdf incrusta la imagen **sin recodificar** al tamaño físico exacto; pikepdf superpone
    la capa de texto con escala exacta; y se valida: páginas, tamaño, resolución de la imagen
-   incrustada, texto extraíble, alineación de la capa y fidelidad (render vs imagen, PSNR).
+   incrustada, texto extraíble, alineación de la capa y fidelidad (imagen incrustada vs página, PSNR).
 
 ## Decisiones (medidas, no supuestas)
 - **Tesseract directo en vez de OCRmyPDF.** Sobre la misma página: OCRmyPDF 2,07 s; nuestro camino
@@ -111,8 +114,15 @@ cartel del revés se gira. Siguen fallando el cartel sujeto con la mano delante 
 que se salen del encuadre por dos lados y las capturas desenfocadas por estar demasiado cerca: para eso la app
 de prueba enseña el contorno en directo y deja ajustar las esquinas a mano (`Opciones.esquinas`).
 
+### Resolución de la MX Brio (medido el 21/11)
+La cámara **sí entrega 4K real**: hay capturas con mucho detalle fino. Las que se ven "de baja resolución"
+son la hoja sobre la mesa vista desde lejos: el autoenfoque se queda en otra distancia y la hoja ocupa poco
+del encuadre. Con la cámara en el modo 4K, la hoja entera a 30-40 cm y esperando al enfoque, la página sale
+a ~180-200 DPI. Lo que no se puede arreglar después: una foto desenfocada (p. ej. 170507) no se lee ni se
+puede orientar. La app de prueba avisa en directo si la imagen está borrosa.
+
 ## Estado de las pruebas
-`pytest` (60 tests, ~18 s): entrada, geometría con 7 poses de cámara realistas, casos sin hoja
+`pytest` (63 tests, ~24 s): entrada, geometría con 7 poses de cámara realistas, casos sin hoja
 (textura, negro, hoja que llena el encuadre), iluminación, calidad, extremo a extremo con acentos,
 página girada, modos y formatos, fallos (sin Tesseract, entrada inválida, opciones inválidas).
 Las imágenes de prueba son **sintéticas** (`tests/sinteticos.py`).

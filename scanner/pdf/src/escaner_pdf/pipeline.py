@@ -30,6 +30,7 @@ class Opciones:
     recortar: bool = True                # detectar la hoja y corregir perspectiva
     esquinas: list[list[float]] | None = None   # recorte manual: 4 puntos [x, y] en px del original
     iluminacion: bool = True             # igualar sombras y dominantes (ganancia limitada)
+    realce: bool = True                  # aspecto de escáner en papel claro: tinta negra, papel blanco, nitidez
     orientar: bool = True                # girar 90/180/270 si Tesseract está seguro
     tamano: str = "auto"                 # auto | imagen | A4 | Letter | A5 | Legal
     fov_diagonal: float = geometria.FOV_DIAGONAL_WEBCAM  # campo de visión de la cámara (grados)
@@ -121,9 +122,21 @@ def convertir(origen: str | Path | bytes, carpeta_salida: str | Path, opciones: 
 
         with t("geometria"):
             pagina, papel = _preparar_geometria(ent.imagen, op, r, carpeta)
+        det = r.deteccion or {}
+
+        with t("mejora"):
+            # Solo papel claro y recortado: en carteles oscuros o en la escena entera aclarar lo estropea.
+            igualar = op.iluminacion and bool(det.get("encontrada")) and imagen.papel_claro(pagina)
+            r.pagina["iluminacion_corregida"] = igualar
+            corregida = imagen.corregir_iluminacion(pagina) if igualar else pagina
+            if igualar and op.realce:
+                corregida, r.pagina["realce"] = imagen.realzar_documento(corregida)
+
+        # La orientación mira la página ya realzada: con el texto gris de la cámara a veces no lee nada.
         if op.orientar and tess:
             with t("orientacion"):
-                pagina, grados, conf = ocr.orientar(pagina)
+                corregida, grados, conf = ocr.orientar(corregida)
+            pagina = ocr.girar(pagina, grados)
             r.pagina["giro_grados"], r.pagina["giro_confianza"] = grados, conf
         dpi = _dpi(pagina, papel, op, ent.dpi)
         alto, ancho = pagina.shape[:2]
@@ -131,17 +144,12 @@ def convertir(origen: str | Path | bytes, carpeta_salida: str | Path, opciones: 
                          "papel": papel, "tamano_mm": [round(ancho / dpi[0] * 25.4, 1), round(alto / dpi[1] * 25.4, 1)]})
 
         with t("calidad"):
-            det = r.deteccion or {}
             r.calidad = imagen.evaluar_calidad(
                 pagina, fraccion_area=det.get("fraccion_area") if det.get("encontrada") else None,
                 toca_borde=bool(det.get("toca_borde")), dpi_efectivo=float(np.mean(dpi)),
                 angulo_max=geometria.angulo_maximo(np.asarray(det["esquinas"])) if det.get("encontrada") else None)
 
-        with t("mejora"):
-            # Solo papel claro y recortado: en carteles oscuros o en la escena entera aclarar lo estropea.
-            igualar = op.iluminacion and bool(det.get("encontrada")) and imagen.papel_claro(pagina)
-            r.pagina["iluminacion_corregida"] = igualar
-            corregida = imagen.corregir_iluminacion(pagina) if igualar else pagina
+        with t("codificacion"):
             final = imagen.aplicar_modo(corregida, op.modo)
             codificada = pdf.codificar_imagen(final, dpi, op.formato_imagen, op.calidad_jpeg, binaria=op.modo == "bn")
         if op.guardar_intermedios:
@@ -267,7 +275,10 @@ def _dpi(pagina: np.ndarray, papel: str | None, op: Opciones, dpi_png: float | N
         w, h = geometria.PAPELES_MM[papel]
         if ancho > alto:
             w, h = h, w
-        return ancho / (w / 25.4), alto / (h / 25.4)
+        # Un solo DPI para los dos ejes (píxeles cuadrados): por el redondeo a píxeles enteros, el tamaño
+        # se desvía del papel menos de 0,2 mm, y la imagen no se deforma ni se reescala al mostrarla.
+        dpi = (ancho / (w / 25.4) + alto / (h / 25.4)) / 2
+        return dpi, dpi
     valor = op.dpi or dpi_png or DPI_POR_DEFECTO
     return valor, valor
 

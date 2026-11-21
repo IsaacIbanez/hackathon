@@ -22,6 +22,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--esquinas", help="recorte manual: x1,y1,x2,y2,x3,y3,x4,y4 en px del original")
     p.add_argument("--sin-recorte", action="store_true", help="no detectar la hoja")
     p.add_argument("--sin-iluminacion", action="store_true", help="no corregir sombras")
+    p.add_argument("--sin-realce", action="store_true", help="no oscurecer la tinta ni enfocar (papel claro)")
     p.add_argument("--sin-orientar", action="store_true", help="no girar 90/180/270")
     p.add_argument("--sin-ocr", action="store_true", help="solo imagen, sin capa de texto")
     p.add_argument("--jpeg", action="store_true", help="incrustar JPEG (más ligero) en vez de PNG sin pérdidas")
@@ -38,7 +39,7 @@ def main(argv: list[str] | None = None) -> int:
         esquinas = [v[i:i + 2] for i in range(0, 8, 2)]
 
     op = Opciones(idiomas=a.idiomas, modo=a.modo, tamano=a.tamano, dpi=a.dpi, esquinas=esquinas,
-                  recortar=not a.sin_recorte, iluminacion=not a.sin_iluminacion, orientar=not a.sin_orientar,
+                  recortar=not a.sin_recorte, iluminacion=not a.sin_iluminacion, realce=not a.sin_realce, orientar=not a.sin_orientar,
                   ocr=not a.sin_ocr, formato_imagen="jpeg" if a.jpeg else "png",
                   guardar_intermedios=not a.sin_intermedios)
     r = convertir(a.entrada, a.salida, op, nombre=a.nombre)

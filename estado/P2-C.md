@@ -5,7 +5,7 @@
 - **Tarea actual:** Subproyecto B / scanner: PNG a PDF buscable (`scanner/pdf/`)
 - **Rama:** feature/B-contexto-scanner
 - **Estado:** en curso (primera versión funcionando)
-- **Último cambio:** 2026-11-21 17:10
+- **Último cambio:** 2026-11-21 18:00
 
 ## Hecho
 - `scanner/AGENTS.md` (y copia `AGENTS_B.md`): reglas y contexto del subproyecto scanner.
@@ -30,6 +30,12 @@
   imagen salía lavada. Nueva detección (rectas largas, contraste por lado, contenido, marco), luz solo en papel
   claro, orientación verificada leyendo (cartel del revés). App de prueba: contorno en directo y ajuste manual
   de esquinas. 60 tests.
+
+- Segunda revisión con cartas reales (MX Brio): orientación con OSD sobre recorte de texto + lectura (12/12,
+  incluida la hoja vertical en horizontal), realce de documento (tinta negra, papel blanco), contenido medido con
+  letras (las cartas blancas ya se detectan), hoja más alta que el encuadre. Medido: la Brio da 4K real; lo blando
+  es enfoque/distancia. 63 tests.
+- La actualización nueva de Pau no está en GitHub (último commit suyo: fe7327a); pendiente de comparar cuando la suba.
 
 ## Pendiente
 - Probar con documentos en papel reales (A4, formulario) con la MX Brio y calibrar los umbrales de calidad (nitidez, brillo, reflejos).

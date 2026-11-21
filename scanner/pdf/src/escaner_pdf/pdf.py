@@ -15,7 +15,6 @@ import cv2
 import img2pdf
 import numpy as np
 import pikepdf
-import pypdfium2 as pdfium
 from pdfminer.high_level import extract_pages
 from pdfminer.layout import LAParams, LTFigure, LTPage, LTTextContainer, LTTextLine
 from PIL import Image
@@ -116,7 +115,7 @@ def validar(pdf_bytes: bytes, imagen: np.ndarray, dpi: tuple[float, float], bloq
     if bloques:
         v["palabras_encontradas"] = _fraccion_palabras(bloques, texto)
         v["desfase_mediano"] = _desfase(bloques, lineas)
-    v["psnr_db"] = _psnr_render(pdf_bytes, imagen, dpi)
+    v["psnr_db"] = _psnr_imagen(pdf_bytes, imagen)
 
     buscable = v["caracteres_texto"] > 0
     alineado = v.get("desfase_mediano") is None or v["desfase_mediano"] < 0.02
@@ -167,15 +166,20 @@ def _desfase(bloques: list[dict], lineas: list[tuple[str, float, float]]) -> flo
     return round(float(np.median(distancias)), 4) if distancias else None
 
 
-def _psnr_render(pdf_bytes: bytes, imagen: np.ndarray, dpi: tuple[float, float]) -> float:
-    """Renderiza la página a su resolución nativa y la compara con la imagen (gris)."""
-    doc = pdfium.PdfDocument(pdf_bytes)
-    try:
-        render = np.array(doc[0].render(scale=dpi[0] / PT_POR_PULGADA, draw_annots=False).to_pil().convert("L"))
-    finally:
-        doc.close()
+def _psnr_imagen(pdf_bytes: bytes, imagen: np.ndarray) -> float:
+    """Fidelidad: extrae la imagen incrustada en la página y la compara píxel a píxel con la página (gris).
+
+    No se compara un render del visor: renderizar siempre reescala y desplaza fracciones de píxel, y
+    eso medía el visor, no el PDF. 99 = idéntica (PNG sin pérdidas); JPEG ~40.
+    """
     ref = imagen if imagen.ndim == 2 else cv2.cvtColor(imagen, cv2.COLOR_BGR2GRAY)
-    if render.shape != ref.shape:
-        render = cv2.resize(render, (ref.shape[1], ref.shape[0]), interpolation=cv2.INTER_AREA)
-    mse = float(np.mean((render.astype(np.float64) - ref.astype(np.float64)) ** 2))
-    return 99.0 if mse == 0 else round(10 * np.log10(255.0 ** 2 / mse), 2)
+    with pikepdf.open(io.BytesIO(pdf_bytes)) as pdf:
+        pagina = pdf.pages[0]
+        imagenes = list(pagina.get_images().values()) if hasattr(pagina, "get_images") else list(pagina.images.values())
+        for obj in imagenes:
+            pil = pikepdf.PdfImage(obj).as_pil_image()
+            if pil.size == (ref.shape[1], ref.shape[0]):
+                incrustada = np.array(pil.convert("L"))
+                mse = float(np.mean((incrustada.astype(np.float64) - ref.astype(np.float64)) ** 2))
+                return 99.0 if mse == 0 else round(10 * np.log10(255.0 ** 2 / mse), 2)
+    return 0.0

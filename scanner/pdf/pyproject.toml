@@ -13,7 +13,6 @@ dependencies = [
     "pillow>=10.1",
     "img2pdf>=0.5",
     "pikepdf>=9",
-    "pypdfium2>=4.30",
     "pdfminer.six>=20231228",
     "pytesseract>=0.3.10",
 ]

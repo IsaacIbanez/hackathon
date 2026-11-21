@@ -57,12 +57,26 @@ def test_documento_encaja_con_el_contrato(tmp_path, mesa_png):
 
 
 @pytest.mark.ocr
-def test_pagina_girada_se_endereza(tmp_path):
-    girada = cv2.rotate(s.pagina(), cv2.ROTATE_90_CLOCKWISE)
+@pytest.mark.parametrize("giro_foto, correccion", [(cv2.ROTATE_90_CLOCKWISE, 270), (cv2.ROTATE_90_COUNTERCLOCKWISE, 90),
+                                                  (cv2.ROTATE_180, 180)])
+def test_pagina_girada_se_endereza(tmp_path, giro_foto, correccion):
+    # Caso real: hoja vertical fotografiada en horizontal (90/270) o del revés sobre la mesa (180).
+    girada = cv2.rotate(s.pagina(), giro_foto)
     r = convertir(s.png(girada), tmp_path)
     assert r.estado == "ok", (r.error, r.avisos)
-    assert r.pagina["giro_grados"] == 270
+    assert r.pagina["giro_grados"] == correccion
     assert r.pagina["alto_px"] > r.pagina["ancho_px"]
+    assert "siniestro" in extract_text(r.pdf)
+
+
+@pytest.mark.ocr
+def test_hoja_vertical_fotografiada_en_horizontal_sobre_la_mesa(tmp_path):
+    hoja = cv2.rotate(s.pagina(), cv2.ROTATE_90_CLOCKWISE)          # la hoja está tumbada en la mesa
+    esquinas = s.esquinas_camara(10, -5, distancia_mm=480, papel_mm=(297.0, 210.0))
+    r = convertir(s.png(s.en_mesa(hoja, esquinas)), tmp_path)
+    assert r.estado == "ok", (r.error, r.avisos)
+    assert r.deteccion["encontrada"] and r.pagina["giro_grados"] == 270
+    assert r.pagina["papel"] == "A4" and r.pagina["alto_px"] > r.pagina["ancho_px"]
     assert "siniestro" in extract_text(r.pdf)
 
 

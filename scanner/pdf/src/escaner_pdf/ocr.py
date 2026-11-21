@@ -21,11 +21,13 @@ import cv2
 import numpy as np
 import pytesseract
 
+from . import imagen
 from .errores import ErrorEscaner
 
 RUTAS_WINDOWS = (r"C:\Program Files\Tesseract-OCR\tesseract.exe", r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe")
 TESSDATA_LOCAL = Path(__file__).resolve().parents[2] / "tessdata"   # scanner/pdf/tessdata (ignorado por git)
-CONFIANZA_OSD = 2.0     # a partir de aquí se gira sin más comprobaciones
+CONFIANZA_OSD = 2.5     # OSD sobre el recorte de texto: a partir de aquí se le hace caso (fallo medido: 1,96)
+PALABRAS_DERECHA = 15   # palabras seguras en el recorte para dar la orientación por buena
 DPI_OCR = 300.0         # resolución a la que Tesseract lee mejor
 FACTOR_MAXIMO = 3.0     # no ampliar más (coste ~ factor² y no inventa detalle)
 MEGAPIXELES_OCR_MAX = 8.5   # tamaño máximo que lee Tesseract: un fotograma 4K entero (8,3 MP) no se amplía
@@ -83,49 +85,73 @@ def resolver_idiomas(pedidos: str, disponibles: list[str]) -> tuple[str, list[st
 def orientar(img: np.ndarray) -> tuple[np.ndarray, int, float | None]:
     """Gira la página 90/180/270° si hace falta. Devuelve (imagen, grados, confianza del OSD).
 
-    1. OSD de Tesseract sobre la página llevada a ~2000 px (también se amplía: con letra pequeña
-       el OSD no ve nada, medido con un cartel real del revés).
-    2. Si el OSD está seguro (>= CONFIANZA_OSD), se hace lo que dice.
-    3. Si duda, se comparan con un OCR rápido la orientación actual, 180° y la sugerida, y solo se gira
-       si se lee claramente mejor. Este coste extra (~1 s) solo se paga cuando hay duda.
+    Medido con capturas reales (hoja vertical fotografiada en horizontal, carta y cartel del revés):
+    el OSD sobre la página entera reducida falla mucho; sobre un recorte de la zona con más letras a
+    resolución nativa acierta con confianza alta (8-15) en ~0,5 s. Así que:
+    1. OSD sobre ese recorte; si está seguro (>= CONFIANZA_OSD), se le hace caso.
+    2. Si duda, se lee de verdad: primero tal cual (lo normal es que ya esté derecha y se para ahí);
+       si no se lee bien, la que sugiere el OSD, 180° y el resto, parando en cuanto una gana claro.
     """
-    escala = 2000.0 / max(img.shape[:2])
-    peq = cv2.resize(img, None, fx=escala, fy=escala, interpolation=cv2.INTER_AREA if escala < 1 else cv2.INTER_CUBIC)
+    recorte = _recorte_texto(img, 800)
+    if recorte is None:
+        return img, 0, None  # no hay letras que mirar
+    grados_osd, confianza = 0, None
     try:
-        osd = pytesseract.image_to_osd(_a_rgb(peq), output_type=pytesseract.Output.DICT, timeout=30)
+        osd = pytesseract.image_to_osd(_a_rgb(recorte), output_type=pytesseract.Output.DICT, timeout=30)
+        grados_osd, confianza = int(osd.get("rotate", 0)) % 360, float(osd.get("orientation_conf", 0.0))
     except Exception:
-        return img, 0, None  # poco texto o sin osd.traineddata: se deja como está
-    grados, confianza = int(osd.get("rotate", 0)) % 360, float(osd.get("orientation_conf", 0.0))
-    if confianza >= CONFIANZA_OSD:
-        return (cv2.rotate(img, GIROS[grados]), grados, confianza) if grados in GIROS else (img, 0, confianza)
-    # El OSD duda: se comparan la orientación actual, la girada 180° (papel del revés sobre la mesa)
-    # y la que sugiera el OSD, leyendo de verdad. Solo se gira si se lee claramente mejor.
-    base = _palabras_seguras(img)
+        pass  # poco texto en el recorte: se decide leyendo
+    if confianza is not None and confianza >= CONFIANZA_OSD:
+        return girar(img, grados_osd), grados_osd, confianza
+
+    base = _palabras_seguras(recorte)
+    if base >= PALABRAS_DERECHA:
+        return img, 0, confianza
     mejor, mejor_n = 0, base
-    for g in sorted({180, grados} & set(GIROS)):
-        n = _palabras_seguras(cv2.rotate(img, GIROS[g]))
+    probadas = 0
+    for g in dict.fromkeys([grados_osd, 180, 90, 270]):
+        if g == 0:
+            continue
+        n = _palabras_seguras(girar(recorte, g))
+        probadas += 1
         if n > mejor_n:
             mejor, mejor_n = g, n
-    if mejor and mejor_n >= 1.5 * base + 3:
-        return cv2.rotate(img, GIROS[mejor]), mejor, confianza
+        if mejor and mejor_n >= max(PALABRAS_DERECHA, 2 * base + 3):
+            break
+        if probadas >= 2 and mejor_n <= 2:
+            break  # no se lee en ninguna: texto ilegible (foto desenfocada); no se gasta más tiempo
+    if mejor and mejor_n >= 2 * base + 3:
+        return girar(img, mejor), mejor, confianza
     return img, 0, confianza
 
 
-def _palabras_seguras(img: np.ndarray) -> int:
-    """Palabras leídas con confianza alta en una copia de ~1200 px, solo en inglés (mismo alfabeto).
+def girar(img: np.ndarray, grados: int) -> np.ndarray:
+    return img if grados == 0 else cv2.rotate(img, GIROS[grados])
 
-    Solo sirve para comparar orientaciones. Medido con un cartel real del revés: 0 palabras frente a 22,
-    en ~0,5 s por lectura (con spa+cat+eng a 1600 px eran ~1,7 s).
-    """
-    escala = 1200.0 / max(img.shape[:2])
-    im = cv2.resize(img, None, fx=escala, fy=escala, interpolation=cv2.INTER_AREA if escala < 1 else cv2.INTER_CUBIC)
+
+def _recorte_texto(img: np.ndarray, lado: int = 1000) -> np.ndarray | None:
+    """Recorte cuadrado, a resolución nativa, de la zona con más letras (para leer rápido y legible)."""
+    gris, escala = imagen.gris_1600(img)
+    lado = min(lado, *img.shape[:2])
+    k = max(3, int(lado * escala))
+    densidad = cv2.boxFilter(imagen.mascara_letras(gris), -1, (k, k))
+    if float(densidad.max()) < 0.005:
+        return None
+    y, x = np.unravel_index(int(np.argmax(densidad)), densidad.shape)
+    y0 = int(np.clip(y / escala - lado / 2, 0, img.shape[0] - lado))
+    x0 = int(np.clip(x / escala - lado / 2, 0, img.shape[1] - lado))
+    return img[y0:y0 + lado, x0:x0 + lado]
+
+
+def _palabras_seguras(img: np.ndarray) -> int:
+    """Palabras de 3+ letras leídas con confianza alta (inglés basta: mismo alfabeto). Solo para comparar."""
     try:
-        d = pytesseract.image_to_data(_a_rgb(im), lang="eng", config="--psm 11",
-                                      output_type=pytesseract.Output.DICT, timeout=30)
+        d = pytesseract.image_to_data(_a_rgb(img), lang="eng", config="--psm 6",
+                                      output_type=pytesseract.Output.DICT, timeout=2)
     except Exception:
         return 0
     return sum(1 for w, c in zip(d["text"], d["conf"])
-               if float(c) >= 80 and any(ch.isalnum() for ch in str(w)))
+               if float(c) >= 80 and sum(ch.isalpha() for ch in str(w)) >= 3)
 
 
 def reconocer(img: np.ndarray, idiomas: str, dpi: float, nivel: str = "linea", timeout: int = 180) -> ResultadoOCR:
