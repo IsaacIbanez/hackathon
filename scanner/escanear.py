@@ -119,10 +119,11 @@ def main(argv: list[str] | None = None) -> int:
                    help="espera máxima (s) a que se asiente el enfoque (por defecto 1.4)")
     p.add_argument("--idiomas", default="spa+cat+eng")
     p.add_argument("--modo", choices=["color", "gris", "bn"], default="color")
+    p.add_argument("--digital", action="store_true", help="además, PDF digital: texto real e imágenes en su sitio")
     p.add_argument("--salida", type=Path, default=CARPETA_PDF, help="carpeta de los PDF")
     p.add_argument("--json", action="store_true")
     a = p.parse_args(argv)
-    op = Opciones(idiomas=a.idiomas, modo=a.modo)
+    op = Opciones(idiomas=a.idiomas, modo=a.modo, digital=a.digital)
 
     if a.png:
         esc = Escaneo(a.png, None, convertir_png(a.png, a.salida, op))
@@ -139,6 +140,8 @@ def main(argv: list[str] | None = None) -> int:
         r = esc.resultado
         print(f"{r.estado.upper()}: {r.pdf}")
         print(f"  captura {esc.png}")
+        if r.pdf_digital:
+            print(f"  digital: {r.pdf_digital} ({len(r.digital.get('a_revisar', []))} palabras a revisar)")
         print(f"  calidad {r.calidad.get('puntuacion')} {r.calidad.get('problemas') or ''}; avisos {r.avisos or '-'}")
     if esc.error_captura:
         return esc.error_captura["codigo"]

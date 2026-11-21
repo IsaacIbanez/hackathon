@@ -17,6 +17,7 @@ GANANCIA_MINIMA = 0.85
 TINTA_OBJETIVO = 40.0      # gris al que se lleva la tinta típica (no 0: no se aplastan trazos)
 BLANCO_REALCE = 250.0
 REALCE_MAXIMO = 3.0        # más ganancia amplifica el ruido y las sombras (medido con capturas reales)
+GANANCIA_PAPEL = 2.0       # tope al blanquear el papel localmente: un relleno oscuro grande no se borra
 NITIDEZ = 0.5              # cantidad de la máscara de enfoque
 MEDIANA_PAPEL_CLARO = 150.0  # mediana de gris de la página para considerarla papel claro
 
@@ -49,34 +50,57 @@ def mascara_letras(gris: np.ndarray) -> np.ndarray:
 
 
 def realzar_documento(img: np.ndarray) -> tuple[np.ndarray, dict]:
-    """Aspecto de escáner para papel claro: tinta casi negra, papel blanco liso y nitidez suave.
+    """Aspecto de escáner para papel claro: papel blanco uniforme, tinta casi negra y nitidez suave.
 
-    Con capturas reales de la MX Brio, tras igualar la luz el papel queda blanco pero la tinta sigue
-    en gris claro (180-210): el texto se ve lavado y al OCR y al giro les cuesta leer. Se estira
-    linealmente (igual en los tres canales: firmas y sellos conservan su color) para llevar el gris
-    típico de las letras a TINTA_OBJETIVO; lo que queda casi blanco pasa a blanco (así no se ven los
-    bloques de compresión de la cámara) y se aplica una máscara de enfoque suave.
+    1. Papel blanco local: el blanco del papel se estima a una escala de ~3 alturas de letra (máximo local
+       por canal) y se divide por él. Así desaparecen las manchas del papel (luz irregular, compresión de
+       la cámara) que, con un simple estiramiento global, se volvían un moteado gris (medido con cartas
+       reales de la MX Brio). La ganancia está limitada: un relleno oscuro grande (logo) no se borra.
+    2. Tinta: el gris típico de las letras se lleva a TINTA_OBJETIVO (estiramiento con el papel fijo en 255).
+    3. Papel sin color residual y máscara de enfoque suave.
     """
-    g, _ = gris_1600(img)
-    letras = mascara_letras(g) > 0
+    g, escala = gris_1600(img)
+    letras = mascara_letras(g)
     if letras.sum() < 200:
         return img, {"aplicado": False, "motivo": "sin texto"}
-    tinta = float(np.median(g[letras]))
-    papel = float(np.percentile(g, 60))
-    if papel - tinta < 20:
-        return img, {"aplicado": False, "motivo": "sin contraste", "tinta": round(tinta), "papel": round(papel)}
-    k = min(REALCE_MAXIMO, (BLANCO_REALCE - TINTA_OBJETIVO) / (papel - tinta))
-    f = (img.astype(np.float32) - tinta) * k + TINTA_OBJETIVO
-    # Papel y sombras sin color: al amplificar, una dominante leve (violeta, amarilla) se vuelve muy visible.
-    # Se mezcla hacia gris según lo claro que sea el píxel; la tinta oscura (firma azul, sello) conserva su color.
+    alto_letra = _altura_letra(letras) / escala                      # en píxeles de la imagen original
+
+    # 1. Blanco del papel local, calculado en una copia reducida (rápido) y ampliado.
+    reduccion = min(1.0, 12.0 / max(alto_letra, 1.0))                # letra de ~12 px en la copia
+    peq = cv2.resize(img, None, fx=reduccion, fy=reduccion, interpolation=cv2.INTER_AREA)
+    k = max(7, int(3 * alto_letra * reduccion) | 1)
+    fondo = cv2.dilate(peq, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k)))
+    fondo = cv2.GaussianBlur(fondo, (0, 0), k / 2.0)
+    fondo = cv2.resize(fondo, (img.shape[1], img.shape[0]), interpolation=cv2.INTER_LINEAR).astype(np.float32)
+    ganancia = np.clip(255.0 / np.maximum(fondo, 1.0), 1.0, GANANCIA_PAPEL)
+    f = img.astype(np.float32) * ganancia
+
+    # 2. Tinta: estiramiento con el papel (255) fijo.
+    gris_norm = cv2.cvtColor(np.clip(f, 0, 255).astype(np.uint8), cv2.COLOR_BGR2GRAY)
+    letras_full = cv2.resize(letras, (img.shape[1], img.shape[0]), interpolation=cv2.INTER_NEAREST) > 0
+    tinta = float(np.median(gris_norm[letras_full]))
+    if 255.0 - tinta < 15:
+        return img, {"aplicado": False, "motivo": "sin contraste", "tinta": round(tinta)}
+    k_tinta = float(np.clip((255.0 - TINTA_OBJETIVO) / (255.0 - tinta), 1.0, REALCE_MAXIMO))
+    f = 255.0 - (255.0 - f) * k_tinta
+
+    # 3. Papel y sombras sin color; la tinta oscura (firma azul, sello) conserva su color.
     lum = cv2.cvtColor(np.clip(f, 0, 255).astype(np.uint8), cv2.COLOR_BGR2GRAY).astype(np.float32)
     papelidad = np.clip((lum - 140.0) / 80.0, 0.0, 1.0)[..., None]
     f = f * (1.0 - papelidad) + lum[..., None] * papelidad
-    f = f + (255.0 - f) * np.clip((f - 225.0) / 20.0, 0.0, 1.0)      # casi blanco -> blanco (papel liso)
-    sigma = max(0.8, min(img.shape[:2]) / 1800.0)
+    f = f + (255.0 - f) * np.clip((f - 205.0) / 35.0, 0.0, 1.0)      # casi blanco -> blanco (papel liso, sin halos)
+    sigma = max(0.8, alto_letra / 25.0)
     f = f + NITIDEZ * (f - cv2.GaussianBlur(f, (0, 0), sigma))
-    return np.clip(f + 0.5, 0, 255).astype(np.uint8), {"aplicado": True, "tinta": round(tinta), "papel": round(papel),
-                                                        "ganancia": round(k, 2)}
+    return np.clip(f + 0.5, 0, 255).astype(np.uint8), {"aplicado": True, "tinta": round(tinta),
+                                                        "ganancia_tinta": round(k_tinta, 2),
+                                                        "altura_letra_px": round(alto_letra, 1)}
+
+
+def _altura_letra(letras: np.ndarray) -> float:
+    """Altura mediana (px) de las manchas con tamaño de letra."""
+    _, _, est, _ = cv2.connectedComponentsWithStats((letras > 0).astype(np.uint8), connectivity=8)
+    alturas = est[1:, cv2.CC_STAT_HEIGHT]
+    return float(np.median(alturas)) if len(alturas) else 10.0
 
 
 def corregir_iluminacion(img: np.ndarray) -> np.ndarray:

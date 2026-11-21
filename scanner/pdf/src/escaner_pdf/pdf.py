@@ -183,3 +183,14 @@ def _psnr_imagen(pdf_bytes: bytes, imagen: np.ndarray) -> float:
                 mse = float(np.mean((incrustada.astype(np.float64) - ref.astype(np.float64)) ** 2))
                 return 99.0 if mse == 0 else round(10 * np.log10(255.0 ** 2 / mse), 2)
     return 0.0
+
+
+def validar_digital(pdf_bytes: bytes, palabras: list[dict]) -> dict:
+    """El PDF digital abre, tiene una página y su texto contiene las palabras del OCR."""
+    with pikepdf.open(io.BytesIO(pdf_bytes)) as doc:
+        paginas = len(doc.pages)
+    texto, _ = _texto_y_lineas(pdf_bytes, (1.0, 1.0))
+    extraidas = set(texto.split())
+    encontradas = sum(p["text"] in extraidas for p in palabras) / len(palabras) if palabras else 1.0
+    return {"paginas": paginas, "palabras_encontradas": round(encontradas, 3),
+            "valido": paginas == 1 and encontradas > 0.9}

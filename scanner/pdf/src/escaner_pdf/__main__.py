@@ -25,6 +25,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--sin-realce", action="store_true", help="no oscurecer la tinta ni enfocar (papel claro)")
     p.add_argument("--sin-orientar", action="store_true", help="no girar 90/180/270")
     p.add_argument("--sin-ocr", action="store_true", help="solo imagen, sin capa de texto")
+    p.add_argument("--digital", action="store_true", help="además, PDF digital: texto real e imágenes en su sitio")
     p.add_argument("--jpeg", action="store_true", help="incrustar JPEG (más ligero) en vez de PNG sin pérdidas")
     p.add_argument("--sin-intermedios", action="store_true", help="no guardar página, PDF base ni detección")
     p.add_argument("--json", action="store_true", help="imprime el resultado completo en JSON")
@@ -41,7 +42,7 @@ def main(argv: list[str] | None = None) -> int:
     op = Opciones(idiomas=a.idiomas, modo=a.modo, tamano=a.tamano, dpi=a.dpi, esquinas=esquinas,
                   recortar=not a.sin_recorte, iluminacion=not a.sin_iluminacion, realce=not a.sin_realce, orientar=not a.sin_orientar,
                   ocr=not a.sin_ocr, formato_imagen="jpeg" if a.jpeg else "png",
-                  guardar_intermedios=not a.sin_intermedios)
+                  guardar_intermedios=not a.sin_intermedios, digital=a.digital)
     r = convertir(a.entrada, a.salida, op, nombre=a.nombre)
 
     if a.json:
@@ -55,6 +56,10 @@ def main(argv: list[str] | None = None) -> int:
               f"{r.pagina['dpi'][0]:.0f} DPI; calidad {r.calidad['puntuacion']} {r.calidad['problemas'] or ''}")
         print(f"  OCR: {r.ocr.get('palabras', 0)} palabras, confianza {r.ocr.get('confianza_media')}; "
               f"buscable={r.buscable}, PSNR {v.get('psnr_db')} dB, desfase {v.get('desfase_mediano')}")
+        if r.pdf_digital:
+            d = r.digital
+            print(f"  digital: {r.pdf_digital} ({d['palabras_texto']} palabras como texto, "
+                  f"{d['palabras_imagen']} como imagen, {d['regiones_imagen']} imágenes)")
         if r.avisos:
             print(f"  avisos: {', '.join(r.avisos)}")
         print(f"  tiempo total {r.tiempos_ms['total']:.0f} ms")

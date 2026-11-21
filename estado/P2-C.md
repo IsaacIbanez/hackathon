@@ -5,7 +5,7 @@
 - **Tarea actual:** Subproyecto B / scanner: PNG a PDF buscable (`scanner/pdf/`)
 - **Rama:** feature/B-contexto-scanner
 - **Estado:** en curso (primera versión funcionando)
-- **Último cambio:** 2026-11-21 18:00
+- **Último cambio:** 2026-11-21 19:15
 
 ## Hecho
 - `scanner/AGENTS.md` (y copia `AGENTS_B.md`): reglas y contexto del subproyecto scanner.
@@ -36,6 +36,11 @@
   letras (las cartas blancas ya se detectan), hoja más alta que el encuadre. Medido: la Brio da 4K real; lo blando
   es enfoque/distancia. 63 tests.
 - La actualización nueva de Pau no está en GitHub (último commit suyo: fe7327a); pendiente de comparar cuando la suba.
+
+- Nueva opción **documento digital** (`Opciones(digital=True)`, `--digital`, casilla en la app): página en blanco
+  con el texto real (líneas por geometría, tamaño/negrita/color medidos) y las imágenes en su sitio; palabras
+  ilegibles como recorte, dudosas listadas en `a_revisar`. Además: realce con papel normalizado localmente y OCR
+  con segundo pase psm 6 si la cobertura es baja (carta real: 128 -> 378 palabras). 69 tests.
 
 ## Pendiente
 - Probar con documentos en papel reales (A4, formulario) con la MX Brio y calibrar los umbrales de calidad (nitidez, brillo, reflejos).

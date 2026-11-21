@@ -54,10 +54,25 @@ Un solo entorno para todo: `scanner/pdf/.venv` (OpenCV *headless* también captu
 
 Para probar desde el navegador hay una app **provisional** en `scanner/app_prueba/` (no es parte del producto).
 
+## Documento digital (opcional: `Opciones(digital=True)`, `--digital`)
+Además del PDF escaneado, `<nombre>-digital.pdf`: una **página en blanco con el texto escrito de verdad**
+(Helvetica, en su sitio, con el tamaño, la negrita y el color de tinta medidos) y **las imágenes donde
+estaban** (firma, logos, sellos, rayas), como si el documento se hubiera hecho en el ordenador.
+- Las líneas se reconstruyen por geometría (no con la numeración de Tesseract) y se escriben rectas y de
+  una pieza; si hay un hueco grande (columnas, tabulaciones) se parten en tramos.
+- Palabras ilegibles (confianza < 50) van como recorte de la imagen + texto invisible (buscables). Las de
+  confianza media (50-75) se escriben como texto pero se listan en `resultado.digital["a_revisar"]`:
+  **un error del OCR escrito como texto es visible**; el escaneado sigue siendo la referencia fiel.
+- Solo en papel claro: en carteles, tarjetas de color o escenas no se crea (aviso `digital_no_aplicable`).
+- Calidad: con una captura buena (hoja entera, plana y enfocada) sale limpio. Con una hoja que se sale del
+  encuadre o está curvada (perspectiva en abanico) o desenfocada, el OCR da cajas malas y el resultado se
+  descuadra en esas zonas.
+
 ## Qué genera (`salida/<nombre>/`)
 | Archivo | Qué es |
 |---------|--------|
 | `<nombre>.pdf` | PDF final: imagen + capa de texto invisible |
+| `<nombre>-digital.pdf` | (opcional) documento reconstruido: texto real e imágenes en su sitio |
 | `original.png` | el PNG recibido, byte a byte (nunca se modifica) |
 | `pagina.png` | la página preparada (lo que va dentro del PDF) |
 | `base.pdf` | PDF solo imagen, antes del OCR |
@@ -80,10 +95,11 @@ Si el nombre ya existe se crea `<nombre>-2`, `-3`…: nunca se sobrescribe un re
    y, si duda, se lee de verdad cada orientación (para en cuanto una gana, o si el texto es ilegible).
    Con las capturas reales: 12/12 bien, incluida la hoja vertical fotografiada en horizontal.
    OCR que da a la vez la capa de texto invisible (renderizador "sandwich") y las palabras con caja y
-   confianza: psm 3 y, **solo si duda**, psm 11 (carteles, tarjetas, pantallas). Tope de 8,5 MP.
+   confianza: psm 3 y, **solo si hace falta**, un segundo pase: psm 11 si casi no lee (carteles, pantallas) o psm 6 si
+   se ha saltado letras de la página (cobertura < 60 %: cartas con líneas no del todo rectas). Tope de 8,5 MP.
 4. `imagen.py` — en **papel claro recortado**: iluminación (ganancia por canal limitada a 1,8) y **realce de
-   documento**: la tinta (gris típico de las letras) a casi negro, papel blanco liso sin dominantes de color y
-   nitidez suave (la cámara entrega el texto en gris 180-210). En carteles oscuros o la escena entera no se toca.
+   documento**: blanco del papel normalizado localmente (sin manchas), tinta a casi negro, sin dominantes de
+   color y nitidez suave (la cámara entrega el texto en gris 180-210). En carteles oscuros o la escena entera no se toca.
    Calidad con el vocabulario `FrameIssue` del contrato (`blurry`, `dark`, `glare`, `cropped`, `tilted`, `too_far`).
 5. `pdf.py` — img2pdf incrusta la imagen **sin recodificar** al tamaño físico exacto; pikepdf superpone
    la capa de texto con escala exacta; y se valida: páginas, tamaño, resolución de la imagen
@@ -122,7 +138,7 @@ a ~180-200 DPI. Lo que no se puede arreglar después: una foto desenfocada (p. e
 puede orientar. La app de prueba avisa en directo si la imagen está borrosa.
 
 ## Estado de las pruebas
-`pytest` (63 tests, ~24 s): entrada, geometría con 7 poses de cámara realistas, casos sin hoja
+`pytest` (69 tests, ~30 s): entrada, geometría con 7 poses de cámara realistas, casos sin hoja
 (textura, negro, hoja que llena el encuadre), iluminación, calidad, extremo a extremo con acentos,
 página girada, modos y formatos, fallos (sin Tesseract, entrada inválida, opciones inválidas).
 Las imágenes de prueba son **sintéticas** (`tests/sinteticos.py`).

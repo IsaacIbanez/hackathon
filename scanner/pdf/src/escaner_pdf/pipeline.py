@@ -12,7 +12,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from . import geometria, imagen, ocr, pdf
+from . import digital, geometria, imagen, ocr, pdf
 from .entrada import cargar_png
 from .errores import ErrorEscaner
 
@@ -39,6 +39,7 @@ class Opciones:
     calidad_jpeg: int = 92
     nivel_bloques: str = "linea"         # linea | parrafo
     ocr: bool = True
+    digital: bool = False                # además, PDF digital: página en blanco con texto real e imágenes
     guardar_intermedios: bool = True
     titulo: str | None = None
 
@@ -59,6 +60,7 @@ class Opciones:
 class Resultado:
     estado: str                          # ok | parcial (hay PDF pero no buscable o no valida) | error
     pdf: str | None = None
+    pdf_digital: str | None = None       # si Opciones.digital: documento reconstruido (texto real + imágenes)
     carpeta: str | None = None
     paginas: int = 0
     idiomas: str | None = None
@@ -71,6 +73,7 @@ class Resultado:
     calidad: dict = field(default_factory=dict)       # puntuacion, problemas (FrameIssue), medidas
     ocr: dict = field(default_factory=dict)           # motor, palabras, confianza media, bloques
     validacion: dict = field(default_factory=dict)
+    digital: dict = field(default_factory=dict)
     intermedios: dict = field(default_factory=dict)
     tiempos_ms: dict = field(default_factory=dict)
 
@@ -163,7 +166,7 @@ def convertir(origen: str | Path | bytes, carpeta_salida: str | Path, opciones: 
             (carpeta / "base.pdf").write_bytes(base)
             r.intermedios["base_pdf"] = str(carpeta / "base.pdf")
 
-        final_pdf, bloques = base, None
+        final_pdf, bloques, res = base, None, None
         if op.ocr and tess:
             try:
                 idiomas, avisos = ocr.resolver_idiomas(op.idiomas, tess.idiomas)
@@ -192,6 +195,10 @@ def convertir(origen: str | Path | bytes, carpeta_salida: str | Path, opciones: 
             r.validacion = pdf.validar(final_pdf, final, dpi, bloques)
         r.buscable = bool(r.validacion.get("buscable"))
         r.estado = "ok" if r.validacion.get("ok") and r.buscable else "parcial"
+
+        if op.digital:
+            with t("digital"):
+                _documento_digital(r, op, corregida, res, float(np.mean(dpi)), carpeta, nombre)
         if not r.validacion.get("ok"):
             r.avisos.append("validacion_fallida")
     except ErrorEscaner as e:
@@ -208,6 +215,24 @@ def convertir(origen: str | Path | bytes, carpeta_salida: str | Path, opciones: 
 
 
 # ---------------------------------------------------------------- pasos
+
+def _documento_digital(r: "Resultado", op: Opciones, pagina: np.ndarray, res, dpi: float, carpeta: Path,
+                       nombre: str) -> None:
+    """PDF digital (texto real + imágenes en su sitio). Si no se puede, aviso y el escaneado queda igual."""
+    if res is None or not res.detalle:
+        r.avisos.append("digital_sin_texto")
+        r.digital = {"generado": False, "motivo": "sin texto reconocido"}
+        return
+    if not digital.aplicable(pagina):
+        r.avisos.append("digital_no_aplicable")
+        r.digital = {"generado": False, "motivo": "el fondo no es papel claro (cartel, tarjeta o escena)"}
+        return
+    datos, info = digital.digitalizar(pagina, res.detalle, dpi, op.titulo or nombre)
+    ruta = carpeta / f"{nombre}-digital.pdf"
+    ruta.write_bytes(datos)
+    r.pdf_digital = str(ruta)
+    r.digital = {"generado": True, **info, **pdf.validar_digital(datos, res.detalle)}
+
 
 def _tesseract_si_hace_falta(op: Opciones, r: Resultado) -> ocr.Tesseract | None:
     if not (op.ocr or op.orientar):

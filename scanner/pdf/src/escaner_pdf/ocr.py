@@ -51,6 +51,7 @@ class ResultadoOCR:
     avisos: list[str] = field(default_factory=list)
     psm: int = 3                     # modo de segmentación usado (3 = página, 11 = texto disperso)
     pases: int = 1
+    detalle: list[dict] = field(default_factory=list)  # cada palabra: text, conf (0-100), linea, x, y, w, h en [0, 1]
 
 
 def preparar_tesseract() -> Tesseract:
@@ -175,11 +176,17 @@ def reconocer(img: np.ndarray, idiomas: str, dpi: float, nivel: str = "linea", t
     psm = 3
     pdf, palabras = _pase(img, idiomas, dpi, psm, timeout)
     pases = 1
-    if _duda(palabras):
-        pdf2, palabras2 = _pase(img, idiomas, dpi, 11, timeout)
+    cobertura = _cobertura(img, palabras)
+    # Segundo pase solo si hace falta: casi nada leído o confianza baja -> texto disperso (carteles,
+    # pantallas); se han leído pocas de las letras que hay -> bloque uniforme (cartas fotografiadas con
+    # líneas no del todo rectas, donde psm 3 se salta párrafos enteros: medido 205 frente a 282 fiables).
+    segundo = 11 if _duda(palabras) else (6 if cobertura is not None and cobertura < COBERTURA_MINIMA else None)
+    if segundo:
+        pdf2, palabras2 = _pase(img, idiomas, dpi, segundo, timeout)
         pases = 2
         if _fiables(palabras2) > _fiables(palabras):
-            pdf, palabras, psm = pdf2, palabras2, 11
+            pdf, palabras, psm = pdf2, palabras2, segundo
+            cobertura = _cobertura(img, palabras)
 
     alto, ancho = img.shape[:2]
     bloques = _agrupar(palabras, ancho, alto, nivel)
@@ -188,13 +195,18 @@ def reconocer(img: np.ndarray, idiomas: str, dpi: float, nivel: str = "linea", t
     avisos = [] if palabras else ["ocr_sin_texto"]
     if psm == 11:
         avisos.append("ocr_texto_disperso")
+    if palabras and cobertura is not None and cobertura < COBERTURA_MINIMA:
+        avisos.append("ocr_cobertura_baja")
+    detalle = [{"text": p["text"], "conf": p["conf"], "linea": list(p["clave"]),
+                "x": p["x"] / ancho, "y": p["y"] / alto, "w": p["w"] / ancho, "h": p["h"] / alto} for p in palabras]
     return ResultadoOCR(pdf, bloques, len(palabras), None if media is None else round(media, 3), avisos,
-                        psm=psm, pases=pases)
+                        psm=psm, pases=pases, detalle=detalle)
 
 
 PALABRAS_MINIMAS = 8        # menos que esto en una página = el primer pase probablemente no ha segmentado bien
 CONFIANZA_DUDOSA = 70.0     # confianza media (0-100) por debajo de la cual se prueba el segundo pase
 CONFIANZA_FIABLE = 60.0
+COBERTURA_MINIMA = 0.6    # fracción de las letras de la página que deberían quedar dentro de palabras leídas
 
 
 def _duda(palabras: list[dict]) -> bool:
@@ -202,6 +214,21 @@ def _duda(palabras: list[dict]) -> bool:
         return True
     total = sum(len(p["text"]) for p in palabras)
     return sum(p["conf"] * len(p["text"]) for p in palabras) / total < CONFIANZA_DUDOSA
+
+
+def _cobertura(img: np.ndarray, palabras: list[dict]) -> float | None:
+    """Fracción de las letras de la página (manchas con tamaño de letra) que caen dentro de alguna palabra
+    reconocida. None si la página casi no tiene letras."""
+    gris, escala = imagen.gris_1600(img)
+    letras = imagen.mascara_letras(gris) > 0
+    total = int(letras.sum())
+    if total < 200:
+        return None
+    dentro = np.zeros_like(letras)
+    for p in palabras:
+        x0, y0 = int(p["x"] * escala) - 1, int(p["y"] * escala) - 1
+        dentro[max(0, y0):y0 + int(p["h"] * escala) + 3, max(0, x0):x0 + int(p["w"] * escala) + 3] = True
+    return float((letras & dentro).sum()) / total
 
 
 def _fiables(palabras: list[dict]) -> int:
