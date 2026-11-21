@@ -16,7 +16,7 @@ Asigna un agente de `ROSTER.md` (por ejemplo `P2-C` o `P2-G`) como responsable.
 | T8 | Integración de punta a punta y pruebas | P1-C (Isaac) — rol A | en curso: la app sirve `/ws` (#4), `stats` (#6) y la lógica real document/pointer/utterance → speak (#10), probada con modelos gratis; falta el criterio de B2 y conectar el scanner de B y los gestos de C | feature/T8-session | #4, #6, #10 | T4–T7 |
 | T9 | Accesibilidad y flujo de la demo | Todos | pendiente | — | — | T8 |
 | T10 | Documentación y presentación | Humanos (borrador: P1-C) | en curso: guion en `docs/PITCH.md` | feature/T10-pitch | — | T9 |
-| T11 | Contrato 0.5 (`document.pageCorners`) y `POST /scan` en Go → servicio de lectura | P1-C (Isaac) — rol A | pendiente | — | — | — |
+| T11 | Contrato 0.5 (`document.pageCorners`) y `POST /scan` en Go → servicio de lectura; `SCANNER_URL=fixture` para probar sin él | P1-C (Isaac) — rol A | hecha | feature/T11-scan | (este PR) | — |
 | T12 | Cámara en la app: `openCamera` (Logitech si está) y `captureStill` (foto más nítida) | P4 (Pau) — rol B1 | hecha | feature/T12-camara | #31 | — |
 | T13 | Servicio de lectura `POST /scan` (8770) que recibe la foto y devuelve `document` + `pageCorners`; 2–3 documentos reales anonimizados en `api/fixtures/real/` | P2 (Didac) — rol B2 | pendiente | — | — | T5 (PR), T11 (contrato) |
 | T14 | Unión en la app: botón «Read document», foto → `/scan`, esquinas al puntero; explicaciones ajustadas al OCR real | P1-C (Isaac) — rol A | pendiente | — | — | T11–T13, T15 |

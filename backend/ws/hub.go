@@ -48,6 +48,10 @@ func NewHub(sess Session, originPatterns []string) *Hub {
 	return &Hub{sess: sess, OriginPatterns: originPatterns, ctx: ctx, cancel: cancel, clients: map[*hubClient]struct{}{}}
 }
 
+// Context lives as long as the hub: use it for work started on the session's behalf
+// (for example, a scan triggered by POST /scan) so it is not cancelled with one request.
+func (h *Hub) Context() context.Context { return h.ctx }
+
 // Close cancels the session's pending work (model calls). Connections close with the server.
 func (h *Hub) Close() { h.cancel() }
 

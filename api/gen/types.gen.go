@@ -181,6 +181,12 @@ type DocumentPayload struct {
 	// Example: es
 	Lang *string `json:"lang,omitempty"`
 
+	// PageCorners Corners of the page in the CAMERA PHOTO it was read from, normalized to [0, 1]
+	// over that photo: top-left, top-right, bottom-right, bottom-left (of the page as read,
+	// after orientation). Lets the pointer map the fingertip onto the real page. Optional:
+	// absent when the page was not detected (the whole photo was used).
+	PageCorners *[]Point `json:"pageCorners,omitempty"`
+
 	// Quality Quality of the document framing
 	Quality FrameQuality `json:"quality"`
 }
@@ -214,6 +220,12 @@ type Health struct {
 
 // MessageType defines model for MessageType.
 type MessageType string
+
+// Point Point normalized to [0, 1] over an image (origin at the top left)
+type Point struct {
+	X float32 `json:"x"`
+	Y float32 `json:"y"`
+}
 
 // PointerMessage defines model for PointerMessage.
 type PointerMessage struct {
