@@ -30,6 +30,8 @@ let esquinas: Punto[] | null = null;
 let marcando: Punto[] | null = null;
 let contexto: Contexto = "documento";
 let tAccion = 0;
+let volumen = 1;
+let menuElegido: { sector: SectorMenu; centro: Punto; t: number } | null = null;
 
 const bonito = (s: string) => s.replaceAll("_", " ");
 
@@ -40,16 +42,19 @@ interaccion.on((e) => {
     $("doc").textContent = e.documento ? `${e.documento.x.toFixed(2)}, ${e.documento.y.toFixed(2)}` : "fuera";
     return;
   }
-  if (e.tipo === "arrastre" && e.fase === "mover") {
-    $("arrastre").textContent = `dx ${e.dx.toFixed(2)} · dy ${e.dy.toFixed(2)}`;
-    return;
+  if (e.tipo === "nivel") {
+    // La pinza fija el volumen de la voz de la demo (efecto real, no solo un evento).
+    volumen = e.valor;
+    $("volumen").textContent = `${Math.round(volumen * 100)} %`;
+    if (e.fase !== "fin") return; // no llenamos el registro con cada movimiento
   }
   const accion = accionDe(e, contexto);
   anotar(e, accion);
   if (e.tipo === "gesto") $("gesto").textContent = e.gesto;
-  if (e.tipo === "arrastre" && e.fase === "fin") $("arrastre").textContent = "—";
+  if (e.tipo === "menu" && e.fase === "elegir" && e.sector) menuElegido = { sector: e.sector, centro: e.centro, t: performance.now() };
   if (e.tipo === "modo") pintarModo();
-  if (accion) mostrarAccion(accion);
+  if (accion === "volumen" && e.tipo === "nivel") mostrarAccion(accion, `volumen ${Math.round(e.valor * 100)} %`);
+  else if (accion) mostrarAccion(accion);
   if (e.tipo === "seleccion" && casilla("vozSel").checked) escucharPregunta(e.documento ?? e.imagen);
 });
 
@@ -58,7 +63,7 @@ function anotar(e: EventoManos, accion: string | null) {
     e.tipo === "gesto" ? e.gesto
     : e.tipo === "deslizar" ? e.direccion
     : e.tipo === "menu" ? `${e.fase}${e.sector ? ` ${e.sector}` : ""}`
-    : e.tipo === "arrastre" ? `${e.fase} (dx ${e.dx.toFixed(2)}, dy ${e.dy.toFixed(2)})`
+    : e.tipo === "nivel" ? `${e.fase} ${Math.round(e.valor * 100)} %`
     : e.tipo === "cabeza" ? e.gesto
     : e.tipo === "modo" ? (e.despierto ? "despierto" : "dormido")
     : e.tipo === "mano" ? (e.presente ? "aparece" : "desaparece")
@@ -69,12 +74,14 @@ function anotar(e: EventoManos, accion: string | null) {
   while ($("registro").childElementCount > 80) $("registro").lastElementChild!.remove();
 }
 
-function mostrarAccion(accion: string) {
-  $("accion").textContent = bonito(accion);
+function mostrarAccion(accion: string, dicho = bonito(accion)) {
+  $("accion").textContent = dicho;
   tAccion = performance.now();
   if (casilla("voz").checked) {
     speechSynthesis.cancel();
-    speechSynthesis.speak(new SpeechSynthesisUtterance(bonito(accion)));
+    const u = new SpeechSynthesisUtterance(dicho);
+    u.volume = volumen;
+    speechSynthesis.speak(u);
   }
 }
 
@@ -108,7 +115,7 @@ casilla("cabeza").addEventListener("change", async (ev) => {
   const activo = (ev.target as HTMLInputElement).checked;
   $("estado").textContent = activo ? "Cargando el modelo de cara…" : "Gestos de cabeza desactivados.";
   await rastreador?.activarCara(activo);
-  if (activo) $("estado").textContent = "Gestos de cabeza activos: asiente, niega o cierra los ojos ~1 s.";
+  if (activo) $("estado").textContent = "Gestos de cabeza activos: asiente o niega.";
 });
 
 // Señalar + voz: reconocimiento de voz del navegador (Chrome y Edge; Firefox no lo tiene).
@@ -138,6 +145,8 @@ function escucharPregunta(donde: Punto) {
   r.start();
 }
 
+const FLECHA: Record<SectorMenu, string> = { arriba: "↑", derecha: "→", abajo: "↓", izquierda: "←" };
+
 function pintarChuleta() {
   const m = MAPAS[contexto];
   const filas: [string, string, boolean][] = [
@@ -148,14 +157,13 @@ function pintarChuleta() {
     ["☝️ señalar", "mover el puntero", false],
     ["☝️ señalar quieto ~1 s", m.seleccion, false],
     ["👎 pulgar abajo", m.pulgar_abajo, true],
-    ["🤏 pinza (OK) y mover", m.arrastre ?? "— (sin uso aquí)", true],
-    ["✌️ victoria → menú", "mueve la mano hacia una opción y espera", true],
+    ["🤏 junta pulgar e índice (OK), luego sepáralos", `${m.pinza ?? "—"}: 0 % juntos, 100 % separados; cierra la mano para fijarlo`, true],
+    ["✌️ victoria → menú", "después, gesto rápido del dedo hacia una opción", true],
     ...(Object.entries(MENU_RADIAL) as [SectorMenu, string][]).map(
-      ([s, a]) => [`   menú: ${s}`, a, true] as [string, string, boolean],
+      ([s, a]) => [`   menú ${FLECHA[s]} ${s}`, a, true] as [string, string, boolean],
     ),
     ["🙂 asentir", m.cabeza.asentir, true],
     ["🙂 negar", m.cabeza.negar, true],
-    ["😑 ojos cerrados ~1 s", m.cabeza.parpadeo_largo, true],
   ];
   $("chuleta").innerHTML = filas
     .map(([g, a, exp]) => `<tr><td>${g}${exp ? ' <span class="exp">EXP</span>' : ""}</td><td>${bonito(a)}</td></tr>`)
@@ -206,31 +214,57 @@ function texto(s: string, x: number, y: number, tam = 28, color = "#fff") {
 }
 
 function dibujarMenu(w: number, h: number) {
-  const menu = interaccion.menuAbierto;
-  if (!menu) return;
-  const cx = menu.centro.x * w;
-  const cy = menu.centro.y * h;
-  const r = interaccion.opciones.radioMenu * h;
+  const abierto = interaccion.menuAbierto;
+  const elegido = menuElegido && performance.now() - menuElegido.t < 700 ? menuElegido : null;
+  if (!abierto && !elegido) return;
+  const centro = abierto?.centro ?? elegido!.centro;
+  const cx = centro.x * w;
+  const cy = centro.y * h;
+  const r = 0.16 * h;
   ctx.fillStyle = "#000a";
   ctx.beginPath();
-  ctx.arc(cx, cy, r * 3, 0, Math.PI * 2);
+  ctx.arc(cx, cy, r * 1.6, 0, Math.PI * 2);
   ctx.fill();
-  ctx.strokeStyle = "#ffffff55";
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.stroke();
   // En la imagen sin espejo, la derecha del usuario está a la izquierda.
   const pos: Record<SectorMenu, [number, number]> = {
-    arriba: [cx, cy - r * 2],
-    abajo: [cx, cy + r * 2],
-    derecha: [cx - r * 2, cy],
-    izquierda: [cx + r * 2, cy],
+    arriba: [cx, cy - r],
+    abajo: [cx, cy + r],
+    derecha: [cx - r, cy],
+    izquierda: [cx + r, cy],
   };
   for (const [s, [x, y]] of Object.entries(pos) as [SectorMenu, [number, number]][]) {
-    const activo = menu.sector === s;
-    texto(bonito(MENU_RADIAL[s]), x, y, activo ? 34 : 26, activo ? "#ffd400" : "#fff");
+    const activo = elegido?.sector === s;
+    texto(`${FLECHA[s]} ${bonito(MENU_RADIAL[s])}`, x, y, activo ? 36 : 26, activo ? "#ffd400" : "#fff");
   }
+  if (abierto) texto("gesto rápido con el dedo", cx, cy, 20, "#aaa");
+}
+
+/** Línea entre pulgar e índice con el nivel, mientras se usa la pinza. */
+function dibujarNivel(w: number, h: number) {
+  const n = interaccion.nivelActivo;
+  if (!n) return;
+  const [ax, ay, bx, by] = [n.pulgar.x * w, n.pulgar.y * h, n.indice.x * w, n.indice.y * h];
+  ctx.strokeStyle = `hsl(${Math.round(120 * n.valor)}, 90%, 55%)`;
+  ctx.lineWidth = 8;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(ax, ay);
+  ctx.lineTo(bx, by);
+  ctx.stroke();
+  for (const [x, y] of [[ax, ay], [bx, by]]) {
+    ctx.fillStyle = "#fff";
+    ctx.beginPath();
+    ctx.arc(x, y, 9, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  texto(`🔊 ${Math.round(n.valor * 100)} %`, (ax + bx) / 2, Math.min(ay, by) - 40, 34, "#ffd400");
+  // Barra de nivel en el borde derecho de la imagen (a la izquierda del usuario, que ve en espejo).
+  const altoBarra = h * 0.6;
+  const y0 = (h - altoBarra) / 2;
+  ctx.fillStyle = "#0009";
+  ctx.fillRect(w - 50, y0, 30, altoBarra);
+  ctx.fillStyle = ctx.strokeStyle;
+  ctx.fillRect(w - 50, y0 + altoBarra * (1 - n.valor), 30, altoBarra * n.valor);
 }
 
 function dibujar() {
@@ -291,12 +325,7 @@ function dibujar() {
     ctx.fill();
   }
 
-  const a = interaccion.arrastrando;
-  if (a && ultimoFrame?.manos[0]) {
-    const mu = ultimoFrame.manos[0].puntos[9];
-    texto(`🤏 ${a.dy < 0 ? "▲" : "▼"} ${Math.abs(a.dy).toFixed(2)}`, mu.x * w, mu.y * h - 60, 30, "#ffd400");
-  }
-
+  dibujarNivel(w, h);
   dibujarMenu(w, h);
 
   if (performance.now() - tAccion > 1500) $("accion").textContent = "";

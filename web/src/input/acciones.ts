@@ -15,7 +15,6 @@ export type Accion =
   | "siguiente"
   | "anterior"
   | "explicar_aqui"
-  | "velocidad_voz"
   // Formulario
   | "confirmar_campo"
   | "campo_siguiente"
@@ -28,9 +27,9 @@ export type Accion =
   | "pestana_siguiente"
   | "pestana_anterior"
   | "clic"
-  | "desplazar"
   // Comunes
   | "deshacer"
+  | "volumen"
   | "despertar"
   | "dormir"
   // Menú radial
@@ -46,7 +45,8 @@ interface MapaContexto {
   deslizar_derecha: Accion;
   deslizar_izquierda: Accion;
   seleccion: Accion;
-  arrastre: Accion | null;
+  /** Control continuo con la pinza; el valor está en evento.valor (0–1). */
+  pinza: Accion | null;
   cabeza: Record<GestoCabeza, Accion>;
 }
 
@@ -58,8 +58,8 @@ export const MAPAS: Record<Contexto, MapaContexto> = {
     deslizar_derecha: "siguiente",
     deslizar_izquierda: "anterior",
     seleccion: "explicar_aqui",
-    arrastre: "velocidad_voz",
-    cabeza: { asentir: "leer", negar: "pausar", parpadeo_largo: "explicar_aqui" },
+    pinza: "volumen",
+    cabeza: { asentir: "leer", negar: "pausar" },
   },
   formulario: {
     pulgar_arriba: "confirmar_campo",
@@ -68,8 +68,8 @@ export const MAPAS: Record<Contexto, MapaContexto> = {
     deslizar_derecha: "campo_siguiente",
     deslizar_izquierda: "campo_anterior",
     seleccion: "dictar_campo",
-    arrastre: null,
-    cabeza: { asentir: "confirmar_campo", negar: "borrar_campo", parpadeo_largo: "dictar_campo" },
+    pinza: "volumen",
+    cabeza: { asentir: "confirmar_campo", negar: "borrar_campo" },
   },
   pc: {
     pulgar_arriba: "intro",
@@ -78,8 +78,8 @@ export const MAPAS: Record<Contexto, MapaContexto> = {
     deslizar_derecha: "pestana_siguiente",
     deslizar_izquierda: "pestana_anterior",
     seleccion: "clic",
-    arrastre: "desplazar",
-    cabeza: { asentir: "intro", negar: "escape", parpadeo_largo: "clic" },
+    pinza: "volumen",
+    cabeza: { asentir: "intro", negar: "escape" },
   },
 };
 
@@ -93,8 +93,8 @@ export const MENU_RADIAL: Record<SectorMenu, Accion> = {
 
 /**
  * Acción que corresponde a un evento en un contexto, o null si el evento no es una acción
- * (puntero, presencia de la mano, apertura del menú...). Para "arrastre" solo devuelve la acción
- * en la fase "mover": el valor está en evento.dx / evento.dy.
+ * (puntero, presencia de la mano, apertura del menú...). Para "nivel" (pinza) devuelve la acción
+ * en las fases "mover" y "fin": el valor (0–1) está en evento.valor.
  */
 export function accionDe(evento: EventoManos, contexto: Contexto = "documento"): Accion | null {
   const m = MAPAS[contexto];
@@ -108,8 +108,8 @@ export function accionDe(evento: EventoManos, contexto: Contexto = "documento"):
       return evento.direccion === "derecha" ? m.deslizar_derecha : m.deslizar_izquierda;
     case "seleccion":
       return m.seleccion;
-    case "arrastre":
-      return evento.fase === "mover" ? m.arrastre : null;
+    case "nivel":
+      return evento.fase === "inicio" ? null : m.pinza;
     case "menu":
       return evento.fase === "elegir" && evento.sector ? MENU_RADIAL[evento.sector] : null;
     case "cabeza":

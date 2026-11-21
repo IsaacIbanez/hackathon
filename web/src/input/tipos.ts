@@ -27,8 +27,6 @@ export interface Mano {
 export interface Cara {
   /** 478 puntos en coordenadas de imagen normalizadas. */
   puntos: Punto3D[];
-  /** Coeficientes de expresión (p. ej. eyeBlinkLeft, eyeBlinkRight) en [0,1]. */
-  expresiones?: Record<string, number>;
 }
 
 export interface FrameManos {
@@ -56,7 +54,7 @@ export type Direccion = "izquierda" | "derecha";
 /** Sectores del menú radial, desde el punto de vista del usuario. */
 export type SectorMenu = "arriba" | "derecha" | "abajo" | "izquierda";
 
-export type GestoCabeza = "asentir" | "negar" | "parpadeo_largo";
+export type GestoCabeza = "asentir" | "negar";
 
 /** Esquinas del documento en coordenadas de imagen: sup-izq, sup-der, inf-der, inf-izq. */
 export type Esquinas = [Punto, Punto, Punto, Punto];
@@ -76,12 +74,15 @@ export type EventoManos =
   // ---- Experimentales ----
   /** Modo dormido/despierto (solo si `requiereDespertar`). */
   | { tipo: "modo"; despierto: boolean; t: number }
-  /** Pinza mantenida y desplazada: dx, dy desde el inicio (alto de imagen; dx desde el punto de vista del usuario). */
-  | { tipo: "arrastre"; fase: "inicio" | "mover" | "fin"; dx: number; dy: number; t: number }
-  /** Menú radial abierto con ✌️; se elige moviendo la mano hacia un sector. */
+  /**
+   * Control de nivel con la pinza: se empieza juntando pulgar e índice (gesto "OK") y el nivel
+   * es la separación entre ambos, de 0 (juntos) a 1 (muy separados). Termina al cerrar la mano.
+   */
+  | { tipo: "nivel"; fase: "inicio" | "mover" | "fin"; valor: number; t: number }
+  /** Menú radial abierto con ✌️; se elige con un movimiento rápido del índice hacia un sector. */
   | {
       tipo: "menu";
-      fase: "abrir" | "resaltar" | "elegir" | "cerrar";
+      fase: "abrir" | "elegir" | "cerrar";
       sector: SectorMenu | null;
       /** Centro del menú en coordenadas de imagen (para dibujarlo). */
       centro: Punto;

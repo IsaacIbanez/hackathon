@@ -27,7 +27,6 @@ interface ResultadoManosMP {
 }
 interface ResultadoCaraMP {
   faceLandmarks: LandmarkMP[][];
-  faceBlendshapes?: { categories: { categoryName: string; score: number }[] }[];
 }
 interface DetectorMP<R> {
   detectForVideo(video: HTMLVideoElement, t: number): R;
@@ -118,7 +117,7 @@ export async function crearRastreador(
       o.modelo,
     );
   const crearCara = () =>
-    conRespaldo(vision.FaceLandmarker, { numFaces: 1, outputFaceBlendshapes: true }, o.modeloCara);
+    conRespaldo(vision.FaceLandmarker, { numFaces: 1 }, o.modeloCara);
 
   let manos: DetectorMP<ResultadoManosMP> | null = await crearManos();
   let cara: DetectorMP<ResultadoCaraMP> | null = o.cara ? await crearCara() : null;
@@ -224,7 +223,5 @@ function convertirManos(r: ResultadoManosMP, t: number, aspecto: number): FrameM
 function convertirCara(r: ResultadoCaraMP): Cara | null {
   const puntos = r.faceLandmarks[0];
   if (!puntos) return null;
-  const expresiones: Record<string, number> = {};
-  for (const c of r.faceBlendshapes?.[0]?.categories ?? []) expresiones[c.categoryName] = c.score;
-  return { puntos: puntos.map(({ x, y, z }) => ({ x, y, z })), expresiones };
+  return { puntos: puntos.map(({ x, y, z }) => ({ x, y, z })) };
 }

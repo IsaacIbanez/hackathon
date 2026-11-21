@@ -50,7 +50,7 @@
             <dt>Pose (frame)</dt><dd id="pose">—</dd>
             <dt>Gesto estable</dt><dd id="gesto">—</dd>
             <dt>Puntero en doc.</dt><dd id="doc">—</dd>
-            <dt>Arrastre</dt><dd id="arrastre">—</dd>
+            <dt>Volumen voz</dt><dd id="volumen">100 %</dd>
             <dt>FPS</dt><dd id="fps">—</dd>
           </dl>
         </div>
@@ -65,9 +65,9 @@
           </label>
           <label><input type="checkbox" id="despertar" /> Modo dormido / despierto <span class="exp">EXP</span><br /><small>✋ mantenida ~1 s para despertar; se duerme tras 10 s sin gestos</small></label>
           <label><input type="checkbox" id="movilidad" /> Perfil movilidad reducida <span class="exp">EXP</span><br /><small>gestos más lentos y tolerantes al temblor</small></label>
-          <label><input type="checkbox" id="cabeza" /> Gestos de cabeza <span class="exp">EXP</span><br /><small>asentir, negar, parpadeo largo (descarga otro modelo, ~4 MB)</small></label>
+          <label><input type="checkbox" id="cabeza" /> Gestos de cabeza <span class="exp">EXP</span><br /><small>asentir y negar (descarga otro modelo, ~4 MB)</small></label>
           <label><input type="checkbox" id="vozSel" /> Señalar + voz <span class="exp">EXP</span><br /><small id="vozInfo">al seleccionar señalando, escucha una pregunta</small></label>
-          <label><input type="checkbox" id="voz" /> Decir la acción en voz alta</label>
+          <label><input type="checkbox" id="voz" checked /> Decir la acción en voz alta<br /><small>con el volumen que marques con la pinza 🤏</small></label>
           <p><button id="marcar">Marcar documento (4 clics)</button> <button id="reiniciar">Reiniciar cámara</button></p>
         </div>
 

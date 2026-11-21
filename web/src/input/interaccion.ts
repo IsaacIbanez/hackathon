@@ -1,12 +1,12 @@
 // Controlador de interacción con las manos: recibe frames con landmarks y emite
 // eventos de alto nivel (gesto estable, deslizar, puntero, selección por permanencia y,
-// como experimentales, modo dormido/despierto, arrastre con pinza, menú radial y cabeza).
+// como experimentales, modo dormido/despierto, nivel con la pinza, menú radial y cabeza).
 // No depende de MediaPipe ni del DOM: se puede probar con datos sintéticos.
 
 import { DetectorCabeza, type OpcionesCabeza } from "./cabeza.ts";
 import { FiltroOneEuro } from "./filtro.ts";
-import { aplicarHomografia, distancia2D, homografiaDocumento, media } from "./geometria.ts";
-import { clasificarPose, UMBRALES_POR_DEFECTO, type Umbrales } from "./poses.ts";
+import { aplicarHomografia, distancia, distancia2D, homografiaDocumento, media } from "./geometria.ts";
+import { clasificarPose, estadoDedos, puntosParaForma, tamanoMano, UMBRALES_POR_DEFECTO, type Umbrales } from "./poses.ts";
 import {
   P,
   type Esquinas,
@@ -35,7 +35,7 @@ export interface OpcionesInteraccion {
   permanenciaMs: number;
   /** Radio de quietud del puntero para la permanencia (unidades de alto de imagen). */
   radioPermanencia: number;
-  /** Intervalo mínimo entre eventos de puntero y de arrastre (limita el tráfico). */
+  /** Intervalo mínimo entre eventos de puntero y de nivel (limita el tráfico). */
   intervaloPunteroMs: number;
   /** Adelanto del puntero más allá de la punta del índice, en longitudes de la última falange. */
   adelantoPuntero: number;
@@ -50,10 +50,16 @@ export interface OpcionesInteraccion {
   despertarMs: number;
   /** Tiempo sin actividad para volver a dormir. */
   dormirMs: number;
-  /** Distancia desde el centro del menú radial para resaltar un sector (alto de imagen). */
-  radioMenu: number;
-  /** Tiempo en un sector del menú para elegirlo. */
-  elegirMenuMs: number;
+  /** Separación pulgar–índice (relativa al tamaño de la mano) que corresponde al nivel 0. */
+  nivelMin: number;
+  /** Separación pulgar–índice que corresponde al nivel 1. */
+  nivelMax: number;
+  /** Recorrido mínimo de la punta del índice para elegir en el menú (alto de imagen). */
+  gestoMenu: number;
+  /** Tiempo máximo de ese recorrido: tiene que ser un gesto rápido. */
+  ventanaMenuMs: number;
+  /** Tras abrir el menú, se ignoran movimientos durante este tiempo (la mano aún se coloca). */
+  esperaMenuMs: number;
   /** El menú se cierra solo tras este tiempo. */
   caducidadMenuMs: number;
   /** Opciones del detector de gestos de cabeza. */
@@ -76,8 +82,11 @@ export const OPCIONES_POR_DEFECTO: OpcionesInteraccion = {
   requiereDespertar: false,
   despertarMs: 1000,
   dormirMs: 10000,
-  radioMenu: 0.08,
-  elegirMenuMs: 600,
+  nivelMin: 0.25,
+  nivelMax: 1.1,
+  gestoMenu: 0.07,
+  ventanaMenuMs: 300,
+  esperaMenuMs: 300,
   caducidadMenuMs: 5000,
   cabeza: {},
 };
@@ -91,7 +100,8 @@ export const PERFIL_MOVILIDAD_REDUCIDA: Partial<OpcionesInteraccion> = {
   distanciaDeslizar: 0.15,
   ventanaDeslizarMs: 700,
   despertarMs: 1500,
-  elegirMenuMs: 1000,
+  ventanaMenuMs: 500,
+  gestoMenu: 0.06,
   caducidadMenuMs: 8000,
 };
 
@@ -99,22 +109,23 @@ type Oyente = (e: EventoManos) => void;
 
 interface EstadoMenu {
   centro: Punto; // imagen, sin aspecto (para dibujar)
-  centroA: Punto; // con x corregida por aspecto
   tApertura: number;
-  sector: SectorMenu | null;
-  tSector: number;
+  /** Posiciones recientes de la punta del índice (x corregida por aspecto). */
+  historial: { t: number; x: number; y: number }[];
 }
 
-interface EstadoArrastre {
-  inicio: Punto; // con x corregida por aspecto
-  tUltimaPinza: number;
+interface EstadoNivel {
+  valor: number;
+  /** Valores recientes: al terminar se usa uno de antes de cerrar la mano. */
+  historial: { t: number; valor: number }[];
+  tUltimoValido: number;
   tUltimoEvento: number;
-  dx: number;
-  dy: number;
+  pulgar: Punto;
+  indice: Punto;
 }
 
 /** Eventos que cuentan como actividad (mantienen despierto el sistema). */
-const ACTIVIDAD = new Set<EventoManos["tipo"]>(["gesto", "deslizar", "seleccion", "arrastre", "menu", "cabeza"]);
+const ACTIVIDAD = new Set<EventoManos["tipo"]>(["gesto", "deslizar", "seleccion", "nivel", "menu", "cabeza"]);
 
 export class InteraccionManos {
   private op: OpcionesInteraccion;
@@ -152,7 +163,8 @@ export class InteraccionManos {
   private tInicioDespertar: number | null = null;
   private posDespertar: Punto = { x: 0, y: 0 };
   private menu: EstadoMenu | null = null;
-  private arrastre: EstadoArrastre | null = null;
+  private nivel: EstadoNivel | null = null;
+  private fNivel = new FiltroOneEuro({ minCorte: 1.5, beta: 0.5, corteDerivada: 1.0 });
   private cabeza: DetectorCabeza;
 
   constructor(op: Partial<OpcionesInteraccion> = {}) {
@@ -206,12 +218,14 @@ export class InteraccionManos {
     return Math.min(1, (t - this.tInicioDespertar) / this.op.despertarMs);
   }
 
-  get menuAbierto(): { centro: Punto; sector: SectorMenu | null } | null {
-    return this.menu ? { centro: this.menu.centro, sector: this.menu.sector } : null;
+  get menuAbierto(): { centro: Punto } | null {
+    return this.menu ? { centro: this.menu.centro } : null;
   }
 
-  get arrastrando(): { dx: number; dy: number } | null {
-    return this.arrastre ? { dx: this.arrastre.dx, dy: this.arrastre.dy } : null;
+  /** Control de nivel activo: valor y puntas de pulgar e índice (imagen) para dibujar la línea. */
+  get nivelActivo(): { valor: number; pulgar: Punto; indice: Punto } | null {
+    const n = this.nivel;
+    return n ? { valor: n.valor, pulgar: n.pulgar, indice: n.indice } : null;
   }
 
   procesar(frame: FrameManos): void {
@@ -229,7 +243,7 @@ export class InteraccionManos {
       this.poseActual = "ninguno";
       if (this.presente && t - this.tUltimaMano > this.op.perdidaManoMs) {
         this.presente = false;
-        this.terminarArrastre(t);
+        this.terminarNivel(t);
         this.cerrarMenu(t);
         this.reiniciarSeguimiento();
         if (this.gestoEstable !== "ninguno") {
@@ -256,10 +270,10 @@ export class InteraccionManos {
       return;
     }
     if (this.menu) {
-      this.actualizarMenu(t, pose, centro);
+      this.actualizarMenu(t, pose, centro, mano, aspecto);
       return;
     }
-    if (this.actualizarArrastre(t, pose, centro)) return;
+    if (this.actualizarNivel(t, pose, centro, mano, aspecto)) return;
 
     const deslizo = this.detectarDeslizar(t, centro, pose, aspecto);
     if (!deslizo) this.estabilizarGesto(t, pose, centro, mano, aspecto);
@@ -405,87 +419,111 @@ export class InteraccionManos {
 
   private dormir(t: number): void {
     this.despierto = false;
-    this.terminarArrastre(t);
+    this.terminarNivel(t);
     this.cerrarMenu(t);
     this.reiniciarSeguimiento();
     this.gestoEstable = "ninguno";
     this.emitir({ tipo: "modo", despierto: false, t });
   }
 
-  // ---------- Experimental: arrastre con pinza ----------
+  // ---------- Experimental: nivel con la pinza ----------
 
-  /** Devuelve true si el frame lo ha consumido el arrastre. */
-  private actualizarArrastre(t: number, pose: Gesto, centro: Punto): boolean {
-    if (pose === "pinza") {
-      if (!this.arrastre) {
-        this.arrastre = { inicio: centro, tUltimaPinza: t, tUltimoEvento: t, dx: 0, dy: 0 };
-        this.ultimoPuntero = null;
-        this.emitir({ tipo: "arrastre", fase: "inicio", dx: 0, dy: 0, t });
-        return true;
-      }
-      const a = this.arrastre;
-      a.tUltimaPinza = t;
-      const dxImagen = centro.x - a.inicio.x;
-      a.dx = this.op.espejo ? -dxImagen : dxImagen;
-      a.dy = centro.y - a.inicio.y;
-      if (t - a.tUltimoEvento >= this.op.intervaloPunteroMs) {
-        a.tUltimoEvento = t;
-        this.emitir({ tipo: "arrastre", fase: "mover", dx: a.dx, dy: a.dy, t });
-      }
+  /**
+   * Se empieza con la pinza ("OK": pulgar e índice juntos y los otros dedos estirados). Mientras
+   * los otros dedos sigan estirados, el nivel es la separación pulgar–índice. Cerrar la mano o
+   * bajarla lo termina. Devuelve true si el frame lo ha consumido el control de nivel.
+   */
+  private actualizarNivel(t: number, pose: Gesto, centro: Punto, mano: Mano, aspecto: number): boolean {
+    const pts = puntosParaForma(mano, aspecto);
+    const d = estadoDedos(pts, this.op.umbrales);
+    const otrosEstirados = [d.corazon, d.anular, d.menique].filter(Boolean).length >= 2;
+
+    if (!this.nivel) {
+      if (pose !== "pinza") return false;
+      this.fNivel.reiniciar();
+    } else if (!otrosEstirados) {
+      // Toleramos fallos breves de la clasificación.
+      if (t - this.nivel.tUltimoValido <= 200) return true;
+      this.terminarNivel(t);
+      this.reiniciarCandidato(t, pose, centro);
+      return false;
+    }
+
+    const separacion = distancia(pts[P.PULGAR_PUNTA], pts[P.INDICE_PUNTA]) / tamanoMano(pts);
+    const crudo = (separacion - this.op.nivelMin) / (this.op.nivelMax - this.op.nivelMin);
+    const valor = Math.min(1, Math.max(0, this.fNivel.filtrar(Math.min(1, Math.max(0, crudo)), t)));
+    const pulgar = { x: mano.puntos[P.PULGAR_PUNTA].x, y: mano.puntos[P.PULGAR_PUNTA].y };
+    const indice = { x: mano.puntos[P.INDICE_PUNTA].x, y: mano.puntos[P.INDICE_PUNTA].y };
+    this.ultimoPuntero = null;
+
+    if (!this.nivel) {
+      this.nivel = { valor, historial: [{ t, valor }], tUltimoValido: t, tUltimoEvento: t, pulgar, indice };
+      this.emitir({ tipo: "nivel", fase: "inicio", valor, t });
       return true;
     }
-    if (this.arrastre) {
-      // Toleramos fallos breves de la clasificación al mover la mano pinzada.
-      if (t - this.arrastre.tUltimaPinza <= 200) return true;
-      this.terminarArrastre(t);
-      this.reiniciarCandidato(t, pose, centro);
+    const n = this.nivel;
+    n.valor = valor;
+    n.pulgar = pulgar;
+    n.indice = indice;
+    n.tUltimoValido = t;
+    n.historial.push({ t, valor });
+    while (n.historial.length && t - n.historial[0].t > 400) n.historial.shift();
+    if (t - n.tUltimoEvento >= this.op.intervaloPunteroMs) {
+      n.tUltimoEvento = t;
+      this.emitir({ tipo: "nivel", fase: "mover", valor, t });
     }
-    return false;
+    return true;
   }
 
-  private terminarArrastre(t: number): void {
-    if (!this.arrastre) return;
-    const { dx, dy } = this.arrastre;
-    this.arrastre = null;
-    this.emitir({ tipo: "arrastre", fase: "fin", dx, dy, t });
+  private terminarNivel(t: number): void {
+    const n = this.nivel;
+    if (!n) return;
+    this.nivel = null;
+    // Al cerrar la mano, pulgar e índice se mueven: nos quedamos con el valor de ~0,3 s antes.
+    const previo = n.historial.find((h) => h.t >= n.tUltimoValido - 300) ?? n.historial[0];
+    this.emitir({ tipo: "nivel", fase: "fin", valor: previo?.valor ?? n.valor, t });
   }
 
   // ---------- Experimental: menú radial ----------
 
   private abrirMenu(t: number, mano: Mano, aspecto: number): void {
-    const centroA = centroPalma(mano, aspecto);
-    const centro = { x: centroA.x / aspecto, y: centroA.y };
-    this.menu = { centro, centroA, tApertura: t, sector: null, tSector: t };
+    const c = centroPalma(mano, aspecto);
+    const centro = { x: c.x / aspecto, y: c.y };
+    this.menu = { centro, tApertura: t, historial: [] };
     this.ultimoPuntero = null;
     this.emitir({ tipo: "menu", fase: "abrir", sector: null, centro, t });
   }
 
-  private actualizarMenu(t: number, pose: Gesto, centro: Punto): void {
+  /** Con el menú abierto, un movimiento rápido de la punta del índice elige la dirección. */
+  private actualizarMenu(t: number, pose: Gesto, centro: Punto, mano: Mano, aspecto: number): void {
     const m = this.menu!;
     if (t - m.tApertura > this.op.caducidadMenuMs) {
       this.cerrarMenu(t);
       return;
     }
-    const dxImagen = centro.x - m.centroA.x;
+    if (t - m.tApertura < this.op.esperaMenuMs) return;
+
+    const punta = mano.puntos[P.INDICE_PUNTA];
+    m.historial.push({ t, x: punta.x * aspecto, y: punta.y });
+    while (m.historial.length && t - m.historial[0].t > this.op.ventanaMenuMs) m.historial.shift();
+    if (m.historial.length < 2) return;
+
+    const primero = m.historial[0];
+    const dxImagen = punta.x * aspecto - primero.x;
     const dx = this.op.espejo ? -dxImagen : dxImagen;
-    const dy = centro.y - m.centroA.y;
-    let sector: SectorMenu | null = null;
-    if (Math.hypot(dx, dy) >= this.op.radioMenu) {
-      sector = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "derecha" : "izquierda") : dy > 0 ? "abajo" : "arriba";
-    }
-    if (sector !== m.sector) {
-      m.sector = sector;
-      m.tSector = t;
-      this.emitir({ tipo: "menu", fase: "resaltar", sector, centro: m.centro, t });
-      return;
-    }
-    if (sector && t - m.tSector >= this.op.elegirMenuMs) {
-      this.menu = null;
-      this.emitir({ tipo: "menu", fase: "elegir", sector, centro: m.centro, t });
-      // Hay que cambiar de pose antes de volver a abrir el menú.
-      this.gestoEstable = pose;
-      this.reiniciarCandidato(t, pose, centro);
-    }
+    const dy = punta.y - primero.y;
+    // Rápido (dentro de la ventana), largo y claramente en un eje.
+    const largo = Math.hypot(dx, dy) >= this.op.gestoMenu;
+    const claro = Math.max(Math.abs(dx), Math.abs(dy)) > 1.5 * Math.min(Math.abs(dx), Math.abs(dy));
+    if (!largo || !claro) return;
+
+    const sector: SectorMenu =
+      Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "derecha" : "izquierda") : dy > 0 ? "abajo" : "arriba";
+    this.menu = null;
+    this.emitir({ tipo: "menu", fase: "elegir", sector, centro: m.centro, t });
+    // Hay que cambiar de pose antes de volver a abrir el menú.
+    this.gestoEstable = pose;
+    this.reiniciarCandidato(t, pose, centro);
   }
 
   private cerrarMenu(t: number): void {

@@ -16,16 +16,21 @@ definido en `acciones.ts` (`MAPAS`). Los marcados como EXP son experimentales.
 | ☝️ señalar | puntero | puntero | puntero |
 | ☝️ señalar quieto ~0,9 s | explicar aquí | dictar campo | clic |
 | 👎 pulgar abajo (EXP) | deshacer | borrar campo | deshacer |
-| 🤏 pinza "OK" y mover (EXP) | velocidad de voz | — | desplazar (scroll) |
-| ✌️ victoria → menú radial (EXP) | arriba: repetir · derecha: copiar texto · abajo: dictar · izquierda: pedir ayuda | igual | igual |
+| 🤏 juntar pulgar e índice ("OK") y separarlos (EXP) | volumen | volumen | volumen |
+| ✌️ victoria → menú radial, y gesto rápido del índice (EXP) | ↑ repetir · → copiar texto · ↓ dictar · ← pedir ayuda | igual | igual |
 | 🙂 asentir (EXP, cabeza) | leer | confirmar campo | Intro |
 | 🙂 negar (EXP, cabeza) | pausar | borrar campo | Escape |
-| 😑 ojos cerrados ~0,7 s (EXP, cabeza) | explicar aquí | dictar campo | clic |
 
 Opciones experimentales (en `OpcionesInteraccion`):
 - `requiereDespertar`: modo dormido/despierto. Se ignoran los gestos hasta mantener ✋ ~1 s (o asentir);
   vuelve a dormirse tras `dormirMs` sin actividad. Evita gestos accidentales.
 - `PERFIL_MOVILIDAD_REDUCIDA`: tiempos más largos y radios más amplios para temblor o movilidad reducida.
+- Pinza de nivel: el evento `nivel` da un valor de 0 (dedos juntos) a 1 (muy separados), según
+  `nivelMin` y `nivelMax` (separación relativa al tamaño de la mano). Mientras los otros tres dedos
+  sigan estirados el control sigue activo; al cerrar la mano se fija el valor. En la demo ajusta de
+  verdad el volumen de la voz.
+- Menú radial: tras abrirlo con ✌️, un movimiento rápido de la punta del índice (≥`gestoMenu` en
+  ≤`ventanaMenuMs`) elige la dirección. Un movimiento lento no elige nada; se cierra solo a los 5 s.
 - Cabeza: `crearRastreador(..., { cara: true })` o `rastreador.activarCara(true)` (otro modelo, ~4 MB;
   se analiza 1 de cada 2 frames).
 - Señalar + voz: solo en la demo, con el reconocimiento de voz del navegador (Chrome/Edge; Firefox no lo tiene).
@@ -64,9 +69,9 @@ esquinas tal como las ves. Sin acceso a jsDelivr, sirve `@mediapipe/tasks-vision
 ## Archivos
 - `tipos.ts`: tipos e índices de los landmarks.
 - `poses.ts`: pose estática (rectitud de cada dedo; no depende de la rotación ni la distancia).
-- `interaccion.ts`: estabilización de gestos, deslizar, puntero filtrado, selección por permanencia y los experimentales (dormir/despertar, arrastre, menú radial, cabeza).
+- `interaccion.ts`: estabilización de gestos, deslizar, puntero filtrado, selección por permanencia y los experimentales (dormir/despertar, nivel con la pinza, menú radial, cabeza).
 - `acciones.ts`: eventos a acciones de la app, por contexto, y opciones del menú radial.
-- `cabeza.ts`: asentir, negar y parpadeo largo (experimental).
+- `cabeza.ts`: asentir y negar (experimental).
 - `geometria.ts`, `filtro.ts`: homografía y filtro One Euro.
 - `rastreador.ts`: único archivo que depende de MediaPipe y del DOM.
 - `demo/`: página de prueba. `test/`: tests con manos sintéticas.

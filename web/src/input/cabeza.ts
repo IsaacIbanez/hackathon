@@ -1,4 +1,4 @@
-// Gestos de cabeza (experimental): asentir, negar y parpadeo largo, a partir de los puntos
+// Gestos de cabeza (experimental): asentir y negar, a partir de los puntos
 // de MediaPipe FaceLandmarker. Pensado para quien no puede usar las manos.
 
 import type { Cara, GestoCabeza } from "./tipos.ts";
@@ -17,10 +17,6 @@ export interface OpcionesCabeza {
   amplitud: number;
   /** Cuánto debe dominar el eje del gesto sobre el otro. */
   dominancia: number;
-  /** Ojos cerrados durante este tiempo = parpadeo largo (un parpadeo normal dura ~150 ms). */
-  parpadeoMs: number;
-  /** Umbral de "ojo cerrado" en los coeficientes eyeBlink. */
-  ojoCerrado: number;
   /** Pausa tras un gesto de cabeza. */
   esperaMs: number;
 }
@@ -29,16 +25,12 @@ export const OPCIONES_CABEZA: OpcionesCabeza = {
   ventanaMs: 1200,
   amplitud: 0.12,
   dominancia: 1.8,
-  parpadeoMs: 700,
-  ojoCerrado: 0.5,
   esperaMs: 1200,
 };
 
 export class DetectorCabeza {
   private op: OpcionesCabeza;
   private historial: { t: number; x: number; y: number }[] = [];
-  private tOjosCerrados: number | null = null;
-  private parpadeoEmitido = false;
   private tUltimo = -Infinity;
 
   constructor(op: Partial<OpcionesCabeza> = {}) {
@@ -49,7 +41,6 @@ export class DetectorCabeza {
   procesar(t: number, cara: Cara | null | undefined): GestoCabeza | null {
     if (!cara || cara.puntos.length < 455) {
       this.historial = [];
-      this.tOjosCerrados = null;
       return null;
     }
     const pts = cara.puntos;
@@ -62,8 +53,6 @@ export class DetectorCabeza {
     const y = (pts[NARIZ].y - cy) / alto;
 
     const enEspera = t - this.tUltimo < this.op.esperaMs;
-    const parpadeo = this.parpadeo(t, cara);
-    if (parpadeo && !enEspera) return this.emitir(t, parpadeo);
 
     this.historial.push({ t, x, y });
     while (this.historial.length && t - this.historial[0].t > this.op.ventanaMs) this.historial.shift();
@@ -77,23 +66,6 @@ export class DetectorCabeza {
     const vuelta = (vals: number[], rango: number) => Math.abs(vals[vals.length - 1] - vals[0]) < 0.4 * rango;
     if (ry > this.op.amplitud && ry > this.op.dominancia * rx && vuelta(ys, ry)) return this.emitir(t, "asentir");
     if (rx > this.op.amplitud && rx > this.op.dominancia * ry && vuelta(xs, rx)) return this.emitir(t, "negar");
-    return null;
-  }
-
-  private parpadeo(t: number, cara: Cara): GestoCabeza | null {
-    const e = cara.expresiones;
-    if (!e) return null;
-    const cerrados = (e.eyeBlinkLeft ?? 0) > this.op.ojoCerrado && (e.eyeBlinkRight ?? 0) > this.op.ojoCerrado;
-    if (!cerrados) {
-      this.tOjosCerrados = null;
-      this.parpadeoEmitido = false;
-      return null;
-    }
-    this.tOjosCerrados ??= t;
-    if (!this.parpadeoEmitido && t - this.tOjosCerrados >= this.op.parpadeoMs) {
-      this.parpadeoEmitido = true;
-      return "parpadeo_largo";
-    }
     return null;
   }
 

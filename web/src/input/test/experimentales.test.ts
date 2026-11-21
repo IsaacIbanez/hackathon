@@ -44,38 +44,75 @@ test("pulgar abajo es 'deshacer' en documento y 'borrar_campo' en formulario", (
   assert.equal(accionDe(g, "formulario"), "borrar_campo");
 });
 
-test("pinza y arrastrar emite inicio, movimiento y fin con el desplazamiento", () => {
+/** Pinza con el pulgar separado `sep` del índice (hacia abajo), los otros tres dedos estirados. */
+function pinzaAbierta(sep: number): Mano {
+  const m = mano(FORMAS.pinza);
+  const i = m.puntos[8];
+  m.puntos[4] = { x: i.x, y: i.y + sep, z: 0 };
+  return m;
+}
+
+test("pinza: la separación pulgar–índice controla un nivel de 0 a 1 (volumen)", () => {
   const ctl = new InteraccionManos();
   const frames = [
-    ...Array.from({ length: 15 }, (_, i) => mano({ ...FORMAS.pinza, dy: -0.01 * i })), // sube
-    ...repetir(mano(FORMAS.palma), 10),
+    ...repetir(mano(FORMAS.pinza), 5), // empieza juntando los dedos
+    ...Array.from({ length: 20 }, (_, i) => pinzaAbierta(0.01 * (i + 1))), // abre poco a poco
+    ...repetir(pinzaAbierta(0.2), 15), // se queda muy abierta
+    ...repetir(mano(FORMAS.puno), 15), // cierra la mano: termina
   ];
-  const ev = simular(ctl, frames).filter((e) => e.tipo === "arrastre");
-  assert.equal(ev[0].tipo === "arrastre" && ev[0].fase, "inicio");
+  const ev = simular(ctl, frames).filter((e) => e.tipo === "nivel");
+  assert.equal(ev[0].tipo === "nivel" && ev[0].fase, "inicio");
+  assert.ok(ev[0].tipo === "nivel" && ev[0].valor < 0.1, "empieza cerca de 0");
+  const movs = ev.filter((e) => e.tipo === "nivel" && e.fase === "mover").map((e) => (e.tipo === "nivel" ? e.valor : 0));
+  assert.ok(movs[movs.length - 1] > 0.7, `sube al abrir: ${movs[movs.length - 1]}`);
   const fin = ev[ev.length - 1];
-  assert.ok(fin.tipo === "arrastre" && fin.fase === "fin" && fin.dy < -0.1, JSON.stringify(fin));
-  const mover = ev.find((e) => e.tipo === "arrastre" && e.fase === "mover")!;
-  assert.equal(accionDe(mover, "documento"), "velocidad_voz");
-  assert.equal(accionDe(mover, "pc"), "desplazar");
+  assert.ok(fin.tipo === "nivel" && fin.fase === "fin" && fin.valor > 0.7, `al cerrar conserva el valor: ${JSON.stringify(fin)}`);
+  assert.equal(accionDe(fin, "documento"), "volumen");
 });
 
-test("menú radial: ✌️ lo abre y mover la mano hacia arriba elige 'repetir'", () => {
+test("pinza: con el control activo no se disparan otros gestos", () => {
   const ctl = new InteraccionManos();
-  const frames = [
-    ...repetir(mano(FORMAS.victoria), 15), // abre el menú
-    ...repetir(mano({ ...FORMAS.victoria, dy: -0.12 }), 30), // arriba y espera
+  const ev = simular(ctl, [...repetir(mano(FORMAS.pinza), 5), ...repetir(pinzaAbierta(0.2), 30)]);
+  assert.ok(!ev.some((e) => e.tipo === "gesto" || e.tipo === "deslizar"));
+});
+
+/** Abre el menú con ✌️ y luego mueve rápido la mano (y el índice) dx, dy en 3 frames. */
+function gestoMenu(dx: number, dy: number): Mano[] {
+  return [
+    ...repetir(mano(FORMAS.victoria), 25), // abre el menú (~0,3 s) y espera
+    ...[1, 2, 3].map((k) => mano({ ...FORMAS.victoria, dx: (dx * k) / 3, dy: (dy * k) / 3 })),
+    ...repetir(mano({ ...FORMAS.victoria, dx, dy }), 5),
   ];
-  const ev = simular(ctl, frames).filter((e) => e.tipo === "menu");
-  const fases = ev.map((e) => e.tipo === "menu" && `${e.fase}:${e.sector}`);
-  assert.deepEqual(fases, ["abrir:null", "resaltar:arriba", "elegir:arriba"]);
-  assert.equal(accionDe(ev[2]), "repetir");
+}
+
+test("menú radial: ✌️ lo abre y un gesto rápido hacia arriba elige 'repetir'", () => {
+  const ev = simular(new InteraccionManos(), gestoMenu(0, -0.1)).filter((e) => e.tipo === "menu");
+  assert.deepEqual(
+    ev.map((e) => e.tipo === "menu" && `${e.fase}:${e.sector}`),
+    ["abrir:null", "elegir:arriba"],
+  );
+  assert.equal(accionDe(ev[1]), "repetir");
 });
 
-test("menú radial: la derecha del usuario es la izquierda de la imagen", () => {
-  const ctl = new InteraccionManos();
-  const frames = [...repetir(mano(FORMAS.victoria), 15), ...repetir(mano({ ...FORMAS.victoria, dx: -0.12 }), 30)];
-  const elegir = simular(ctl, frames).find((e) => e.tipo === "menu" && e.fase === "elegir");
-  assert.ok(elegir && elegir.tipo === "menu" && elegir.sector === "derecha");
+test("menú radial: las 4 direcciones, desde el punto de vista del usuario", () => {
+  const casos: [number, number, string][] = [
+    [0, 0.1, "abajo"],
+    [-0.1, 0, "derecha"], // en la imagen sin espejo, la derecha del usuario es x decreciente
+    [0.1, 0, "izquierda"],
+  ];
+  for (const [dx, dy, esperado] of casos) {
+    const e = simular(new InteraccionManos(), gestoMenu(dx, dy)).find((e) => e.tipo === "menu" && e.fase === "elegir");
+    assert.ok(e && e.tipo === "menu" && e.sector === esperado, `${dx},${dy} → ${e && e.tipo === "menu" && e.sector}`);
+  }
+});
+
+test("menú radial: un movimiento lento no elige nada", () => {
+  const frames = [
+    ...repetir(mano(FORMAS.victoria), 25),
+    ...Array.from({ length: 40 }, (_, i) => mano({ ...FORMAS.victoria, dy: -0.004 * i })),
+  ];
+  const ev = simular(new InteraccionManos(), frames);
+  assert.ok(!ev.some((e) => e.tipo === "menu" && e.fase === "elegir"));
 });
 
 test("menú radial: se cierra solo si no se elige nada", () => {
@@ -90,15 +127,14 @@ test("menú radial: se cierra solo si no se elige nada", () => {
 // ---- Cabeza ----
 
 /** Cara sintética: solo rellenamos los puntos que usa el detector. */
-function cara(narizX: number, narizY: number, ojosCerrados = false): Cara {
+function cara(narizX: number, narizY: number): Cara {
   const puntos = Array.from({ length: 478 }, () => ({ x: 0.5, y: 0.5, z: 0 }));
   puntos[10] = { x: 0.5, y: 0.3, z: 0 }; // frente
   puntos[152] = { x: 0.5, y: 0.7, z: 0 }; // barbilla
   puntos[234] = { x: 0.35, y: 0.5, z: 0 }; // mejilla
   puntos[454] = { x: 0.65, y: 0.5, z: 0 };
   puntos[1] = { x: narizX, y: narizY, z: 0 };
-  const v = ojosCerrados ? 0.9 : 0.05;
-  return { puntos, expresiones: { eyeBlinkLeft: v, eyeBlinkRight: v } };
+  return { puntos };
 }
 
 function oscilar(det: DetectorCabeza, eje: "x" | "y") {
@@ -114,15 +150,6 @@ function oscilar(det: DetectorCabeza, eje: "x" | "y") {
 test("cabeza: asentir (arriba-abajo) y negar (lado a lado)", () => {
   assert.deepEqual(oscilar(new DetectorCabeza(), "y"), ["asentir"]);
   assert.deepEqual(oscilar(new DetectorCabeza(), "x"), ["negar"]);
-});
-
-test("cabeza: un parpadeo normal no cuenta, uno largo sí", () => {
-  const det = new DetectorCabeza();
-  const r: (string | null)[] = [];
-  for (let i = 0; i < 5; i++) r.push(det.procesar(i * PASO, cara(0.5, 0.5, true))); // ~150 ms
-  for (let i = 5; i < 10; i++) r.push(det.procesar(i * PASO, cara(0.5, 0.5)));
-  for (let i = 10; i < 40; i++) r.push(det.procesar(i * PASO, cara(0.5, 0.5, true))); // ~1 s
-  assert.deepEqual(r.filter(Boolean), ["parpadeo_largo"]);
 });
 
 test("cabeza: el evento pasa por el controlador y se traduce según el contexto", () => {
