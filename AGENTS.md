@@ -3,12 +3,12 @@
 Este archivo lo leen todos los agentes (Claude Code, Gemini CLI) al empezar. Es la fuente de verdad del proyecto.
 
 ## Proyecto
-- **Nombre:** (por definir)
+- **Nombre:** (provisional) Proyecto LauzHack
 - **Evento:** LauzHack 2026. Duración total: 24 horas.
 - **Objetivo:** app de escritorio que usa la cámara (webcam Logitech), el micro y gestos para leer y entender documentos en papel, y ayudar a rellenarlos. Combina tres challenges: Logitech (la webcam como "ojos y oídos" de la IA, flujos con contexto), IMC Tech for Good (inclusión y accesibilidad) y AXA (uso frugal de IA multimodal).
 - **Historia de la demo:** una persona con baja visión sostiene un documento (carta o formulario de seguros) delante de la cámara; la app lo lee, lo explica en lenguaje sencillo y la ayuda a rellenarlo por voz o señalando con la mano.
 - **Stack previsto:** Go (backend y orquestación, IDE GoLand), Wails para la app de escritorio, interfaz en React + Vite + TypeScript + Tailwind, MediaPipe y Web Speech API en el navegador, modelos vía OpenRouter (AXA da una clave de 10 USD por equipo). Wails está pendiente de confirmar con la prueba de cámara (T3); plan B: Electron con Go como proceso aparte.
-- **Reglas de la hackathon, incluido el uso de IA:** (por confirmar)
+- **Reglas de la hackathon, incluido el uso de IA:** no hay restricciones sobre el uso de IA (confirmado por el equipo).
 
 ## Orden de prioridades
 1. Primero el bucle de cámara funcionando de punta a punta.
@@ -43,15 +43,15 @@ Detalle en `docs/ARQUITECTURA.md`. Resumen:
 ## Roles y carpetas
 Cada persona es dueña de sus carpetas; no se edita código de otro rol sin avisar.
 
-| Rol | Carpetas | Responsabilidad |
-|-----|----------|-----------------|
-| A. Núcleo e integración | `backend/cmd`, `backend/internal/{ws,session,llm}`, `api/`, CI, empaquetado Wails | Contrato, servidor Go, cliente de modelos frugal, contador, integración y pitch |
-| B1. Captura y visión | `web/src/camera` | Flujo de cámara, detección y recorte del papel, calidad de imagen, OCR local |
-| B2. Comprensión de documentos | `backend/internal/ocr`, `web/src/document` | Texto a campos y significado, decidir cuándo escalar al modelo caro, vista del documento |
-| C. Interacción | `web/src/input` | Gestos de mano y voz |
+| Rol | Persona | Carpetas | Responsabilidad |
+|-----|---------|----------|-----------------|
+| A. Núcleo e integración | Isaac (P1) | `backend/cmd`, `backend/internal/{ws,session,llm}`, `api/`, CI, empaquetado Wails | Contrato, servidor Go, cliente de modelos frugal, contador, integración y pitch |
+| B1. Captura y visión | Didac (P2) o Pau (P4) | `web/src/camera` | Flujo de cámara, detección y recorte del papel, calidad de imagen, OCR local |
+| B2. Comprensión de documentos | Pau (P4) o Didac (P2) | `backend/internal/ocr`, `web/src/document` | Texto a campos y significado, decidir cuándo escalar al modelo caro, vista del documento |
+| C. Interacción | Nil (P3) | `web/src/input` | Gestos de mano y voz |
 
 B1 y B2 acuerdan en la primera hora el mensaje `document` (bloques de texto con caja en la imagen y confianza).
-La asignación de personas a roles se anota en `ROSTER.md`.
+Didac y Pau se reparten B1 y B2 entre ellos (por decidir). La asignación completa está en `ROSTER.md`.
 
 
 ## Decisiones
