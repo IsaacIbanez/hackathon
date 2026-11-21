@@ -44,39 +44,48 @@ Para ver lo que oye la interfaz: `npm run dev` en `web/` con `VITE_WS_URL=ws://1
 
 Probado el 2026-11-21: `--demo-ocr` → la interfaz oye «Este documento es una declaración de siniestro de AXA Seguros. Debe escribir su nombre y apellidos… También debe escribir su número de póliza…», con los 3 bloques resaltados. Coste: 0 $ (`LLM_PROFILE=dev`).
 
-## Para `scanner/escanear.py` (Didac): lo que falta, listo para pegar
-Revisado en la rama `feature/B-contexto-scanner` (2026-11-21): `Resultado.documento()` **ya cumple el contrato** (bloques por línea, cajas normalizadas sobre la página recortada, `confidence` en [0, 1], `issues` con los valores del contrato, `lang` en BCP-47). Solo falta enviarlo:
+## `scanner/scan.py` (Didac): envío hecho
+Revisado en la rama `feature/B-contexto-scanner` (2026-11-21): `Result.document()` **cumple el contrato** (bloques por línea, cajas normalizadas sobre la página recortada, `confidence` en [0, 1], `issues` con los valores del contrato, `lang` en BCP-47). El envío ya está implementado en `scan.send_to_app(result)` (POST /message, devuelve `True` con 202 y `False` si la app no está abierta) y en la CLI con `--send`:
 
-```python
-import json, time, uuid, urllib.request
-
-APP_URL = "http://127.0.0.1:8765/message"
-
-def enviar_a_app(resultado, url: str = APP_URL) -> bool:
-    """Envía el documento escaneado a la app (POST /message). Devuelve False si la app no está abierta."""
-    sobre = {"type": "document", "id": f"doc-{uuid.uuid4()}", "ts": int(time.time() * 1000),
-             "payload": resultado.documento()}
-    req = urllib.request.Request(url, data=json.dumps(sobre, ensure_ascii=False).encode("utf-8"),
-                                 headers={"Content-Type": "application/json"}, method="POST")
-    try:
-        with urllib.request.urlopen(req, timeout=5) as r:
-            return r.status == 202
-    except OSError:
-        return False
+```
+scanner\pdf\.venv\Scripts\python scanner\scan.py --send                  # captura + PDF + envío
+scanner\pdf\.venv\Scripts\python scanner\scan.py --png captura.png --send
 ```
 
-Llamarlo tras `convertir(...)` cuando `resultado.ok` (por ejemplo, una opción `--enviar` en `main()` y en `escanear_viva`). Notas:
+Nombres en inglés desde el 2026-11-21 (antes `escanear.py`, `enviar_a_app`, `Resultado.documento()`, paquete `escaner_pdf`). Detalle completo en `scanner/ENTREGA.md`. Notas:
 - La app **no gasta IA** si `quality.score` < 0,5: da un consejo de encuadre en voz alta. Con vuestras penalizaciones, solo «borroso» deja 0,65 y sí se explica; ajustad si queréis que «borroso» corte antes.
 - El `id` del sobre debe ser único por escaneo; los `id` de los bloques (`b1`, `b2`…) solo tienen que ser estables dentro del documento.
-- El documento digital con modelo de visión (`ia.py`) gasta del mismo presupuesto de OpenRouter, pero su coste no sale en el contador de la app; el envío a la app usa solo el OCR local (0 $).
+- El documento digital con modelo de visión (`vision.py`) gasta del mismo presupuesto de OpenRouter, pero su coste no sale en el contador de la app; el envío a la app usa solo el OCR local (0 $).
 - Pendiente de decidir en equipo: **qué dispara el escaneo** en la demo (botón o tecla en vuestra app, escaneo automático cuando la hoja está quieta, o un gesto). Si queréis un gesto, hace falta un mensaje nuevo en el contrato: avisad.
+
+## Servicio de lectura para la app (T13, Didac): lo que Go espera
+Desde el contrato 0.5, la app manda la foto a Go (`POST /scan`) y **Go se la pasa a vuestro servicio**:
+
+```
+POST http://127.0.0.1:8770/scan        (Go lo lee de SCANNER_URL)
+Content-Type: image/jpeg | image/png | image/webp
+<bytes de la foto, hasta 40 MB>
+
+200  application/json   → un DocumentPayload (lo de Result.document()) + pageCorners
+422  {"error": "..."}   → no hay hoja en la foto (Go le dice al usuario «No encuentro la hoja…»)
+otro                     → error (Go dice «No he podido leer el documento»)
+```
+
+**`pageCorners`** (nuevo, opcional): las 4 esquinas de la hoja **en la foto recibida**, normalizadas a [0, 1] sobre esa foto (`x / ancho_foto`, `y / alto_foto`), en este orden: **arriba-izquierda, arriba-derecha, abajo-derecha, abajo-izquierda de la hoja tal como se lee** (después de orientarla). Si giráis la hoja 90° o 180° para leerla, rotad también el orden de las esquinas: el puntero las usa para saber qué parte del papel señala el dedo. Si no se detectó la hoja (se usó la foto entera), no lo pongáis.
+
+Ejemplo: `api/fixtures/document.json` (`"pageCorners": [{"x":0.31,"y":0.07}, {"x":0.70,"y":0.09}, {"x":0.72,"y":0.94}, {"x":0.29,"y":0.92}]`).
+
+**Cómo probarlo de punta a punta:** vuestro servicio en 8770 + `task server` (o `task dev`) + `curl -X POST -H "Content-Type: image/png" --data-binary @foto.png http://127.0.0.1:8765/scan`. La interfaz oye «Un momento, estoy leyendo el documento», recibe el documento y lo explica.
+
+**Mientras el servicio no existe**, el resto del equipo prueba con `SCANNER_URL=fixture`: Go responde a cada foto con el formulario de ejemplo (con esquinas).
 
 ## Puertos
 | Puerto | Quién | Para qué |
 |---|---|---|
 | 8765 | app Go (`task dev` / `task server`) | `/ws`, `POST /message`, `/health` |
 | 8766 | `scanner/capturar.py --servidor` (Pau) | `GET /captura` |
-| 8780 | `scanner/app_prueba` (Didac, provisional) | vista previa y escaneo |
+| 8770 | servicio de lectura (Didac, T13) | `POST /scan`: foto → `document` con `pageCorners` |
+| 8780 | `scanner/demo_app` (Didac, provisional) | vista previa y escaneo |
 | 8080 | `task mock` | respuestas de ejemplo |
 
 ## Pendiente de decidir (equipo)

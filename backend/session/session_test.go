@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -17,18 +18,20 @@ import (
 	"github.com/IsaacIbanez/hackathon/api"
 	"github.com/IsaacIbanez/hackathon/api/gen"
 	"github.com/IsaacIbanez/hackathon/backend/llm"
+	"github.com/IsaacIbanez/hackathon/backend/scanner"
 	"github.com/IsaacIbanez/hackathon/backend/ws"
 )
 
 // fakeModel answers with cheap and, if doubt says so, expensive. It records the prompts.
 type fakeModel struct {
-	mu        sync.Mutex
-	cheap     string
-	expensive string
-	err       error
-	delay     time.Duration
-	prompts   []string
-	escalated int
+	mu          sync.Mutex
+	cheap       string
+	expensive   string
+	err         error
+	delay       time.Duration
+	prompts     []string
+	lastRequest llm.Request
+	escalated   int
 }
 
 func (f *fakeModel) CompleteWithEscalation(ctx context.Context, req llm.Request, doubt func(llm.Response) bool) (llm.Response, bool, error) {
@@ -53,6 +56,17 @@ func (f *fakeModel) CompleteWithEscalation(ctx context.Context, req llm.Request,
 		return llm.Response{Text: f.expensive, Tier: llm.Expensive}, true, nil
 	}
 	return r, false, nil
+}
+
+func (f *fakeModel) Complete(ctx context.Context, req llm.Request) (llm.Response, error) {
+	f.mu.Lock()
+	f.prompts = append(f.prompts, req.Messages[0].Text)
+	f.lastRequest = req
+	f.mu.Unlock()
+	if f.err != nil {
+		return llm.Response{}, f.err
+	}
+	return llm.Response{Text: f.cheap, Tier: req.Tier, Model: "fake-audio"}, nil
 }
 
 func (f *fakeModel) Stats() llm.Stats {
@@ -417,5 +431,142 @@ func TestPointerRereadsAfterLeavingTheBlock(t *testing.T) {
 	s.Handle(ctx, envelope(t, "pointer", "p-4", date), c.send)
 	if sp := c.next(t).(gen.SpeakMessage); sp.Payload.HighlightBlockIds[0] != "b3" {
 		t.Fatalf("coming back must read again: %v", sp.Payload.HighlightBlockIds)
+	}
+}
+
+// fakeScanner answers POST /scan in place of role B2's reading service.
+type fakeScanner struct {
+	doc gen.DocumentPayload
+	err error
+}
+
+func (f fakeScanner) Scan(context.Context, []byte, string) (gen.DocumentPayload, error) {
+	return f.doc, f.err
+}
+
+func dialUI(t *testing.T, ctx context.Context, url string) *websocket.Conn {
+	t.Helper()
+	c, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(url, "http")+"/ws", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.SetReadLimit(4 << 20)
+	return c
+}
+
+func postPhoto(t *testing.T, url, contentType string, body []byte) int {
+	t.Helper()
+	resp, err := http.Post(url+"/scan", contentType, bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	return resp.StatusCode
+}
+
+func TestScanPhotoReachesTheUIWithPageCorners(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Scanner = fakeScanner{doc: fixtureDocument(t)}
+	h, hub := NewMux(&fakeModel{cheap: goodAnswer}, cfg)
+	srv := httptest.NewServer(h)
+	defer srv.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	ui := dialUI(t, ctx, srv.URL)
+	defer ui.CloseNow()
+	waitClients(t, hub, 1)
+
+	if code := postPhoto(t, srv.URL, "image/jpeg", []byte("photo")); code != http.StatusAccepted {
+		t.Fatalf("POST /scan: %d", code)
+	}
+	var first gen.SpeakMessage
+	if err := wsjson.Read(ctx, ui, &first); err != nil || !strings.Contains(first.Payload.Text, "leyendo") {
+		t.Fatalf("first the UI must hear that it is reading: %+v %v", first, err)
+	}
+	var doc gen.DocumentMessage
+	if err := wsjson.Read(ctx, ui, &doc); err != nil || doc.Type != "document" || doc.Payload.PageCorners == nil || len(*doc.Payload.PageCorners) != 4 {
+		t.Fatalf("document echo with pageCorners: %+v %v", doc, err)
+	}
+	var sp gen.SpeakMessage
+	if err := wsjson.Read(ctx, ui, &sp); err != nil || !strings.Contains(sp.Payload.Text, "declaración") {
+		t.Fatalf("explanation: %+v %v", sp, err)
+	}
+}
+
+func TestScanProblemsAreSpoken(t *testing.T) {
+	for _, c := range []struct {
+		err  error
+		want string
+	}{
+		{scanner.ErrNoPage, "No encuentro la hoja"},
+		{scanner.ErrUnavailable, "no está abierto"},
+		{errors.New("boom"), "No he podido leer"},
+	} {
+		cfg := DefaultConfig()
+		cfg.Scanner = fakeScanner{err: c.err}
+		h, hub := NewMux(&fakeModel{cheap: goodAnswer}, cfg)
+		srv := httptest.NewServer(h)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ui := dialUI(t, ctx, srv.URL)
+		waitClients(t, hub, 1)
+		postPhoto(t, srv.URL, "image/png", []byte("photo"))
+		var reading, problem gen.SpeakMessage
+		_ = wsjson.Read(ctx, ui, &reading)
+		if err := wsjson.Read(ctx, ui, &problem); err != nil || !strings.Contains(problem.Payload.Text, c.want) {
+			t.Errorf("%v: expected %q, got %+v %v", c.err, c.want, problem, err)
+		}
+		ui.CloseNow()
+		cancel()
+		srv.Close()
+	}
+}
+
+func TestScanRejectsBadRequests(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Scanner = fakeScanner{}
+	h, _ := NewMux(&fakeModel{}, cfg)
+	srv := httptest.NewServer(h)
+	defer srv.Close()
+	if code := postPhoto(t, srv.URL, "text/plain", []byte("x")); code != http.StatusUnsupportedMediaType {
+		t.Errorf("text/plain: %d", code)
+	}
+	if code := postPhoto(t, srv.URL, "image/png", nil); code != http.StatusBadRequest {
+		t.Errorf("empty: %d", code)
+	}
+}
+
+func TestTranscribe(t *testing.T) {
+	m := &fakeModel{cheap: " «¿Qué tengo que poner aquí?» "}
+	h, hub := NewMux(m, DefaultConfig())
+	srv := httptest.NewServer(h)
+	defer srv.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	ui := dialUI(t, ctx, srv.URL)
+	defer ui.CloseNow()
+	waitClients(t, hub, 1)
+
+	resp, err := http.Post(srv.URL+"/transcribe?lang=es-ES", "audio/wav", strings.NewReader("RIFF....WAVE"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var tr Transcription
+	if err := json.NewDecoder(resp.Body).Decode(&tr); err != nil || resp.StatusCode != 200 || tr.Text != "¿Qué tengo que poner aquí?" {
+		t.Fatalf("transcription: %d %+v %v", resp.StatusCode, tr, err)
+	}
+	req := m.lastRequest
+	if req.Messages[0].Audio == nil || req.Messages[0].Audio.Format != "wav" || req.Models != DefaultTranscribeModels || !strings.Contains(req.Messages[0].Text, "Spanish") {
+		t.Fatalf("request to the model: %+v", req)
+	}
+	var st gen.StatsMessage
+	if err := wsjson.Read(ctx, ui, &st); err != nil || st.Type != "stats" {
+		t.Fatalf("the UI must get the updated cost: %+v %v", st, err)
+	}
+
+	bad, _ := http.Post(srv.URL+"/transcribe", "audio/webm", strings.NewReader("x"))
+	bad.Body.Close()
+	if bad.StatusCode != http.StatusUnsupportedMediaType {
+		t.Errorf("webm: %d", bad.StatusCode)
 	}
 }

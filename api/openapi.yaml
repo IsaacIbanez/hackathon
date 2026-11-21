@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: LauzHack project — backend <-> frontend contract
-  version: 0.4.0
+  version: 0.6.0
   description: |
     The only interface between modules. HTTP for health and WebSocket (`/ws`) for everything else.
 
@@ -22,6 +22,10 @@ info:
 
     Coordinates: always normalized to [0, 1] relative to the cropped document image,
     origin at the top left.
+
+    Security: the API only answers to Host 127.0.0.1 / localhost (no DNS rebinding) and to
+    browser origins of the app (Vite, Wails); local processes send no Origin. POST /message
+    only accepts application/json.
 
     Record any change here in the Decisions section of AGENTS.md.
 paths:
@@ -56,6 +60,70 @@ paths:
           description: The body is not a contract envelope
         "413":
           description: Body larger than 4 MB
+  /scan:
+    post:
+      operationId: postScan
+      summary: Reads a document from a photo (the "lee el documento" command)
+      description: |
+        The body is the photo taken by the app's camera. Go answers 202 at once, says
+        "un momento, estoy leyendo el documento", sends the photo to the reading service
+        (role B2, SCANNER_URL, default http://127.0.0.1:8770/scan) and handles the returned
+        document like any other: echo to the UI, explanation, highlights. Problems (no page
+        found, service not running) are spoken to the user. Results go to the WebSocket clients.
+
+        The reading service implements the same path: POST the photo → 200 with a
+        DocumentPayload (with pageCorners), or 422 {"error": "..."} when there is no page.
+      requestBody:
+        required: true
+        content:
+          image/jpeg:
+            schema: { type: string, format: binary }
+          image/png:
+            schema: { type: string, format: binary }
+          image/webp:
+            schema: { type: string, format: binary }
+      responses:
+        "202":
+          description: Accepted; results go to the WebSocket clients
+        "400":
+          description: Empty body
+        "413":
+          description: Photo larger than 40 MB
+        "415":
+          description: Not a JPEG, PNG or WebP image
+  /transcribe:
+    post:
+      operationId: postTranscribe
+      summary: Cloud backup of the voice recognizer (a WAV recording to text)
+      description: |
+        Used by the UI only when the on-device recognizer fails or returns nothing. Go sends
+        the recording to an audio model (TranscribeModels, default Gemini 2.5 Flash Lite and a
+        free backup); the cost goes to the meter and an updated `stats` is broadcast.
+      parameters:
+        - name: lang
+          in: query
+          required: false
+          schema: { type: string, example: es-ES }
+      requestBody:
+        required: true
+        content:
+          audio/wav:
+            schema: { type: string, format: binary }
+      responses:
+        "200":
+          description: The transcription (empty text = nobody spoke)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transcription"
+        "400":
+          description: Empty recording
+        "413":
+          description: Recording larger than 10 MB
+        "415":
+          description: Not audio/wav
+        "502":
+          description: No audio model answered
   /ws:
     get:
       operationId: openWebSocket
@@ -75,6 +143,15 @@ components:
         status:
           type: string
           example: ok
+
+    Transcription:
+      type: object
+      required: [text, model, costUsd, latencyMs]
+      properties:
+        text: { type: string }
+        model: { type: string }
+        costUsd: { type: number, format: double }
+        latencyMs: { type: integer, format: int64 }
 
     MessageType:
       type: string
@@ -109,6 +186,14 @@ components:
         y: { type: number, format: float, minimum: 0, maximum: 1 }
         w: { type: number, format: float, minimum: 0, maximum: 1 }
         h: { type: number, format: float, minimum: 0, maximum: 1 }
+
+    Point:
+      description: Point normalized to [0, 1] over an image (origin at the top left)
+      type: object
+      required: [x, y]
+      properties:
+        x: { type: number, format: float }
+        y: { type: number, format: float }
 
     TextBlock:
       type: object
@@ -168,6 +253,17 @@ components:
           type: string
           description: Detected language (BCP-47), if known
           example: es
+        pageCorners:
+          description: |
+            Corners of the page in the CAMERA PHOTO it was read from, normalized to [0, 1]
+            over that photo: top-left, top-right, bottom-right, bottom-left (of the page as read,
+            after orientation). Lets the pointer map the fingertip onto the real page. Optional:
+            absent when the page was not detected (the whole photo was used).
+          type: array
+          minItems: 4
+          maxItems: 4
+          items:
+            $ref: "#/components/schemas/Point"
 
     PointerPayload:
       type: object

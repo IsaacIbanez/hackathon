@@ -42,6 +42,55 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/scan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reads a document from a photo (the "lee el documento" command)
+         * @description The body is the photo taken by the app's camera. Go answers 202 at once, says
+         *     "un momento, estoy leyendo el documento", sends the photo to the reading service
+         *     (role B2, SCANNER_URL, default http://127.0.0.1:8770/scan) and handles the returned
+         *     document like any other: echo to the UI, explanation, highlights. Problems (no page
+         *     found, service not running) are spoken to the user. Results go to the WebSocket clients.
+         *
+         *     The reading service implements the same path: POST the photo → 200 with a
+         *     DocumentPayload (with pageCorners), or 422 {"error": "..."} when there is no page.
+         */
+        post: operations["postScan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/transcribe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cloud backup of the voice recognizer (a WAV recording to text)
+         * @description Used by the UI only when the on-device recognizer fails or returns nothing. Go sends
+         *     the recording to an audio model (TranscribeModels, default Gemini 2.5 Flash Lite and a
+         *     free backup); the cost goes to the meter and an updated `stats` is broadcast.
+         */
+        post: operations["postTranscribe"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ws": {
         parameters: {
             query?: never;
@@ -71,6 +120,14 @@ export interface components {
             /** @example ok */
             status: string;
         };
+        Transcription: {
+            text: string;
+            model: string;
+            /** Format: double */
+            costUsd: number;
+            /** Format: int64 */
+            latencyMs: number;
+        };
         /** @enum {string} */
         MessageType: "document" | "pointer" | "utterance" | "speak" | "stats";
         /** @description Generic envelope. Used to read `type` before decoding `payload`. */
@@ -94,6 +151,13 @@ export interface components {
             w: number;
             /** Format: float */
             h: number;
+        };
+        /** @description Point normalized to [0, 1] over an image (origin at the top left) */
+        Point: {
+            /** Format: float */
+            x: number;
+            /** Format: float */
+            y: number;
         };
         TextBlock: {
             /** @description Stable within the document; used by pointer and speak */
@@ -129,6 +193,13 @@ export interface components {
              * @example es
              */
             lang?: string;
+            /**
+             * @description Corners of the page in the CAMERA PHOTO it was read from, normalized to [0, 1]
+             *     over that photo: top-left, top-right, bottom-right, bottom-left (of the page as read,
+             *     after orientation). Lets the pointer map the fingertip onto the real page. Optional:
+             *     absent when the page was not detected (the whole photo was used).
+             */
+            pageCorners?: components["schemas"]["Point"][];
         };
         PointerPayload: {
             /** Format: float */
@@ -296,6 +367,105 @@ export interface operations {
             };
             /** @description Body larger than 4 MB */
             413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postScan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "image/jpeg": string;
+                "image/png": string;
+                "image/webp": string;
+            };
+        };
+        responses: {
+            /** @description Accepted; results go to the WebSocket clients */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Empty body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Photo larger than 40 MB */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not a JPEG, PNG or WebP image */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postTranscribe: {
+        parameters: {
+            query?: {
+                lang?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "audio/wav": string;
+            };
+        };
+        responses: {
+            /** @description The transcription (empty text = nobody spoke) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Transcription"];
+                };
+            };
+            /** @description Empty recording */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Recording larger than 10 MB */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not audio/wav */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No audio model answered */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };

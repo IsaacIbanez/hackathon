@@ -237,3 +237,23 @@ func TestDotEnvCandidatesIncludeCwdAndExecutableParents(t *testing.T) {
 		t.Fatalf("second candidate should be next to the executable: %v", c)
 	}
 }
+
+func TestAudioPartAndModelsOverride(t *testing.T) {
+	req := Request{Messages: []Message{{Role: "user", Text: "Transcribe", Audio: &Audio{Data: []byte("RIFF"), Format: "wav"}}}}
+	data, _ := json.Marshal(toOpenRouter("m", req))
+	if !strings.Contains(string(data), `{"type":"input_audio","input_audio":{"data":"UklGRg==","format":"wav"}}`) {
+		t.Fatalf("audio part missing: %s", data)
+	}
+
+	used := map[string]*atomic.Int32{"audio-m": {}, "cheap-m": {}}
+	srv := fakeOpenRouter(t, used)
+	defer srv.Close()
+	c := testClient(srv.URL)
+	r, err := c.Complete(context.Background(), Request{Models: "broken,audio-m", Messages: req.Messages})
+	if err != nil || r.Model != "audio-m" || r.Tier != Cheap || used["cheap-m"].Load() != 0 {
+		t.Fatalf("override: %+v %v (cheap-m calls %d)", r, err, used["cheap-m"].Load())
+	}
+	if st := c.Meter.Snapshot(); st.Cheap.Calls != 1 || st.Cheap.Errors != 1 {
+		t.Fatalf("cost must be counted under the tier: %+v", st)
+	}
+}
