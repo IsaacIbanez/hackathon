@@ -294,6 +294,15 @@ export class HandInteraction {
     return { center: m.center, sector: m.sector, progress, hand: m.hand };
   }
 
+  /**
+   * Progress [0, 1] of the dwell selection (pointing still on one spot), to draw a ring that
+   * fills up. 0 when not pointing, after the selection, or while the pointer moves.
+   */
+  dwellProgress(t: number): number {
+    if (!this.anchor || this.selectionDone || t - this.tLastPointing > 150) return 0;
+    return Math.min(1, Math.max(0, (t - this.tAnchor) / this.opts.dwellMs));
+  }
+
   /** Hand the user is using (stabilised over several frames), or null if not clear. */
   get handInUse(): HandSide | null {
     return this.stableHand;

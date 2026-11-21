@@ -84,6 +84,8 @@ export function Gestures({ send, voice, lang, doc, highlight, values = NO_VALUES
   const [on, setOn] = useState(false)
   // Where the fingertip points, in document coordinates (null = not pointing).
   const [pointer, setPointer] = useState<Point | null>(null)
+  // Progress [0, 1] of "hold the finger still" on one spot (the ring around the pointer).
+  const [dwell, setDwell] = useState(0)
   const lastPointerAt = useRef(0)
   // Voice questions (role C): point and hold, or menu → dictate, then speak.
   const [askByVoice, setAskByVoice] = useState(true)
@@ -231,21 +233,33 @@ export function Gestures({ send, voice, lang, doc, highlight, values = NO_VALUES
       if (e.type === 'pointer') {
         lastPointerAt.current = performance.now()
         setPointer(e.document)
+        setDwell(interaction.dwellProgress(e.t))
       }
+      if (e.type === 'select') setDwell(0)
       const local = actionFor(e, 'document')
-      // Form mode: point and hold starts (or switches to) a field; while filling it, 👍 saves,
-      // 👎 undoes the last change and ✋ ends the current turn of talking.
-      if (fillModeRef.current) {
-        if (e.type === 'select') {
-          const other = fieldUnder(e.document)
-          if (!dictation.active || (other && other.id !== fieldRef.current?.id)) {
-            setLastAction('Fill in this field')
+      // Holding the finger still on a field (a line with a blank to fill in) selects it for
+      // writing: say or spell the value. This works without ticking "Fill in a form".
+      if (e.type === 'select') {
+        const target = fieldUnder(e.document)
+        if (target) {
+          setFillMode(true)
+          if (dictation.active && target.id === fieldRef.current?.id) {
+            if (dictation.state.phase === 'paused') dictation.start()
+          } else {
+            setLastAction(`Write in: ${target.label}`)
             startField(e.document)
-          } else if (dictation.state.phase === 'paused') {
-            dictation.start()
           }
           return
         }
+        // Form mode, not on a field: start the next empty one (or resume the paused one).
+        if (fillModeRef.current) {
+          if (!dictation.active) startField(null)
+          else if (dictation.state.phase === 'paused') dictation.start()
+          return
+        }
+      }
+      // While filling a field, 👍 saves, 👎 undoes the last change and ✋ ends the turn of talking.
+      if (fillModeRef.current) {
         if (dictation.active && e.type === 'gesture') {
           if (e.gesture === 'thumbs_up') {
             dictation.confirm()
@@ -296,10 +310,17 @@ export function Gestures({ send, voice, lang, doc, highlight, values = NO_VALUES
         video.srcObject = stream
         await video.play()
         // Skeleton, detected pose, quick menu and volume, drawn over the preview (role C).
+        // Scheduled first and guarded, so one bad frame can't stop the drawing for good.
+        let reported = false
         const paint = () => {
           if (stopped) return
-          if (canvasRef.current) drawHandOverlay(canvasRef.current, video, frame, interaction, { drawVideo: false, drawPointer: false })
           raf = requestAnimationFrame(paint)
+          try {
+            if (canvasRef.current) drawHandOverlay(canvasRef.current, video, frame, interaction, { drawVideo: false, drawPointer: false })
+          } catch (err) {
+            if (!reported) console.error('Hand overlay failed to draw:', err)
+            reported = true
+          }
         }
         paint()
         setStatus('Loading hand model…')
@@ -316,7 +337,10 @@ export function Gestures({ send, voice, lang, doc, highlight, values = NO_VALUES
 
     // The hand module only emits pointer events while pointing: clear the dot when they stop.
     const staleTimer = setInterval(() => {
-      if (performance.now() - lastPointerAt.current > POINTER_TIMEOUT_MS) setPointer(null)
+      if (performance.now() - lastPointerAt.current > POINTER_TIMEOUT_MS) {
+        setPointer(null)
+        setDwell(0)
+      }
     }, 100)
 
     return () => {
@@ -331,6 +355,7 @@ export function Gestures({ send, voice, lang, doc, highlight, values = NO_VALUES
   }, [on, send, voice, lang, voiceInput, dictation, startField, fieldUnder])
 
   const hovered = pointer && doc ? blockAt(doc.blocks, pointer) : null
+  const hoveredField = hovered ? (fields.find((f) => f.id === hovered.id) ?? null) : null
 
   return (
     <section aria-label="Hand gestures" className="mt-8">
@@ -424,7 +449,7 @@ export function Gestures({ send, voice, lang, doc, highlight, values = NO_VALUES
           <p aria-live="assertive" className="mt-2 text-2xl font-bold text-yellow-300">
             {lastAction}
           </p>
-          <PointingStatus pointer={pointer} hovered={hovered} />
+          <PointingStatus pointer={pointer} hovered={hovered} field={hoveredField} />
           {/* The video is mirrored (it feels like a mirror); the boxes are drawn in document
               coordinates, which match what the user sees (WHOLE_FRAME_AS_SEEN). The canvas on top
               draws the hand skeleton, the detected pose and the quick menu. */}
@@ -434,6 +459,9 @@ export function Gestures({ send, voice, lang, doc, highlight, values = NO_VALUES
               {doc?.blocks.map((b) => {
                 const isHovered = hovered?.id === b.id
                 const isSpoken = highlight.includes(b.id)
+                // Fields (where you can write) are green; other text is yellow when pointed at.
+                const isField = fields.some((f) => f.id === b.id)
+                const color = isField ? '74, 222, 128' : '250, 204, 21'
                 return (
                   <rect
                     key={b.id}
@@ -441,8 +469,8 @@ export function Gestures({ send, voice, lang, doc, highlight, values = NO_VALUES
                     y={b.box.y}
                     width={b.box.w}
                     height={b.box.h}
-                    fill={isHovered ? 'rgba(250, 204, 21, 0.55)' : isSpoken ? 'rgba(250, 204, 21, 0.25)' : 'rgba(255, 255, 255, 0.12)'}
-                    stroke={isHovered ? '#facc15' : 'white'}
+                    fill={isHovered ? `rgba(${color}, 0.55)` : isSpoken ? 'rgba(250, 204, 21, 0.25)' : 'rgba(255, 255, 255, 0.12)'}
+                    stroke={isHovered ? `rgb(${color})` : isField ? 'rgb(74, 222, 128)' : 'white'}
                     strokeWidth={isHovered ? 0.006 : 0.003}
                   />
                 )
@@ -459,6 +487,8 @@ export function Gestures({ send, voice, lang, doc, highlight, values = NO_VALUES
               {pointer && (
                 <ellipse cx={pointer.x} cy={pointer.y} rx={0.018 / ASPECT} ry={0.018} fill="#38bdf8" stroke="white" strokeWidth={0.004} />
               )}
+              {/* Ring that fills up while the finger stays still: when it closes, the spot is selected. */}
+              {pointer && dwell > 0.05 && <DwellRing at={pointer} progress={dwell} color={hoveredField ? '#4ade80' : '#facc15'} />}
             </svg>
           </div>
         </>
@@ -468,9 +498,38 @@ export function Gestures({ send, voice, lang, doc, highlight, values = NO_VALUES
 }
 
 /** Big, plain feedback for testing and for low vision: is the hand pointing, and at what. */
-function PointingStatus({ pointer, hovered }: { pointer: Point | null; hovered: ReturnType<typeof blockAt> }) {
+function PointingStatus({
+  pointer,
+  hovered,
+  field,
+}: {
+  pointer: Point | null
+  hovered: ReturnType<typeof blockAt>
+  field: FormField | null
+}) {
   let text = 'Point with your index finger (other fingers closed).'
   if (pointer && !hovered) text = '☝️ Pointing — move onto a box.'
   if (hovered) text = `☝️ ${hovered.text} — hold still to ask.`
-  return <p className="mt-3 text-2xl font-semibold text-sky-200">{text}</p>
+  if (field) text = `✍️ ${field.label} — hold still to write here.`
+  return <p className={`mt-3 text-2xl font-semibold ${field ? 'text-emerald-300' : 'text-sky-200'}`}>{text}</p>
+}
+
+/** A ring around the pointer that closes as the dwell selection completes (SVG, 0–1 units). */
+function DwellRing({ at, progress, color }: { at: Point; progress: number; color: string }) {
+  const r = 0.045
+  const circumference = 2 * Math.PI * r
+  return (
+    // The SVG is stretched to 16:9: squash the ring back into a circle.
+    <g transform={`translate(${at.x} ${at.y}) scale(${1 / ASPECT} 1)`}>
+      <circle r={r} fill="none" stroke="rgba(0, 0, 0, 0.5)" strokeWidth={0.012} />
+      <circle
+        r={r}
+        fill="none"
+        stroke={color}
+        strokeWidth={0.012}
+        strokeDasharray={`${circumference * progress} ${circumference}`}
+        transform="rotate(-90)"
+      />
+    </g>
+  )
 }
