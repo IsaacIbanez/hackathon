@@ -36,7 +36,7 @@ tasks:
       - gofmt -w main.go app.go api backend
 
   check:
-    desc: build y lint del frontend, go vet y go test
+    desc: lint, tests y build del frontend, go vet y go test
     cmds:
       # Primero el front: main.go embebe web/dist y sin él Go no compila.
       - task: web-build
@@ -49,4 +49,5 @@ tasks:
     cmds:
       - npm ci
       - npm run lint
+      - npm test
       - npm run build
