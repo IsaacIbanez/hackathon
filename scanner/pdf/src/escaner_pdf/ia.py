@@ -29,7 +29,6 @@ URL = "https://openrouter.ai/api/v1/chat/completions"
 MODELO_BARATO = os.environ.get("LLM_MODELO_BARATO", "anthropic/claude-haiku-5.5")   # mismos nombres que backend/llm
 MODELO_CARO = os.environ.get("LLM_MODELO_CARO", "anthropic/claude-sonnet-5.5")
 LADO_IMAGEN = 1568          # lado mayor que el modelo ve sin reducir más
-VERSION_PROMPT = 2
 
 PROMPT = """Eres un sistema de digitalización de documentos. La imagen es UNA página escaneada.
 Devuelve SOLO un JSON con la maqueta de la página para reconstruirla como documento digital:

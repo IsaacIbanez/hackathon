@@ -15,7 +15,6 @@ BLANCO_PAPEL = 245.0       # nivel al que se lleva el papel (no 255, para no que
 GANANCIA_MAXIMA = 1.8      # suficiente para sombras normales; las zonas negras grandes siguen oscuras
 GANANCIA_MINIMA = 0.85
 TINTA_OBJETIVO = 40.0      # gris al que se lleva la tinta típica (no 0: no se aplastan trazos)
-BLANCO_REALCE = 250.0
 REALCE_MAXIMO = 3.0        # más ganancia amplifica el ruido y las sombras (medido con capturas reales)
 GANANCIA_PAPEL = 2.0       # tope al blanquear el papel localmente: un relleno oscuro grande no se borra
 NITIDEZ = 0.5              # cantidad de la máscara de enfoque

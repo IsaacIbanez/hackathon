@@ -4,8 +4,8 @@
 - **Herramienta:** Claude Code
 - **Tarea actual:** Subproyecto B / scanner: PNG a PDF buscable (`scanner/pdf/`)
 - **Rama:** feature/B-contexto-scanner
-- **Estado:** listo para revisión (escaneo + PDF buscable + documento digital)
-- **Último cambio:** 2026-11-21 21:30
+- **Estado:** entregado, en revisión (PR a `main`); documento de entrega en `scanner/ENTREGA.md`
+- **Último cambio:** 2026-11-21 22:30
 
 ## Hecho
 - `scanner/AGENTS.md` (y copia `AGENTS_B.md`): reglas y contexto del subproyecto scanner.
@@ -51,7 +51,14 @@
   cuerpo por ancho de párrafo; títulos solo mayores, nunca menores; flujo vertical en orden de lectura con huecos
   uniformes. Carta real: 344/344 palabras, firma completa, sin superposiciones, 0,002 $. 77 tests.
 
+- Entrega: `scanner/ENTREGA.md` (funcionamiento, integración, costes, decisiones, pendientes). Fusionado `main`
+  (captura de Pau #12, `POST /message` #13). `escanear.py`: `--enviar` / `enviar_a_app()` según
+  `docs/INTEGRACION_SCANNER.md` y cámara disponible si no hay MX Brio (decisión #21). Revisión: código muerto
+  fuera, OCR psm 3/6 en paralelo y modelo en paralelo con el OCR (escaneo 10,5 → 8 s; con digital 24,6 → 17,5 s),
+  código de salida "parcial" 2 → 5 (chocaba con "cámara no encontrada"). Tests: 77 + 23.
+
 ## Pendiente
+- Traducir a inglés el código de `scanner/pdf`, `escanear.py` y `app_prueba` (PR aparte, regla «Idioma»).
 - Probar con documentos en papel reales (A4, formulario) con la MX Brio y calibrar los umbrales de calidad (nitidez, brillo, reflejos).
 - Acordar con el rol A cómo se llama al escáner desde la app (Go/WebSocket).
 - OpenRouter opcional para casos dudosos (no empezado).

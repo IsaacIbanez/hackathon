@@ -231,13 +231,6 @@ def _lineas_fisicas(palabras: list[dict], cajas: list, indices: list[int]) -> li
     return sorted(lineas, key=lambda l: (min(cajas[i][1] for i in l), cajas[l[0]][0]))
 
 
-def _lineas(palabras: list[dict], cajas: list, indices: list[int]) -> list[list[int]]:
-    grupos: dict[tuple, list[int]] = {}
-    for i in indices:
-        grupos.setdefault(tuple(palabras[i]["linea"]), []).append(i)
-    return [sorted(g, key=lambda i: cajas[i][0]) for g in grupos.values()]
-
-
 def _tamano_y_base(linea: list[int], palabras: list[dict], cajas: list, s: float) -> tuple[float, float]:
     """Tamaño de fuente (pt) y línea base (px) de una línea, con las métricas de Helvetica.
 

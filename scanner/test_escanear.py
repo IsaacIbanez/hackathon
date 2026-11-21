@@ -72,7 +72,7 @@ class TestEscanear(unittest.TestCase):
         self.assertEqual(esc.error_captura["codigo"], capturar.ERR_SIN_FRAME)
 
     def test_sin_camara_devuelve_error_de_captura(self):
-        with mock.patch.object(capturar, "listar_camaras", return_value=[capturar.Camara(0, "ACER HD")]):
+        with mock.patch.object(capturar, "listar_camaras", return_value=[]):
             esc = escanear.escanear(carpeta_capturas=self.dir, carpeta_pdf=self.dir, opciones=RAPIDO)
         self.assertIsNone(esc.resultado)
         self.assertEqual(esc.error_captura["codigo"], capturar.ERR_CAMARA_NO_ENCONTRADA)
@@ -85,6 +85,59 @@ class TestEscanear(unittest.TestCase):
         r = escanear.convertir_png(png, self.dir / "pdf", RAPIDO)
         self.assertEqual(r.entrada["metadatos"]["camara"]["nombre"], "X")
         self.assertTrue(Path(r.pdf).is_file())
+
+
+class TestEnviarAApp(unittest.TestCase):
+    """POST /message a la app (docs/INTEGRACION_SCANNER.md), con un servidor local que hace de app."""
+
+    def setUp(self):
+        from http.server import BaseHTTPRequestHandler, HTTPServer
+        recibidos = self.recibidos = []
+
+        class App(BaseHTTPRequestHandler):
+            def do_POST(self):
+                recibidos.append(json.loads(self.rfile.read(int(self.headers["Content-Length"]))))
+                self.send_response(202)
+                self.end_headers()
+
+            def log_message(self, *args):
+                pass
+
+        self.servidor = HTTPServer(("127.0.0.1", 0), App)
+        threading.Thread(target=self.servidor.serve_forever, daemon=True).start()
+        self.url = f"http://127.0.0.1:{self.servidor.server_address[1]}/message"
+
+    def tearDown(self):
+        self.servidor.shutdown()
+        self.servidor.server_close()
+
+    def test_envia_el_document_del_contrato(self):
+        resultado = mock.Mock()
+        resultado.documento.return_value = {"blocks": [], "quality": {"score": 1.0, "issues": []}}
+        self.assertTrue(escanear.enviar_a_app(resultado, self.url))
+        sobre = self.recibidos[0]
+        self.assertEqual(sobre["type"], "document")
+        self.assertTrue(sobre["id"].startswith("doc-") and isinstance(sobre["ts"], int))
+        self.assertEqual(sobre["payload"]["quality"]["score"], 1.0)
+
+    def test_app_cerrada_devuelve_false(self):
+        resultado = mock.Mock()
+        resultado.documento.return_value = {"blocks": [], "quality": {"score": 1.0, "issues": []}}
+        self.assertFalse(escanear.enviar_a_app(resultado, "http://127.0.0.1:9/message"))
+
+
+class TestCamaraDisponible(unittest.TestCase):
+    """Decisión de equipo: sin MX Brio se usa la cámara que haya (no la virtual)."""
+
+    def test_sin_brio_usa_la_primera_real(self):
+        camaras = [capturar.Camara(0, "USB2.0 HD UVC WebCam"), capturar.Camara(1, "Windows Virtual Camera")]
+        with mock.patch.object(capturar, "listar_camaras", return_value=camaras):
+            self.assertEqual(escanear._elegir_camara(None).indice, 0)
+
+    def test_camara_pedida_que_no_esta_es_error(self):
+        with mock.patch.object(capturar, "listar_camaras", return_value=[capturar.Camara(0, "USB2.0 HD UVC WebCam")]):
+            with self.assertRaises(capturar.ErrorCaptura):
+                escanear._elegir_camara("brio")
 
 
 if __name__ == "__main__":

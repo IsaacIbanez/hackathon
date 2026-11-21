@@ -1,169 +1,54 @@
-# scanner/pdf/ — Imagen PNG a PDF buscable
+# scanner/pdf/ — paquete `escaner_pdf`
 
-Parte del subproyecto `scanner/` (reglas en `../AGENTS.md`). Dueño: Didac (P2-C).
+Referencia técnica del paquete. **Para integrarlo en la app, empieza por [`../ENTREGA.md`](../ENTREGA.md)**.
+Dueño: Didac (P2-C). Reglas del subproyecto: `../AGENTS.md`.
 
-Recibe el **PNG** que genera la parte de captura y produce un **PDF buscable**: la página con su
-aspecto real (enderezada, recortada, con la iluminación igualada) más una capa de texto OCR
-invisible y alineada, para seleccionar, copiar y buscar. No reconstruye el documento con IA.
+Recibe el **PNG** de una página y produce:
+- un **PDF escaneado buscable**: la página con su aspecto real (recortada, enderezada, girada, con la
+  iluminación igualada y el texto oscuro sobre papel blanco) + una capa de texto OCR invisible y alineada;
+- opcionalmente, un **PDF digital**: página en blanco con el texto escrito de verdad y las imágenes
+  (firma, logo, sello) en su sitio, como si el documento se hubiera hecho en el ordenador;
+- el payload del mensaje **`document`** del contrato (`api/openapi.yaml`), listo para enviar a la app.
 
 ## Instalación
 ```
-# Windows (Python 3.10+; instala Tesseract con winget y descarga spa/cat/eng a tessdata/)
-powershell -ExecutionPolicy Bypass -File scanner\pdf\scripts\instalar.ps1
-# Linux / macOS
-bash scanner/pdf/scripts/instalar.sh
+powershell -ExecutionPolicy Bypass -File scanner\pdf\scripts\instalar.ps1     # Windows
+bash scanner/pdf/scripts/instalar.sh                                          # Linux / macOS
 ```
-Los dos scripts acaban ejecutando los tests.
+Crean `scanner/pdf/.venv`, instalan Tesseract (+ spa, cat, eng) y, en Windows, ffmpeg; acaban ejecutando
+los tests. Un solo entorno para todo `scanner/` (OpenCV *headless* también captura de la cámara).
 
 ## Uso
 ```
-cd scanner/pdf
-.venv\Scripts\python -m escaner_pdf captura.png -o salida        # Windows
-.venv/bin/python -m escaner_pdf captura.png -o salida            # Linux/macOS
+.venv\Scripts\python -m escaner_pdf captura.png -o salida [--digital] [--json]
 ```
-Opciones útiles: `--modo gris|bn`, `--tamano A4|Letter|imagen`, `--esquinas x1,y1,...,x4,y4`
-(recorte manual), `--sin-recorte`, `--jpeg`, `--json`. Ver `--help`.
-Código de salida: 0 = ok, 2 = PDF generado pero parcial (p. ej. sin OCR), 1 = error.
+Opciones: `--modo gris|bn`, `--tamano A4|Letter|imagen`, `--esquinas x1,y1,...,x4,y4` (recorte manual),
+`--sin-recorte`, `--sin-iluminacion`, `--sin-realce`, `--sin-orientar`, `--sin-ocr`, `--jpeg`, `--digital`.
+Código de salida: 0 ok · 2 PDF generado pero parcial (p. ej. sin OCR) · 1 error.
 
-Desde Python:
 ```python
 from escaner_pdf import convertir, Opciones
-r = convertir("captura.png", "salida/")            # también acepta los bytes del PNG
-r.estado        # "ok" | "parcial" | "error"
-r.pdf           # ruta del PDF final
-r.avisos        # p. ej. ["pagina_no_detectada"]
-r.error         # {"codigo": ..., "mensaje": ...} si estado == "error"
-r.documento()   # payload del mensaje `document` del contrato (api/openapi.yaml)
+r = convertir("captura.png", "salida/", Opciones(digital=True))   # también acepta los bytes del PNG
+r.estado, r.pdf, r.pdf_digital, r.avisos, r.error, r.documento()
 ```
 `convertir` no lanza excepciones por errores esperables: siempre devuelve un `Resultado`.
 
-## Conexión con la captura (`scanner/escanear.py`)
-Une la captura de Pau (`scanner/capturar.py`) con este paquete, usando solo sus interfaces públicas:
+## Módulos (`src/escaner_pdf/`)
+| Módulo | Qué hace |
+|--------|----------|
+| `entrada.py` | Valida el PNG (firma, tamaño, 8/16 bits, alfa sobre blanco, DPI) y guarda los bytes originales. |
+| `geometria.py` | Detecta la hoja (contornos, umbral y rectas largas de Hough; filtros de soporte de borde, contraste por lado, contenido, ángulos, razón de lados, marco), refina esquinas, proporción real (Zhang y He), ajuste a A4/Letter/A5/Legal. Si no está segura, no recorta. |
+| `imagen.py` | Iluminación y **realce de documento** solo en papel claro (papel normalizado localmente, tinta a casi negro, sin dominantes, nitidez suave); modos color/gris/bn; calidad con `FrameIssue`; máscara de letras. |
+| `ocr.py` | Tesseract: orientación (OSD sobre la zona con más letras + lectura de comprobación), OCR con pases psm 3 y 6 **en paralelo** (+ psm 11 si casi no lee), capa invisible "sandwich" + palabras con caja y confianza. |
+| `pdf.py` | Imagen sin recodificar (img2pdf) al tamaño físico exacto, superposición exacta de la capa (pikepdf), validación. |
+| `ia.py` | Cliente de OpenRouter (biblioteca estándar): maqueta de la página con un modelo de visión. |
+| `digital.py` | PDF digital: con la maqueta del modelo (`digitalizar_maqueta`) o solo con el OCR local (`digitalizar`). ReportLab escribe el texto. |
+| `pipeline.py` | `convertir()`: une todo, mide tiempos, guarda intermedios y `resultado.json`. |
+
+Detalle de cada decisión, medidas y costes: `../ENTREGA.md`.
+
+## Tests
 ```
-scanner\pdf\.venv\Scripts\python scanner\escanear.py                 # MX Brio -> PNG -> PDF
-scanner\pdf\.venv\Scripts\python scanner\escanear.py --camara 0      # otra cámara
-scanner\pdf\.venv\Scripts\python scanner\escanear.py --png foto.png  # sin cámara
+.venv\Scripts\python -m pytest -q          # 77 tests, ~37 s; sin red (el modelo de visión se simula)
 ```
-Desde Python: `escanear.escanear()` (captura única: abre, espera al enfoque —1,4 s como mucho— y cierra
-en paralelo con el guardado) o `escanear.escanear_viva(viva)` con una `capturar.CamaraViva` ya abierta
-(captura en ~0,4 s: el frame más nítido tras la orden). Ambas devuelven `Escaneo(png, metadatos_captura, resultado)`;
-los errores de cámara vuelven en `error_captura` (mismos códigos que `capturar.py`). Los metadatos de la cámara
-quedan en `resultado.entrada["metadatos"]` y el PDF se llama igual que la captura.
-Un solo entorno para todo: `scanner/pdf/.venv` (OpenCV *headless* también captura; no instalar a la vez
-`opencv-python`, chocan). Tests sin cámara: `python -m unittest discover -s scanner`.
-
-Para probar desde el navegador hay una app **provisional** en `scanner/app_prueba/` (no es parte del producto).
-
-## Documento digital (opcional: `Opciones(digital=True)`, `--digital`)
-Además del PDF escaneado, `<nombre>-digital.pdf`: una **página en blanco con el texto escrito de verdad**
-y **las imágenes donde estaban** (firma, logos, sellos), como si el documento se hubiera hecho en el ordenador.
-
-**Con modelo de visión (por defecto si hay clave)** — `ia.py` + `digital.digitalizar_maqueta`:
-1. **Transcripción**: Haiku 5.5 (OpenRouter) devuelve la maqueta por bloques en orden de lectura: líneas
-   exactas, alineación, negrita, y firmas/logos/sellos/fotos/QR como imágenes.
-2. **Geometría**: cada bloque de texto se sitúa con las palabras del OCR local que coinciden con su texto
-   (si el modelo lo situó desplazado, se busca en una ventana amplia y se exige más coincidencia).
-3. **Tipografía uniforme**: tamaño de cuerpo deducido del ancho de los párrafos justificados (el ancho del
-   OCR es preciso; la altura de las letras sale inflada en fotos borrosas). Un bloque solo es mayor si es
-   un título (negrita o centrado, 1-2 líneas); nunca menor. Interlineado común medido en los párrafos.
-4. **Imágenes como imágenes**: el rectángulo de la firma/logo con sus trazos claros y su color, sin el
-   texto vecino (se blanquean solo las palabras del OCR) y con el papel en blanco limpio.
-5. **Flujo vertical**: en el orden de lectura del modelo, cada elemento debajo del anterior de su columna;
-   huecos normales entre párrafos iguales, saltos grandes (antes de una firma) respetados. Nada se pisa.
-6. **Control**: concordancia con el OCR local; si es < 60 % (o el JSON falla) se repite con Sonnet 5.5.
-   Carta real: 344/344 palabras, firma completa, concordancia 0,88, **0,002 $**, ~14 s de modelo.
-   Coste, tokens y modelo en `resultado.digital["llamadas_ia"]`; la maqueta en `maqueta_ia.json`.
-
-**Sin clave o sin conexión**: reconstrucción con el OCR local (`digital.digitalizar`), con aviso
-`digital_ia_no_disponible:<código>`. Palabras ilegibles como recorte; dudosas en `digital["a_revisar"]`.
-
-**Clave**: variable `OPENROUTER_API_KEY` o un archivo `scanner/.env` (está en `.gitignore`) con la línea
-`OPENROUTER_API_KEY=...`. **Nunca** en el repositorio. **Privacidad**: con el modelo, la imagen de la página
-se envía a OpenRouter; para documentos con datos personales reales, usar `Opciones(digital_ia=False)`.
-
-Solo en papel claro: en carteles o tarjetas de color no se crea (aviso `digital_no_aplicable`).
-
-## Qué genera (`salida/<nombre>/`)
-| Archivo | Qué es |
-|---------|--------|
-| `<nombre>.pdf` | PDF final: imagen + capa de texto invisible |
-| `<nombre>-digital.pdf` | (opcional) documento reconstruido: texto real e imágenes en su sitio |
-| `original.png` | el PNG recibido, byte a byte (nunca se modifica) |
-| `pagina.png` | la página preparada (lo que va dentro del PDF) |
-| `base.pdf` | PDF solo imagen, antes del OCR |
-| `deteccion.jpg` | la captura con la hoja detectada dibujada (verde = usada, rojo = descartada) |
-| `entrada.json`, `resultado.json` | metadatos de entrada y resultado completo |
-
-Si el nombre ya existe se crea `<nombre>-2`, `-3`…: nunca se sobrescribe un resultado.
-
-## Pipeline (`src/escaner_pdf/`)
-1. `entrada.py` — valida el PNG (firma, tamaño, 8/16 bits, alfa sobre blanco, DPI del PNG).
-2. `geometria.py` — detecta la hoja con tres fuentes de candidatos: contornos de bordes (Canny con umbral fijo;
-   el marco de la imagen cuenta como borde para documentos cortados), regiones por umbral y **rectas largas**
-   (Hough; aguanta dedos encima del borde). Cada candidato pasa filtros medidos con capturas reales: soporte
-   de borde, contraste dentro/fuera y **a través de cada lado**, contenido (descarta mesa vacía), ángulos,
-   razón de lados y como mucho un lado sobre el marco. Entre los fiables gana el de mayor área. Luego refina
-   las esquinas a resolución completa, calcula la **proporción real** (Zhang y He) y ajusta a A4/Letter/A5/Legal
-   si coincide. Si no está segura, **no recorta** y avisa (`pagina_no_detectada`).
-3. `ocr.py` — orientación 90/180/270: OSD de Tesseract sobre un **recorte de la zona con más letras a
-   resolución nativa** (sobre la página entera reducida fallaba; sobre el recorte da confianza 8-15 en ~0,5 s)
-   y, si duda, se lee de verdad cada orientación (para en cuanto una gana, o si el texto es ilegible).
-   Con las capturas reales: 12/12 bien, incluida la hoja vertical fotografiada en horizontal.
-   OCR que da a la vez la capa de texto invisible (renderizador "sandwich") y las palabras con caja y
-   confianza: psm 3 y, **solo si hace falta**, un segundo pase: psm 11 si casi no lee (carteles, pantallas) o psm 6 si
-   se ha saltado letras de la página (cobertura < 60 %: cartas con líneas no del todo rectas). Tope de 8,5 MP.
-4. `imagen.py` — en **papel claro recortado**: iluminación (ganancia por canal limitada a 1,8) y **realce de
-   documento**: blanco del papel normalizado localmente (sin manchas), tinta a casi negro, sin dominantes de
-   color y nitidez suave (la cámara entrega el texto en gris 180-210). En carteles oscuros o la escena entera no se toca.
-   Calidad con el vocabulario `FrameIssue` del contrato (`blurry`, `dark`, `glare`, `cropped`, `tilted`, `too_far`).
-5. `pdf.py` — img2pdf incrusta la imagen **sin recodificar** al tamaño físico exacto; pikepdf superpone
-   la capa de texto con escala exacta; y se valida: páginas, tamaño, resolución de la imagen
-   incrustada, texto extraíble, alineación de la capa y fidelidad (imagen incrustada vs página, PSNR).
-
-## Decisiones (medidas, no supuestas)
-- **Tesseract directo en vez de OCRmyPDF.** Sobre la misma página: OCRmyPDF 2,07 s; nuestro camino
-  1,06 s con el mismo texto, y además devuelve los bloques con confianza que pide el contrato
-  (OCRmyPDF obligaría a un segundo pase). OCRmyPDF 17 tampoco necesita Ghostscript.
-- **Sin ReportLab:** img2pdf + pikepdf bastan y no recodifican la imagen.
-- **PNG sin pérdidas por defecto** (PSNR 99 dB entre la página y el PDF). `--jpeg` es opcional.
-- **Sin IA por ahora.** OpenRouter queda como mejora opcional para casos dudosos (no hace falta para el PDF).
-
-## Capturas reales (MX Brio y webcam 720p, documentos sujetos con la mano)
-- Tarjeta y pantalla de móvil sujetas delante de la cámara: con solo psm 3 se leían **0 palabras**;
-  con el segundo pase se lee "DISCORD · SCAN TO JOIN", "Leave the server and rejoin using this QR code…",
-  "CUSTOM HOODIE · FRONT DESIGN".
-- Tarjeta blanca delante de una sudadera blanca y con dedos en los bordes: el borde no se ve y salían
-  recortes absurdos. Ahora se descartan (soporte de borde < 0,4, confianza < 0,65, lados opuestos con
-  razón > 1,75) y se usa el fotograma entero con aviso `pagina_no_detectada`. **Para la demo: fondo oscuro
-  detrás del papel.**
-- Tiempos con la MX Brio (4K): A4 detectado ~2,1 s de PDF + 0,4 s de captura con la cámara abierta.
-  Fotograma sin documento: ~5 s (dos pases de OCR sobre 8 MP).
-
-Con las 12 capturas reales del 21/11 (MX Brio y webcam): antes de estos cambios se recortaba la mesa vacía
-o la escena; ahora la tarjeta, el móvil y los carteles sobre la mesa salen bien recortados y con su color, y el
-cartel del revés se gira. Siguen fallando el cartel sujeto con la mano delante de toda la sala, los documentos
-que se salen del encuadre por dos lados y las capturas desenfocadas por estar demasiado cerca: para eso la app
-de prueba enseña el contorno en directo y deja ajustar las esquinas a mano (`Opciones.esquinas`).
-
-### Resolución de la MX Brio (medido el 21/11)
-La cámara **sí entrega 4K real**: hay capturas con mucho detalle fino. Las que se ven "de baja resolución"
-son la hoja sobre la mesa vista desde lejos: el autoenfoque se queda en otra distancia y la hoja ocupa poco
-del encuadre. Con la cámara en el modo 4K, la hoja entera a 30-40 cm y esperando al enfoque, la página sale
-a ~180-200 DPI. Lo que no se puede arreglar después: una foto desenfocada (p. ej. 170507) no se lee ni se
-puede orientar. La app de prueba avisa en directo si la imagen está borrosa.
-
-## Estado de las pruebas
-`pytest` (77 tests, ~37 s; sin red: el modelo se simula): entrada, geometría con 7 poses de cámara realistas, casos sin hoja
-(textura, negro, hoja que llena el encuadre), iluminación, calidad, extremo a extremo con acentos,
-página girada, modos y formatos, fallos (sin Tesseract, entrada inválida, opciones inválidas).
-Las imágenes de prueba son **sintéticas** (`tests/sinteticos.py`).
-
-## Limitaciones y pendientes
-- Falta probar con **capturas reales** de la cámara de Logitech: los umbrales de calidad (nitidez,
-  brillo, reflejos) son heurísticos y hay que calibrarlos. Muestras en `muestras/`.
-- Con la hoja inclinada en **un solo eje**, la focal no se puede deducir y se supone una webcam de
-  78° de campo diagonal (`Opciones.fov_diagonal`). Si la cámara real es distinta, ajustarlo.
-- Una sola página por llamada. Sin deskew fino (Tesseract tolera inclinaciones pequeñas).
-- Escritura a mano: Tesseract no la reconoce bien; la imagen sí se conserva fiel.
-- Integración con la app (Go/WebSocket): pendiente de acordar con el rol A. `Resultado.documento()`
-  ya da el payload `document` sin cambiar el contrato.
+Imágenes sintéticas (`tests/sinteticos.py`): ningún documento real en el repositorio.

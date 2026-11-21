@@ -14,6 +14,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -173,19 +174,26 @@ def reconocer(img: np.ndarray, idiomas: str, dpi: float, nivel: str = "linea", t
         img = cv2.resize(img, None, fx=factor, fy=factor, interpolation=cv2.INTER_CUBIC)
         dpi *= factor
 
-    psm = 3
-    pdf, palabras = _pase(img, idiomas, dpi, psm, timeout)
-    pases = 1
+    # Segmentación de página (psm 3) y de bloque (psm 6) a la vez, en dos procesos de Tesseract: psm 3
+    # es el bueno para cartas y formularios, pero en fotos con líneas no del todo rectas se salta párrafos
+    # enteros (medido: 205 frente a 282 palabras fiables) y entonces vale psm 6. En paralelo tarda lo que
+    # el más lento (medido en una carta 4K: 7,4 s en serie -> 5,0 s).
+    with ThreadPoolExecutor(max_workers=2) as hilos:
+        f3 = hilos.submit(_pase, img, idiomas, dpi, 3, timeout)
+        f6 = hilos.submit(_pase, img, idiomas, dpi, 6, timeout)
+        pdf, palabras = f3.result()
+        pdf6, palabras6 = f6.result()
+    psm, pases = 3, 2
     cobertura = _cobertura(img, palabras)
-    # Segundo pase solo si hace falta: casi nada leído o confianza baja -> texto disperso (carteles,
-    # pantallas); se han leído pocas de las letras que hay -> bloque uniforme (cartas fotografiadas con
-    # líneas no del todo rectas, donde psm 3 se salta párrafos enteros: medido 205 frente a 282 fiables).
-    segundo = 11 if _duda(palabras) else (6 if cobertura is not None and cobertura < COBERTURA_MINIMA else None)
-    if segundo:
-        pdf2, palabras2 = _pase(img, idiomas, dpi, segundo, timeout)
-        pases = 2
-        if _fiables(palabras2) > _fiables(palabras):
-            pdf, palabras, psm = pdf2, palabras2, segundo
+    if cobertura is not None and cobertura < COBERTURA_MINIMA and _fiables(palabras6) > _fiables(palabras):
+        pdf, palabras, psm = pdf6, palabras6, 6
+        cobertura = _cobertura(img, palabras)
+    # Casi nada leído o confianza baja: texto disperso (carteles, tarjetas, pantallas), solo entonces.
+    if _duda(palabras):
+        pdf11, palabras11 = _pase(img, idiomas, dpi, 11, timeout)
+        pases = 3
+        if _fiables(palabras11) > _fiables(palabras):
+            pdf, palabras, psm = pdf11, palabras11, 11
             cobertura = _cobertura(img, palabras)
 
     alto, ancho = img.shape[:2]

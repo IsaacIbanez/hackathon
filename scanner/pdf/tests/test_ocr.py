@@ -34,24 +34,24 @@ def _simular(monkeypatch, por_psm):
 IMG = np.zeros((1000, 800, 3), np.uint8)
 
 
-def test_un_solo_pase_si_el_primero_va_bien(monkeypatch):
-    llamadas = _simular(monkeypatch, {3: [_p("palabra", 92)] * 30, 11: []})
+def test_pagina_y_bloque_en_paralelo_y_gana_la_pagina_si_lee_bien(monkeypatch):
+    llamadas = _simular(monkeypatch, {3: [_p("palabra", 92)] * 30, 6: [_p("palabra", 92)] * 30, 11: []})
     r = ocr.reconocer(IMG, "spa", 300)
-    assert llamadas == [3] and r.psm == 3 and r.pases == 1 and r.pdf_texto == b"pdf3"
+    assert sorted(llamadas) == [3, 6] and r.psm == 3 and r.pases == 2 and r.pdf_texto == b"pdf3"
 
 
 def test_segundo_pase_disperso_cuando_el_primero_no_lee(monkeypatch):
     # Caso real: cartel/tarjeta donde psm 3 no encuentra nada y psm 11 lee "DISCORD SCAN TO JOIN".
-    llamadas = _simular(monkeypatch, {3: [], 11: [_p("DISCORD", 93), _p("SCAN", 90), _p("JOIN", 88)]})
+    llamadas = _simular(monkeypatch, {3: [], 6: [], 11: [_p("DISCORD", 93), _p("SCAN", 90), _p("JOIN", 88)]})
     r = ocr.reconocer(IMG, "spa", 300)
-    assert llamadas == [3, 11] and r.psm == 11 and r.pdf_texto == b"pdf11"
+    assert sorted(llamadas) == [3, 6, 11] and r.psm == 11 and r.pdf_texto == b"pdf11"
     assert "ocr_texto_disperso" in r.avisos and r.palabras == 3
 
 
 def test_se_queda_con_el_primero_si_el_segundo_no_mejora(monkeypatch):
-    _simular(monkeypatch, {3: [_p("hola", 80)] * 3, 11: [_p("x", 30)] * 3})
+    _simular(monkeypatch, {3: [_p("hola", 80)] * 3, 6: [], 11: [_p("x", 30)] * 3})
     r = ocr.reconocer(IMG, "spa", 300)
-    assert r.psm == 3 and r.pases == 2
+    assert r.psm == 3 and r.pases == 3
 
 
 def test_filtra_palabras_sin_letras_ni_numeros():

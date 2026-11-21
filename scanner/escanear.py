@@ -19,8 +19,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import sys
+import time
+import urllib.request
+import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -33,7 +37,11 @@ if str(RAIZ / "pdf" / "src") not in sys.path:     # escaner_pdf, aunque no esté
 import capturar  # noqa: E402
 from escaner_pdf import Opciones, Resultado, convertir  # noqa: E402
 
+log = logging.getLogger("escanear")
+
 CARPETA_PDF = RAIZ / "pdf" / "salida"
+SALIDA_PARCIAL = 5     # PDF generado pero parcial (sin texto, no valida...)
+APP_URL = os.environ.get("LAUZHACK_MESSAGE_URL", "http://127.0.0.1:8765/message")   # app Go (docs/INTEGRACION_SCANNER.md)
 ESPERA_ENFOQUE = 1.4   # s; máximo que capturar.py espera a que se asiente el autoenfoque
 
 
@@ -65,7 +73,7 @@ def escanear(camara: str | None = None, *, ancho: int = 3840, alto: int = 2160,
     Los errores de cámara vuelven en `error_captura`, con los códigos de capturar.py.
     """
     try:
-        cam = capturar.elegir_camara(capturar.listar_camaras(), camara)
+        cam = _elegir_camara(camara)
         momento = datetime.now().astimezone()
         frame, metadatos, cierre = capturar.capturar(cam, ancho, alto, espera_enfoque)
         try:
@@ -76,6 +84,40 @@ def escanear(camara: str | None = None, *, ancho: int = 3840, alto: int = 2160,
     except capturar.ErrorCaptura as e:
         return Escaneo(None, None, None, {"codigo": e.codigo, "mensaje": str(e)})
     return _convertir_captura(png, carpeta_pdf, opciones)
+
+
+def _elegir_camara(camara: str | None) -> "capturar.Camara":
+    """La pedida; sin preferencia, la MX Brio y, si no está, la primera cámara real disponible.
+
+    Decisión de equipo (AGENTS.md, 2026-11-21): "se usa la cámara que haya"; la Logitech si está conectada.
+    Si se pide una cámara concreta y no está, sí es un error.
+    """
+    camaras = capturar.listar_camaras()
+    try:
+        return capturar.elegir_camara(camaras, camara)
+    except capturar.ErrorCaptura:
+        reales = [c for c in camaras if "virtual" not in c.nombre.lower()]
+        if camara is not None or not reales:
+            raise
+        log.warning("No hay MX Brio: se usa %s", reales[0].nombre)
+        return reales[0]
+
+
+def enviar_a_app(resultado: Resultado, url: str = APP_URL) -> bool:
+    """Envía el documento a la app (POST /message, ver docs/INTEGRACION_SCANNER.md).
+
+    Va el payload `document` del contrato (Resultado.documento(): bloques por línea con caja normalizada
+    y confianza, calidad con FrameIssue). Devuelve False si la app no está abierta o lo rechaza.
+    """
+    sobre = {"type": "document", "id": f"doc-{uuid.uuid4()}", "ts": int(time.time() * 1000),
+             "payload": resultado.documento()}
+    peticion = urllib.request.Request(url, data=json.dumps(sobre, ensure_ascii=False).encode("utf-8"),
+                                      headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urllib.request.urlopen(peticion, timeout=5) as resp:
+            return resp.status == 202
+    except OSError:
+        return False
 
 
 def escanear_viva(viva: "capturar.CamaraViva", *, carpeta_capturas: Path = capturar.CARPETA_POR_DEFECTO,
@@ -121,6 +163,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--modo", choices=["color", "gris", "bn"], default="color")
     p.add_argument("--digital", action="store_true", help="además, PDF digital: texto real e imágenes en su sitio")
     p.add_argument("--salida", type=Path, default=CARPETA_PDF, help="carpeta de los PDF")
+    p.add_argument("--enviar", action="store_true", help="enviar el documento a la app (POST /message)")
     p.add_argument("--json", action="store_true")
     a = p.parse_args(argv)
     op = Opciones(idiomas=a.idiomas, modo=a.modo, digital=a.digital)
@@ -130,8 +173,11 @@ def main(argv: list[str] | None = None) -> int:
     else:
         esc = escanear(a.camara, espera_enfoque=a.calentamiento, carpeta_pdf=a.salida, opciones=op)
 
+    enviado = None
+    if a.enviar and esc.resultado is not None and esc.resultado.pdf:
+        enviado = enviar_a_app(esc.resultado)
     if a.json:
-        print(json.dumps(esc.a_dict(), ensure_ascii=False, indent=2))
+        print(json.dumps({**esc.a_dict(), "enviado_a_app": enviado}, ensure_ascii=False, indent=2))
     elif esc.error_captura:
         print(f"Error de captura: {esc.error_captura['mensaje']}", file=sys.stderr)
     elif esc.resultado.error:
@@ -142,10 +188,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  captura {esc.png}")
         if r.pdf_digital:
             print(f"  digital: {r.pdf_digital} ({len(r.digital.get('a_revisar', []))} palabras a revisar)")
+        if enviado is not None:
+            print("  enviado a la app" if enviado else f"  NO enviado: ¿está la app abierta en {APP_URL}?")
         print(f"  calidad {r.calidad.get('puntuacion')} {r.calidad.get('problemas') or ''}; avisos {r.avisos or '-'}")
     if esc.error_captura:
         return esc.error_captura["codigo"]
-    return 0 if esc.ok else (1 if esc.resultado.estado == "error" else 2)
+    # 2/3/4 son de la cámara (capturar.py); por eso el PDF parcial es 5 y no 2.
+    return 0 if esc.ok else (1 if esc.resultado.estado == "error" else SALIDA_PARCIAL)
 
 
 if __name__ == "__main__":

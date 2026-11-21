@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -32,7 +33,7 @@ class Opciones:
     esquinas: list[list[float]] | None = None   # recorte manual: 4 puntos [x, y] en px del original
     iluminacion: bool = True             # igualar sombras y dominantes (ganancia limitada)
     realce: bool = True                  # aspecto de escáner en papel claro: tinta negra, papel blanco, nitidez
-    orientar: bool = True                # girar 90/180/270 si Tesseract está seguro
+    orientar: bool = True                # girar 90/180/270 (OSD sobre la zona con más texto + lectura de comprobación)
     tamano: str = "auto"                 # auto | imagen | A4 | Letter | A5 | Legal
     fov_diagonal: float = geometria.FOV_DIAGONAL_WEBCAM  # campo de visión de la cámara (grados)
     dpi: float | None = None             # fuerza el DPI cuando no se ajusta a un papel estándar
@@ -168,6 +169,14 @@ def convertir(origen: str | Path | bytes, carpeta_salida: str | Path, opciones: 
             (carpeta / "base.pdf").write_bytes(base)
             r.intermedios["base_pdf"] = str(carpeta / "base.pdf")
 
+        # Documento digital con modelo: la llamada (lo más lento, ~14 s) empieza ya, en paralelo con el
+        # OCR local, porque solo necesita la página; el OCR hace falta después para situar los bloques.
+        maqueta_futura = None
+        if op.digital and op.digital_ia and op.ocr and tess and ia.clave() and digital.aplicable(corregida):
+            hilos = ThreadPoolExecutor(max_workers=1)
+            maqueta_futura = hilos.submit(ia.maquetar, corregida, ia.MODELO_BARATO)
+            hilos.shutdown(wait=False)
+
         final_pdf, bloques, res = base, None, None
         if op.ocr and tess:
             try:
@@ -200,7 +209,7 @@ def convertir(origen: str | Path | bytes, carpeta_salida: str | Path, opciones: 
 
         if op.digital:
             with t("digital"):
-                _documento_digital(r, op, corregida, res, float(np.mean(dpi)), carpeta, nombre)
+                _documento_digital(r, op, corregida, res, float(np.mean(dpi)), carpeta, nombre, maqueta_futura)
         if not r.validacion.get("ok"):
             r.avisos.append("validacion_fallida")
     except ErrorEscaner as e:
@@ -219,7 +228,7 @@ def convertir(origen: str | Path | bytes, carpeta_salida: str | Path, opciones: 
 # ---------------------------------------------------------------- pasos
 
 def _documento_digital(r: "Resultado", op: Opciones, pagina: np.ndarray, res, dpi: float, carpeta: Path,
-                       nombre: str) -> None:
+                       nombre: str, maqueta_futura: Future | None = None) -> None:
     """PDF digital (texto real + imágenes en su sitio). Si no se puede, aviso y el escaneado queda igual."""
     if res is None or not res.detalle:
         r.avisos.append("digital_sin_texto")
@@ -232,7 +241,7 @@ def _documento_digital(r: "Resultado", op: Opciones, pagina: np.ndarray, res, dp
     datos, info = None, {}
     if op.digital_ia:
         try:
-            datos, info = _digital_con_modelo(pagina, res.detalle, dpi, op, nombre, carpeta)
+            datos, info = _digital_con_modelo(pagina, res.detalle, dpi, op, nombre, carpeta, maqueta_futura)
         except ErrorEscaner as e:
             r.avisos.append(f"digital_ia_no_disponible:{e.codigo}")
             info = {"ia_error": e.a_dict()}
@@ -247,13 +256,19 @@ def _documento_digital(r: "Resultado", op: Opciones, pagina: np.ndarray, res, dp
 
 
 def _digital_con_modelo(pagina: np.ndarray, palabras: list[dict], dpi: float, op: Opciones, nombre: str,
-                        carpeta: Path) -> tuple[bytes, dict]:
-    """Maqueta del modelo barato; si no concuerda con el OCR local (o falla el JSON), el caro (frugal)."""
+                        carpeta: Path, maqueta_futura: Future | None = None) -> tuple[bytes, dict]:
+    """Maqueta del modelo barato; si no concuerda con el OCR local (o falla el JSON), el caro (frugal).
+
+    `maqueta_futura`: la llamada al modelo barato ya lanzada en paralelo con el OCR (si la hay).
+    """
     llamadas = []
     maqueta = conc = None
     for modelo in (ia.MODELO_BARATO, ia.MODELO_CARO):
         try:
-            candidata, meta = ia.maquetar(pagina, modelo)
+            if modelo == ia.MODELO_BARATO and maqueta_futura is not None:
+                candidata, meta = maqueta_futura.result()
+            else:
+                candidata, meta = ia.maquetar(pagina, modelo)
         except ErrorEscaner as e:
             llamadas.append({"modelo": modelo, "error": e.codigo})
             if e.codigo in ("ia_sin_clave", "ia_sin_conexion"):
