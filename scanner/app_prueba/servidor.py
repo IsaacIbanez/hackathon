@@ -118,6 +118,8 @@ def _respuesta_escaneo(esc: escanear.Escaneo) -> dict:
         urls = {k: _url(v) for k, v in r.intermedios.items()}
         if r.pdf:
             urls["pdf"] = _url(r.pdf)
+        if r.pdf_digital:
+            urls["pdf_digital"] = _url(r.pdf_digital)
         d["urls"] = urls
         d["documento"] = r.documento()
     return d
@@ -134,7 +136,8 @@ def _permitido(ruta: Path) -> bool:
 
 def _opciones(q: dict) -> Opciones:
     return Opciones(modo=q.get("modo", "color"), idiomas=q.get("idiomas", "spa+cat+eng"),
-                    recortar=q.get("recortar", "1") != "0", iluminacion=q.get("iluminacion", "1") != "0")
+                    recortar=q.get("recortar", "1") != "0", iluminacion=q.get("iluminacion", "1") != "0",
+                    digital=q.get("digital", "0") == "1")
 
 
 # ---------------------------------------------------------------- servidor

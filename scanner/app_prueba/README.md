@@ -19,6 +19,8 @@ Abre http://localhost:8780 (solo escucha en 127.0.0.1). No usa el 8765: es el de
   y captura comparten la cámara, ~0,4 s por captura) y **Escanear**. Con la cámara cerrada hace una captura única.
 - **Contorno en directo** sobre la vista previa (verde = documento detectado) con pistas para encuadrar:
   mejor sobre fondo oscuro, el documento entero y a 30–40 cm (más cerca, la cámara no enfoca).
+- **PDF digital** (casilla "Crear también PDF digital"): documento reconstruido con texto real, y la lista de
+  palabras dudosas para revisar.
 - **Ajustar esquinas**: tras escanear, arrastrar las 4 esquinas sobre la captura y regenerar el PDF.
 - Arrastrar una imagen (PNG; también JPG del móvil, que se pasa a PNG solo aquí).
 - Ver el PDF (probar Ctrl+F y copiar), la página con las cajas del mensaje `document`, la detección,
