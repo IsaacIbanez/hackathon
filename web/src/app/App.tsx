@@ -36,6 +36,10 @@ export default function App() {
   const [last, setLast] = useState<SpeakPayload | null>(null)
   const [stats, setStats] = useState<StatsPayload | null>(null)
   const [diag, setDiag] = useState<Diagnostics | null>(null)
+  // Form values filled in by voice (role C), by block id; the draft is shown before it's saved.
+  const [values, setValues] = useState<Record<string, string>>({})
+  const [draft, setDraft] = useState<{ id: string; value: string } | null>(null)
+  const onFill = useCallback((id: string, value: string) => setValues((v) => ({ ...v, [id]: value })), [])
 
   useEffect(() => {
     collectDiagnostics().then((d) => {
@@ -50,6 +54,7 @@ export default function App() {
         case 'document': // the current document, whoever sent it (scanner or this UI)
           setDoc(msg.payload)
           setLast(null)
+          setValues({})
           break
         case 'speak':
           setLast(msg.payload)
@@ -78,12 +83,21 @@ export default function App() {
           <p aria-live="polite" className="text-4xl leading-relaxed">
             {last?.text ?? (doc ? 'Reading the document…' : '')}
           </p>
-          <Gestures send={send} voice={voice} lang={LANG} doc={doc} highlight={last?.highlightBlockIds ?? []} />
+          <Gestures
+            send={send}
+            voice={voice}
+            lang={LANG}
+            doc={doc}
+            highlight={last?.highlightBlockIds ?? []}
+            values={values}
+            onFill={onFill}
+            onDraft={setDraft}
+          />
           <Cost stats={stats} />
         </section>
 
         <section aria-label="Document view" className="rounded-2xl border border-slate-700 p-6">
-          <DocumentText doc={doc} highlight={last?.highlightBlockIds ?? []} />
+          <DocumentText doc={doc} highlight={last?.highlightBlockIds ?? []} values={values} draft={draft} />
         </section>
       </div>
 
