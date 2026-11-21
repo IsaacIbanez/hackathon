@@ -21,6 +21,7 @@
 - T10: guion del pitch y de la demo en `docs/PITCH.md`, con cifras medidas (Haiku: 1,8 s y 0,00012 $ por explicación; 0 $ con modelos gratis), plan B, encaje con cada challenge, preguntas difíciles y checklist.
 - Ejecutable de escritorio comprobado: arrancado desde `build/bin` encuentra el `.env` de la raíz, responde al scanner y escribe `lauzhack.log`. Diagnóstico de la ventana (WebView2): voz de salida sí (3 voces es-ES), cámara sí, API de reconocimiento de voz presente (falta probar que funcione de verdad: rol C).
 - Revisada la rama de Didac (`feature/B-contexto-scanner`): `Resultado.documento()` ya cumple el contrato. Añadido a `docs/INTEGRACION_SCANNER.md` el código exacto para `escanear.py` (`enviar_a_app`, POST /message). Su estado tenía desfasados el conflicto de puertos (resuelto: Pau en 8766) y el modo de envío (ahora POST).
+- Revisados #19 (voz de Nil: aprobado y fusionado) y #20 (Gesture Control: cambios pedidos, falta validar la cabecera `Host` contra DNS rebinding).
 
 ## Pendiente
 - T8: sustituir las respuestas de ejemplo por la lógica real (`backend/llm` + B2).
