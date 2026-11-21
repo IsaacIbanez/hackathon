@@ -147,7 +147,7 @@ Cada persona es dueña de sus carpetas; no se edita código de otro rol sin avis
 | Rol | Persona | Carpetas | Responsabilidad |
 |-----|---------|----------|-----------------|
 | A. Núcleo e integración | Isaac (P1) | `api/`, `backend/`, `web/src/app/` (salvo `Gestures.tsx`), `main.go`, `app.go`, CI, `docs/` | Contrato, servidor Go y orquestación, lógica de respuestas, modelos frugales, pantalla, empaquetado, revisión de PRs y pitch |
-| B1. Cámara en la app | Pau (P4) | `web/src/camera/`, `scanner/capturar.py` | Abrir la cámara (la Logitech si está), sacar la foto más nítida, avisos de calidad en directo |
+| B1. Cámara en la app | Pau (P4) | `web/src/camera/`, `scanner/capturar.py`, `backend/captions/`, `web/src/captions/` | Abrir la cámara (la Logitech si está), sacar la foto más nítida, avisos de calidad en directo; subtítulos en directo con traducción (`docs/briefs/pau.md`) |
 | B2. Lectura de documentos | Didac (P2) | `scanner/` (pipeline y servicio), `web/src/document/` | Foto → hoja, orientación, OCR, `document` con esquinas; servicio local para la app |
 | C. Interacción | Nil (P3) | `web/src/input/`, `web/src/app/Gestures.tsx`, `adapters/desktop/` | Gestos, voz (dictado y lectura), orden «lee el documento», puntero sobre el papel real |
 
@@ -176,6 +176,15 @@ Puertos: 8765 app · 8766 captura de Pau (pruebas) · 8767 Gesture Control (Nil)
 El reparto por persona y las tareas T1–T19 se cerraron con la integración del 2026-11-21 (rama `integration/proyecto-unificado`). **El reparto se redefinirá** después de la lluvia de ideas (`docs/ideas/`). El plan por persona anterior está íntegro en `docs/historial/plan_por_agente.md` y el estado real de cada pieza, en `docs/ESTADO_PROYECTO.md`. *Nota (2026-11-21): el reparto ya no se decide desde arriba. Cada persona define el suyo con su agente en `docs/briefs/` (ver «Al empezar una sesión»). Este plan y sus interfaces siguen valiendo mientras ningún brief los cambie.*
 
 ## Decisiones
+- 2026-11-21 — **Subtítulos en directo (Pau, brief en `docs/briefs/pau.md`):**
+  - Qué hacen: subtítulos del micrófono y del audio de una llamada, con quién habla, traducción y la transcripción guardada en un `.txt`.
+  - Cómo:
+    - el navegador manda el audio a Go por `GET /captions` (WebSocket);
+    - Go lo pasa a Together AI (subtítulos en directo; diarización con Whisper por lotes; traducción con un modelo pequeño).
+  - Carpetas nuevas de Pau: `backend/captions/` (acordado con Isaac; de su código solo se toca el registro de la ruta) y `web/src/captions/`.
+  - Clave `TOGETHER_API_KEY`: solo en `.env`, nunca en el repo ni en el navegador.
+  - Coste visible, con un tope por sesión (`CAPTIONS_LIMIT_USD`, 1 $). Si Together falla, se ofrece el Whisper local de Nil.
+  - Isaac pone el botón «Live captions» en la app.
 - 2026-11-21 — **Arranque por persona:** no se reparten más tareas cerradas.
   - Cada persona trabaja con su agente en lo que decida: Nil, en la cámara y su entorno (voz, cara, manos, teclado); Didac y Pau, en una funcionalidad grande y distinta cada uno; Isaac decide entre el backend, una funcionalidad o ayudar a otra persona.
   - El agente entrevista primero a su persona (`docs/arranque/<persona>.md`) y deja un brief confirmado en `docs/briefs/<persona>.md`.
