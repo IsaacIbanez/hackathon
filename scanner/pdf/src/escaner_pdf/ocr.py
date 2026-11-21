@@ -25,7 +25,7 @@ from .errores import ErrorEscaner
 
 RUTAS_WINDOWS = (r"C:\Program Files\Tesseract-OCR\tesseract.exe", r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe")
 TESSDATA_LOCAL = Path(__file__).resolve().parents[2] / "tessdata"   # scanner/pdf/tessdata (ignorado por git)
-CONFIANZA_OSD = 2.0     # por debajo, no se gira (Tesseract no está seguro)
+CONFIANZA_OSD = 2.0     # a partir de aquí se gira sin más comprobaciones
 DPI_OCR = 300.0         # resolución a la que Tesseract lee mejor
 FACTOR_MAXIMO = 3.0     # no ampliar más (coste ~ factor² y no inventa detalle)
 MEGAPIXELES_OCR_MAX = 8.5   # tamaño máximo que lee Tesseract: un fotograma 4K entero (8,3 MP) no se amplía
@@ -81,17 +81,51 @@ def resolver_idiomas(pedidos: str, disponibles: list[str]) -> tuple[str, list[st
 
 
 def orientar(img: np.ndarray) -> tuple[np.ndarray, int, float | None]:
-    """Gira la página 90/180/270° si Tesseract (OSD) está seguro. Devuelve (imagen, grados, confianza)."""
-    escala = min(1.0, 2000.0 / max(img.shape[:2]))
-    peq = cv2.resize(img, None, fx=escala, fy=escala, interpolation=cv2.INTER_AREA) if escala < 1 else img
+    """Gira la página 90/180/270° si hace falta. Devuelve (imagen, grados, confianza del OSD).
+
+    1. OSD de Tesseract sobre la página llevada a ~2000 px (también se amplía: con letra pequeña
+       el OSD no ve nada, medido con un cartel real del revés).
+    2. Si el OSD está seguro (>= CONFIANZA_OSD), se hace lo que dice.
+    3. Si duda, se comparan con un OCR rápido la orientación actual, 180° y la sugerida, y solo se gira
+       si se lee claramente mejor. Este coste extra (~1 s) solo se paga cuando hay duda.
+    """
+    escala = 2000.0 / max(img.shape[:2])
+    peq = cv2.resize(img, None, fx=escala, fy=escala, interpolation=cv2.INTER_AREA if escala < 1 else cv2.INTER_CUBIC)
     try:
         osd = pytesseract.image_to_osd(_a_rgb(peq), output_type=pytesseract.Output.DICT, timeout=30)
     except Exception:
         return img, 0, None  # poco texto o sin osd.traineddata: se deja como está
     grados, confianza = int(osd.get("rotate", 0)) % 360, float(osd.get("orientation_conf", 0.0))
-    if grados in GIROS and confianza >= CONFIANZA_OSD:
-        return cv2.rotate(img, GIROS[grados]), grados, confianza
+    if confianza >= CONFIANZA_OSD:
+        return (cv2.rotate(img, GIROS[grados]), grados, confianza) if grados in GIROS else (img, 0, confianza)
+    # El OSD duda: se comparan la orientación actual, la girada 180° (papel del revés sobre la mesa)
+    # y la que sugiera el OSD, leyendo de verdad. Solo se gira si se lee claramente mejor.
+    base = _palabras_seguras(img)
+    mejor, mejor_n = 0, base
+    for g in sorted({180, grados} & set(GIROS)):
+        n = _palabras_seguras(cv2.rotate(img, GIROS[g]))
+        if n > mejor_n:
+            mejor, mejor_n = g, n
+    if mejor and mejor_n >= 1.5 * base + 3:
+        return cv2.rotate(img, GIROS[mejor]), mejor, confianza
     return img, 0, confianza
+
+
+def _palabras_seguras(img: np.ndarray) -> int:
+    """Palabras leídas con confianza alta en una copia de ~1200 px, solo en inglés (mismo alfabeto).
+
+    Solo sirve para comparar orientaciones. Medido con un cartel real del revés: 0 palabras frente a 22,
+    en ~0,5 s por lectura (con spa+cat+eng a 1600 px eran ~1,7 s).
+    """
+    escala = 1200.0 / max(img.shape[:2])
+    im = cv2.resize(img, None, fx=escala, fy=escala, interpolation=cv2.INTER_AREA if escala < 1 else cv2.INTER_CUBIC)
+    try:
+        d = pytesseract.image_to_data(_a_rgb(im), lang="eng", config="--psm 11",
+                                      output_type=pytesseract.Output.DICT, timeout=30)
+    except Exception:
+        return 0
+    return sum(1 for w, c in zip(d["text"], d["conf"])
+               if float(c) >= 80 and any(ch.isalnum() for ch in str(w)))
 
 
 def reconocer(img: np.ndarray, idiomas: str, dpi: float, nivel: str = "linea", timeout: int = 180) -> ResultadoOCR:

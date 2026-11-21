@@ -15,6 +15,10 @@ SOPORTE_MINIMO = 0.40      # fracción del perímetro sobre bordes reales. Móvi
                            # cuadriláteros casuales (mano + fondo) en capturas reales: 0,30-0,33
 MARGEN_BORDE = 0.01        # esquina a menos del 1 % del borde = hoja posiblemente cortada
 CONTRASTE_MINIMO = 25.0    # niveles de gris entre la hoja y lo que la rodea
+SALTO_MINIMO = 18.0        # contraste mínimo a través de cada lado (niveles de gris)
+CONTENIDO_MINIMO = 0.004   # densidad de bordes dentro: una mesa vacía da ~0, una hoja con texto > 0,01
+CANNY_BAJO, CANNY_ALTO = 40, 120  # umbrales fijos: los calculados con la mediana del brillo salían
+                           # altísimos sobre una mesa blanca y el contorno del documento desaparecía
 RAZON_LADOS_MAXIMA = 1.75  # lado opuesto más largo / más corto; una hoja inclinada ~45° da ~1,7.
                            # Más = una figura cortada (p. ej. un panel tapado por un dibujo o una mano)
 FOV_DIAGONAL_WEBCAM = 78.0 # grados; focal supuesta cuando la perspectiva no permite estimarla
@@ -55,18 +59,30 @@ def detectar_pagina(img: np.ndarray) -> Deteccion:
     escala = min(escala, 1.0)
     gris = cv2.GaussianBlur(cv2.cvtColor(peq, cv2.COLOR_BGR2GRAY), (5, 5), 0)
 
-    bordes = _mascara_bordes(gris)
+    canny = cv2.Canny(gris, CANNY_BAJO, CANNY_ALTO)
+    bordes = cv2.dilate(canny, np.ones((3, 3), np.uint8), iterations=2)
+    # El marco de la imagen cuenta como borde: un documento cortado por el encuadre también cierra
+    # su contorno (se recorta lo que se ve y se avisa con "cropped").
+    cv2.rectangle(bordes, (0, 0), (bordes.shape[1] - 1, bordes.shape[0] - 1), 255, 2)
     candidatos: list[tuple[float, np.ndarray, str]] = []
-    for metodo, mascara in (("bordes", bordes), ("umbral", _mascara_umbral(gris))):
-        for quad in _cuadrilateros(mascara):
-            puntuacion = _puntuar(quad, gris, bordes)
+    fuentes = (("bordes", _cuadrilateros(bordes)), ("umbral", _cuadrilateros(_mascara_umbral(gris))),
+               ("lineas", _cuadrilateros_lineas(canny, bordes)))
+    for metodo, quads in fuentes:
+        for quad in quads:
+            puntuacion = _puntuar(quad, gris, bordes, canny)
             if puntuacion > 0:
                 candidatos.append((puntuacion, quad, metodo))
 
     if not candidatos:
         return Deteccion(False, 0.0, None, "ninguno")
 
-    puntuacion, quad, metodo = max(candidatos, key=lambda c: c[0])
+    # Entre los candidatos fiables gana el de mayor área: un trozo del documento (p. ej. la zona entre
+    # dos filas de texto) siempre es más pequeño que el documento entero que lo contiene.
+    fiables = [c for c in candidatos if c[0] >= CONFIANZA_MINIMA]
+    if fiables:
+        puntuacion, quad, metodo = max(fiables, key=lambda c: cv2.contourArea(c[1]))
+    else:
+        puntuacion, quad, metodo = max(candidatos, key=lambda c: c[0])
     gris_completo = cv2.GaussianBlur(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), (0, 0), 1.0)
     esquinas = refinar_esquinas(gris_completo, ordenar_esquinas(quad / escala))
     area = cv2.contourArea(esquinas.astype(np.float32)) / float(alto * ancho)
@@ -74,12 +90,6 @@ def detectar_pagina(img: np.ndarray) -> Deteccion:
     toca = bool(np.any(esquinas[:, 0] < margen) or np.any(esquinas[:, 0] > ancho - margen)
                 or np.any(esquinas[:, 1] < margen) or np.any(esquinas[:, 1] > alto - margen))
     return Deteccion(puntuacion >= CONFIANZA_MINIMA, float(puntuacion), esquinas, metodo, toca, float(area))
-
-
-def _mascara_bordes(gris: np.ndarray) -> np.ndarray:
-    mediana = float(np.median(gris))
-    bordes = cv2.Canny(gris, int(max(0, 0.66 * mediana)), int(min(255, 1.33 * mediana)))
-    return cv2.dilate(bordes, np.ones((3, 3), np.uint8), iterations=2)
 
 
 def _mascara_umbral(gris: np.ndarray) -> np.ndarray:
@@ -105,14 +115,84 @@ def _cuadrilateros(mascara: np.ndarray, maximo: int = 8) -> list[np.ndarray]:
     return quads
 
 
-def _puntuar(quad: np.ndarray, gris: np.ndarray, bordes: np.ndarray) -> float:
+def _cuadrilateros_lineas(canny: np.ndarray, bordes: np.ndarray, por_grupo: int = 10, maximo: int = 30) -> list[np.ndarray]:
+    """Cuadriláteros formados por rectas largas (Hough): dos casi horizontales x dos casi verticales.
+
+    Es lo que funciona con documentos sujetos con la mano: los dedos rompen el contorno cerrado, pero
+    los bordes del papel siguen siendo rectas largas. Se ordenan por soporte de borde (vectorizado) y
+    solo los mejores pasan a la puntuación completa.
+    """
+    alto, ancho = canny.shape
+    lado = max(alto, ancho)
+    segs = cv2.HoughLinesP(canny, 1, np.pi / 180, 60, minLineLength=int(0.08 * lado), maxLineGap=int(0.02 * lado))
+    if segs is None:
+        return []
+    rectas: list[list[float]] = []   # [ángulo de la dirección en [0, pi), rho, longitud acumulada]
+    for x1, y1, x2, y2 in segs.reshape(-1, 4).astype(np.float64):
+        ang = np.arctan2(y2 - y1, x2 - x1) % np.pi
+        rho = -np.sin(ang) * x1 + np.cos(ang) * y1
+        largo = float(np.hypot(x2 - x1, y2 - y1))
+        for r in rectas:  # fusiona segmentos de la misma recta
+            dif = abs(r[0] - ang)
+            if min(dif, np.pi - dif) < np.radians(4):
+                rho_c = rho if dif < np.pi / 2 else -rho
+                if abs(r[1] - rho_c) < 0.015 * lado:
+                    r[2] += largo
+                    break
+        else:
+            rectas.append([ang, rho, largo])
+    rectas.sort(key=lambda r: -r[2])
+    horizontales = [r for r in rectas if min(r[0], np.pi - r[0]) < np.radians(45)][:por_grupo]
+    verticales = [r for r in rectas if min(r[0], np.pi - r[0]) >= np.radians(45)][:por_grupo]
+
+    def cruce(r1, r2):
+        a = np.array([[-np.sin(r1[0]), np.cos(r1[0])], [-np.sin(r2[0]), np.cos(r2[0])]])
+        if abs(np.linalg.det(a)) < 1e-6:
+            return None
+        return np.linalg.solve(a, np.array([r1[1], r2[1]]))
+
+    margen = 0.01 * lado
+    quads = []
+    for i in range(len(horizontales)):
+        for j in range(i + 1, len(horizontales)):
+            for k in range(len(verticales)):
+                for m in range(k + 1, len(verticales)):
+                    pts = [cruce(horizontales[i], verticales[k]), cruce(horizontales[i], verticales[m]),
+                           cruce(horizontales[j], verticales[m]), cruce(horizontales[j], verticales[k])]
+                    if any(p is None for p in pts):
+                        continue
+                    q = np.array(pts, dtype=np.float32)
+                    if (q[:, 0].min() < -margen or q[:, 1].min() < -margen
+                            or q[:, 0].max() > ancho - 1 + margen or q[:, 1].max() > alto - 1 + margen):
+                        continue  # el método de rectas solo propone documentos enteros dentro del encuadre
+                    q = ordenar_esquinas(np.clip(q, 0, [ancho - 1, alto - 1]))
+                    if cv2.contourArea(q) < AREA_MINIMA * alto * ancho:
+                        continue
+                    quads.append(q)
+    if not quads:
+        return []
+    soportes = [_soporte_rapido(q, bordes) for q in quads]
+    orden = np.argsort(soportes)[::-1][:maximo]
+    return [quads[i] for i in orden if soportes[i] >= SOPORTE_MINIMO]
+
+
+def _soporte_rapido(q: np.ndarray, bordes: np.ndarray, muestras: int = 40) -> float:
+    t = np.linspace(0.05, 0.95, muestras, dtype=np.float32)[:, None]
+    pts = np.concatenate([q[i] + (q[(i + 1) % 4] - q[i]) * t for i in range(4)]).round().astype(int)
+    pts[:, 0] = pts[:, 0].clip(0, bordes.shape[1] - 1)
+    pts[:, 1] = pts[:, 1].clip(0, bordes.shape[0] - 1)
+    return float((bordes[pts[:, 1], pts[:, 0]] > 0).mean())
+
+
+def _puntuar(quad: np.ndarray, gris: np.ndarray, bordes: np.ndarray, canny: np.ndarray) -> float:
     """0..1: qué tanto parece una hoja. 0 = descartado.
 
-    - soporte (30 %): fracción del perímetro que cae sobre bordes reales de la imagen;
+    - soporte (25 %): fracción del perímetro que cae sobre bordes reales (o sobre el marco de la imagen);
     - contraste (20 %): la hoja se distingue de lo que la rodea (descarta texturas y recuadros
       impresos dentro de una hoja que llena el encuadre);
-    - ángulos (30 %): una hoja en perspectiva tiene ángulos entre ~55° y ~125°;
-    - tamaño (20 %): a partir de un 25 % del encuadre cuenta como completo.
+    - contenido (15 %): dentro hay texto o dibujos (descarta un trozo de mesa vacía junto al documento);
+    - ángulos (25 %): una hoja en perspectiva tiene ángulos entre ~55° y ~125°;
+    - tamaño (15 %): a partir de un 25 % del encuadre cuenta como completo.
     """
     if not cv2.isContourConvex(quad.reshape(-1, 1, 2).astype(np.int32)):
         return 0.0
@@ -135,13 +215,60 @@ def _puntuar(quad: np.ndarray, gris: np.ndarray, bordes: np.ndarray) -> float:
     if min(lados) < 1 or max(max(lados[0], lados[2]) / min(lados[0], lados[2]),
                               max(lados[1], lados[3]) / min(lados[1], lados[3])) > RAZON_LADOS_MAXIMA:
         return 0.0               # lados opuestos demasiado distintos: forma recortada, no una hoja
-    soporte = _soporte_bordes(q, bordes)
+    en_marco = [_sobre_marco(q[i], q[(i + 1) % 4], gris.shape) for i in range(4)]
+    if sum(en_marco) >= 2:
+        return 0.0               # dos lados en el marco = una región del fondo, no un documento
+    soporte = _soporte_bordes(q, bordes, saltar=en_marco)
     if soporte < SOPORTE_MINIMO:
+        return 0.0
+    salto = _salto_lados(q, gris, saltar=en_marco)
+    if salto < SALTO_MINIMO:
+        return 0.0               # algún lado no separa nada (p. ej. una fila de texto dentro del documento)
+    contenido = _contenido(quad, canny)
+    if contenido < CONTENIDO_MINIMO:
         return 0.0
     angulos = 1.0 - max(0.0, peor - 0.2) / 0.4   # hasta ~78°/102° puntúa entero
     tam = min(1.0, area / 0.25)
-    return float(0.30 * soporte + 0.20 * min(1.0, contraste / 80.0)
-                 + 0.30 * angulos + 0.20 * tam)
+    return float(0.20 * soporte + 0.10 * min(1.0, contraste / 80.0) + 0.25 * min(1.0, salto / 60.0)
+                 + 0.10 * min(1.0, contenido / 0.03) + 0.20 * angulos + 0.15 * tam)
+
+
+def _salto_lados(q: np.ndarray, gris: np.ndarray, saltar: list[bool] | None = None, muestras: int = 30) -> float:
+    """Contraste a través del lado más débil: |gris justo dentro - gris justo fuera|, mediana por lado.
+
+    Es lo que distingue el borde real del documento (cartel oscuro | mesa blanca) de una recta interior
+    (una fila de texto: el mismo documento a ambos lados).
+    """
+    centro = q.mean(axis=0)
+    paso = max(3.0, 0.012 * max(gris.shape))
+    gris = gris.astype(np.float32)
+    t = np.linspace(0.1, 0.9, muestras, dtype=np.float32)[:, None]
+    saltos = []
+    for i in range(4):
+        if saltar and saltar[i]:
+            continue
+        a, b = q[i], q[(i + 1) % 4]
+        d = (b - a) / (np.linalg.norm(b - a) + 1e-9)
+        n = np.array([-d[1], d[0]], dtype=np.float32)
+        if np.dot(n, (a + b) / 2 - centro) < 0:
+            n = -n                                   # normal hacia fuera
+        pts = a + (b - a) * t
+        fuera = [cv2.remap(gris, (pts[:, 0] + n[0] * k).reshape(1, -1), (pts[:, 1] + n[1] * k).reshape(1, -1),
+                           cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE) for k in (paso, 2 * paso)]
+        dentro = [cv2.remap(gris, (pts[:, 0] - n[0] * k).reshape(1, -1), (pts[:, 1] - n[1] * k).reshape(1, -1),
+                            cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE) for k in (paso, 2 * paso)]
+        saltos.append(float(np.median(np.abs((fuera[0] + fuera[1]) / 2 - (dentro[0] + dentro[1]) / 2))))
+    return min(saltos) if saltos else 0.0
+
+
+def _contenido(quad: np.ndarray, canny: np.ndarray) -> float:
+    """Densidad de bordes (sin dilatar) en el interior del cuadrilátero, sin su contorno."""
+    dentro = np.zeros(canny.shape, np.uint8)
+    cv2.fillConvexPoly(dentro, quad.astype(np.int32), 255)
+    lado = max(3, int(0.02 * min(canny.shape)))
+    dentro = cv2.erode(dentro, np.ones((lado, lado), np.uint8))
+    n = cv2.countNonZero(dentro)
+    return cv2.countNonZero(canny & dentro) / n if n else 0.0
 
 
 def _contraste(quad: np.ndarray, gris: np.ndarray) -> float:
@@ -156,11 +283,24 @@ def _contraste(quad: np.ndarray, gris: np.ndarray) -> float:
     return abs(float(np.median(gris[dentro > 0])) - float(np.median(gris[fuera > 0])))
 
 
-def _soporte_bordes(q: np.ndarray, bordes: np.ndarray, muestras: int = 60) -> float:
-    """Fracción de puntos del perímetro (menos las esquinas) que coinciden con un borde detectado."""
+def _sobre_marco(a: np.ndarray, b: np.ndarray, forma: tuple[int, int], tolerancia: float = 4.0) -> bool:
+    """¿El lado a-b va pegado a un borde de la imagen?"""
+    alto, ancho = forma[:2]
+    return bool((a[0] < tolerancia and b[0] < tolerancia) or (a[1] < tolerancia and b[1] < tolerancia)
+                or (a[0] > ancho - 1 - tolerancia and b[0] > ancho - 1 - tolerancia)
+                or (a[1] > alto - 1 - tolerancia and b[1] > alto - 1 - tolerancia))
+
+
+def _soporte_bordes(q: np.ndarray, bordes: np.ndarray, muestras: int = 60, saltar: list[bool] | None = None) -> float:
+    """Fracción de puntos del perímetro (menos las esquinas) que coinciden con un borde detectado.
+
+    Los lados en `saltar` (pegados al marco) no cuentan: el marco no es una prueba de que haya un documento.
+    """
     alto, ancho = bordes.shape
     aciertos = total = 0
     for i in range(4):
+        if saltar and saltar[i]:
+            continue
         a, b = q[i], q[(i + 1) % 4]
         for t in np.linspace(0.05, 0.95, muestras):
             x, y = (a + (b - a) * t).round().astype(int)
@@ -195,7 +335,8 @@ def refinar_esquinas(gris: np.ndarray, esquinas: np.ndarray) -> np.ndarray:
         mejor = derivada.argmax(axis=1)
         validos = derivada[np.arange(len(ts)), mejor] > 4.0          # borde con contraste suficiente
         if validos.sum() < 10:
-            return esquinas
+            rectas.append((a.astype(np.float64), d.astype(np.float64)))  # sin borde visible (p. ej. el marco):
+            continue                                                       # se conserva el lado detectado
         puntos = muestras[np.arange(len(ts)), mejor][validos]
         vx, vy, x0, y0 = cv2.fitLine(puntos.astype(np.float32), cv2.DIST_HUBER, 0, 0.01, 0.01).ravel()
         rectas.append((np.array([x0, y0]), np.array([vx, vy])))

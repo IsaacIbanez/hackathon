@@ -63,3 +63,10 @@ def test_calidad_usa_vocabulario_del_contrato():
     # FrameIssue en api/openapi.yaml
     assert set(r["problemas"]) <= {"blurry", "dark", "glare", "cropped", "tilted", "too_far"}
     assert {"cropped", "tilted", "too_far"} <= set(r["problemas"])
+
+
+def test_solo_se_iguala_la_luz_en_papel_claro():
+    # Caso real: aclarar un cartel oscuro o una escena entera los dejaba lavados y quemados.
+    assert imagen.papel_claro(s.pagina())
+    oscuro = np.full((800, 600, 3), (40, 30, 60), np.uint8)
+    assert not imagen.papel_claro(oscuro)

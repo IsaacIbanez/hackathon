@@ -138,7 +138,10 @@ def convertir(origen: str | Path | bytes, carpeta_salida: str | Path, opciones: 
                 angulo_max=geometria.angulo_maximo(np.asarray(det["esquinas"])) if det.get("encontrada") else None)
 
         with t("mejora"):
-            corregida = imagen.corregir_iluminacion(pagina) if op.iluminacion else pagina
+            # Solo papel claro y recortado: en carteles oscuros o en la escena entera aclarar lo estropea.
+            igualar = op.iluminacion and bool(det.get("encontrada")) and imagen.papel_claro(pagina)
+            r.pagina["iluminacion_corregida"] = igualar
+            corregida = imagen.corregir_iluminacion(pagina) if igualar else pagina
             final = imagen.aplicar_modo(corregida, op.modo)
             codificada = pdf.codificar_imagen(final, dpi, op.formato_imagen, op.calidad_jpeg, binaria=op.modo == "bn")
         if op.guardar_intermedios:
@@ -229,7 +232,8 @@ def _preparar_geometria(img: np.ndarray, op: Opciones, r: Resultado, carpeta: Pa
 
     if det is not None and det.encontrada:
         proporcion = geometria.proporcion_real(det.esquinas, img.shape[:2], op.fov_diagonal)
-        papel = _papel(proporcion, op.tamano)
+        # Hoja cortada por el encuadre: sus esquinas no son las del papel, no se fuerza un tamaño estándar.
+        papel = _papel(proporcion, "imagen" if det.toca_borde and op.tamano == "auto" else op.tamano)
         if papel:
             proporcion = _proporcion_papel(papel, horizontal=proporcion > 1)
         return geometria.enderezar(img, det.esquinas, proporcion), papel

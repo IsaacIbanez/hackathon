@@ -5,7 +5,7 @@
 - **Tarea actual:** Subproyecto B / scanner: PNG a PDF buscable (`scanner/pdf/`)
 - **Rama:** feature/B-contexto-scanner
 - **Estado:** en curso (primera versión funcionando)
-- **Último cambio:** 2026-11-21 16:20
+- **Último cambio:** 2026-11-21 17:10
 
 ## Hecho
 - `scanner/AGENTS.md` (y copia `AGENTS_B.md`): reglas y contexto del subproyecto scanner.
@@ -25,6 +25,11 @@
 - Probado con la **MX Brio** (3840x2160 MJPG): cámara abierta + escaneo correcto; A4 en 4K ~2,1 s de PDF.
 - Con capturas reales (tarjeta y móvil sujetos con la mano) el OCR leía 0 palabras: segundo pase psm 11 solo si
   el primero duda; filtros de detección para no recortar mal (soporte, confianza, razón de lados). 57 tests.
+
+- Revisión con 12 capturas reales (cartel oscuro, tarjeta, móvil): se recortaba la mesa vacía o la escena y la
+  imagen salía lavada. Nueva detección (rectas largas, contraste por lado, contenido, marco), luz solo en papel
+  claro, orientación verificada leyendo (cartel del revés). App de prueba: contorno en directo y ajuste manual
+  de esquinas. 60 tests.
 
 ## Pendiente
 - Probar con documentos en papel reales (A4, formulario) con la MX Brio y calibrar los umbrales de calidad (nitidez, brillo, reflejos).

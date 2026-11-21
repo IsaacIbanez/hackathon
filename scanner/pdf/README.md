@@ -68,18 +68,19 @@ Si el nombre ya existe se crea `<nombre>-2`, `-3`…: nunca se sobrescribe un re
 
 ## Pipeline (`src/escaner_pdf/`)
 1. `entrada.py` — valida el PNG (firma, tamaño, 8/16 bits, alfa sobre blanco, DPI del PNG).
-2. `geometria.py` — detecta la hoja (bordes + umbral, puntuando soporte de borde, contraste,
-   ángulos y tamaño), refina las esquinas a resolución completa (< 1 px de error en pruebas),
-   calcula la **proporción real** con el modelo de cámara de Zhang y He y la ajusta a A4/Letter/A5/Legal
+2. `geometria.py` — detecta la hoja con tres fuentes de candidatos: contornos de bordes (Canny con umbral fijo;
+   el marco de la imagen cuenta como borde para documentos cortados), regiones por umbral y **rectas largas**
+   (Hough; aguanta dedos encima del borde). Cada candidato pasa filtros medidos con capturas reales: soporte
+   de borde, contraste dentro/fuera y **a través de cada lado**, contenido (descarta mesa vacía), ángulos,
+   razón de lados y como mucho un lado sobre el marco. Entre los fiables gana el de mayor área. Luego refina
+   las esquinas a resolución completa, calcula la **proporción real** (Zhang y He) y ajusta a A4/Letter/A5/Legal
    si coincide. Si no está segura, **no recorta** y avisa (`pagina_no_detectada`).
-3. `ocr.py` — orientación 90/180/270 (OSD de Tesseract) y OCR que da a la vez la capa de texto
-   invisible (renderizador "sandwich") y las palabras con caja y confianza. Primer pase con segmentación
-   de página (psm 3, la buena para cartas y formularios); **solo si duda** (< 8 palabras o confianza < 70),
-   un segundo pase de texto disperso (psm 11) y se queda con el que tenga más caracteres fiables.
-   Si la página tiene menos de 300 DPI, Tesseract lee una copia ampliada (tope 8,5 MP); el PDF guarda la original.
-   Las "palabras" sin letras ni números no van a los bloques.
-4. `imagen.py` — iluminación (ganancia por canal limitada a 1,8: quita sombras sin borrar zonas
-   oscuras grandes), modos `color` / `gris` / `bn` (este último solo si se pide) y calidad con el
+3. `ocr.py` — orientación 90/180/270: OSD de Tesseract y, si duda, comprobación leyendo de verdad 0°/180°
+   (un cartel real del revés: 0 palabras seguras frente a 22). OCR que da a la vez la capa de texto invisible
+   (renderizador "sandwich") y las palabras con caja y confianza: psm 3 y, **solo si duda**, psm 11 (texto
+   disperso: carteles, tarjetas, pantallas). Páginas de menos de 300 DPI se leen ampliadas (tope 8,5 MP).
+4. `imagen.py` — iluminación **solo en papel claro recortado** (ganancia por canal limitada a 1,8; en carteles
+   oscuros o en la escena entera lo dejaba todo lavado), modos `color` / `gris` / `bn` (este último solo si se pide) y calidad con el
    vocabulario `FrameIssue` del contrato (`blurry`, `dark`, `glare`, `cropped`, `tilted`, `too_far`).
 5. `pdf.py` — img2pdf incrusta la imagen **sin recodificar** al tamaño físico exacto; pikepdf superpone
    la capa de texto con escala exacta; y se valida: páginas, tamaño, resolución de la imagen
@@ -104,8 +105,14 @@ Si el nombre ya existe se crea `<nombre>-2`, `-3`…: nunca se sobrescribe un re
 - Tiempos con la MX Brio (4K): A4 detectado ~2,1 s de PDF + 0,4 s de captura con la cámara abierta.
   Fotograma sin documento: ~5 s (dos pases de OCR sobre 8 MP).
 
+Con las 12 capturas reales del 21/11 (MX Brio y webcam): antes de estos cambios se recortaba la mesa vacía
+o la escena; ahora la tarjeta, el móvil y los carteles sobre la mesa salen bien recortados y con su color, y el
+cartel del revés se gira. Siguen fallando el cartel sujeto con la mano delante de toda la sala, los documentos
+que se salen del encuadre por dos lados y las capturas desenfocadas por estar demasiado cerca: para eso la app
+de prueba enseña el contorno en directo y deja ajustar las esquinas a mano (`Opciones.esquinas`).
+
 ## Estado de las pruebas
-`pytest` (57 tests, ~15 s): entrada, geometría con 7 poses de cámara realistas, casos sin hoja
+`pytest` (60 tests, ~18 s): entrada, geometría con 7 poses de cámara realistas, casos sin hoja
 (textura, negro, hoja que llena el encuadre), iluminación, calidad, extremo a extremo con acentos,
 página girada, modos y formatos, fallos (sin Tesseract, entrada inválida, opciones inválidas).
 Las imágenes de prueba son **sintéticas** (`tests/sinteticos.py`).

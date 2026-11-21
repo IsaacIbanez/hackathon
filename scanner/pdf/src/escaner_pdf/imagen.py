@@ -14,6 +14,16 @@ MODOS = ("color", "gris", "bn")
 BLANCO_PAPEL = 245.0       # nivel al que se lleva el papel (no 255, para no quemar detalle)
 GANANCIA_MAXIMA = 1.8      # suficiente para sombras normales; las zonas negras grandes siguen oscuras
 GANANCIA_MINIMA = 0.85
+MEDIANA_PAPEL_CLARO = 150.0  # mediana de gris de la página para considerarla papel claro
+
+
+def papel_claro(img: np.ndarray) -> bool:
+    """¿La página es papel claro (donde igualar la luz ayuda)? Carteles oscuros, tarjetas de color o
+    una escena entera no lo son: aclararlos los deja lavados y quemados (visto con capturas reales)."""
+    gris = img if img.ndim == 2 else cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    escala = 400.0 / max(gris.shape[:2])
+    peq = cv2.resize(gris, None, fx=escala, fy=escala, interpolation=cv2.INTER_AREA)
+    return float(np.median(peq)) >= MEDIANA_PAPEL_CLARO
 
 
 def corregir_iluminacion(img: np.ndarray) -> np.ndarray:

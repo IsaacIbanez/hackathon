@@ -81,3 +81,30 @@ def test_hoja_inclinada_45_grados_se_sigue_aceptando():
     esquinas = s.esquinas_camara(45, 0, focal_px=1100, distancia_mm=400)
     d = g.detectar_pagina(s.en_mesa(s.pagina(), esquinas))
     assert d.encontrada and np.abs(d.esquinas - esquinas).max() < 2.0
+
+
+def _cartel_oscuro(ancho=1240, alto=1754):
+    """Cartel oscuro con etiquetas claras (como el de conciertos de las capturas reales)."""
+    hoja = np.full((alto, ancho, 3), (30, 35, 60), np.uint8)
+    for i in range(8):
+        y = int(alto * (0.08 + i * 0.11))
+        cv2.rectangle(hoja, (int(ancho * 0.08), y), (int(ancho * 0.45), y + 60), (200, 240, 240), -1)
+        cv2.putText(hoja, f"{10 + i}.11  Concierto", (int(ancho * 0.1), y + 45), cv2.FONT_HERSHEY_SIMPLEX, 1.4, (20, 20, 20), 3)
+    return hoja
+
+
+def test_documento_oscuro_sobre_mesa_blanca():
+    # Caso real: cartel oscuro en una mesa blanca. Antes se recortaba la mesa vacía de al lado.
+    esquinas = s.esquinas_camara(10, -6, distancia_mm=520)
+    img = s.en_mesa(_cartel_oscuro(), esquinas, fondo=(225, 228, 230))
+    d = g.detectar_pagina(img)
+    assert d.encontrada
+    assert np.abs(d.esquinas - esquinas).max() < 6.0
+
+
+def test_no_elige_un_trozo_de_mesa_vacia():
+    esquinas = s.esquinas_camara(5, 3, distancia_mm=520, desplazamiento_mm=(-90, 0))  # cartel a la izquierda
+    img = s.en_mesa(_cartel_oscuro(), esquinas, fondo=(225, 228, 230))
+    d = g.detectar_pagina(img)
+    if d.encontrada:  # si detecta algo, tiene que ser el cartel, no la mesa de la derecha
+        assert np.abs(d.esquinas - esquinas).max() < 6.0
