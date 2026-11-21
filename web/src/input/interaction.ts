@@ -89,6 +89,12 @@ export interface InteractionOptions {
   menuTimeoutMs: number;
   /** Head gesture detector options. */
   head: Partial<HeadOptions>;
+  /**
+   * With several hands in view, the one nearest the camera (largest in the image) is followed. To
+   * avoid jumping between two similar hands, another hand only takes over when it is this many
+   * times larger than the current one.
+   */
+  switchHandRatio: number;
 }
 
 export const DEFAULT_OPTIONS: InteractionOptions = {
@@ -122,6 +128,7 @@ export const DEFAULT_OPTIONS: InteractionOptions = {
   menuSettleMs: 300,
   menuTimeoutMs: 5000,
   head: {},
+  switchHandRatio: 1.25,
 };
 
 /** Profile for reduced mobility or tremor: slower, more tolerant gestures. */
@@ -229,6 +236,8 @@ export class HandInteraction {
   /** Volume armed from the menu, waiting for the fingers to touch (time it was armed). */
   private levelArmedAt: number | null = null;
   private headDetector: HeadGestureDetector;
+  /** The hand being followed (its wrist position, to recognise it in the next frame). */
+  private followed: { wrist: Point; hand: Hand } | null = null;
 
   constructor(options: Partial<InteractionOptions> = {}) {
     this.opts = { ...DEFAULT_OPTIONS, ...options };
@@ -292,6 +301,11 @@ export class HandInteraction {
     if (!m) return null;
     const progress = m.sector ? Math.min(1, (t - m.tSector) / this.opts.menuSelectMs) : 0;
     return { center: m.center, sector: m.sector, progress, hand: m.hand };
+  }
+
+  /** The hand currently being followed (the nearest one), or null. Useful to highlight it. */
+  get activeHand(): Hand | null {
+    return this.followed?.hand ?? null;
   }
 
   /** Hand the user is using (stabilised over several frames), or null if not clear. */
@@ -368,7 +382,7 @@ export class HandInteraction {
       this.sleep(t);
     }
 
-    const hand = pickHand(frame.hands);
+    const hand = this.pickHand(frame.hands, aspect, t);
     if (!hand) {
       this.currentPose = "none";
       this.diag = null;
@@ -777,6 +791,50 @@ export class HandInteraction {
     else if (this.handVote < -0.3) this.stableHand = "left";
   }
 
+  // ---------- Several hands: follow the nearest ----------
+
+  /**
+   * Picks the hand to follow: the nearest one (largest in the image). The current hand is kept
+   * unless another one is clearly nearer, and switching hands resets the gesture in progress.
+   */
+  private pickHand(hands: Hand[], aspect: number, t: number): Hand | null {
+    const valid = hands.filter((h) => h.points.length === 21);
+    if (valid.length === 0) {
+      this.followed = null;
+      return null;
+    }
+    let nearest = valid[0];
+    for (const h of valid) if (handExtent(h, aspect) > handExtent(nearest, aspect)) nearest = h;
+
+    let chosen = nearest;
+    const prev = this.followed;
+    if (prev) {
+      // The same hand as last frame: the one whose wrist is closest to where it was.
+      let same: Hand | null = null;
+      let best = Infinity;
+      for (const h of valid) {
+        const d = distance2D(h.points[L.WRIST], prev.wrist, aspect);
+        if (d < best) {
+          best = d;
+          same = h;
+        }
+      }
+      const stillThere = same && best < 0.5 * handExtent(same, aspect);
+      if (stillThere && handExtent(nearest, aspect) < this.opts.switchHandRatio * handExtent(same!, aspect)) {
+        chosen = same!;
+      }
+      if (!stillThere || chosen !== same) {
+        // Another hand (or person) takes over: start fresh.
+        this.resetTracking();
+        this.endLevel(t);
+        this.handVote = 0;
+        this.stableHand = null;
+      }
+    }
+    this.followed = { wrist: { x: chosen.points[L.WRIST].x, y: chosen.points[L.WRIST].y }, hand: chosen };
+    return chosen;
+  }
+
   // ---------- Utilities ----------
 
   private resetTracking(): void {
@@ -797,13 +855,19 @@ export class HandInteraction {
   }
 }
 
-function pickHand(hands: Hand[]): Hand | null {
-  let best: Hand | null = null;
-  for (const h of hands) {
-    if (h.points.length !== 21) continue;
-    if (!best || (h.score ?? 0) > (best.score ?? 0)) best = h;
+/** Size of the hand in the image (bounding-box diagonal): larger means nearer the camera. */
+export function handExtent(hand: Hand, aspect = 1): number {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const p of hand.points) {
+    minX = Math.min(minX, p.x);
+    maxX = Math.max(maxX, p.x);
+    minY = Math.min(minY, p.y);
+    maxY = Math.max(maxY, p.y);
   }
-  return best;
+  return Math.hypot((maxX - minX) * aspect, maxY - minY);
 }
 
 /**

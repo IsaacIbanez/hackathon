@@ -162,6 +162,8 @@ function draw() {
   ctx.clearRect(0, 0, w, h);
   if (video.readyState >= 2) ctx.drawImage(video, 0, 0, w, h);
   for (const hand of lastFrame?.hands ?? []) {
+    // Several hands may be in view: the one being followed (the nearest) is drawn bright.
+    ctx.globalAlpha = hand === interaction.activeHand ? 1 : 0.3;
     ctx.strokeStyle = "#ffffffb3";
     ctx.lineWidth = 4;
     ctx.lineCap = "round";
@@ -178,6 +180,7 @@ function draw() {
       ctx.fill();
     }
   }
+  ctx.globalAlpha = 1;
   const lvl = interaction.levelActive(performance.now());
   if (lvl) {
     ctx.strokeStyle = `hsl(${Math.round(120 * lvl.value)}, 90%, 55%)`;
