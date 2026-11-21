@@ -58,21 +58,24 @@
     <label for="camara">Cámara</label>
     <select id="camara"></select>
     <div class="fila">
-      <div><label for="calentamiento">Calentamiento (s)</label><input id="calentamiento" type="number" value="1.5" step="0.5" min="0"></div>
+      <div><label for="espera">Espera de enfoque máx. (s)</label><input id="espera" type="number" value="1.4" step="0.1" min="0"></div>
       <div><label for="modo">Modo</label><select id="modo"><option>color</option><option>gris</option><option value="bn">blanco y negro</option></select></div>
     </div>
     <div class="checks">
       <label><input type="checkbox" id="recortar" checked> Recortar hoja</label>
       <label><input type="checkbox" id="iluminacion" checked> Corregir luz</label>
     </div>
-    <div class="vista" id="vista">Vista previa apagada</div>
+    <div class="vista" id="vista">Cámara cerrada</div>
+    <div id="vivo" style="font-size:12px;color:var(--suave);margin-top:4px;min-height:16px"></div>
     <div class="fila" style="margin-top:10px">
-      <button id="btnVista">Encender vista previa</button>
+      <button id="btnVista">Abrir cámara</button>
       <button id="btnEscanear" class="principal">Escanear</button>
     </div>
     <div class="soltar" id="soltar">Arrastra aquí una imagen (PNG, o JPG del móvil)<br>o <a href="#" id="elegir">elige un archivo</a>
       <input type="file" id="archivo" accept="image/*" hidden></div>
     <div id="estado"></div>
+    <p style="font-size:12px;color:var(--suave);margin:8px 0 0">Con la cámara abierta, escanear tarda ~0,4 s en capturar
+      (frame más nítido tras la orden). Cerrada, hace una captura única: abre, espera al enfoque y cierra.</p>
   </section>
 
   <section id="resultado"><div class="vacio">Escanea o sube una imagen para ver el resultado.</div></section>
@@ -80,13 +83,13 @@
 
 <script>
 const $ = (id) => document.getElementById(id);
-let vistaEncendida = false, ultimo = null, pestana = "pdf";
+let camaraAbierta = false, ultimo = null, pestana = "pdf", sondeo = null;
 
 function opciones() {
   const p = new URLSearchParams({ modo: $("modo").value, recortar: $("recortar").checked ? "1" : "0",
                                   iluminacion: $("iluminacion").checked ? "1" : "0" });
   if ($("camara").value !== "") p.set("camara", $("camara").value);
-  p.set("calentamiento", $("calentamiento").value || "1.5");
+  p.set("espera", $("espera").value || "1.4");
   return p;
 }
 
@@ -97,21 +100,35 @@ async function cargarCamaras() {
   for (const c of r.camaras) sel.add(new Option(`${c.indice}: ${c.nombre}`, String(c.indice)));
   const brio = r.camaras.find(c => /brio/i.test(c.nombre));
   if (brio) sel.value = String(brio.indice);
+  if (r.abierta != null) { sel.value = String(r.abierta); mostrarAbierta(); }
 }
 
-async function encenderVista() {
-  const r = await fetch("/api/vista/iniciar?" + opciones(), { method: "POST" });
-  const d = await r.json();
-  if (!r.ok) { estado(d.error_captura?.mensaje || "No se pudo abrir la cámara", true); return; }
-  vistaEncendida = true;
-  $("vista").innerHTML = `<img src="/vista.mjpg?t=${Date.now()}" alt="Vista previa de la cámara">`;
-  $("btnVista").textContent = "Apagar vista previa";
+async function abrirCamara() {
+  $("btnVista").disabled = true;
+  $("vista").textContent = "Abriendo la cámara y esperando al enfoque…";
+  try {
+    const r = await fetch("/api/camara/abrir?" + opciones(), { method: "POST" });
+    const d = await r.json();
+    if (!r.ok || d.error_captura) { estado(d.error_captura?.mensaje || "No se pudo abrir la cámara", true); $("vista").textContent = "Cámara cerrada"; return; }
+    mostrarAbierta();
+  } finally { $("btnVista").disabled = false; }
 }
-async function apagarVista() {
-  await fetch("/api/vista/parar", { method: "POST" });
-  vistaEncendida = false;
-  $("vista").textContent = "Vista previa apagada";
-  $("btnVista").textContent = "Encender vista previa";
+function mostrarAbierta() {
+  camaraAbierta = true;
+  $("vista").innerHTML = `<img src="/vista.mjpg?t=${Date.now()}" alt="Vista previa de la cámara">`;
+  $("btnVista").textContent = "Cerrar cámara";
+  clearInterval(sondeo);
+  sondeo = setInterval(async () => {
+    const d = await (await fetch("/api/camara/estado")).json();
+    $("vivo").textContent = d.ok ? `${d.camara} · ${d.fps ?? "—"} fps · nitidez ${d.nitidez ?? "—"}` : (d.error || "");
+  }, 1000);
+}
+async function cerrarCamara() {
+  clearInterval(sondeo);
+  await fetch("/api/camara/cerrar", { method: "POST" });
+  camaraAbierta = false;
+  $("vista").textContent = "Cámara cerrada"; $("vivo").textContent = "";
+  $("btnVista").textContent = "Abrir cámara";
 }
 
 function estado(texto, error = false) { $("estado").innerHTML = error ? `<span style="color:var(--error)">${texto}</span>` : texto; }
@@ -133,10 +150,8 @@ async function trabajar(promesa, etiqueta) {
 }
 
 async function escanear() {
-  const volver = vistaEncendida;
-  if (volver) { vistaEncendida = false; $("vista").textContent = "Capturando a resolución completa…"; }
-  await trabajar(fetch("/api/escanear?" + opciones(), { method: "POST" }), "Capturando y generando el PDF");
-  if (volver) encenderVista();
+  await trabajar(fetch("/api/escanear?" + opciones(), { method: "POST" }),
+                 camaraAbierta ? "Capturando y generando el PDF" : "Abriendo la cámara, capturando y generando el PDF");
 }
 
 function subir(archivo) {
@@ -160,6 +175,7 @@ function pintar() {
     <h2><span class="insignia ${r.estado}">${r.estado}</span> ${esc(r.pdf.split(/[\\/]/).pop())}</h2>
     <div class="datos">
       <div><b>Captura</b>${res ? `${res.ancho}×${res.alto} ${esc(cap.formato || "")} · ${esc(cap.camara?.nombre || "")}` : "imagen subida"}</div>
+      <div><b>Frame elegido</b>${cap.seleccion ? `${cap.modo === "servidor" ? "cámara abierta" : "captura única"} · nitidez ${f(cap.seleccion.nitidez, 0)} · ${cap.seleccion.estado === "listo" ? "enfoque asentado" : "tiempo agotado"}` : "—"}</div>
       <div><b>Página</b>${p.ancho_px}×${p.alto_px} px · ${p.papel || "sin papel estándar"} · ${f(p.dpi?.[0], 0)} DPI</div>
       <div><b>Hoja detectada</b>${r.deteccion ? (r.deteccion.encontrada ? `sí (confianza ${f(r.deteccion.confianza)})` : "no") : "—"}${p.giro_grados ? ` · girada ${p.giro_grados}°` : ""}</div>
       <div><b>Calidad</b>${f(c.puntuacion)} ${c.problemas?.length ? "· " + c.problemas.join(", ") : ""}</div>
@@ -203,9 +219,9 @@ function pintarPestana() {
   }
 }
 
-$("btnVista").onclick = () => vistaEncendida ? apagarVista() : encenderVista();
+$("btnVista").onclick = () => camaraAbierta ? cerrarCamara() : abrirCamara();
 $("btnEscanear").onclick = escanear;
-$("camara").onchange = () => { if (vistaEncendida) encenderVista(); };
+$("camara").onchange = () => { if (camaraAbierta) abrirCamara(); };
 $("elegir").onclick = (e) => { e.preventDefault(); $("archivo").click(); };
 $("archivo").onchange = (e) => subir(e.target.files[0]);
 const zona = $("soltar");

@@ -1,12 +1,12 @@
 """APP PROVISIONAL DE PRUEBA — no es parte del producto. Se puede borrar esta carpeta entera.
 
-Mini servidor en http://localhost:8765 para probar captura + PDF desde el navegador:
+Mini servidor en http://localhost:8780 para probar captura + PDF desde el navegador:
 vista previa de la cámara, botón de escanear, subida de imágenes y visor de resultados.
 
     scanner\\pdf\\.venv\\Scripts\\python scanner\\app_prueba\\servidor.py      (Windows)
     scanner/pdf/.venv/bin/python scanner/app_prueba/servidor.py             (Linux/macOS)
 
-Solo escucha en 127.0.0.1. Usa únicamente la interfaz pública: escanear.escanear y escanear.convertir_png.
+Solo escucha en 127.0.0.1. Usa escanear.escanear, escanear.escanear_viva, escanear.convertir_png y capturar.CamaraViva.
 """
 
 from __future__ import annotations
@@ -39,63 +39,58 @@ CARPETAS_PERMITIDAS = [capturar.CARPETA_POR_DEFECTO.resolve(), escanear.CARPETA_
 MAX_SUBIDA = 60 * 1024 * 1024
 
 
-# ---------------------------------------------------------------- vista previa
+# ---------------------------------------------------------------- cámara abierta
 
-class VistaPrevia:
-    """Lee la cámara a baja resolución en un hilo y guarda el último JPEG.
+class Camara:
+    """Envuelve capturar.CamaraViva (Pau): la cámara queda abierta y leyendo a resolución completa.
 
-    La cámara solo la puede usar un proceso/handle a la vez: antes de escanear se para.
+    La vista previa y la captura comparten la misma cámara, así que escanear tarda ~0,4 s en capturar
+    y no hay que cerrar la vista previa para liberar el dispositivo.
     """
 
     def __init__(self):
         self.lock = threading.Lock()
-        self.jpeg: bytes | None = None
-        self.indice: int | None = None
-        self._parar = threading.Event()
-        self._hilo: threading.Thread | None = None
+        self.viva: capturar.CamaraViva | None = None
 
-    def iniciar(self, indice: int) -> None:
-        self.parar()
-        self._parar.clear()
-        self.indice = indice
-        self._hilo = threading.Thread(target=self._bucle, args=(indice,), daemon=True)
-        self._hilo.start()
+    def abrir(self, camara: str | None) -> dict:
+        cam = capturar.elegir_camara(capturar.listar_camaras(), camara)
+        with self.lock:
+            if self.viva is not None and self.viva.camara.indice == cam.indice:
+                return self.viva.estado()
+            self._cerrar()
+            self.viva = capturar.CamaraViva(cam, 3840, 2160, escanear.ESPERA_ENFOQUE)
+            return self.viva.estado()
 
-    def parar(self) -> None:
-        self._parar.set()
-        if self._hilo:
-            self._hilo.join(timeout=5)
-        self._hilo, self.jpeg, self.indice = None, None, None
+    def cerrar(self) -> None:
+        with self.lock:
+            self._cerrar()
 
-    def _bucle(self, indice: int) -> None:
-        backend = cv2.CAP_DSHOW if sys.platform == "win32" else cv2.CAP_ANY
-        cap = cv2.VideoCapture(indice, backend, [cv2.CAP_PROP_FRAME_WIDTH, 1280, cv2.CAP_PROP_FRAME_HEIGHT, 720,
-                                                 cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG")])
-        try:
-            while not self._parar.is_set() and cap.isOpened():
-                ok, frame = cap.read()
-                if not ok:
-                    time.sleep(0.05)
-                    continue
-                escala = 960 / frame.shape[1]
-                frame = cv2.resize(frame, None, fx=escala, fy=escala, interpolation=cv2.INTER_AREA)
-                ok, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 75])
-                if ok:
-                    with self.lock:
-                        self.jpeg = buf.tobytes()
-        finally:
-            cap.release()
+    def _cerrar(self) -> None:
+        if self.viva is not None:
+            viva, self.viva = self.viva, None
+            viva.cerrar()
+
+    def ultimo_jpeg(self, ancho: int = 960) -> bytes | None:
+        viva = self.viva
+        if viva is None:
+            return None
+        # Lee el último frame de CamaraViva. `recientes` es un atributo interno de capturar.py:
+        # vale para esta app provisional; si Pau añade un método público, usarlo.
+        with viva.cond:
+            frame = viva.recientes[-1].frame if viva.recientes else None
+        if frame is None:
+            return None
+        escala = ancho / frame.shape[1]
+        peq = cv2.resize(frame, None, fx=escala, fy=escala, interpolation=cv2.INTER_AREA)
+        ok, buf = cv2.imencode(".jpg", peq, [cv2.IMWRITE_JPEG_QUALITY, 75])
+        return buf.tobytes() if ok else None
 
 
-VISTA = VistaPrevia()
+CAMARA = Camara()
 ESCANEANDO = threading.Lock()  # un escaneo a la vez
 
 
 # ---------------------------------------------------------------- utilidades
-
-def _indice(camara: str | None) -> int:
-    return capturar.elegir_camara(capturar.listar_camaras(), camara).indice
-
 
 def _respuesta_escaneo(esc: escanear.Escaneo) -> dict:
     """Resultado + URLs de los archivos para el navegador."""
@@ -160,8 +155,12 @@ class Manejador(BaseHTTPRequestHandler):
             return self._archivo(AQUI / "index.html", "text/html; charset=utf-8")
         if u.path == "/api/camaras":
             camaras = capturar.listar_camaras()
+            viva = CAMARA.viva
             return self._json({"camaras": [{"indice": c.indice, "nombre": c.nombre} for c in camaras],
-                               "vista": VISTA.indice})
+                               "abierta": viva.camara.indice if viva else None})
+        if u.path == "/api/camara/estado":
+            viva = CAMARA.viva
+            return self._json(viva.estado() if viva else {"ok": False, "abierta": False})
         if u.path == "/vista.mjpg":
             return self._mjpeg()
         if u.path == "/archivo":
@@ -178,9 +177,8 @@ class Manejador(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         try:
-            while VISTA.indice is not None:
-                with VISTA.lock:
-                    jpeg = VISTA.jpeg
+            while CAMARA.viva is not None:
+                jpeg = CAMARA.ultimo_jpeg()
                 if jpeg:
                     self.wfile.write(b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: "
                                      + str(len(jpeg)).encode() + b"\r\n\r\n" + jpeg + b"\r\n")
@@ -193,11 +191,10 @@ class Manejador(BaseHTTPRequestHandler):
         u = urlparse(self.path)
         q = {k: v[0] for k, v in parse_qs(u.query).items()}
         try:
-            if u.path == "/api/vista/iniciar":
-                VISTA.iniciar(_indice(q.get("camara")))
-                return self._json({"ok": True, "indice": VISTA.indice})
-            if u.path == "/api/vista/parar":
-                VISTA.parar()
+            if u.path == "/api/camara/abrir":
+                return self._json(CAMARA.abrir(q.get("camara")))
+            if u.path == "/api/camara/cerrar":
+                CAMARA.cerrar()
                 return self._json({"ok": True})
             if u.path == "/api/escanear":
                 return self._escanear(q)
@@ -211,9 +208,12 @@ class Manejador(BaseHTTPRequestHandler):
         if not ESCANEANDO.acquire(blocking=False):
             return self._json({"error": "ya hay un escaneo en curso"}, 409)
         try:
-            VISTA.parar()  # libera la cámara para la captura a resolución completa
-            esc = escanear.escanear(q.get("camara"), calentamiento=float(q.get("calentamiento", 1.5)),
-                                    opciones=_opciones(q))
+            viva = CAMARA.viva
+            if viva is not None:   # cámara ya abierta: captura en ~0,4 s
+                esc = escanear.escanear_viva(viva, opciones=_opciones(q))
+            else:                  # captura única: abre, espera al enfoque, captura y cierra
+                esc = escanear.escanear(q.get("camara"), espera_enfoque=float(q.get("espera", escanear.ESPERA_ENFOQUE)),
+                                        opciones=_opciones(q))
             return self._json(_respuesta_escaneo(esc))
         finally:
             ESCANEANDO.release()
@@ -242,7 +242,8 @@ class Manejador(BaseHTTPRequestHandler):
 
 def main() -> int:
     p = argparse.ArgumentParser(description="App provisional de prueba del escáner (localhost)")
-    p.add_argument("--puerto", type=int, default=8765)
+    p.add_argument("--puerto", type=int, default=8780,
+                   help="8765 no: lo usan la app Wails (WebSocket) y capturar.py --servidor")
     p.add_argument("--no-abrir", action="store_true", help="no abrir el navegador")
     a = p.parse_args()
     servidor = ThreadingHTTPServer(("127.0.0.1", a.puerto), Manejador)
@@ -255,7 +256,7 @@ def main() -> int:
     except KeyboardInterrupt:
         pass
     finally:
-        VISTA.parar()
+        CAMARA.cerrar()
         servidor.server_close()
     return 0
 
