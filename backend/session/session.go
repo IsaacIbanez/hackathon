@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -53,7 +54,8 @@ type Session struct {
 
 	mu          sync.Mutex
 	doc         *gen.DocumentPayload // last usable document
-	lastPointed string               // last block read aloud by pointing
+	hovered     string               // block under the pointer right now ("" = none)
+	lastPointed string               // last block the user pointed at (context for questions)
 	cancelJob   context.CancelFunc   // model call in flight, if any
 	seq         atomic.Int64
 }
@@ -97,7 +99,7 @@ func (s *Session) onDocument(ctx context.Context, id string, doc *gen.DocumentPa
 
 	s.mu.Lock()
 	s.doc = doc
-	s.lastPointed = ""
+	s.hovered, s.lastPointed = "", ""
 	s.mu.Unlock()
 	// Echo the accepted document so every UI can show and highlight it, even when the
 	// scanner sent it. Documents with bad framing are not echoed: the UI keeps the last good one.
@@ -112,6 +114,8 @@ func (s *Session) onDocument(ctx context.Context, id string, doc *gen.DocumentPa
 	s.ask(ctx, id, doc, req, lang, send)
 }
 
+// onPointer reads aloud the block under the pointer when the pointer enters it. Leaving a
+// block (pointing at empty space) and coming back reads it again; staying inside says nothing.
 func (s *Session) onPointer(id string, p *gen.PointerPayload, send func(any)) {
 	s.mu.Lock()
 	doc := s.doc
@@ -122,9 +126,10 @@ func (s *Session) onPointer(id string, p *gen.PointerPayload, send func(any)) {
 		if blockID == "" {
 			blockID = blockAt(doc, p.X, p.Y)
 		}
-		if blockID != "" && blockID != s.lastPointed {
+		if blockID != s.hovered {
+			s.hovered = blockID
 			for i := range doc.Blocks {
-				if doc.Blocks[i].Id == blockID {
+				if blockID != "" && doc.Blocks[i].Id == blockID {
 					block = &doc.Blocks[i]
 					s.lastPointed = blockID
 					break
@@ -138,23 +143,35 @@ func (s *Session) onPointer(id string, p *gen.PointerPayload, send func(any)) {
 	}
 }
 
-// pointerMargin lets a fingertip slightly outside a box still select it.
-const pointerMargin = 0.01
+// PointerReach is how far (in document units) a fingertip can be from a block and still
+// point at it. Text lines are thin and a fingertip is not precise: without some reach,
+// pointing at a form field is frustrating. Keep it in sync with web/src/app/pointing.ts.
+const PointerReach = 0.05
 
-// blockAt returns the id of the block under (x, y), or "" if none. When boxes overlap,
-// the smallest one wins (it is the most specific: a field inside a section).
+// blockAt returns the id of the block under (x, y), or "" if none. A point inside several
+// boxes picks the smallest (the most specific: a field inside a section). A point inside
+// none picks the nearest box within PointerReach.
 func blockAt(doc *gen.DocumentPayload, x, y float32) string {
-	best, bestArea := "", float32(2)
+	inside, insideArea := "", float32(2)
+	near, nearDist := "", float32(PointerReach)
 	for _, b := range doc.Blocks {
 		bx := b.Box
-		if x < bx.X-pointerMargin || x > bx.X+bx.W+pointerMargin || y < bx.Y-pointerMargin || y > bx.Y+bx.H+pointerMargin {
+		dx := max(bx.X-x, 0, x-(bx.X+bx.W))
+		dy := max(bx.Y-y, 0, y-(bx.Y+bx.H))
+		if dx == 0 && dy == 0 {
+			if area := bx.W * bx.H; area < insideArea {
+				inside, insideArea = b.Id, area
+			}
 			continue
 		}
-		if area := bx.W * bx.H; area < bestArea {
-			best, bestArea = b.Id, area
+		if d := float32(math.Hypot(float64(dx), float64(dy))); d <= nearDist {
+			near, nearDist = b.Id, d
 		}
 	}
-	return best
+	if inside != "" {
+		return inside
+	}
+	return near
 }
 
 func (s *Session) onUtterance(ctx context.Context, id string, u *gen.UtterancePayload, send func(any)) {

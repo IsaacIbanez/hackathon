@@ -22,6 +22,7 @@
 - Ejecutable de escritorio comprobado: arrancado desde `build/bin` encuentra el `.env` de la raíz, responde al scanner y escribe `lauzhack.log`. Diagnóstico de la ventana (WebView2): voz de salida sí (3 voces es-ES), cámara sí, API de reconocimiento de voz presente (falta probar que funcione de verdad: rol C).
 - Revisada la rama de Didac (`feature/B-contexto-scanner`): `Resultado.documento()` ya cumple el contrato. Añadido a `docs/INTEGRACION_SCANNER.md` el código exacto para `escanear.py` (`enviar_a_app`, POST /message). Su estado tenía desfasados el conflicto de puertos (resuelto: Pau en 8766) y el modo de envío (ahora POST).
 - Revisados #19 (voz de Nil: aprobado y fusionado) y #20 (Gesture Control: cambios pedidos, falta validar la cabecera `Host` contra DNS rebinding).
+- Arreglado el apuntar con el dedo: (1) el puntero iba en espejo respecto a lo que ve el usuario; (2) los campos se dibujan sobre la imagen con el punto del dedo y el campo bajo el dedo en grande; (3) alcance de 0,05 alrededor de cada campo (mismo criterio en Go y en TS); (4) se relee un campo al volver a él; (5) vista previa más grande e indicador de «Pointing». Probado de punta a punta con el servidor real. Guía: `docs/PROBAR_GESTOS.md`.
 
 ## Pendiente
 - T8: sustituir las respuestas de ejemplo por la lógica real (`backend/llm` + B2).

@@ -78,7 +78,7 @@ export default function App() {
           <p aria-live="polite" className="text-4xl leading-relaxed">
             {last?.text ?? (doc ? 'Reading the document…' : '')}
           </p>
-          <Gestures send={send} voice={voice} lang={LANG} />
+          <Gestures send={send} voice={voice} lang={LANG} doc={doc} highlight={last?.highlightBlockIds ?? []} />
           <Cost stats={stats} />
         </section>
 
