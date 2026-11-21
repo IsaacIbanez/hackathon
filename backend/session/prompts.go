@@ -170,3 +170,23 @@ func speechLang(lang string) string {
 	}
 	return lang
 }
+
+// ---------- Transcription ----------
+
+var languageNames = map[string]string{"es": "Spanish", "en": "English", "ca": "Catalan", "fr": "French", "de": "German"}
+
+func transcribePrompt(lang string) string {
+	name := languageNames[strings.ToLower(strings.SplitN(lang, "-", 2)[0])]
+	if name == "" {
+		name = "Spanish"
+	}
+	return "Transcribe this " + name + " audio exactly, word for word. Reply with the transcription only: " +
+		"no quotes, no comments, no translation. If nobody speaks, reply with nothing."
+}
+
+// cleanTranscript removes what models sometimes add around the transcription.
+func cleanTranscript(s string) string {
+	s = strings.TrimSpace(s)
+	s = strings.Trim(s, "\"“”«»'")
+	return strings.TrimSpace(s)
+}

@@ -23,7 +23,9 @@ func TestHealth(t *testing.T) {
 		t.Fatal(err)
 	}
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/health", nil))
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	req.Host = "127.0.0.1:8080" // the API only answers to local hosts (ws.Guard)
+	h.ServeHTTP(rec, req)
 	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"ok"`) {
 		t.Fatalf("health: %d %s", rec.Code, rec.Body)
 	}

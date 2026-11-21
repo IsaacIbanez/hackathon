@@ -24,13 +24,14 @@ import (
 
 // fakeModel answers with cheap and, if doubt says so, expensive. It records the prompts.
 type fakeModel struct {
-	mu        sync.Mutex
-	cheap     string
-	expensive string
-	err       error
-	delay     time.Duration
-	prompts   []string
-	escalated int
+	mu          sync.Mutex
+	cheap       string
+	expensive   string
+	err         error
+	delay       time.Duration
+	prompts     []string
+	lastRequest llm.Request
+	escalated   int
 }
 
 func (f *fakeModel) CompleteWithEscalation(ctx context.Context, req llm.Request, doubt func(llm.Response) bool) (llm.Response, bool, error) {
@@ -55,6 +56,17 @@ func (f *fakeModel) CompleteWithEscalation(ctx context.Context, req llm.Request,
 		return llm.Response{Text: f.expensive, Tier: llm.Expensive}, true, nil
 	}
 	return r, false, nil
+}
+
+func (f *fakeModel) Complete(ctx context.Context, req llm.Request) (llm.Response, error) {
+	f.mu.Lock()
+	f.prompts = append(f.prompts, req.Messages[0].Text)
+	f.lastRequest = req
+	f.mu.Unlock()
+	if f.err != nil {
+		return llm.Response{}, f.err
+	}
+	return llm.Response{Text: f.cheap, Tier: req.Tier, Model: "fake-audio"}, nil
 }
 
 func (f *fakeModel) Stats() llm.Stats {
@@ -520,5 +532,41 @@ func TestScanRejectsBadRequests(t *testing.T) {
 	}
 	if code := postPhoto(t, srv.URL, "image/png", nil); code != http.StatusBadRequest {
 		t.Errorf("empty: %d", code)
+	}
+}
+
+func TestTranscribe(t *testing.T) {
+	m := &fakeModel{cheap: " «¿Qué tengo que poner aquí?» "}
+	h, hub := NewMux(m, DefaultConfig())
+	srv := httptest.NewServer(h)
+	defer srv.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	ui := dialUI(t, ctx, srv.URL)
+	defer ui.CloseNow()
+	waitClients(t, hub, 1)
+
+	resp, err := http.Post(srv.URL+"/transcribe?lang=es-ES", "audio/wav", strings.NewReader("RIFF....WAVE"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var tr Transcription
+	if err := json.NewDecoder(resp.Body).Decode(&tr); err != nil || resp.StatusCode != 200 || tr.Text != "¿Qué tengo que poner aquí?" {
+		t.Fatalf("transcription: %d %+v %v", resp.StatusCode, tr, err)
+	}
+	req := m.lastRequest
+	if req.Messages[0].Audio == nil || req.Messages[0].Audio.Format != "wav" || req.Models != DefaultTranscribeModels || !strings.Contains(req.Messages[0].Text, "Spanish") {
+		t.Fatalf("request to the model: %+v", req)
+	}
+	var st gen.StatsMessage
+	if err := wsjson.Read(ctx, ui, &st); err != nil || st.Type != "stats" {
+		t.Fatalf("the UI must get the updated cost: %+v %v", st, err)
+	}
+
+	bad, _ := http.Post(srv.URL+"/transcribe", "audio/webm", strings.NewReader("x"))
+	bad.Body.Close()
+	if bad.StatusCode != http.StatusUnsupportedMediaType {
+		t.Errorf("webm: %d", bad.StatusCode)
 	}
 }
