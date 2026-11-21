@@ -14,7 +14,8 @@ defined in `actions.ts` (`MAPS`). Items marked BETA are experimental.
 | ✋ open palm facing the camera, held still | pause | pause | Escape |
 | ✋↔ swipe to the user's right / left | next / previous | next / previous field | next / previous tab |
 | ☝️ point | pointer | pointer | pointer |
-| ☝️ point and hold still ~0.9 s | explain here | dictate field | click |
+| ☝️ point and hold still ~0.9 s | explain here | dictate field | — (holding still only confirms wake/volume/brightness, never clicks) |
+| ☝️ point + heart finger on thumb (middle fingertip) | — | — | click · twice: right click · hold: drag |
 | 👎 thumbs down (BETA) | undo | clear field | undo |
 | ✊ fist held ~0.5 s → quick menu; ☝️ hold the pointer on an option ~0.5 s (BETA) | ↑ adjust volume · ↓ repeat · ask for help on the side opposite the hand (no hand detected: → dictate, ← ask for help) | same | same |
 | ✊ menu → adjust volume / brightness, then 🤏 pinch and open; hold still ~1 s to set it (BETA) | volume / brightness | volume / brightness | volume / brightness |

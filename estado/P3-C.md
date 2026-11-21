@@ -33,7 +33,8 @@
   - 137 tests web en verde (`npm test`), lint limpio (`oxlint`), build de la app y build de la página de desktop.
   - 13 tests unitarios en Go (`adapters/desktop`), con `go vet` y tests pasando en Linux, Windows y macOS.
 
-## Decisiones tomadas
+- **Decisiones tomadas:**
+- **Clic exclusivo con corazón y pulgar:** se elimina cualquier clic por permanencia (`select: null` en `pc` y `call`). Quedarse quieto NUNCA hace clic; sólo confirma gestos explícitos (despertar ~1,2 s, fijar nivel de volumen/brillo ~1 s, o elegir celda de menú ~0,5 s). El ratón y sus clics vienen activos por defecto al abrir Gesture Control.
 - **Eliminación de ✌️:** eliminado porque colisionaba con el clic (corazón + pulgar mientras se apunta con el índice).
 - **Rejilla 3×3 completa:** se usan las 8 celdas en la ventana de cámara. El lector de documentos mantiene su cruz sin el lado de la mano activa.
 - **Menú con menos opciones cuando no hacen falta:** en la confirmación de energía se muestran sólo 2 opciones (↑ Volver, ↓ Confirmar) en vez de rellenar 4 celdas con 3 "Cancel" idénticos.

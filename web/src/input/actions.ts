@@ -58,7 +58,7 @@ interface ContextMap {
   palm: Action | null;
   swipe_right: Action | null;
   swipe_left: Action | null;
-  select: Action;
+  select: Action | null;
   /** Continuous control with the pinch; the value is in event.value (0–1). */
   pinch: Action | null;
   head: Record<HeadGesture, Action>;
@@ -91,7 +91,7 @@ export const MAPS: Record<Context, ContextMap> = {
     palm: null,
     swipe_right: "next_tab",
     swipe_left: "previous_tab",
-    select: "click",
+    select: null,
     pinch: "volume",
     head: { nod: "enter", shake: "escape" },
   },
@@ -103,7 +103,7 @@ export const MAPS: Record<Context, ContextMap> = {
     palm: null,
     swipe_right: null,
     swipe_left: null,
-    select: "click",
+    select: null,
     pinch: "volume",
     head: { nod: "raise_hand", shake: "toggle_mic" },
   },

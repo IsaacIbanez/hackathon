@@ -20,7 +20,7 @@ const ctx = canvas.getContext("2d")!;
 
 const token = document.querySelector<HTMLMetaElement>('meta[name="gesture-token"]')?.content ?? "";
 const helper = new HelperClient(token);
-const interaction = new HandInteraction({ requireWake: true });
+const interaction = new HandInteraction({ requireWake: true, mouseClicks: true });
 
 let context: DesktopContext = "call";
 let page: MenuPage = { id: "main" };
@@ -264,7 +264,7 @@ function paintGuide() {
     ["✊ again, inside the menu", "Close the menu"],
     ["👎 Thumbs down / ✋← Swipe, in menu", "Go back / close"],
     ["☝️ Point", mouseOn() ? "Move the mouse" : "Move the mouse (turn on “Move the mouse”)"],
-    ["☝️ + middle fingertip on the thumb", "Click · twice quickly: right click · hold: drag"],
+    ["☝️ + heart finger on thumb (middle fingertip)", "Click · twice quickly: right click · hold: drag"],
   ];
   $("guide").innerHTML = rows.map(([g, a]) => `<tr><td>${g}</td><td>${a ?? "—"}</td></tr>`).join("");
 }

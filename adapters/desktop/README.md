@@ -55,10 +55,11 @@ El menú se presenta en una rejilla 3×3 de pantalla (con el centro vacío):
   - Permite abrir hasta 7 aplicaciones configuradas en `apps.json` distribuidas en las celdas disponibles (`APP_CELLS`), con ↓ Volver. Si no hay apps configuradas, muestra huecos («App N · not set»).
 
 ## Control del ratón con la mano
-Al activar la casilla **«Move the mouse with ☝️»**:
+Al activar la casilla **«Move the mouse with ☝️»** (activada por defecto):
 - **Mover cursor:** apuntar con el dedo índice ☝️ desplaza el cursor suavemente (mapeo con margen para alcanzar las esquinas sin salirse del encuadre de la cámara).
-- **Clic izquierdo:** con el índice apuntando, juntar la punta del dedo corazón y el pulgar.
+- **Clic izquierdo:** se realiza exclusivamente juntando la punta del dedo corazón (heart finger) y el pulgar mientras se apunta. Quedarse quieto nunca hace clic (mantenerse quieto sólo confirma gestos como despertar o fijar el volumen/brillo).
 - **Clic derecho:** dar dos toques rápidos seguidos con el dedo corazón sobre el pulgar.
+- **Arrastre:** mantener juntos el corazón y el pulgar mientras se desplaza el índice.
 - **Arrastrar (mantener pulsado):** juntar corazón y pulgar y mantenerlos juntos más de 300 ms (emite `mouse down`). Al separar los dedos, se suelta el botón (`mouse up`).
 - **Sin conflicto de gestos:** el gesto de victoria (✌️) se ha eliminado por completo porque se asemejaba a la postura de clic; dos dedos levantados cuentan como apuntar en reposo.
 
