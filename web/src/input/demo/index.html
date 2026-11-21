@@ -1,121 +1,231 @@
 <!doctype html>
-<html lang="es">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Prueba de gestos de mano</title>
+    <title>Gesture Lab</title>
     <style>
-      :root { color-scheme: dark; --fondo: #111; --panel: #1c1c1c; --texto: #f5f5f5; --suave: #aaa; --acento: #ffd400; --ok: #34c759; --mal: #ff453a; }
+      :root {
+        color-scheme: dark;
+        --bg: #0b0d12;
+        --surface: #141821;
+        --surface-2: #1b2030;
+        --border: #262d3c;
+        --text: #e9edf5;
+        --muted: #8e98ab;
+        --accent: #ffd23f;
+        --accent-ink: #1a1400;
+        --cyan: #4cc9f0;
+        --ok: #3ddc97;
+        --bad: #ff5d5d;
+        --radius: 16px;
+        --shadow: 0 20px 60px -20px #000c, 0 0 0 1px var(--border);
+      }
       * { box-sizing: border-box; }
-      body { margin: 0; font: 17px/1.4 system-ui, sans-serif; background: var(--fondo); color: var(--texto); }
-      main { display: grid; grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr); gap: 16px; padding: 16px; }
-      @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
-      /* El lienzo dibuja el vídeo y el esqueleto juntos: así siempre coinciden, aunque la
-         cámara cambie de resolución. El <video> solo sirve de fuente y queda oculto debajo. */
-      .escena { position: relative; align-self: start; }
-      canvas { display: block; width: 100%; height: auto; transform: scaleX(-1); border-radius: 8px; background: #000; }
+      html, body { margin: 0; background: var(--bg); color: var(--text); }
+      body { font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+      button, select, input { font: inherit; color: inherit; }
+
+      /* ---------- Header ---------- */
+      header { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+        max-width: 1280px; margin: 0 auto; padding: 20px 24px 8px; }
+      .brand { display: flex; align-items: center; gap: 12px; }
+      .logo { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-size: 22px;
+        background: linear-gradient(135deg, var(--accent), #ff9f1c); color: var(--accent-ink); }
+      .brand h1 { font-size: 20px; margin: 0; letter-spacing: -0.01em; }
+      .brand p { margin: 0; color: var(--muted); font-size: 14px; }
+      #estado { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px;
+        background: var(--surface); box-shadow: 0 0 0 1px var(--border); font-size: 14px; max-width: 100%; }
+      #estado::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 10px var(--ok); flex: none; }
+
+      /* ---------- Stage (camera, centered) ---------- */
+      .stage-wrap { max-width: 1040px; margin: 12px auto 0; padding: 0 24px; }
+      /* The canvas draws the video and the skeleton together, so they always line up even if the
+         camera changes resolution. The <video> is only the source and stays hidden underneath. */
+      .escena { position: relative; border-radius: 22px; overflow: hidden; box-shadow: var(--shadow); background: #000; }
+      canvas { display: block; width: 100%; height: auto; transform: scaleX(-1); background: #000; aspect-ratio: 16 / 9; }
       video { position: absolute; inset: 0; width: 100%; opacity: 0; pointer-events: none; }
-      #modo { position: absolute; top: 12px; left: 12px; padding: 6px 12px; border-radius: 999px; font-weight: 700; background: #000c; }
-      #modo.despierto { color: var(--ok); } #modo.dormido { color: var(--mal); }
-      #accion { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); font-size: 34px; font-weight: 800; color: var(--acento); background: #000c; padding: 4px 16px; border-radius: 8px; white-space: nowrap; }
+      .chip { position: absolute; top: 14px; padding: 6px 12px; border-radius: 999px; font-size: 14px; font-weight: 700;
+        background: #0b0d12cc; backdrop-filter: blur(8px); box-shadow: 0 0 0 1px #ffffff1a; }
+      #modo { left: 14px; }
+      #modo.despierto { color: var(--ok); } #modo.dormido { color: var(--bad); }
+      #chipMano { right: 14px; color: var(--muted); }
+      #accion { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); white-space: nowrap;
+        font-size: clamp(20px, 3vw, 32px); font-weight: 800; color: var(--accent-ink); background: var(--accent);
+        padding: 8px 22px; border-radius: 999px; box-shadow: 0 10px 30px -8px #ffd23f88; }
       #accion:empty { display: none; }
-      /* Menú: capa HTML fija sobre el vídeo (no se dibuja en el lienzo, así no se solapa). */
-      /* Cada opción ocupa su tercio de pantalla: es justo la zona donde el puntero la elige. */
-      #menu { position: absolute; inset: 0; display: grid; background: #0007; border-radius: 8px;
+
+      /* Quick menu: fixed HTML layer over the video. Each option fills its third of the screen,
+         exactly the zone where the pointer selects it. */
+      #menu { position: absolute; inset: 0; display: grid; background: #0b0d12a6; backdrop-filter: blur(2px);
         grid-template: ". arriba ." 1fr "izquierda centro derecha" 1fr ". abajo ." 1fr / 1fr 1fr 1fr; }
       #menu[hidden] { display: none; }
-      #menu .op { --p: 0; margin: 10px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 8px; border-radius: 14px;
-        font-size: clamp(16px, 2.2vw, 26px); font-weight: 800; background: #000d; border: 3px solid #fff4;
-        background-image: linear-gradient(90deg, #ffd40066 calc(var(--p) * 100%), transparent 0); }
-      #menu .op.activa { border-color: var(--acento); color: var(--acento); }
-      #menu .op.elegida { background: var(--acento); color: #000; }
-      #menu .centro { grid-area: centro; display: flex; align-items: center; justify-content: center; text-align: center; color: #ddd; font-size: clamp(13px, 1.6vw, 18px); }
-      /* Puntero por encima del menú. */
+      #menu .op { --p: 0; margin: 12px; display: flex; align-items: center; justify-content: center; text-align: center;
+        padding: 8px; border-radius: 18px; font-size: clamp(16px, 2.2vw, 26px); font-weight: 800;
+        background: #141821ee; box-shadow: 0 0 0 2px #ffffff22;
+        background-image: linear-gradient(90deg, #ffd23f55 calc(var(--p) * 100%), transparent 0); }
+      #menu .op.activa { box-shadow: 0 0 0 3px var(--accent); color: var(--accent); }
+      #menu .op.elegida { background: var(--accent); color: var(--accent-ink); }
+      #menu .centro { grid-area: centro; display: flex; align-items: center; justify-content: center; text-align: center;
+        color: #cfd6e4; font-size: clamp(13px, 1.5vw, 17px); }
       #cursor { position: absolute; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%;
-        background: #ff3b30; border: 3px solid #fff; box-shadow: 0 0 0 3px #0008; pointer-events: none; }
+        background: var(--bad); border: 3px solid #fff; box-shadow: 0 0 0 4px #0008; pointer-events: none; }
       #cursor[hidden] { display: none; }
-      h1 { font-size: 22px; margin: 0 0 8px; }
-      h2 { font-size: 16px; margin: 16px 0 6px; color: var(--suave); text-transform: uppercase; letter-spacing: .05em; }
-      section > div { background: var(--panel); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
-      dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 0; }
-      dt { color: var(--suave); } dd { margin: 0; font-weight: 700; }
-      label { display: block; margin: 4px 0; } label small { color: var(--suave); }
-      select, button { font: inherit; padding: 6px 10px; border-radius: 6px; border: 2px solid var(--acento); background: none; color: var(--texto); cursor: pointer; }
+
+      /* ---------- Toolbar under the camera ---------- */
+      .toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px; margin: 16px 0 0; }
+      .seg { display: inline-flex; padding: 4px; border-radius: 999px; background: var(--surface); box-shadow: 0 0 0 1px var(--border); }
+      .seg button { white-space: nowrap; border: 0; background: none; padding: 8px 16px; border-radius: 999px; cursor: pointer; color: var(--muted); font-weight: 600; }
+      .seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+      .btn { border: 0; padding: 10px 16px; border-radius: 999px; cursor: pointer; font-weight: 600;
+        background: var(--surface); box-shadow: 0 0 0 1px var(--border); }
+      .btn:hover, .seg button:hover { filter: brightness(1.15); }
+      .btn:focus-visible, .seg button:focus-visible, input:focus-visible { outline: 3px solid var(--cyan); outline-offset: 2px; }
+
+      /* ---------- Cards ---------- */
+      main.cards { max-width: 1280px; margin: 28px auto 40px; padding: 0 24px;
+        display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); align-items: start; }
+      .card { background: var(--surface); border-radius: var(--radius); padding: 18px; box-shadow: 0 0 0 1px var(--border); }
+      .card.wide { grid-column: span 2; }
+      @media (max-width: 700px) { .card.wide { grid-column: auto; } }
+      .card h2 { margin: 0 0 12px; font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+      dl { display: grid; grid-template-columns: auto 1fr; gap: 8px 14px; margin: 0; }
+      dt { color: var(--muted); } dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+      .meter { height: 8px; border-radius: 999px; background: var(--surface-2); overflow: hidden; margin-top: 4px; }
+      .meter > i { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, var(--ok), var(--accent)); transition: width 0.2s; }
+
+      /* Toggles */
+      .opt { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--border); cursor: pointer; }
+      .opt:first-of-type { border-top: 0; padding-top: 0; }
+      .opt span { font-weight: 600; }
+      .opt small { grid-column: 1; color: var(--muted); font-size: 13px; }
+      .opt input { grid-row: 1 / span 2; grid-column: 2; appearance: none; width: 44px; height: 26px; border-radius: 999px;
+        background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--border); position: relative; cursor: pointer; transition: background 0.2s; }
+      .opt input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #cfd6e4; transition: transform 0.2s; }
+      .opt input:checked { background: var(--accent); }
+      .opt input:checked::after { transform: translateX(18px); background: var(--accent-ink); }
+      .opt input:disabled { opacity: 0.4; cursor: not-allowed; }
+      .badge { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 800;
+        letter-spacing: 0.05em; color: var(--cyan); box-shadow: inset 0 0 0 1px #4cc9f066; vertical-align: 2px; }
+
+      /* Sliders */
+      #ajustes label { display: block; padding: 10px 0; border-top: 1px solid var(--border); }
+      #ajustes label:first-child { border-top: 0; padding-top: 0; }
+      #ajustes .row { display: flex; justify-content: space-between; gap: 12px; font-weight: 600; }
+      #ajustes b { color: var(--accent); font-variant-numeric: tabular-nums; }
+      #ajustes small { display: block; color: var(--muted); font-size: 13px; }
+      input[type="range"] { width: 100%; margin-top: 8px; accent-color: var(--accent); }
+
+      /* Guide and log */
       table { width: 100%; border-collapse: collapse; font-size: 15px; }
-      td { padding: 3px 4px; border-bottom: 1px solid #333; vertical-align: top; }
-      td:first-child { white-space: nowrap; }
-      .exp { color: var(--acento); font-size: 12px; font-weight: 700; }
-      #ajustes input { width: 100%; }
-      ol { padding-left: 20px; max-height: 30vh; overflow: auto; font-size: 14px; margin: 0; }
+      td { padding: 8px 6px; border-top: 1px solid var(--border); vertical-align: top; }
+      tr:first-child td { border-top: 0; }
+      td:last-child { color: var(--accent); font-weight: 600; }
+      ol { margin: 0; padding: 0; list-style: none; max-height: 340px; overflow: auto; font-size: 14px; font-variant-numeric: tabular-nums; }
+      ol li { padding: 6px 0; border-top: 1px solid var(--border); color: #cfd6e4; }
+      ol li:first-child { border-top: 0; }
+      ol:empty::before { content: "No events yet — try a gesture."; color: var(--muted); }
+      @media (max-width: 600px) {
+        header, .stage-wrap, main.cards { padding-left: 16px; padding-right: 16px; }
+        .seg button { padding: 8px 10px; }
+        .escena { border-radius: 16px; }
+      }
+      footer { text-align: center; color: var(--muted); font-size: 13px; padding: 0 24px 32px; }
     </style>
   </head>
   <body>
-    <main>
+    <header>
+      <div class="brand">
+        <div class="logo" aria-hidden="true">✋</div>
+        <div>
+          <h1>Gesture Lab</h1>
+          <p>Hands-free control for the document reader</p>
+        </div>
+      </div>
+      <p id="estado" role="status">Loading the hand model…</p>
+    </header>
+
+    <div class="stage-wrap">
       <div class="escena">
         <video id="video" autoplay playsinline muted></video>
-        <canvas id="lienzo"></canvas>
-        <div id="modo" hidden></div>
+        <canvas id="lienzo" aria-label="Camera view with hand tracking"></canvas>
+        <div id="modo" class="chip" hidden></div>
+        <div id="chipMano" class="chip">Hand: detecting…</div>
         <div id="accion" aria-live="assertive"></div>
         <div id="menu" hidden>
           <div class="op" data-s="arriba" style="grid-area: arriba"></div>
           <div class="op" data-s="izquierda" style="grid-area: izquierda"></div>
-          <div class="centro">☝️ lleva el puntero<br />a una opción y mantén ~0,5 s</div>
+          <div class="centro">☝️ Move the pointer onto<br />an option and hold ~0.5 s</div>
           <div class="op" data-s="derecha" style="grid-area: derecha"></div>
           <div class="op" data-s="abajo" style="grid-area: abajo"></div>
         </div>
         <div id="cursor" hidden></div>
       </div>
-      <section>
-        <h1>Gestos de mano</h1>
-        <p id="estado" role="status">Cargando el modelo…</p>
 
-        <div>
-          <dl>
-            <dt>Pose (frame)</dt><dd id="pose">—</dd>
-            <dt>Gesto estable</dt><dd id="gesto">—</dd>
-            <dt>Puntero en doc.</dt><dd id="doc">—</dd>
-            <dt>Volumen voz</dt><dd id="volumen">100 %</dd>
-            <dt>Pulgar–índice</dt><dd id="separacion">—</dd>
-            <dt>Alcance índice</dt><dd id="alcance">—</dd>
-            <dt>Mano</dt><dd id="manoUsada">—</dd>
-            <dt>FPS</dt><dd id="fps">—</dd>
-          </dl>
+      <div class="toolbar">
+        <div class="seg" id="contexto" role="group" aria-label="Context">
+          <button data-c="documento" aria-pressed="true">📄 Reading</button>
+          <button data-c="formulario" aria-pressed="false">📝 Form</button>
+          <button data-c="pc" aria-pressed="false">💻 Computer</button>
         </div>
+        <button class="btn" id="recalibrar">🎚️ Calibrate volume</button>
+        <button class="btn" id="marcar">⬚ Mark document</button>
+        <button class="btn" id="reiniciar">↻ Restart camera</button>
+      </div>
+    </div>
 
-        <div>
-          <label>Contexto
-            <select id="contexto">
-              <option value="documento">Leyendo un documento</option>
-              <option value="formulario">Rellenando un formulario</option>
-              <option value="pc">Usando el PC</option>
-            </select>
-          </label>
-          <label><input type="checkbox" id="despertar" /> Modo dormido / despierto <span class="exp">EXP</span><br /><small>✋ mantenida ~1 s para despertar; se duerme tras 10 s sin gestos</small></label>
-          <label><input type="checkbox" id="movilidad" /> Perfil movilidad reducida <span class="exp">EXP</span><br /><small>gestos más lentos y tolerantes al temblor</small></label>
-          <label><input type="checkbox" id="cabeza" /> Gestos de cabeza <span class="exp">EXP</span><br /><small>asentir y negar (descarga otro modelo, ~4 MB)</small></label>
-          <label><input type="checkbox" id="vozSel" /> Señalar + voz <span class="exp">EXP</span><br /><small id="vozInfo">al seleccionar señalando, escucha una pregunta</small></label>
-          <label><input type="checkbox" id="invertirMano" /> La mano detectada sale al revés<br /><small>márcalo si «Mano» no coincide con la mano que usas</small></label>
-          <label><input type="checkbox" id="voz" checked /> Decir la acción en voz alta<br /><small>con el volumen que marques con la pinza 🤏</small></label>
-          <p><button id="marcar">Marcar documento (4 clics)</button> <button id="reiniciar">Reiniciar cámara</button> <button id="recalibrar">Calibrar volumen</button></p>
-        </div>
+    <main class="cards">
+      <section class="card">
+        <h2>Live</h2>
+        <dl>
+          <dt>Pose</dt><dd id="pose">—</dd>
+          <dt>Gesture</dt><dd id="gesto">—</dd>
+          <dt>Hand</dt><dd id="manoUsada">—</dd>
+          <dt>Pointer on doc</dt><dd id="doc">—</dd>
+          <dt>Thumb–index</dt><dd id="separacion">—</dd>
+          <dt>Index reach</dt><dd id="alcance">—</dd>
+          <dt>Frame rate</dt><dd id="fps">—</dd>
+          <dt>Voice volume</dt><dd><span id="volumen">100 %</span><div class="meter"><i id="medidorVolumen"></i></div></dd>
+        </dl>
+      </section>
 
-        <h2>Ajustes de la pinza</h2>
+      <section class="card">
+        <h2>Options</h2>
+        <label class="opt"><span>Speak actions aloud</span><small>Uses the volume you set with the pinch 🤏</small><input type="checkbox" id="voz" checked /></label>
+        <label class="opt"><span>Sleep / wake mode<i class="badge">BETA</i></span><small>Hold an open palm ~1 s to wake; sleeps after 10 s idle</small><input type="checkbox" id="despertar" /></label>
+        <label class="opt"><span>Reduced mobility<i class="badge">BETA</i></span><small>Slower, more tremor-tolerant gestures</small><input type="checkbox" id="movilidad" /></label>
+        <label class="opt"><span>Head gestures<i class="badge">BETA</i></span><small>Nod and shake (downloads a ~4 MB model)</small><input type="checkbox" id="cabeza" /></label>
+        <label class="opt"><span>Point + ask<i class="badge">BETA</i></span><small id="vozInfo">After selecting by pointing, listens for a question</small><input type="checkbox" id="vozSel" /></label>
+        <label class="opt"><span>Swap detected hand</span><small>Turn on if “Hand” doesn’t match the hand you use</small><input type="checkbox" id="invertirMano" /></label>
+      </section>
+
+      <section class="card">
+        <h2>Pinch tuning</h2>
         <div id="ajustes">
-          <label>Medida que es 0 % (dedos juntos): <b data-v="nivelCero"></b><br /><small>para empezar hay que juntar los dedos por debajo de esta medida</small>
+          <label><span class="row">Distance for 0 % (fingers together) <b data-v="nivelCero"></b></span>
+            <small>Bring your fingers below this to start</small>
             <input type="range" data-k="nivelCero" min="0" max="0.8" step="0.05" /></label>
-          <label>Medida que es 100 % (dedos abiertos): <b data-v="nivelLleno"></b><br /><small>más bajo = hay que abrir menos los dedos</small>
+          <label><span class="row">Distance for 100 % (fingers apart) <b data-v="nivelLleno"></b></span>
+            <small>Lower = you need to open your fingers less</small>
             <input type="range" data-k="nivelLleno" min="0.4" max="2" step="0.05" /></label>
-          <label>Alcance del índice para empezar: <b data-v="indiceFuera"></b><br /><small>más bajo = empieza aunque el índice esté doblado (compara con «Alcance índice»)</small>
+          <label><span class="row">Index reach to start <b data-v="indiceFuera"></b></span>
+            <small>Lower = starts even with a bent index (compare with “Index reach”)</small>
             <input type="range" data-k="indiceFuera" min="0.6" max="1.4" step="0.05" /></label>
         </div>
+      </section>
 
-        <h2>Chuleta del contexto actual</h2>
-        <div><table id="chuleta"></table></div>
+      <section class="card wide">
+        <h2>Gesture guide · <span id="contextoNombre">Reading</span></h2>
+        <table id="chuleta"></table>
+      </section>
 
-        <h2>Registro</h2>
-        <div><ol id="registro" reversed></ol></div>
+      <section class="card">
+        <h2>Event log</h2>
+        <ol id="registro"></ol>
       </section>
     </main>
+
+    <footer>Everything runs locally in your browser · MediaPipe hand tracking</footer>
     <script type="module" src="./demo.ts"></script>
   </body>
 </html>
