@@ -1,9 +1,9 @@
-// Package mock responde a los mensajes del contrato con las fixtures de api/fixtures:
+// Package mock answers contract messages with the fixtures in api/fixtures:
 //   - document  -> speak.json + stats.json
-//   - utterance -> speak-utterance.json + stats.json (solo si isFinal)
-//   - pointer   -> nada (solo lo registra)
+//   - utterance -> speak-utterance.json + stats.json (only if isFinal)
+//   - pointer   -> nothing (only logged)
 //
-// Lo usan el servidor mock (backend/cmd/mock) y la app Wails hasta que exista la lógica real (T8).
+// Used by the mock server (backend/cmd/mock) and by the Wails app until the real logic exists (T8).
 package mock
 
 import (
@@ -19,44 +19,44 @@ import (
 	"github.com/IsaacIbanez/hackathon/backend/ws"
 )
 
-func cargar[T any](nombre string) (T, error) {
+func load[T any](name string) (T, error) {
 	var m T
-	datos, err := api.Fixtures.ReadFile("fixtures/" + nombre)
+	data, err := api.Fixtures.ReadFile("fixtures/" + name)
 	if err != nil {
 		return m, err
 	}
-	if err := json.Unmarshal(datos, &m); err != nil {
-		return m, fmt.Errorf("%s: %w", nombre, err)
+	if err := json.Unmarshal(data, &m); err != nil {
+		return m, fmt.Errorf("%s: %w", name, err)
 	}
 	return m, nil
 }
 
-// responder copia la fixture y le pone id, ts y replyTo nuevos.
-func responder(plantilla gen.SpeakMessage, a gen.Envelope) gen.SpeakMessage {
-	m := plantilla
+// reply copies the fixture and gives it a new id, ts and replyTo.
+func reply(template gen.SpeakMessage, to gen.Envelope) gen.SpeakMessage {
+	m := template
 	m.Ts = time.Now().UnixMilli()
 	m.Id = fmt.Sprintf("spk-%d", m.Ts)
-	replyTo := a.Id
+	replyTo := to.Id
 	m.Payload.ReplyTo = &replyTo
 	return m
 }
 
-// NewMux devuelve un http.Handler con GET /health y el WebSocket /ws.
+// NewMux returns an http.Handler with GET /health and the /ws WebSocket.
 func NewMux() (http.Handler, error) {
-	speakDoc, err := cargar[gen.SpeakMessage]("speak.json")
+	speakDoc, err := load[gen.SpeakMessage]("speak.json")
 	if err != nil {
 		return nil, err
 	}
-	speakUtt, err := cargar[gen.SpeakMessage]("speak-utterance.json")
+	speakUtt, err := load[gen.SpeakMessage]("speak-utterance.json")
 	if err != nil {
 		return nil, err
 	}
-	stats, err := cargar[gen.StatsMessage]("stats.json")
+	stats, err := load[gen.StatsMessage]("stats.json")
 	if err != nil {
 		return nil, err
 	}
-	// Como en la app real: tras cada respuesta del modelo, el contador actualizado.
-	conStats := func(s gen.SpeakMessage) []any {
+	// Like the real app: after each model answer, the updated meter.
+	withStats := func(s gen.SpeakMessage) []any {
 		st := stats
 		st.Ts = s.Ts
 		st.Id = fmt.Sprintf("sts-%d", st.Ts)
@@ -64,14 +64,14 @@ func NewMux() (http.Handler, error) {
 	}
 
 	handle := func(_ context.Context, msg gen.Envelope) []any {
-		log.Printf("recibido %s (%s): %s", msg.Type, msg.Id, msg.Payload)
+		log.Printf("received %s (%s): %s", msg.Type, msg.Id, msg.Payload)
 		switch msg.Type {
 		case "document":
-			return conStats(responder(speakDoc, msg))
+			return withStats(reply(speakDoc, msg))
 		case "utterance":
 			var p gen.UtterancePayload
 			if err := json.Unmarshal(msg.Payload, &p); err == nil && p.IsFinal {
-				return conStats(responder(speakUtt, msg))
+				return withStats(reply(speakUtt, msg))
 			}
 		}
 		return nil
@@ -82,7 +82,7 @@ func NewMux() (http.Handler, error) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(gen.Health{Status: "ok"})
 	})
-	// Orígenes extra: Vite, wails dev/build en Windows (wails.localhost) y en Linux/macOS (wails://wails).
+	// Extra origins: Vite, wails dev/build on Windows (wails.localhost) and on Linux/macOS (wails://wails).
 	mux.Handle("/ws", &ws.Server{Handle: handle, OriginPatterns: []string{"localhost:*", "127.0.0.1:*", "wails.localhost*", "wails"}})
 	return mux, nil
 }

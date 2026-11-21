@@ -8,15 +8,15 @@ import (
 	"time"
 )
 
-// ---------- Caché ----------
+// ---------- Cache ----------
 
-// Cache guarda respuestas por petición exacta (modelo + mensajes + imágenes).
-// Cuando se llena, borra la entrada más antigua.
+// Cache stores responses by exact request (model + messages + images).
+// When full, it evicts the oldest entry.
 type Cache struct {
 	mu    sync.Mutex
 	max   int
 	items map[string]Response
-	orden []string
+	order []string
 }
 
 func NewCache(max int) *Cache {
@@ -37,30 +37,30 @@ func (c *Cache) Put(key string, r Response) {
 		c.items[key] = r
 		return
 	}
-	if c.max > 0 && len(c.orden) >= c.max {
-		delete(c.items, c.orden[0])
-		c.orden = c.orden[1:]
+	if c.max > 0 && len(c.order) >= c.max {
+		delete(c.items, c.order[0])
+		c.order = c.order[1:]
 	}
 	c.items[key] = r
-	c.orden = append(c.orden, key)
+	c.order = append(c.order, key)
 }
 
 func cacheKey(model string, req Request) string {
-	req.Tier = "" // el modelo ya identifica el nivel
-	datos, _ := json.Marshal(struct {
+	req.Tier = "" // the model already identifies the tier
+	data, _ := json.Marshal(struct {
 		Model string
 		Req   Request
 	}{model, req})
-	h := sha256.Sum256(datos)
+	h := sha256.Sum256(data)
 	return hex.EncodeToString(h[:])
 }
 
-// ---------- Contador de coste y latencia ----------
+// ---------- Cost and latency meter ----------
 
-// TierStats acumula las llamadas de un nivel.
+// TierStats accumulates the calls of one tier.
 type TierStats struct {
-	Calls         int     `json:"calls"`     // llamadas reales al modelo
-	CacheHits     int     `json:"cacheHits"` // respuestas servidas desde la caché
+	Calls         int     `json:"calls"`     // real model calls
+	CacheHits     int     `json:"cacheHits"` // answers served from the cache
 	Errors        int     `json:"errors"`
 	CostUSD       float64 `json:"costUsd"`
 	AvgLatencyMs  int64   `json:"avgLatencyMs"`
@@ -68,18 +68,19 @@ type TierStats struct {
 	totalLatency  time.Duration
 }
 
-// Stats es la foto del contador; está pensada para mostrarse en la UI.
+// Stats is a snapshot of the meter. Its JSON is the payload of the "stats" message
+// of the contract (api/openapi.yaml), so it can be sent to the UI as is.
 type Stats struct {
-	Barato       TierStats `json:"barato"`
-	Caro         TierStats `json:"caro"`
+	Cheap        TierStats `json:"cheap"`
+	Expensive    TierStats `json:"expensive"`
 	TotalCostUSD float64   `json:"totalCostUsd"`
 }
 
-// Meter cuenta llamadas, coste y latencia. Es seguro para varias goroutines.
+// Meter counts calls, cost and latency. It is safe for concurrent use.
 type Meter struct {
 	mu    sync.Mutex
 	tiers map[Tier]*TierStats
-	// OnRecord, si no es nil, se llama tras cada registro (por ejemplo, para enviar las stats a la UI).
+	// OnRecord, if not nil, is called after each record (for example, to push the stats to the UI).
 	OnRecord func(Stats)
 }
 
@@ -95,7 +96,7 @@ func (m *Meter) tier(t Tier) *TierStats {
 	return s
 }
 
-// Record anota una respuesta (real o de caché).
+// Record registers a response (real or cached).
 func (m *Meter) Record(r Response) {
 	m.mu.Lock()
 	s := m.tier(r.Tier)
@@ -112,7 +113,7 @@ func (m *Meter) Record(r Response) {
 	m.notify()
 }
 
-// RecordError anota una llamada fallida.
+// RecordError registers a failed call.
 func (m *Meter) RecordError(t Tier) {
 	m.mu.Lock()
 	m.tier(t).Errors++
@@ -120,12 +121,12 @@ func (m *Meter) RecordError(t Tier) {
 	m.notify()
 }
 
-// Snapshot devuelve una copia del estado actual.
+// Snapshot returns a copy of the current state.
 func (m *Meter) Snapshot() Stats {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	st := Stats{Barato: *m.tier(Barato), Caro: *m.tier(Caro)}
-	st.TotalCostUSD = st.Barato.CostUSD + st.Caro.CostUSD
+	st := Stats{Cheap: *m.tier(Cheap), Expensive: *m.tier(Expensive)}
+	st.TotalCostUSD = st.Cheap.CostUSD + st.Expensive.CostUSD
 	return st
 }
 

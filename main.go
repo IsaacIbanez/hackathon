@@ -1,5 +1,5 @@
-// App de escritorio (Wails). Frontend en web/ (React + Vite + TS + Tailwind).
-// Desarrollo: wails dev. Sin ventana: task mock + npm run dev en web/.
+// Desktop app (Wails). Frontend in web/ (React + Vite + TS + Tailwind).
+// Development: task dev. Without a window: task mock + npm run dev in web/.
 package main
 
 import (
@@ -18,7 +18,7 @@ func main() {
 	app := NewApp()
 
 	err := wails.Run(&options.App{
-		Title:  "Proyecto LauzHack",
+		Title:  "LauzHack project",
 		Width:  1280,
 		Height: 800,
 		AssetServer: &assetserver.Options{

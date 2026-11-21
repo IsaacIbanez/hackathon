@@ -9,14 +9,13 @@
 
 ## Hecho
 - T2 (contrato, mock, Taskfile, CI, Wails + React): fusionada (5acd70f, #2). CI de Linux en verde.
-- T7 (`backend/llm`: niveles barato/caro, caché, contador, `CompleteEscalando`): fusionada (#3).
+- T7 (`backend/llm`: niveles cheap/expensive, caché, contador, `CompleteWithEscalation`): fusionada (#3).
 - T8 parte 1: la app Wails sirve `/health` y `/ws` en `127.0.0.1:8765` (#4). Probado con el ejecutable y un cliente WebSocket sin navegador.
 - Tests de módulos del frontend (`node --test`) dentro de `task check`, y `test/` y `demo/` fuera del build de la app (#5).
 - Limpieza: `.gitattributes` (LF en el código), `task fmt` y comprobación de `gofmt` en el CI.
 
 ## Pendiente
 - **PR #6 (mensaje `stats`, solo añade): necesita el visto bueno del equipo.** CI en verde.
-- Probar `go run ./backend/cmd/llmprueba` con la clave real de AXA.
 - T8: sustituir las respuestas de ejemplo por la lógica real (`backend/llm` + B2).
 
 ## Bloqueos y preguntas para humanos

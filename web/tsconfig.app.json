@@ -23,6 +23,6 @@
     "noFallthroughCasesInSwitch": true
   },
   "include": ["src"],
-  // Los tests (node --test) y las demos de cada módulo no forman parte de la app.
+  // Module tests (node --test) and demos are not part of the app.
   "exclude": ["src/**/test/**", "src/**/demo/**"]
 }
