@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io/fs"
 	"log"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -27,6 +28,8 @@ type Server struct {
 	Token  string
 	Assets fs.FS // the built page (index.html and assets/)
 	Status Status
+	// Port the server listens on. Requests must name it in their Host header (empty: any port).
+	Port string
 
 	mu sync.Mutex // OS actions run one at a time
 }
@@ -37,7 +40,36 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/action", s.guard(s.action))
 	mux.HandleFunc("POST /api/pointer", s.guard(s.pointer))
 	mux.HandleFunc("GET /", s.page)
-	return mux
+	return s.localHostOnly(mux)
+}
+
+// localHostOnly rejects every request (the page too) whose Host header isn't this computer.
+// Without it, DNS rebinding would work: a website points its own domain at 127.0.0.1, loads the
+// page (reading the token in it) and passes the origin check, since Origin then equals
+// "http://" + its domain.
+func (s *Server) localHostOnly(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !s.allowedHost(r.Host) {
+			writeError(w, http.StatusForbidden, "host not allowed")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (s *Server) allowedHost(hostport string) bool {
+	host, port, err := net.SplitHostPort(hostport)
+	if err != nil {
+		return false
+	}
+	if s.Port != "" && port != s.Port {
+		return false
+	}
+	switch strings.ToLower(host) {
+	case "127.0.0.1", "localhost", "::1":
+		return true
+	}
+	return false
 }
 
 // guard only lets the page we served call the API: it needs the per-run token, and requests from

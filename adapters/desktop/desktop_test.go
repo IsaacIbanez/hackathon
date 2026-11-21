@@ -128,9 +128,50 @@ func TestServerAuth(t *testing.T) {
 func TestServerInjectsTokenInPage(t *testing.T) {
 	s, _ := newTestServer()
 	w := httptest.NewRecorder()
-	s.Handler().ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
+	s.Handler().ServeHTTP(w, httptest.NewRequest("GET", "http://127.0.0.1:8767/", nil))
 	if !strings.Contains(w.Body.String(), `content="secret"`) {
 		t.Errorf("token not injected: %s", w.Body.String())
+	}
+}
+
+// DNS rebinding: a foreign domain pointed at 127.0.0.1 must not get the page (with the token) nor
+// reach the API, even with a matching Origin and the right token.
+func TestServerRejectsForeignHost(t *testing.T) {
+	s, d := newTestServer()
+	s.Port = "8767"
+	h := s.Handler()
+	do := func(method, url, host, origin string) int {
+		var body *strings.Reader
+		if method == "POST" {
+			body = strings.NewReader(`{"action":"enter"}`)
+		} else {
+			body = strings.NewReader("")
+		}
+		r := httptest.NewRequest(method, url, body)
+		r.Host = host
+		r.Header.Set("X-Gesture-Token", "secret")
+		if origin != "" {
+			r.Header.Set("Origin", origin)
+		}
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		return w.Code
+	}
+	for _, host := range []string{"evil.example:8767", "127.0.0.1:9999", "127.0.0.1", "localhost.evil.example:8767"} {
+		if c := do("GET", "/", host, ""); c != http.StatusForbidden {
+			t.Errorf("page with Host %q: %d", host, c)
+		}
+		if c := do("POST", "/api/action", host, "http://"+host); c != http.StatusForbidden {
+			t.Errorf("action with Host %q: %d", host, c)
+		}
+	}
+	for _, host := range []string{"127.0.0.1:8767", "localhost:8767", "[::1]:8767"} {
+		if c := do("GET", "/", host, ""); c != http.StatusOK {
+			t.Errorf("page with Host %q: %d", host, c)
+		}
+	}
+	if len(d.Calls) != 0 {
+		t.Errorf("no request with a foreign host may act: %v", d.Calls)
 	}
 }
 

@@ -62,6 +62,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("listen on %s: %v (is Gesture Control already running?)", *addr, err)
 	}
+	_, srv.Port, _ = net.SplitHostPort(ln.Addr().String())
 	url := "http://" + ln.Addr().String() + "/"
 	log.Printf("Gesture Control on %s — acting through: %s", url, desktop.Name())
 	if *open {
