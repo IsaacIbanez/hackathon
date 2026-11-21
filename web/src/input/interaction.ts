@@ -123,6 +123,11 @@ export interface InteractionOptions {
   palmMustFaceCamera: boolean;
   /** Time holding the pointer over a menu option to choose it. */
   menuSelectMs: number;
+  /**
+   * How a menu option is chosen: "click" (default) — point at it and tap the middle fingertip on
+   * the thumb; "dwell" — hold the pointer on it for menuSelectMs.
+   */
+  menuSelect: "click" | "dwell";
   /** After opening the menu, the hand is ignored for this long (it is still settling). */
   menuSettleMs: number;
   /** The menu closes on its own after this long. */
@@ -176,6 +181,7 @@ export const DEFAULT_OPTIONS: InteractionOptions = {
   doubleTapMs: 350,
   palmMustFaceCamera: true,
   menuSelectMs: 500,
+  menuSelect: "click",
   menuSettleMs: 300,
   menuTimeoutMs: 5000,
   head: {},
@@ -316,6 +322,8 @@ export class HandInteraction {
   private click: ClickState = "idle";
   private clickTouching = false;
   private clickReady = false;
+  private menuTouching = false;
+  private menuTouchReady = false;
   private tClickPress = 0;
   private tClickRelease = 0;
   private headDetector: HeadGestureDetector;
@@ -382,7 +390,8 @@ export class HandInteraction {
   menuOpen(t: number): { center: Point; sector: MenuSector | null; progress: number; hand: HandSide | null } | null {
     const m = this.menu;
     if (!m) return null;
-    const progress = m.sector ? Math.min(1, (t - m.tSector) / this.opts.menuSelectMs) : 0;
+    const progress =
+      m.sector && this.opts.menuSelect === "dwell" ? Math.min(1, (t - m.tSector) / this.opts.menuSelectMs) : 0;
     return { center: m.center, sector: m.sector, progress, hand: m.hand };
   }
 
@@ -529,7 +538,7 @@ export class HandInteraction {
     const backOfHand = pose === "palm" && palmFacesCamera(hand, this.sideOf(hand)) === false;
     if (backOfHand && this.opts.palmMustFaceCamera) pose = "none";
     const pts = shapePoints(hand, aspect);
-    if (this.opts.mouseClicks && pose === "pinch") {
+    if ((this.opts.mouseClicks || (this.menu && this.opts.menuSelect === "click")) && pose === "pinch") {
       // While clicking, the thumb comes close to the index too and the pose can read as a pinch:
       // with the index still straight (and ring and pinky folded) it is still pointing.
       const f = fingerState(pts, this.opts.thresholds);
@@ -870,6 +879,8 @@ export class HandInteraction {
     const center = at ?? { x: c.x / aspect, y: c.y };
     const menuHand = this.stableHand;
     this.menu = { center, hand: menuHand, tOpened: t, sector: null, tSector: t, blocked };
+    this.menuTouching = false;
+    this.menuTouchReady = false;
     this.lastMenuCenter = center;
     this.tMenuFist = null;
     this.lastPointer = null;
@@ -877,7 +888,8 @@ export class HandInteraction {
   }
 
   /**
-   * With the menu open, the user points with ☝️ and holds the pointer (the index tip) over an
+   * With the menu open, the user points with ☝️ at an option and taps the middle fingertip on the
+   * thumb (menuSelect "click"), or, with menuSelect "dwell", holds the pointer (the index tip) over an
    * option for ~0.5 s. Options fill screen zones in a cross (thirds): top-centre, bottom-centre,
    * left-centre and right-centre, as seen by the user.
    */
@@ -941,13 +953,18 @@ export class HandInteraction {
       this.fy.reset();
     }
 
+    // Click mode: the tap starts while pointing at the option; the pointer moves a little while the
+    // middle finger travels, so the option highlighted when the fingers touch is the one chosen.
+    const tapped = this.opts.menuSelect === "click" && this.menuTap(pose, hand, aspect);
+    if (tapped && m.sector) sector = m.sector;
     if (sector !== m.sector) {
       m.sector = sector;
       m.tSector = t;
       this.emit({ type: "menu", phase: "highlight", sector, center: m.center, hand: m.hand, t });
       return;
     }
-    if (sector && t - m.tSector >= this.opts.menuSelectMs) {
+    const chooses = this.opts.menuSelect === "click" ? tapped : t - m.tSector >= this.opts.menuSelectMs;
+    if (sector && chooses) {
       this.menu = null;
       this.lastPointer = null;
       this.lastChosenSector = sector;
@@ -959,7 +976,38 @@ export class HandInteraction {
       this.tLastPointing = -Infinity;
       this.anchor = null;
       this.selectionDone = true; // so the dwell doesn't also trigger a "select"
+      // The fingers are still together: that contact must not also become a mouse click.
+      this.clickReady = false;
+      this.clickTouching = false;
     }
+  }
+
+  /**
+   * Menu tap: true on the frame the middle fingertip touches the thumb while pointing. The same
+   * guards as the mouse click: the fingers must first be seen apart, and the middle finger must be
+   * out in front of the palm (not curled into it next to the thumb).
+   */
+  private menuTap(pose: Gesture, hand: Hand, aspect: number): boolean {
+    const pts = shapePoints(hand, aspect);
+    const size = handSize(pts);
+    const gap = distance(pts[L.THUMB_TIP], pts[L.MIDDLE_TIP]) / size;
+    if (pose !== "point") {
+      this.menuTouchReady = false;
+      this.menuTouching = false;
+      return false;
+    }
+    if (this.menuTouching) {
+      if (gap > this.opts.clickRelease) this.menuTouching = false;
+      return false;
+    }
+    if (gap > this.opts.clickRelease) this.menuTouchReady = true;
+    const outInFront = distance(pts[L.WRIST], pts[L.MIDDLE_TIP]) / size >= this.opts.clickReach;
+    if (this.menuTouchReady && outInFront && gap < this.opts.clickPress) {
+      this.menuTouching = true;
+      this.menuTouchReady = false;
+      return true;
+    }
+    return false;
   }
 
   /** Whether the open menu has an option in that cell. */

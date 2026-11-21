@@ -206,7 +206,7 @@ function drawMenu(
     ctx.strokeRect(x, y, bw, bh);
     label(ctx, `${ARROWS[s]} ${ACTION_LABELS[action] ?? action}`, x + bw / 2, y + bh / 2, 30 * unit, active ? "#ffd23f" : "#fff");
   }
-  label(ctx, "Move your finger to an option and hold", w / 2, h / 2, 22 * unit, "#cfd6e4");
+  label(ctx, "Point at an option and tap your middle finger on your thumb", w / 2, h / 2, 22 * unit, "#cfd6e4");
 }
 
 function ring(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, progress: number, color: string, width: number): void {

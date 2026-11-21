@@ -17,7 +17,7 @@ defined in `actions.ts` (`MAPS`). Items marked BETA are experimental.
 | ☝️ point and hold still ~0.9 s | explain here | dictate field | — (holding still only confirms wake/volume/brightness, never clicks) |
 | ☝️ point + heart finger on thumb (middle fingertip) | — | — | click · twice: right click · hold: drag |
 | 👎 thumbs down (BETA) | undo | clear field | undo |
-| ✊ fist held ~0.5 s → quick menu; ☝️ hold the pointer on an option ~0.5 s (BETA) | ↑ adjust volume · ↓ repeat · ask for help on the side opposite the hand (no hand detected: → dictate, ← ask for help) | same | same |
+| ✊ fist held ~0.5 s → quick menu; ☝️ point at an option and tap the middle fingertip on the thumb (BETA) | ↑ adjust volume · ↓ repeat · ask for help on the side opposite the hand (no hand detected: → dictate, ← ask for help) | same | same |
 | ✊ menu → adjust volume / brightness, then 🤏 pinch and open; hold still ~1 s to set it (BETA) | volume / brightness | volume / brightness | volume / brightness |
 | 🙂 nod (BETA, head) | read | confirm field | Enter |
 | 🙂 shake (BETA, head) | pause | clear field | Escape |
@@ -33,7 +33,7 @@ Experimental options (in `InteractionOptions`):
 - `setMenuCells`: allows configuring the active menu sectors (such as the 8 cells of a 3×3 grid, or custom
   submenus). Supports submenus where the newly chosen cell is temporarily blocked until the pointer leaves it.
 - Menu: opened with a steady ✊ fist held ~0.5 s. Inside the menu, a new ✊ fist held ~0.5 s closes it.
-  While open, the user shows ☝️ and holds the pointer (the index tip) over an option for `menuSelectMs` (~0.5 s).
+  While open, the user points with ☝️ at an option and taps the middle fingertip on the thumb (`menuSelect: "click"`, the default; holding the pointer still never chooses). `menuSelect: "dwell"` brings back choosing by holding the pointer for `menuSelectMs` (~0.5 s).
   Options fill configurable sectors; in the centre or with a fist nothing is chosen; it closes by itself after 5 s.
   A 👎 thumbs down held ~0.3 s or a lateral swipe ✋← emits a `back` phase, navigating back to previous menu pages or closing it.
 - `REDUCED_MOBILITY_PROFILE`: longer times and larger radii for tremor or reduced mobility.

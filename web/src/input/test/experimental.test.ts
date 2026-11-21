@@ -4,7 +4,7 @@ import { HandInteraction } from "../interaction.ts";
 import { actionFor } from "../actions.ts";
 import { HeadGestureDetector } from "../head.ts";
 import type { Face, Hand, HandEvent, HandFrame } from "../types.ts";
-import { makeHand, rotate, SHAPES, WAKE_PALM } from "./hand.ts";
+import { CLICK_PRESS, CLICK_REST, makeHand, rotate, SHAPES, WAKE_PALM } from "./hand.ts";
 
 const STEP = 33;
 const repeat = <T>(x: T, n: number): T[] => Array.from({ length: n }, () => x);
@@ -200,10 +200,30 @@ test("pinch: also works with the other three fingers folded", () => {
 
 /** Opens the menu with ✊ (held ~0.5 s), then points with ☝️ with the hand shifted (dx, dy) in the image. */
 function pointerInMenu(dx: number, dy: number): Hand[] {
-  return [...repeat(makeHand(SHAPES.fist), 20), ...repeat(makeHand({ ...SHAPES.point, dx, dy }), 30)];
+  return [...repeat(makeHand(SHAPES.fist), 20), ...tapAt(dx, dy)];
 }
 
-test("menu: ✊ opens it and holding the pointer on the top option ~0.5 s chooses 'adjust_volume'", () => {
+/** Points with ☝️ (hand shifted dx, dy) and taps the middle fingertip on the thumb once. */
+function tapAt(dx: number, dy: number): Hand[] {
+  const rest = makeHand({ ...CLICK_REST, dx, dy });
+  const press = makeHand({ ...CLICK_PRESS, dx, dy });
+  return [...repeat(rest, 15), ...repeat(press, 3), ...repeat(rest, 5)];
+}
+
+test("menu: holding the pointer on an option never chooses it; only the tap does", () => {
+  const still = [...repeat(makeHand(SHAPES.fist), 20), ...repeat(makeHand({ ...CLICK_REST, dy: -0.3 }), 60)];
+  assert.ok(!simulate(new HandInteraction(), still).some((e) => e.type === "menu" && e.phase === "choose"));
+  // The old way is still available as an option.
+  const dwell = simulate(new HandInteraction({ menuSelect: "dwell" }), still).find((e) => e.type === "menu" && e.phase === "choose");
+  assert.ok(dwell && dwell.type === "menu" && dwell.sector === "up");
+});
+
+test("menu: pointing with the middle finger curled by the thumb doesn't choose", () => {
+  const frames = [...repeat(makeHand(SHAPES.fist), 20), ...repeat(makeHand({ ...SHAPES.point, dy: -0.3 }), 60)];
+  assert.ok(!simulate(new HandInteraction(), frames).some((e) => e.type === "menu" && e.phase === "choose"));
+});
+
+test("menu: ✊ opens it and tapping while pointing at the top option chooses 'adjust_volume'", () => {
   const ev = simulate(new HandInteraction(), pointerInMenu(0, -0.3)).filter((e) => e.type === "menu");
   const phases = ev.map((e) => e.type === "menu" && `${e.phase}:${e.sector}`);
   assert.deepEqual(phases, ["open:null", "highlight:up", "choose:up"]);
@@ -294,8 +314,8 @@ test("menu: a submenu opened on 'choose' ignores the chosen cell until the point
       ctl.reopenMenu(e.t);
     }
   });
-  // Staying on "up": the submenu doesn't choose its own "up" by itself.
-  simulate(ctl, [...pointerInMenu(0, -0.3), ...repeat(makeHand({ ...SHAPES.point, dy: -0.3 }), 40)]);
+  // Tapping again on "up" without leaving it doesn't choose the submenu's own "up".
+  simulate(ctl, [...pointerInMenu(0, -0.3), ...tapAt(0, -0.3)]);
   assert.deepEqual(chosen, ["up"]);
 
   // Leaving it and coming back does choose it.
@@ -311,8 +331,8 @@ test("menu: a submenu opened on 'choose' ignores the chosen cell until the point
   });
   simulate(ctl2, [
     ...pointerInMenu(0, -0.3),
-    ...repeat(makeHand({ ...SHAPES.point, dy: 0 }), 10), // the centre
-    ...repeat(makeHand({ ...SHAPES.point, dy: -0.3 }), 30),
+    ...repeat(makeHand({ ...CLICK_REST, dy: 0 }), 10), // the centre
+    ...tapAt(0, -0.3),
   ]);
   assert.deepEqual(chosen2, ["up", "up"]);
 });
@@ -374,10 +394,10 @@ test("menu with the right hand: no option on the right and 'ask for help' on the
   assert.deepEqual(ctl.menuSectors("right"), ["up", "down", "left"]);
 
   const open = repeat(right(makeHand(SHAPES.fist)), 20);
-  const toTheRight = [...open, ...repeat(right(makeHand({ ...SHAPES.point, dx: -0.15 })), 30)];
+  const toTheRight = [...open, ...tapAt(-0.15, 0).map(right)];
   assert.ok(!simulate(ctl, toTheRight).some((e) => e.type === "menu" && e.phase === "choose"), "right chooses nothing");
 
-  const toTheLeft = [...open, ...repeat(right(makeHand({ ...SHAPES.point, dx: 0.3 })), 30)];
+  const toTheLeft = [...open, ...tapAt(0.3, 0).map(right)];
   const choose = simulate(new HandInteraction(), toTheLeft).find((e) => e.type === "menu" && e.phase === "choose")!;
   assert.ok(choose.type === "menu" && choose.sector === "left" && choose.hand === "right");
   assert.equal(actionFor(choose), "ask_for_help");
@@ -387,7 +407,7 @@ test("menu with the left hand: 'ask for help' is on the right", () => {
   const left = (h: Hand) => withLabel(h, "Left");
   const frames = [
     ...repeat(left(makeHand(SHAPES.fist)), 20),
-    ...repeat(left(makeHand({ ...SHAPES.point, dx: -0.15 })), 30),
+    ...tapAt(-0.15, 0).map(left),
   ];
   const choose = simulate(new HandInteraction(), frames).find((e) => e.type === "menu" && e.phase === "choose")!;
   assert.ok(choose.type === "menu" && choose.sector === "right");

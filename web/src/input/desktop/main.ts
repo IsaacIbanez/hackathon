@@ -260,7 +260,7 @@ function paintGuide() {
     ["👍 Thumbs up", m.thumbs_up && label(m.thumbs_up)],
     ["👎 Thumbs down", m.thumbs_down && label(m.thumbs_down)],
     ["✋→ / ✋← Swipe", m.swipe_right && m.swipe_left ? "Next / previous tab" : null],
-    ["✊ Fist (hold) → ☝️ hold on an option", `Menu: ${menu}`],
+    ["✊ Fist (hold) → ☝️ point + tap middle finger on thumb", `Menu: ${menu}`],
     ["✊ again, inside the menu", "Close the menu"],
     ["👎 Thumbs down / ✋← Swipe, in menu", "Go back / close"],
     ["☝️ Point", mouseOn() ? "Move the mouse" : "Move the mouse (turn on “Move the mouse”)"],

@@ -208,7 +208,7 @@ function paintGuide() {
     ["☝️ Point", "Move the pointer", false],
     ["☝️ Point and hold still ~1 s", m.select, false],
     ["👎 Thumbs down", m.thumbs_down, true],
-    ["✊ Fist (hold)", "Open the quick menu, then move the pointer onto an option and hold ~0.5 s", true],
+    ["✊ Fist (hold)", "Open the quick menu, then point at an option and tap your middle finger on your thumb", true],
     ...(Object.entries(menuFor(interaction.handInUse, context)) as [MenuSector, string][]).map(
       ([s, a]) => [`      Menu ${ARROWS[s]} ${s}`, a, true] as [string, string, boolean],
     ),
