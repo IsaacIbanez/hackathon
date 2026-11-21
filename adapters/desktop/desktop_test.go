@@ -97,7 +97,7 @@ func TestServerAuth(t *testing.T) {
 	s, d := newTestServer()
 	h := s.Handler()
 	do := func(token, origin, body string) int {
-		r := httptest.NewRequest("POST", "http://127.0.0.1:8766/api/action", strings.NewReader(body))
+		r := httptest.NewRequest("POST", "http://127.0.0.1:8767/api/action", strings.NewReader(body))
 		if token != "" {
 			r.Header.Set("X-Gesture-Token", token)
 		}
@@ -114,7 +114,7 @@ func TestServerAuth(t *testing.T) {
 	if c := do("secret", "https://evil.example", `{"action":"enter"}`); c != http.StatusForbidden {
 		t.Errorf("foreign origin: %d", c)
 	}
-	if c := do("secret", "http://127.0.0.1:8766", `{"action":"enter"}`); c != http.StatusOK {
+	if c := do("secret", "http://127.0.0.1:8767", `{"action":"enter"}`); c != http.StatusOK {
 		t.Errorf("valid request: %d", c)
 	}
 	if c := do("secret", "", `{"action":"read"}`); c != http.StatusUnprocessableEntity {

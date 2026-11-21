@@ -202,7 +202,7 @@ async function start() {
     const s = await helper.status();
     $("status").textContent = `${s.dryRun ? "Dry run — nothing is pressed · " : ""}${s.desktop}`;
   } catch {
-    $("status").textContent = "Helper not reachable — start it with: go run ./adapters/desktop";
+    $("status").textContent = "Helper not reachable — start it with: go run ./adapters/desktop (port 8767)";
     $("status").classList.add("error");
   }
   try {

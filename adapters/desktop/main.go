@@ -28,7 +28,7 @@ import (
 var dist embed.FS
 
 func main() {
-	addr := flag.String("addr", "127.0.0.1:8766", "address to listen on (keep it on 127.0.0.1)")
+	addr := flag.String("addr", "127.0.0.1:8767", "address to listen on (keep it on 127.0.0.1)")
 	open := flag.Bool("open", true, "open the gesture window")
 	dryRun := flag.Bool("dry-run", false, "log the actions instead of performing them")
 	screen := flag.String("screen", "", "screen size WIDTHxHEIGHT when it can't be detected (Linux Wayland)")
