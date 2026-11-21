@@ -3,7 +3,8 @@
 //   browser vendor's servers and is missing in embedded webviews (Wails: WebView2, WebKitGTK).
 // - WhisperListener: Whisper running locally in the page (transformers.js, WASM). Works in any
 //   modern webview and the audio never leaves the computer. The model (~40 MB) downloads once.
-// - AutoListener: tries the browser first and switches to Whisper for good if it isn't supported.
+// - AutoListener: inside the desktop app (Wails) goes straight to Whisper; in a browser it tries
+//   the browser recognizer first and switches to Whisper for good if it doesn't really work.
 
 import { EnergyVad, resampleTo16k } from "./vad.ts";
 
@@ -37,8 +38,18 @@ export class ListenError extends Error {
   }
 }
 
-/** Errors meaning "this recognizer can't work here" (switch to the local one). */
-const UNSUPPORTED = new Set(["network", "service-not-allowed", "language-not-supported", "unsupported"]);
+/** Errors that just mean "the user didn't say anything": not a reason to change recognizer. */
+const NOTHING_SAID = new Set(["no-speech", "aborted"]);
+
+/**
+ * true inside the Wails desktop app. Its webviews (WebView2 on Windows, WebKitGTK on Linux) either
+ * lack the browser recognizer or expose it without a working speech service.
+ */
+export function isDesktopWebview(): boolean {
+  if (typeof window === "undefined") return false;
+  const w = window as unknown as Record<string, unknown>;
+  return typeof w.go === "object" || typeof (w.runtime as Record<string, unknown> | undefined)?.EventsOn === "function";
+}
 
 // ---------------------------------------------------------------------------------------------
 // Browser recognizer
@@ -249,15 +260,30 @@ export class WhisperListener implements Listener {
 // ---------------------------------------------------------------------------------------------
 // Automatic choice
 
+export interface AutoListenerOptions {
+  /** Skip the browser recognizer (default: inside the desktop app). */
+  preferLocal: boolean;
+  /** An empty result faster than this means the browser recognizer isn't really working. */
+  suspiciousMs: number;
+  now: () => number;
+}
+
 export class AutoListener implements Listener {
   private web: Listener;
   private local: Listener;
-  private webBroken = false;
+  private webBroken: boolean;
   private active: Listener | null = null;
+  private o: AutoListenerOptions;
 
-  constructor(web: Listener = new WebSpeechListener(), local: Listener = new WhisperListener()) {
+  constructor(
+    web: Listener = new WebSpeechListener(),
+    local: Listener = new WhisperListener(),
+    options: Partial<AutoListenerOptions> = {},
+  ) {
     this.web = web;
     this.local = local;
+    this.o = { preferLocal: isDesktopWebview(), suspiciousMs: 700, now: () => Date.now(), ...options };
+    this.webBroken = this.o.preferLocal;
   }
 
   get name(): string {
@@ -274,14 +300,27 @@ export class AutoListener implements Listener {
 
   async listen(o: ListenOptions): Promise<string> {
     if (this.useWeb()) {
+      const started = this.o.now();
+      let webError: unknown = null;
       try {
         this.active = this.web;
-        return await this.web.listen(o);
+        const text = await this.web.listen(o);
+        // A real recognizer waits several seconds for speech; ending at once with nothing means
+        // the API exists but doesn't work (seen in embedded webviews).
+        if (text || this.o.now() - started >= this.o.suspiciousMs) return text;
       } catch (err) {
-        if (!(err instanceof ListenError) || !UNSUPPORTED.has(err.code)) throw err;
-        // The browser recognizer doesn't work here (e.g. inside the desktop app): go local.
+        if (err instanceof ListenError && NOTHING_SAID.has(err.code)) return "";
+        webError = err;
+      }
+      // Try on-device recognition before giving up. If it works, keep using it from now on.
+      o.onStatus?.("Switching to on-device speech recognition…");
+      this.active = this.local;
+      try {
+        const text = await this.local.listen(o);
         this.webBroken = true;
-        o.onStatus?.("Switching to on-device speech recognition…");
+        return text;
+      } catch (localError) {
+        throw webError ?? localError;
       }
     }
     this.active = this.local;

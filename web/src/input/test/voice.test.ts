@@ -154,26 +154,78 @@ class FakeListener implements Listener {
   cancel() {}
 }
 
-test("AutoListener switches to the local recognizer for good when the browser one can't work", async () => {
+test("AutoListener switches to the local recognizer for good when the browser one fails", async () => {
   let webCalls = 0;
   const web = new FakeListener("web", async () => {
     webCalls++;
     throw new ListenError("network");
   });
   const local = new FakeListener("local", async () => "hola");
-  const auto = new AutoListener(web, local);
+  const auto = new AutoListener(web, local, { preferLocal: false });
   assert.equal(await auto.listen({ lang: "es-ES" }), "hola");
   assert.equal(await auto.listen({ lang: "es-ES" }), "hola");
   assert.equal(webCalls, 1);
   assert.equal(auto.name, "local");
 });
 
-test("AutoListener doesn't hide real errors such as a denied microphone", async () => {
+test("AutoListener also falls back on other errors (e.g. not-allowed in WebView2)", async () => {
   const web = new FakeListener("web", async () => {
     throw new ListenError("not-allowed");
   });
-  const auto = new AutoListener(web, new FakeListener("local", async () => "x"));
+  const auto = new AutoListener(web, new FakeListener("local", async () => "x"), { preferLocal: false });
+  assert.equal(await auto.listen({ lang: "en" }), "x");
+});
+
+test("AutoListener: if both fail, the browser's error is reported", async () => {
+  const web = new FakeListener("web", async () => {
+    throw new ListenError("not-allowed");
+  });
+  const local = new FakeListener("local", async () => {
+    throw new Error("Permission denied");
+  });
+  const auto = new AutoListener(web, local, { preferLocal: false });
   await assert.rejects(auto.listen({ lang: "en" }), /not-allowed/);
+});
+
+test("AutoListener: an instant empty result means the browser recognizer doesn't really work", async () => {
+  let t = 0;
+  const web = new FakeListener("web", async () => {
+    t += 50; // ended after 50 ms with nothing
+    return "";
+  });
+  const auto = new AutoListener(web, new FakeListener("local", async () => "hola"), {
+    preferLocal: false,
+    now: () => t,
+  });
+  assert.equal(await auto.listen({ lang: "es" }), "hola");
+  assert.equal(auto.name, "local");
+});
+
+test("AutoListener: a normal silence (no speech after waiting) is not a failure", async () => {
+  let t = 0;
+  const web = new FakeListener("web", async () => {
+    t += 5000; // waited 5 s, user said nothing
+    return "";
+  });
+  let localCalls = 0;
+  const local = new FakeListener("local", async () => {
+    localCalls++;
+    return "x";
+  });
+  const auto = new AutoListener(web, local, { preferLocal: false, now: () => t });
+  assert.equal(await auto.listen({ lang: "es" }), "");
+  assert.equal(localCalls, 0);
+});
+
+test("AutoListener: inside the desktop app it goes straight to the local recognizer", async () => {
+  let webCalls = 0;
+  const web = new FakeListener("web", async () => {
+    webCalls++;
+    return "web";
+  });
+  const auto = new AutoListener(web, new FakeListener("local", async () => "local"), { preferLocal: true });
+  assert.equal(await auto.listen({ lang: "es" }), "local");
+  assert.equal(webCalls, 0);
 });
 
 // ---- Voice questions ----
