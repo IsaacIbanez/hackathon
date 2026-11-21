@@ -109,6 +109,9 @@ docs/historial/            estado, tareas y plan por agente anteriores (solo con
 docs/arranque/             guion de entrevista de cada persona (cada agente lee solo el suyo)
 docs/briefs/               brief confirmado de cada persona (plantilla en README.md)
 adapters/desktop/          Gesture Control: gestos → teclas reales del sistema, puerto 8767 (C)
+app_overlay.go             overlay: bindings de las opciones (A; docs/OVERLAY.md)
+backend/overlay            atajo global y procesos auxiliares del overlay (A)
+web/src/app/overlay        menú y opciones del overlay (A)
 ```
 ## Cómo probar
 1. **Clave (una vez):** crea `.env` en la raíz (está en `.gitignore`; la clave se pasa por chat, nunca por git):
@@ -124,7 +127,8 @@ adapters/desktop/          Gesture Control: gestos → teclas reales del sistema
 3. **Interfaz en el navegador:** `cd web` y `VITE_WS_URL=ws://127.0.0.1:8765/ws npm run dev` (PowerShell: `$env:VITE_WS_URL="ws://127.0.0.1:8765/ws"; npm run dev`). «Developer tools» → **Send sample document** para probar sin scanner; «Turn on hand gestures» para los gestos (guía paso a paso: `docs/PROBAR_GESTOS.md`).
 4. **Scanner (B):** envía tu `document` con `POST /message` → guía `docs/INTEGRACION_SCANNER.md`, ejemplo `python api/examples/send_message.py --demo-ocr`.
 5. **App de escritorio (ejecutable):** `wails build` → `build/bin/lauzhack.exe` (doble clic). Busca el `.env` en la carpeta actual, junto al `.exe` y hasta 3 carpetas por encima (la raíz del repo). Log en `build/bin/lauzhack.log`. «Developer tools» enseña qué soporta la ventana (voces en español, dictado, cámara).
-6. **Antes del PR:** `task check`.
+6. **Overlay:** `task overlay` → `build/bin/lauzhack.exe` (y `gesture-control.exe` al lado); Ctrl+Alt+Espacio lo abre. Ver `docs/OVERLAY.md`.
+7. **Antes del PR:** `task check`.
 
 Puertos: 8765 app/servidor real · 8766 `scanner/capturar.py --servidor` · 8080 mock. Guion de la demo: `docs/PITCH.md`.
 
@@ -176,6 +180,12 @@ Puertos: 8765 app · 8766 captura de Pau (pruebas) · 8767 Gesture Control (Nil)
 El reparto por persona y las tareas T1–T19 se cerraron con la integración del 2026-11-21 (rama `integration/proyecto-unificado`). **El reparto se redefinirá** después de la lluvia de ideas (`docs/ideas/`). El plan por persona anterior está íntegro en `docs/historial/plan_por_agente.md` y el estado real de cada pieza, en `docs/ESTADO_PROYECTO.md`. *Nota (2026-11-21): el reparto ya no se decide desde arriba. Cada persona define el suyo con su agente en `docs/briefs/` (ver «Al empezar una sesión»). Este plan y sus interfaces siguen valiendo mientras ningún brief los cambie.*
 
 ## Decisiones
+- 2026-11-21 — **App overlay** (rama `overlay`, detalle en `docs/OVERLAY.md`):
+  - la app de escritorio es una ventana siempre encima que se abre desde cualquier programa con **Ctrl+Alt+Espacio** (`LAUZHACK_HOTKEY`; el MX Keypad envía la misma combinación desde Logi Options+);
+  - opciones: **1** gestos (Nil, lanza `gesture-control.exe`), **2** leer un papel (Pau y Didac: cámara → servicio de lectura → lectura guiada) y **3** leer un archivo del PC (Didac: PDF, imágenes, TXT/MD → lectura guiada);
+  - la app arranca y para el servicio de lectura y Gesture Control;
+  - ninguna opción usa IA y el contrato no cambia.
+  - Motivo: juntar las funcionalidades en un solo ejecutable.
 - 2026-11-21 — **Arranque por persona:** no se reparten más tareas cerradas.
   - Cada persona trabaja con su agente en lo que decida: Nil, en la cámara y su entorno (voz, cara, manos, teclado); Didac y Pau, en una funcionalidad grande y distinta cada uno; Isaac decide entre el backend, una funcionalidad o ayudar a otra persona.
   - El agente entrevista primero a su persona (`docs/arranque/<persona>.md`) y deja un brief confirmado en `docs/briefs/<persona>.md`.
