@@ -20,7 +20,7 @@
 ## To do
 - Decide which experimental features stay after testing them with the camera.
 - Test with the webcam and a real hand; tune thresholds (`DEFAULT_OPTIONS`, `DEFAULT_THRESHOLDS`).
-- Connect to the WebSocket once T2 publishes the contract.
+- Connect to the WebSocket now that T2 has published the contract (`api/openapi.yaml`).
 - Add `@mediapipe/tasks-vision@0.10.21` to `web/package.json` and pass `loadVision: () => import("@mediapipe/tasks-vision")`; serve the model locally so the demo doesn't depend on the network.
 - Voice (microphone → `utterance`), the other half of T6.
 
@@ -28,7 +28,7 @@
 - **Controlling the computer** (real Enter, tabs, click, scroll) would have to be done by Go with an OS automation library: discuss with Isaac (T2). For now only the actions are emitted.
 - **Contract proposal (T2, Isaac):** `pointer` message = `{ "type": "pointer", "x": 0.42, "y": 0.31, "space": "document" | "image", "select": false, "t": 1234 }`, with `select: true` for the dwell selection. Plus a message for gesture actions, e.g. `{ "type": "action", "action": "read" | "pause" | "next" | "previous" | "repeat" | "explain_here", "source": "gesture" }`. My module emits local events; adapting them to that shape is trivial.
 - **For B1:** I need the 4 document corners in normalized image coordinates (top-left, top-right, bottom-right, bottom-left) to map the pointer to document coordinates.
-- `CLAUDE.md` still says to reply and commit in Spanish; the team asked for English from now on, so a human should update that line.
+- **Language of the docs:** the new rule in `AGENTS.md` (#8) keeps documentation (`*.md`, `estado/`) in Spanish, but Nil asked for everything in English, so `web/src/input/README.md` and this file are in English. Confirm which one the team prefers.
 
 ## Files touched
 - `web/src/input/**`
