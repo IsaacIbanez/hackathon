@@ -160,7 +160,7 @@ function pintarChuleta() {
     ["☝️ señalar quieto ~1 s", m.seleccion, false],
     ["👎 pulgar abajo", m.pulgar_abajo, true],
     ["🤏 junta las puntas de pulgar e índice, luego sepáralas", `${m.pinza ?? "—"} en pasos de 10 %: 0 % juntas, 100 % abiertas del todo; quieto ~1 s (o puño) para fijarlo`, true],
-    ["✌️ victoria → menú", "después ☝️ señala hacia una opción y mantén ~0,5 s", true],
+    ["✌️ victoria → menú", "después ☝️ lleva el puntero a una opción y mantén ~0,5 s", true],
     ...(Object.entries(menuPara(interaccion.manoUsada)) as [SectorMenu, string][]).map(
       ([s, a]) => [`   menú ${FLECHA[s]} ${s}`, a, true] as [string, string, boolean],
     ),
@@ -349,9 +349,17 @@ function dibujar() {
   dibujarPinza(w, h);
   pintarMenu();
   const d = interaccion.diagnostico;
-  const cal = interaccion.calibracionNivel;
-  $("separacion").textContent = d ? `${d.separacion.toFixed(2)} (escala: 0 % = ${cal.min.toFixed(2)} · 100 % = ${cal.max.toFixed(2)})` : "—";
-  $("apunta").textContent = d?.direccionIndice ?? "—";
+  const esc = interaccion.escalaNivel;
+  $("separacion").textContent = d
+    ? `${d.separacion.toFixed(2)} (0 % = ${esc.cero === null ? "al juntar" : esc.cero.toFixed(2)} · recorrido ${esc.amplitud.toFixed(2)})`
+    : "—";
+  // Puntero por encima del menú (la capa del menú tapa el lienzo). El lienzo va en espejo.
+  const cur = $("cursor");
+  cur.hidden = !(interaccion.menuAbierto(performance.now()) && p);
+  if (!cur.hidden && p) {
+    cur.style.left = `${(1 - p.x) * 100}%`;
+    cur.style.top = `${p.y * 100}%`;
+  }
   if (interaccion.manoUsada !== manoMostrada) {
     manoMostrada = interaccion.manoUsada;
     $("manoUsada").textContent = manoMostrada ?? "detectando…";
@@ -393,13 +401,38 @@ async function reconectar(intentos = 20): Promise<void> {
 
 $("reiniciar").addEventListener("click", () => void reconectar(1));
 casilla("invertirMano").addEventListener("change", (ev) => {
-  // Por defecto se invierte la etiqueta de MediaPipe; la casilla deshace esa inversión.
-  interaccion.configurar({ invertirLateralidad: !(ev.target as HTMLInputElement).checked });
+  interaccion.configurar({ invertirLateralidad: (ev.target as HTMLInputElement).checked });
 });
 
-$("recalibrar").addEventListener("click", () => {
-  interaccion.reiniciarCalibracionNivel();
-  $("estado").textContent = "Escala de volumen reiniciada: junta los dedos y ábrelos del todo una vez.";
+/** Mediana de la separación pulgar–índice durante `ms`, mostrando una cuenta atrás. */
+async function medirSeparacion(instruccion: string, ms: number): Promise<number | null> {
+  const muestras: number[] = [];
+  const t0 = performance.now();
+  while (performance.now() - t0 < ms) {
+    const faltan = Math.ceil((ms - (performance.now() - t0)) / 1000);
+    $("estado").textContent = `${instruccion} (${faltan})`;
+    $("accion").textContent = instruccion;
+    tAccion = performance.now();
+    const d = interaccion.diagnostico;
+    // Solo el último segundo: el primero es para colocar la mano.
+    if (d && performance.now() - t0 > ms - 1000) muestras.push(d.separacion);
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  if (muestras.length < 5) return null;
+  muestras.sort((a, b) => a - b);
+  return muestras[Math.floor(muestras.length / 2)];
+}
+
+$("recalibrar").addEventListener("click", async () => {
+  const juntos = await medirSeparacion("🤏 Junta las puntas de pulgar e índice", 2500);
+  const abiertos = juntos === null ? null : await medirSeparacion("🖐️ Ábrelos del todo", 2500);
+  if (juntos === null || abiertos === null || abiertos - juntos < 0.15) {
+    $("estado").textContent = "No se pudo calibrar: no se veía bien la mano. Inténtalo otra vez.";
+    return;
+  }
+  interaccion.fijarAmplitudNivel(juntos, abiertos);
+  $("estado").textContent = `Volumen calibrado: juntos ${juntos.toFixed(2)}, abiertos ${abiertos.toFixed(2)}.`;
+  mostrarAccion("calibrado");
 });
 
 async function iniciar() {

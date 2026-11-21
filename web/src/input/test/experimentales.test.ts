@@ -4,7 +4,7 @@ import { InteraccionManos } from "../interaccion.ts";
 import { accionDe } from "../acciones.ts";
 import { DetectorCabeza } from "../cabeza.ts";
 import type { Cara, EventoManos, FrameManos, Mano } from "../tipos.ts";
-import { FORMAS, mano, rotar } from "./mano.ts";
+import { FORMAS, mano } from "./mano.ts";
 
 const PASO = 33;
 const repetir = <T>(x: T, n: number): T[] => Array.from({ length: n }, () => x);
@@ -107,8 +107,28 @@ test("pinza: quedarse quieto ~1 s en el mismo valor lo confirma", () => {
   assert.ok(fin[0].t - ultimoMover.t >= 1000);
 });
 
+test("pinza: volver a juntar los dedos siempre da 0 % y la escala no se desfasa", () => {
+  const ctl = new InteraccionManos({ confirmarNivelMs: 10000 });
+  const ida = Array.from({ length: 15 }, (_, i) => pinzaAbierta(0.2 * ((i + 1) / 15)));
+  const vuelta = Array.from({ length: 15 }, (_, i) => pinzaAbierta(0.2 * (1 - (i + 1) / 15)));
+  const frames = [...repetir(mano(FORMAS.pinza), 8), ...ida, ...vuelta, ...ida, ...vuelta, ...repetir(pinzaAbierta(0), 10)];
+  const movs = simular(ctl, frames)
+    .filter((e) => e.tipo === "nivel" && e.fase === "mover")
+    .map((e) => (e.tipo === "nivel" ? e.valor : -1));
+  assert.equal(movs.filter((v) => v === 1).length, 2, `llega a 100 % las dos veces: ${movs}`);
+  assert.equal(movs[movs.length - 1], 0, `vuelve a 0 %: ${movs}`);
+});
+
+test("pinza: la calibración guiada cambia el recorrido", () => {
+  const ctl = new InteraccionManos();
+  ctl.fijarAmplitudNivel(0.1, 1.6);
+  assert.equal(ctl.escalaNivel.amplitud, 1.5);
+  ctl.fijarAmplitudNivel(null);
+  assert.equal(ctl.escalaNivel.amplitud, 0.7);
+});
+
 test("pinza: temblar en el límite entre dos escalones no hace saltar el valor", () => {
-  const ctl = new InteraccionManos({ confirmarNivelMs: 10000, nivelMin: 0, nivelMax: 1 });
+  const ctl = new InteraccionManos({ confirmarNivelMs: 10000 });
   // Fijamos la escala abriendo del todo y volviendo a la mitad.
   const frames = [
     ...repetir(mano(FORMAS.pinza), 8),
@@ -117,7 +137,7 @@ test("pinza: temblar en el límite entre dos escalones no hace saltar el valor",
   ];
   const ev1 = simular(ctl, frames).filter((e) => e.tipo === "nivel" && e.fase === "mover").length;
   // Oscila un poco alrededor del mismo punto.
-  const temblor = Array.from({ length: 30 }, (_, i) => pinzaAbierta(0.1 + (i % 2 ? 0.006 : -0.006)));
+  const temblor = Array.from({ length: 30 }, (_, i) => pinzaAbierta(0.1 + (i % 2 ? 0.004 : -0.004)));
   const ev2 = simular(ctl, temblor, 25 * 33).filter((e) => e.tipo === "nivel" && e.fase === "mover");
   assert.ok(ev1 > 0);
   assert.equal(ev2.length, 0, `cambios por temblor: ${ev2.length}`);
@@ -138,33 +158,33 @@ test("pinza: también funciona con los otros tres dedos doblados", () => {
   assert.ok(ultimo.tipo === "nivel" && ultimo.valor > 0.7, JSON.stringify(ultimo));
 });
 
-/** Abre el menú con ✌️ y luego señala con el índice girado `grados` (0 = arriba). */
-function senalarEnMenu(grados: number): Mano[] {
-  return [...repetir(mano(FORMAS.victoria), 15), ...repetir(rotar(mano(FORMAS.senalar), grados), 30)];
+/** Abre el menú con ✌️ y luego señala con ☝️ con la mano desplazada (dx, dy) en la imagen. */
+function punteroEnMenu(dx: number, dy: number): Mano[] {
+  return [...repetir(mano(FORMAS.victoria), 15), ...repetir(mano({ ...FORMAS.senalar, dx, dy }), 30)];
 }
 
-test("menú: ✌️ lo abre y señalar hacia arriba ~0,5 s elige 'repetir'", () => {
-  const ev = simular(new InteraccionManos(), senalarEnMenu(0)).filter((e) => e.tipo === "menu");
+test("menú: ✌️ lo abre y llevar el puntero a la opción de arriba ~0,5 s la elige", () => {
+  const ev = simular(new InteraccionManos(), punteroEnMenu(0, -0.3)).filter((e) => e.tipo === "menu");
   const fases = ev.map((e) => e.tipo === "menu" && `${e.fase}:${e.sector}`);
   assert.deepEqual(fases, ["abrir:null", "resaltar:arriba", "elegir:arriba"]);
   assert.equal(accionDe(ev[2]), "repetir");
 });
 
-test("menú: se lee la dirección del dedo, desde el punto de vista del usuario", () => {
+test("menú: las zonas de las opciones, vistas por el usuario", () => {
   // En la imagen sin espejo, la derecha del usuario es x decreciente.
-  const casos: [number, string][] = [
-    [-90, "derecha"],
-    [90, "izquierda"],
-    [180, "abajo"],
+  const casos: [number, number, string][] = [
+    [0, 0.3, "abajo"],
+    [-0.15, 0, "derecha"],
+    [0.3, 0, "izquierda"],
   ];
-  for (const [grados, esperado] of casos) {
-    const e = simular(new InteraccionManos(), senalarEnMenu(grados)).find((e) => e.tipo === "menu" && e.fase === "elegir");
-    assert.ok(e && e.tipo === "menu" && e.sector === esperado, `${grados}° → ${e && e.tipo === "menu" && e.sector}`);
+  for (const [dx, dy, esperado] of casos) {
+    const e = simular(new InteraccionManos(), punteroEnMenu(dx, dy)).find((e) => e.tipo === "menu" && e.fase === "elegir");
+    assert.ok(e && e.tipo === "menu" && e.sector === esperado, `${dx},${dy} → ${e && e.tipo === "menu" && e.sector}`);
   }
 });
 
-test("menú: señalar en diagonal no elige nada", () => {
-  const ev = simular(new InteraccionManos(), senalarEnMenu(45));
+test("menú: con el puntero en el centro no se elige nada", () => {
+  const ev = simular(new InteraccionManos(), punteroEnMenu(0, 0));
   assert.ok(!ev.some((e) => e.tipo === "menu" && e.fase === "elegir"));
 });
 
@@ -179,47 +199,40 @@ test("menú: mantener ✌️ no elige nada y se cierra solo", () => {
 
 // ---- Mano usada ----
 
-/** Le pone a la mano la etiqueta cruda de MediaPipe (que va al revés con la imagen sin espejo). */
+/** Le pone a la mano la etiqueta cruda de MediaPipe (por defecto coincide con la mano real). */
 const conEtiqueta = (m: Mano, etiqueta: "Left" | "Right"): Mano => ({ ...m, lateralidad: etiqueta, confianza: 0.95 });
 
-test("mano usada: la etiqueta de MediaPipe se invierte y se estabiliza", () => {
+test("mano usada: se toma la etiqueta de MediaPipe y se estabiliza", () => {
   const ctl = new InteraccionManos();
-  simular(ctl, repetir(conEtiqueta(mano(FORMAS.palma), "Left"), 20));
+  simular(ctl, repetir(conEtiqueta(mano(FORMAS.palma), "Right"), 20));
   assert.equal(ctl.manoUsada, "derecha");
   // Un par de frames mal etiquetados no la cambian.
-  simular(ctl, repetir(conEtiqueta(mano(FORMAS.palma), "Right"), 2), 20 * 33);
+  simular(ctl, repetir(conEtiqueta(mano(FORMAS.palma), "Left"), 2), 20 * 33);
   assert.equal(ctl.manoUsada, "derecha");
-  ctl.configurar({ invertirLateralidad: false });
+  ctl.configurar({ invertirLateralidad: true });
   assert.equal(ctl.manoUsada, "izquierda");
 });
 
 test("menú con la mano derecha: no hay opción a la derecha y 'pedir ayuda' queda a la izquierda", () => {
-  const derecha = (m: Mano) => conEtiqueta(m, "Left");
+  const derecha = (m: Mano) => conEtiqueta(m, "Right");
   const ctl = new InteraccionManos();
   assert.deepEqual(ctl.sectoresMenu("derecha"), ["arriba", "abajo", "izquierda"]);
 
-  const haciaDerecha = [
-    ...repetir(derecha(mano(FORMAS.victoria)), 20),
-    ...repetir(derecha(rotar(mano(FORMAS.senalar), -90)), 30),
-  ];
-  const ev1 = simular(ctl, haciaDerecha);
-  assert.ok(!ev1.some((e) => e.tipo === "menu" && e.fase === "elegir"), "señalar a la derecha no elige");
+  const abrir = repetir(derecha(mano(FORMAS.victoria)), 20);
+  const aLaDerecha = [...abrir, ...repetir(derecha(mano({ ...FORMAS.senalar, dx: -0.15 })), 30)];
+  assert.ok(!simular(ctl, aLaDerecha).some((e) => e.tipo === "menu" && e.fase === "elegir"), "a la derecha no elige");
 
-  const ctl2 = new InteraccionManos();
-  const haciaIzquierda = [
-    ...repetir(derecha(mano(FORMAS.victoria)), 20),
-    ...repetir(derecha(rotar(mano(FORMAS.senalar), 90)), 30),
-  ];
-  const elegir = simular(ctl2, haciaIzquierda).find((e) => e.tipo === "menu" && e.fase === "elegir")!;
+  const aLaIzquierda = [...abrir, ...repetir(derecha(mano({ ...FORMAS.senalar, dx: 0.3 })), 30)];
+  const elegir = simular(new InteraccionManos(), aLaIzquierda).find((e) => e.tipo === "menu" && e.fase === "elegir")!;
   assert.ok(elegir.tipo === "menu" && elegir.sector === "izquierda" && elegir.mano === "derecha");
   assert.equal(accionDe(elegir), "pedir_ayuda");
 });
 
 test("menú con la mano izquierda: 'pedir ayuda' queda a la derecha", () => {
-  const izquierda = (m: Mano) => conEtiqueta(m, "Right");
+  const izquierda = (m: Mano) => conEtiqueta(m, "Left");
   const frames = [
     ...repetir(izquierda(mano(FORMAS.victoria)), 20),
-    ...repetir(izquierda(rotar(mano(FORMAS.senalar), -90)), 30),
+    ...repetir(izquierda(mano({ ...FORMAS.senalar, dx: -0.15 })), 30),
   ];
   const elegir = simular(new InteraccionManos(), frames).find((e) => e.tipo === "menu" && e.fase === "elegir")!;
   assert.ok(elegir.tipo === "menu" && elegir.sector === "derecha");

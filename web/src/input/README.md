@@ -17,7 +17,7 @@ definido en `acciones.ts` (`MAPAS`). Los marcados como EXP son experimentales.
 | ☝️ señalar quieto ~0,9 s | explicar aquí | dictar campo | clic |
 | 👎 pulgar abajo (EXP) | deshacer | borrar campo | deshacer |
 | 🤏 juntar las puntas de pulgar e índice y separarlas; quieto ~1 s o puño para fijar (EXP) | volumen | volumen | volumen |
-| ✌️ victoria → menú; ☝️ señalar hacia un lado ~0,5 s (EXP) | ↑ repetir · ↓ dictar · pedir ayuda en el lado contrario a la mano (sin mano detectada: → copiar texto, ← pedir ayuda) | igual | igual |
+| ✌️ victoria → menú; ☝️ puntero encima de una opción ~0,5 s (EXP) | ↑ repetir · ↓ dictar · pedir ayuda en el lado contrario a la mano (sin mano detectada: → copiar texto, ← pedir ayuda) | igual | igual |
 | 🙂 asentir (EXP, cabeza) | leer | confirmar campo | Intro |
 | 🙂 negar (EXP, cabeza) | pausar | borrar campo | Escape |
 
@@ -27,18 +27,19 @@ Opciones experimentales (en `OpcionesInteraccion`):
 - `PERFIL_MOVILIDAD_REDUCIDA`: tiempos más largos y radios más amplios para temblor o movilidad reducida.
 - Pinza de nivel: se activa al juntar las puntas de pulgar e índice ~0,15 s con el índice por delante
   (no metido en un puño; da igual cómo estén los otros dedos). El evento `nivel` da un valor en
-  escalones de `pasoNivel` (10 %): 0 % con los dedos juntos y 100 % abiertos del todo. La escala se
-  calibra sola con la mano del usuario (`calibracionNivel`, `reiniciarCalibracionNivel()`), y la
-  histéresis (`histeresisNivel`) evita que el valor salte por un temblor en el límite de un escalón.
-  Se confirma quedándose quieto `confirmarNivelMs` (~1 s) en el mismo valor, o cerrando el puño.
-  En la demo ajusta de verdad el volumen de la voz.
-- Menú radial: tras abrirlo con ✌️, se elige señalando con ☝️ hacia un lado: se lee la dirección del
-  dedo (nudillo → punta), no la posición de la mano. Hay que mantenerla `elegirMenuMs` (~0,5 s). En
-  diagonal o con ✌️ no elige nada; se cierra solo a los 5 s.
+  escalones de `pasoNivel` (10 %). El 0 % es la separación al empezar cada pinza (volver a juntar los
+  dedos siempre da 0 %) y el 100 % esa más `amplitudNivel`. La escala no se aprende sola (eso la
+  desfasaba): se ajusta con una calibración guiada (`fijarAmplitudNivel(juntos, abiertos)`; en la demo,
+  botón «Calibrar volumen»). Hay zonas de tolerancia en los extremos (`zonaExtremosNivel`) y
+  histéresis entre escalones (`histeresisNivel`). Se confirma quedándose quieto `confirmarNivelMs`
+  (~1 s) en el mismo valor, o cerrando el puño. En la demo ajusta de verdad el volumen de la voz.
+- Menú: tras abrirlo con ✌️, se pone ☝️ y se lleva el puntero (la punta del índice) encima de una
+  opción, manteniéndolo `elegirMenuMs` (~0,5 s). Las opciones ocupan zonas fijas de la pantalla en
+  cruz (tercios, `sectorEnPantalla`); con ✌️ o en el centro no se elige nada; se cierra solo a los 5 s.
 - Mano usada: se detecta qué mano usa el usuario (`manoUsada`, votación suavizada de la etiqueta de
-  MediaPipe, invertida porque la imagen no va en espejo: `invertirLateralidad`). En el menú se quita
-  el lado de esa mano, porque señalar hacia fuera con ella cuesta (`sectoresMenu`, `menuPara`):
-  quedan ↑ repetir, ↓ dictar y, en el lado cómodo, pedir ayuda. Si no se sabe la mano, salen las 4.
+  MediaPipe; `invertirLateralidad` por si sale al revés). En el menú se quita el lado de esa mano
+  (`sectoresMenu`, `menuPara`): quedan ↑ repetir, ↓ dictar y, en el lado contrario, pedir ayuda.
+  Si no se sabe la mano, salen las 4.
 - Cabeza: `crearRastreador(..., { cara: true })` o `rastreador.activarCara(true)` (otro modelo, ~4 MB;
   se analiza 1 de cada 2 frames).
 - Señalar + voz: solo en la demo, con el reconocimiento de voz del navegador (Chrome/Edge; Firefox no lo tiene).

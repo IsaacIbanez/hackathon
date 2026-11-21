@@ -82,7 +82,7 @@ export type EventoManos =
    * es la separación entre ambas, de 0 (juntas) a 1 (muy separadas). Termina al cerrar el puño.
    */
   | { tipo: "nivel"; fase: "inicio" | "mover" | "fin"; valor: number; t: number }
-  /** Menú radial abierto con ✌️; se elige señalando con el índice hacia un lado y manteniendo. */
+  /** Menú abierto con ✌️; se elige llevando el puntero (☝️) encima de una opción y manteniéndolo. */
   | {
       tipo: "menu";
       fase: "abrir" | "resaltar" | "elegir" | "cerrar";

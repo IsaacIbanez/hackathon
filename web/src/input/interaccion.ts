@@ -43,8 +43,8 @@ export interface OpcionesInteraccion {
   /** true si la cámara mira al usuario (las direcciones se dan desde su punto de vista). */
   espejo: boolean;
   /**
-   * MediaPipe etiqueta la mano suponiendo una imagen en espejo (cámara frontal). Como le pasamos
-   * la imagen sin espejo, su "Left" es la mano derecha del usuario: por eso se invierte.
+   * Invierte la etiqueta de mano de MediaPipe. Probado con webcam: sin invertir, la etiqueta ya
+   * coincide con la mano real del usuario, así que por defecto es false.
    */
   invertirLateralidad: boolean;
   umbrales: Umbrales;
@@ -57,12 +57,13 @@ export interface OpcionesInteraccion {
   /** Tiempo sin actividad para volver a dormir. */
   dormirMs: number;
   /**
-   * Separación pulgar–índice (relativa al tamaño de la mano) para el 0 % y el 100 % al empezar.
-   * Se calibran solos: el 0 % baja hasta la separación con los dedos juntos que se observe y el
-   * 100 % sube hasta la máxima apertura que se observe.
+   * Recorrido de la escala: cuánto hay que separar pulgar e índice (relativo al tamaño de la mano)
+   * desde la pinza hasta el 100 %. El 0 % es siempre la separación al empezar la pinza.
+   * Se puede ajustar a cada mano con fijarAmplitudNivel() (calibración guiada).
    */
-  nivelMin: number;
-  nivelMax: number;
+  amplitudNivel: number;
+  /** Zona de tolerancia en cada extremo (fracción de la escala): cerca del final ya es 0 % o 100 %. */
+  zonaExtremosNivel: number;
   /** Tamaño del escalón del nivel (0,1 = 0 %, 10 %, 20 %…). */
   pasoNivel: number;
   /** Margen extra (fracción del escalón) para cambiar de escalón: evita saltos en el límite. */
@@ -95,13 +96,13 @@ export const OPCIONES_POR_DEFECTO: OpcionesInteraccion = {
   intervaloPunteroMs: 66,
   adelantoPuntero: 0.5,
   espejo: true,
-  invertirLateralidad: true,
+  invertirLateralidad: false,
   umbrales: UMBRALES_POR_DEFECTO,
   requiereDespertar: false,
   despertarMs: 1000,
   dormirMs: 10000,
-  nivelMin: 0.3,
-  nivelMax: 0.9,
+  amplitudNivel: 0.7,
+  zonaExtremosNivel: 0.08,
   pasoNivel: 0.1,
   histeresisNivel: 0.3,
   confirmarNivelMs: 1000,
@@ -154,6 +155,8 @@ export interface Diagnostico {
 }
 
 interface EstadoNivel {
+  /** Separación con los dedos juntos en esta pinza: es el 0 %. */
+  separacionCero: number;
   /** Valor en escalones (0, 0,1, 0,2…). */
   valor: number;
   /** Valor continuo sin redondear (para mostrar la posición dentro del escalón). */
@@ -215,17 +218,15 @@ export class InteraccionManos {
   private tPinzaInicio: number | null = null;
   private nivel: EstadoNivel | null = null;
   private fSeparacion = new FiltroOneEuro({ minCorte: 1.0, beta: 0.3, corteDerivada: 1.0 });
-  /** Calibración de la escala del nivel, aprendida de la mano del usuario. */
-  private calMin: number;
-  private calMax: number;
+  /** Recorrido de la escala (de la calibración guiada o el de por defecto). */
+  private amplitud: number;
   /** Tras confirmar un nivel, hay que soltar la pinza antes de empezar otro. */
   private esperarSoltarPinza = false;
   private cabeza: DetectorCabeza;
 
   constructor(op: Partial<OpcionesInteraccion> = {}) {
     this.op = { ...OPCIONES_POR_DEFECTO, ...op };
-    this.calMin = this.op.nivelMin;
-    this.calMax = this.op.nivelMax;
+    this.amplitud = this.op.amplitudNivel;
     this.despierto = !this.op.requiereDespertar;
     this.cabeza = new DetectorCabeza(this.op.cabeza);
   }
@@ -321,14 +322,18 @@ export class InteraccionManos {
     return { valor: n.valor, continuo: n.continuo, progresoConfirmar, pulgar: n.pulgar, indice: n.indice };
   }
 
-  /** Escala aprendida: separación para el 0 % y para el 100 %. */
-  get calibracionNivel(): { min: number; max: number } {
-    return { min: this.calMin, max: this.calMax };
+  /** Escala actual: separación del 0 % (de la pinza en curso, si hay) y recorrido hasta el 100 %. */
+  get escalaNivel(): { cero: number | null; amplitud: number } {
+    return { cero: this.nivel?.separacionCero ?? null, amplitud: this.amplitud };
   }
 
-  reiniciarCalibracionNivel(): void {
-    this.calMin = this.op.nivelMin;
-    this.calMax = this.op.nivelMax;
+  /**
+   * Calibración guiada: separación medida con los dedos juntos y abiertos del todo. null vuelve
+   * al recorrido por defecto.
+   */
+  fijarAmplitudNivel(juntos: number | null, abiertos?: number): void {
+    this.amplitud =
+      juntos === null || abiertos === undefined ? this.op.amplitudNivel : Math.max(0.1, abiertos - juntos);
   }
 
   procesar(frame: FrameManos): void {
@@ -384,7 +389,7 @@ export class InteraccionManos {
       return;
     }
     if (this.menu) {
-      this.actualizarMenu(t, pose, centro);
+      this.actualizarMenu(t, pose, centro, mano);
       return;
     }
     if (this.actualizarNivel(t, pose, centro)) return;
@@ -466,13 +471,7 @@ export class InteraccionManos {
       return;
     }
 
-    const punta = mano.puntos[P.INDICE_PUNTA];
-    const dip = mano.puntos[P.INDICE_DIP];
-    const crudo: Punto = {
-      x: punta.x + (punta.x - dip.x) * this.op.adelantoPuntero,
-      y: punta.y + (punta.y - dip.y) * this.op.adelantoPuntero,
-    };
-    const p: Punto = { x: this.fx.filtrar(crudo.x, t), y: this.fy.filtrar(crudo.y, t) };
+    const p = this.punteroIndice(t, mano);
     this.ultimoPuntero = p;
     const enDocumento = this.aDocumento(p);
 
@@ -568,17 +567,21 @@ export class InteraccionManos {
       return false;
     }
 
-    // Escala real: se aprende de la mano. Dedos juntos = 0 %, abiertos del todo = 100 %.
+    // Escala: 0 % = separación al empezar esta pinza (dedos juntos); 100 % = esa más el recorrido.
+    // No se aprende de un frame a otro, así no se desfasa.
     const sep = this.fSeparacion.filtrar(diag.separacion, t);
-    if (sep < this.calMin) this.calMin = sep;
-    if (sep > this.calMax) this.calMax = sep;
-    const continuo = Math.min(1, Math.max(0, (sep - this.calMin) / (this.calMax - this.calMin || 1)));
+    const cero = Math.min(this.nivel?.separacionCero ?? sep, sep);
+    const bruto = (sep - cero) / this.amplitud;
+    // Zonas de tolerancia: cerca de los extremos ya es 0 % o 100 %.
+    const z = this.op.zonaExtremosNivel;
+    const continuo = Math.min(1, Math.max(0, (bruto - z) / (1 - 2 * z)));
     const { pulgar, indice } = diag;
     this.ultimoPuntero = null;
 
     if (!this.nivel) {
       const valor = redondearNivel(continuo, this.op.pasoNivel);
       this.nivel = {
+        separacionCero: cero,
         valor,
         continuo,
         tCambio: t,
@@ -593,13 +596,15 @@ export class InteraccionManos {
     }
 
     const n = this.nivel;
+    n.separacionCero = cero;
     n.continuo = continuo;
     n.pulgar = pulgar;
     n.indice = indice;
     n.tUltimoValido = t;
     // Histéresis: solo se cambia de escalón al entrar claramente en el siguiente.
     const paso = this.op.pasoNivel;
-    if (Math.abs(continuo - n.valor) > paso * (0.5 + this.op.histeresisNivel)) {
+    const extremo = (continuo <= 0 && n.valor > 0) || (continuo >= 1 && n.valor < 1);
+    if (extremo || Math.abs(continuo - n.valor) > paso * (0.5 + this.op.histeresisNivel)) {
       n.valor = redondearNivel(continuo, paso);
       n.tCambio = t;
       n.movido = true;
@@ -642,10 +647,11 @@ export class InteraccionManos {
   }
 
   /**
-   * Con el menú abierto se elige señalando con el índice (☝️) hacia un lado: se lee la dirección
-   * del dedo (de su nudillo a su punta), no la posición de la mano. Hay que mantenerlo ~0,5 s.
+   * Con el menú abierto, se señala con ☝️ y el puntero (la punta del índice) se lleva encima de una
+   * opción, manteniéndolo ~0,5 s. Las opciones ocupan las zonas de la pantalla en cruz (tercios):
+   * arriba-centro, abajo-centro, izquierda-centro y derecha-centro, vistas por el usuario.
    */
-  private actualizarMenu(t: number, pose: Gesto, centro: Punto): void {
+  private actualizarMenu(t: number, pose: Gesto, centro: Punto, mano: Mano): void {
     const m = this.menu!;
     if (t - m.tApertura > this.op.caducidadMenuMs) {
       this.cerrarMenu(t);
@@ -653,10 +659,21 @@ export class InteraccionManos {
     }
     if (t - m.tApertura < this.op.esperaMenuMs) return;
 
-    // Solo cuenta señalar con un dedo: con ✌️ (con el que se abre) no se elige nada.
-    let sector = pose === "senalar" ? (this.diag?.direccionIndice ?? null) : null;
-    // El lado de la mano que se usa no existe en el menú.
-    if (sector && sector === m.mano) sector = null;
+    // Solo con ☝️ hay puntero (con ✌️, con el que se abre, no se elige nada).
+    if (pose === "senalar") this.tUltimoSenalar = t;
+    let sector: SectorMenu | null = null;
+    if (t - this.tUltimoSenalar <= 150) {
+      const p = this.punteroIndice(t, mano);
+      this.ultimoPuntero = p;
+      sector = sectorEnPantalla(p, this.op.espejo);
+      // El lado de la mano que se usa no existe en el menú.
+      if (sector === m.mano) sector = null;
+    } else {
+      this.ultimoPuntero = null;
+      this.fx.reiniciar();
+      this.fy.reiniciar();
+    }
+
     if (sector !== m.sector) {
       m.sector = sector;
       m.tSector = t;
@@ -665,12 +682,25 @@ export class InteraccionManos {
     }
     if (sector && t - m.tSector >= this.op.elegirMenuMs) {
       this.menu = null;
+      this.ultimoPuntero = null;
       this.emitir({ tipo: "menu", fase: "elegir", sector, centro: m.centro, mano: m.mano, t });
       // Hay que cambiar de pose antes de que "señalar" haga otra cosa.
       this.gestoEstable = pose;
       this.reiniciarCandidato(t, pose, centro);
       this.tUltimoSenalar = -Infinity;
+      this.ancla = null;
+      this.seleccionHecha = true; // que la permanencia no dispare además un "seleccionar"
     }
+  }
+
+  /** Punta del índice (un poco adelantada) filtrada contra el temblor. */
+  private punteroIndice(t: number, mano: Mano): Punto {
+    const punta = mano.puntos[P.INDICE_PUNTA];
+    const dip = mano.puntos[P.INDICE_DIP];
+    return {
+      x: this.fx.filtrar(punta.x + (punta.x - dip.x) * this.op.adelantoPuntero, t),
+      y: this.fy.filtrar(punta.y + (punta.y - dip.y) * this.op.adelantoPuntero, t),
+    };
   }
 
   private cerrarMenu(t: number): void {
@@ -752,6 +782,21 @@ export function direccionIndice(mano: Mano, aspecto: number, espejo: boolean): S
   if (largo < 0.35 * palma) return null;
   if (Math.abs(dx) > 1.3 * Math.abs(dy)) return dx > 0 ? "derecha" : "izquierda";
   if (Math.abs(dy) > 1.3 * Math.abs(dx)) return dy > 0 ? "abajo" : "arriba";
+  return null;
+}
+
+/**
+ * Opción del menú bajo el puntero: la pantalla (vista por el usuario) se divide en tercios y las
+ * opciones están en cruz. Fuera de esas 4 zonas, ninguna.
+ */
+export function sectorEnPantalla(p: Punto, espejo: boolean): SectorMenu | null {
+  const x = espejo ? 1 - p.x : p.x;
+  const col = Math.floor(Math.min(0.999, Math.max(0, x)) * 3);
+  const fila = Math.floor(Math.min(0.999, Math.max(0, p.y)) * 3);
+  if (col === 1 && fila === 0) return "arriba";
+  if (col === 1 && fila === 2) return "abajo";
+  if (col === 0 && fila === 1) return "izquierda";
+  if (col === 2 && fila === 1) return "derecha";
   return null;
 }
 

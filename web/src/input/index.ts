@@ -11,6 +11,7 @@ export {
   OPCIONES_POR_DEFECTO,
   PERFIL_MOVILIDAD_REDUCIDA,
   direccionIndice,
+  sectorEnPantalla,
   type Diagnostico,
   type OpcionesInteraccion,
 } from "./interaccion.ts";

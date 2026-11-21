@@ -20,15 +20,20 @@
       #accion { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); font-size: 34px; font-weight: 800; color: var(--acento); background: #000c; padding: 4px 16px; border-radius: 8px; white-space: nowrap; }
       #accion:empty { display: none; }
       /* Menú: capa HTML fija sobre el vídeo (no se dibuja en el lienzo, así no se solapa). */
-      #menu { position: absolute; inset: 0; display: grid; place-items: center; background: #0007; border-radius: 8px;
-        grid-template: ". arriba ." 1fr "izquierda centro derecha" 1fr ". abajo ." 1fr / 1fr 1fr 1fr; padding: 12px; gap: 8px; }
+      /* Cada opción ocupa su tercio de pantalla: es justo la zona donde el puntero la elige. */
+      #menu { position: absolute; inset: 0; display: grid; background: #0007; border-radius: 8px;
+        grid-template: ". arriba ." 1fr "izquierda centro derecha" 1fr ". abajo ." 1fr / 1fr 1fr 1fr; }
       #menu[hidden] { display: none; }
-      #menu .op { --p: 0; width: 100%; max-width: 230px; text-align: center; padding: 14px 10px; border-radius: 12px;
+      #menu .op { --p: 0; margin: 10px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 8px; border-radius: 14px;
         font-size: clamp(16px, 2.2vw, 26px); font-weight: 800; background: #000d; border: 3px solid #fff4;
         background-image: linear-gradient(90deg, #ffd40066 calc(var(--p) * 100%), transparent 0); }
       #menu .op.activa { border-color: var(--acento); color: var(--acento); }
       #menu .op.elegida { background: var(--acento); color: #000; }
-      #menu .centro { grid-area: centro; text-align: center; color: #ddd; font-size: clamp(13px, 1.6vw, 18px); }
+      #menu .centro { grid-area: centro; display: flex; align-items: center; justify-content: center; text-align: center; color: #ddd; font-size: clamp(13px, 1.6vw, 18px); }
+      /* Puntero por encima del menú. */
+      #cursor { position: absolute; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%;
+        background: #ff3b30; border: 3px solid #fff; box-shadow: 0 0 0 3px #0008; pointer-events: none; }
+      #cursor[hidden] { display: none; }
       h1 { font-size: 22px; margin: 0 0 8px; }
       h2 { font-size: 16px; margin: 16px 0 6px; color: var(--suave); text-transform: uppercase; letter-spacing: .05em; }
       section > div { background: var(--panel); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
@@ -53,10 +58,11 @@
         <div id="menu" hidden>
           <div class="op" data-s="arriba" style="grid-area: arriba"></div>
           <div class="op" data-s="izquierda" style="grid-area: izquierda"></div>
-          <div class="centro">☝️ señala hacia una opción<br />y mantén ~0,5 s</div>
+          <div class="centro">☝️ lleva el puntero<br />a una opción y mantén ~0,5 s</div>
           <div class="op" data-s="derecha" style="grid-area: derecha"></div>
           <div class="op" data-s="abajo" style="grid-area: abajo"></div>
         </div>
+        <div id="cursor" hidden></div>
       </div>
       <section>
         <h1>Gestos de mano</h1>
@@ -69,7 +75,6 @@
             <dt>Puntero en doc.</dt><dd id="doc">—</dd>
             <dt>Volumen voz</dt><dd id="volumen">100 %</dd>
             <dt>Pulgar–índice</dt><dd id="separacion">—</dd>
-            <dt>Índice apunta</dt><dd id="apunta">—</dd>
             <dt>Mano</dt><dd id="manoUsada">—</dd>
             <dt>FPS</dt><dd id="fps">—</dd>
           </dl>
@@ -87,9 +92,9 @@
           <label><input type="checkbox" id="movilidad" /> Perfil movilidad reducida <span class="exp">EXP</span><br /><small>gestos más lentos y tolerantes al temblor</small></label>
           <label><input type="checkbox" id="cabeza" /> Gestos de cabeza <span class="exp">EXP</span><br /><small>asentir y negar (descarga otro modelo, ~4 MB)</small></label>
           <label><input type="checkbox" id="vozSel" /> Señalar + voz <span class="exp">EXP</span><br /><small id="vozInfo">al seleccionar señalando, escucha una pregunta</small></label>
-          <label><input type="checkbox" id="invertirMano" /> La mano detectada sale al revés<br /><small>márcalo si «Mano» dice derecha cuando usas la izquierda</small></label>
+          <label><input type="checkbox" id="invertirMano" /> La mano detectada sale al revés<br /><small>márcalo si «Mano» no coincide con la mano que usas</small></label>
           <label><input type="checkbox" id="voz" checked /> Decir la acción en voz alta<br /><small>con el volumen que marques con la pinza 🤏</small></label>
-          <p><button id="marcar">Marcar documento (4 clics)</button> <button id="reiniciar">Reiniciar cámara</button> <button id="recalibrar">Recalibrar volumen</button></p>
+          <p><button id="marcar">Marcar documento (4 clics)</button> <button id="reiniciar">Reiniciar cámara</button> <button id="recalibrar">Calibrar volumen</button></p>
         </div>
 
         <h2>Chuleta del contexto actual</h2>
