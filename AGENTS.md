@@ -42,6 +42,33 @@ Cuatro personas, cada una con una cuenta de Claude Pro y una de Gemini Plus (ver
 6. Objetivo: fusionar a menudo (cada 30–60 minutos), PRs pequeños y revisiones rápidas.
 7. Cuando exista CI (T2), `make check` (go vet, tests, lint, build del front) debe pasar antes de abrir el PR.
 
+## Ramas y carpetas: para qué sirve cada cosa
+- **Ramas y worktrees** (`scripts/nueva-tarea.sh`): aíslan el trabajo para que dos agentes no se pisen y un fallo no rompa `main`. No ahorran tokens.
+- **Carpetas por rol**: evitan conflictos al fusionar y son lo que ahorra tokens, porque cada agente solo lee lo suyo.
+
+## Cómo ahorrar contexto (tokens)
+- Mantén este archivo corto. Si crece, mueve el detalle a `docs/` y deja solo el enlace.
+- Lee solo lo necesario: `api/` (contrato), tu carpeta de rol y tu archivo de `estado/`. No explores el resto del repo.
+- Trabaja en tareas pequeñas y empieza una sesión nueva por tarea, en vez de arrastrar una conversación larga.
+- Para saber qué hace otro módulo, usa el contrato y el servidor mock, no su código.
+- Cada carpeta tiene un `README.md` (en `api/`, `backend/` y `web/`) con su dueño y qué contiene.
+
+## Estructura de carpetas
+```
+api/                       contrato (rol A)
+backend/cmd/server         servidor (A)
+backend/internal/ws        WebSocket (A)
+backend/internal/session   sesiones (A)
+backend/internal/llm       modelos, caché, coste (A)
+backend/internal/ocr       comprensión de documentos (B2)
+web/src/app                app y pantallas comunes (A)
+web/src/camera             cámara, recorte y OCR local (B1)
+web/src/document           vista del documento (B2)
+web/src/input              gestos y voz (C)
+docs/                      documentación
+```
+Las carpetas están creadas vacías (`.gitkeep`); el código llega con T2 y las tareas siguientes.
+
 ## Arquitectura
 Detalle en `docs/ARQUITECTURA.md`. Resumen:
 - El **navegador** (dentro de la app Wails) captura cámara y micro y hace el trabajo barato en local: detección y recorte del documento, OCR local, landmarks de manos, voz.
