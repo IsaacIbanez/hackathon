@@ -218,6 +218,16 @@ test("menu: holding the pointer on an option never chooses it; only the tap does
   assert.ok(dwell && dwell.type === "menu" && dwell.sector === "up");
 });
 
+test("menu: touching the fingers and keeping them together doesn't choose; letting go late doesn't either", () => {
+  const rest = makeHand({ ...CLICK_REST, dy: -0.3 });
+  const press = makeHand({ ...CLICK_PRESS, dy: -0.3 });
+  const open = repeat(makeHand(SHAPES.fist), 20);
+  const held = simulate(new HandInteraction(), [...open, ...repeat(rest, 15), ...repeat(press, 60)]);
+  assert.ok(!held.some((e) => e.type === "menu" && e.phase === "choose"), "held together");
+  const late = simulate(new HandInteraction(), [...open, ...repeat(rest, 15), ...repeat(press, 30), ...repeat(rest, 10)]);
+  assert.ok(!late.some((e) => e.type === "menu" && e.phase === "choose"), "let go after ~1 s");
+});
+
 test("menu: pointing with the middle finger curled by the thumb doesn't choose", () => {
   const frames = [...repeat(makeHand(SHAPES.fist), 20), ...repeat(makeHand({ ...SHAPES.point, dy: -0.3 }), 60)];
   assert.ok(!simulate(new HandInteraction(), frames).some((e) => e.type === "menu" && e.phase === "choose"));

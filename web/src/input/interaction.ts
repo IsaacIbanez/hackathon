@@ -128,6 +128,10 @@ export interface InteractionOptions {
    * the thumb; "dwell" — hold the pointer on it for menuSelectMs.
    */
   menuSelect: "click" | "dwell";
+  /** Menu tap: the fingers must let go within this time after touching (longer is not a tap). */
+  menuTapMs: number;
+  /** Menu tap: the middle fingertip must be this far from the ring fingertip (÷ hand size). */
+  menuTapRingSep: number;
   /** After opening the menu, the hand is ignored for this long (it is still settling). */
   menuSettleMs: number;
   /** The menu closes on its own after this long. */
@@ -182,6 +186,8 @@ export const DEFAULT_OPTIONS: InteractionOptions = {
   palmMustFaceCamera: true,
   menuSelectMs: 500,
   menuSelect: "click",
+  menuTapMs: 600,
+  menuTapRingSep: 0.22,
   menuSettleMs: 300,
   menuTimeoutMs: 5000,
   head: {},
@@ -324,6 +330,8 @@ export class HandInteraction {
   private clickReady = false;
   private menuTouching = false;
   private menuTouchReady = false;
+  private tMenuTouch = 0;
+  private menuTapSector: MenuSector | null = null;
   private tClickPress = 0;
   private tClickRelease = 0;
   private headDetector: HeadGestureDetector;
@@ -953,11 +961,11 @@ export class HandInteraction {
       this.fy.reset();
     }
 
-    // Click mode: the tap starts while pointing at the option; the pointer moves a little while the
-    // middle finger travels, so the option highlighted when the fingers touch is the one chosen.
-    const tapped = this.opts.menuSelect === "click" && this.menuTap(pose, hand, aspect);
-    if (tapped && m.sector) sector = m.sector;
-    if (sector !== m.sector) {
+    // Click mode: a full tap (touch and let go) chooses. The pointer moves a little while the middle
+    // finger travels, so the option highlighted when the fingers touched is the one chosen.
+    const tapped = this.opts.menuSelect === "click" && this.menuTap(t, pose, hand, aspect, m.sector);
+    if (tapped) sector = this.menuTapSector;
+    if (!tapped && sector !== m.sector) {
       m.sector = sector;
       m.tSector = t;
       this.emit({ type: "menu", phase: "highlight", sector, center: m.center, hand: m.hand, t });
@@ -983,11 +991,13 @@ export class HandInteraction {
   }
 
   /**
-   * Menu tap: true on the frame the middle fingertip touches the thumb while pointing. The same
-   * guards as the mouse click: the fingers must first be seen apart, and the middle finger must be
-   * out in front of the palm (not curled into it next to the thumb).
+   * Menu tap: true on the frame the fingers separate after a short touch of the middle fingertip on
+   * the thumb, while pointing. Holding still — even with the fingers resting together — never
+   * chooses: the fingers must touch and let go within menuTapMs. Guards, as for the mouse click:
+   * the fingers must first be seen apart, and the middle finger must have left the palm (out in
+   * front, and away from the ring finger) to reach the thumb.
    */
-  private menuTap(pose: Gesture, hand: Hand, aspect: number): boolean {
+  private menuTap(t: number, pose: Gesture, hand: Hand, aspect: number, sector: MenuSector | null): boolean {
     const pts = shapePoints(hand, aspect);
     const size = handSize(pts);
     const gap = distance(pts[L.THUMB_TIP], pts[L.MIDDLE_TIP]) / size;
@@ -997,15 +1007,18 @@ export class HandInteraction {
       return false;
     }
     if (this.menuTouching) {
-      if (gap > this.opts.clickRelease) this.menuTouching = false;
-      return false;
+      if (gap <= this.opts.clickRelease) return false;
+      this.menuTouching = false;
+      return t - this.tMenuTouch <= this.opts.menuTapMs && this.menuTapSector !== null;
     }
     if (gap > this.opts.clickRelease) this.menuTouchReady = true;
     const outInFront = distance(pts[L.WRIST], pts[L.MIDDLE_TIP]) / size >= this.opts.clickReach;
-    if (this.menuTouchReady && outInFront && gap < this.opts.clickPress) {
+    const offTheRing = distance(pts[L.MIDDLE_TIP], pts[L.RING_TIP]) / size > this.opts.menuTapRingSep;
+    if (this.menuTouchReady && outInFront && offTheRing && gap < this.opts.clickPress) {
       this.menuTouching = true;
       this.menuTouchReady = false;
-      return true;
+      this.tMenuTouch = t;
+      this.menuTapSector = sector;
     }
     return false;
   }
