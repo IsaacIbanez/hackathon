@@ -245,7 +245,9 @@ function dibujarPinza(w: number, h: number) {
   const n = interaccion.nivelActivo(performance.now());
   const [ax, ay, bx, by] = [d.pulgar.x * w, d.pulgar.y * h, d.indice.x * w, d.indice.y * h];
   const op = interaccion.opciones;
-  const juntos = d.separacion <= op.nivelCero && d.alcance >= op.umbrales.indiceFuera;
+  // Solo se avisa de la pinza cuando el volumen está armado desde el menú; si no, no hace nada.
+  const juntos =
+    interaccion.nivelEsperando && d.separacion <= op.nivelCero && d.alcance >= op.umbrales.indiceFuera;
   ctx.strokeStyle = n ? `hsl(${Math.round(120 * n.valor)}, 90%, 55%)` : juntos ? "#00e0ff" : "#ffffff99";
   ctx.lineWidth = n ? 8 : 3;
   ctx.lineCap = "round";
