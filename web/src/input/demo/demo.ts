@@ -353,6 +353,7 @@ function dibujar() {
   $("separacion").textContent = d
     ? `${d.separacion.toFixed(2)} (0 % = ${esc.cero === null ? "al juntar" : esc.cero.toFixed(2)} · recorrido ${esc.amplitud.toFixed(2)})`
     : "—";
+  $("alcance").textContent = d ? `${d.alcance.toFixed(2)} (arranca ≥ ${interaccion.opciones.umbrales.indiceFuera.toFixed(2)} · puño < ${interaccion.opciones.indiceCerrado.toFixed(2)})` : "—";
   // Puntero por encima del menú (la capa del menú tapa el lienzo). El lienzo va en espejo.
   const cur = $("cursor");
   cur.hidden = !(interaccion.menuAbierto(performance.now()) && p);
@@ -400,6 +401,35 @@ async function reconectar(intentos = 20): Promise<void> {
 }
 
 $("reiniciar").addEventListener("click", () => void reconectar(1));
+// ---------- Ajustes de la pinza (deslizadores) ----------
+
+type ClaveAjuste = "pinza" | "indiceFuera" | "indiceCerrado" | "amplitudNivel";
+function valorAjuste(k: ClaveAjuste): number {
+  const o = interaccion.opciones;
+  if (k === "pinza" || k === "indiceFuera") return o.umbrales[k];
+  if (k === "amplitudNivel") return interaccion.escalaNivel.amplitud;
+  return o[k];
+}
+function aplicarAjuste(k: ClaveAjuste, v: number) {
+  const o = interaccion.opciones;
+  if (k === "pinza" || k === "indiceFuera") interaccion.configurar({ umbrales: { ...o.umbrales, [k]: v } });
+  else interaccion.configurar({ [k]: v });
+}
+function pintarAjustes() {
+  for (const input of document.querySelectorAll<HTMLInputElement>("#ajustes input")) {
+    const k = input.dataset.k as ClaveAjuste;
+    input.value = String(valorAjuste(k));
+    document.querySelector(`#ajustes [data-v="${k}"]`)!.textContent = valorAjuste(k).toFixed(2);
+  }
+}
+for (const input of document.querySelectorAll<HTMLInputElement>("#ajustes input")) {
+  input.addEventListener("input", () => {
+    aplicarAjuste(input.dataset.k as ClaveAjuste, Number(input.value));
+    pintarAjustes();
+  });
+}
+pintarAjustes();
+
 casilla("invertirMano").addEventListener("change", (ev) => {
   interaccion.configurar({ invertirLateralidad: (ev.target as HTMLInputElement).checked });
 });
@@ -431,6 +461,7 @@ $("recalibrar").addEventListener("click", async () => {
     return;
   }
   interaccion.fijarAmplitudNivel(juntos, abiertos);
+  pintarAjustes();
   $("estado").textContent = `Volumen calibrado: juntos ${juntos.toFixed(2)}, abiertos ${abiertos.toFixed(2)}.`;
   mostrarAccion("calibrado");
 });

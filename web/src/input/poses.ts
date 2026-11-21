@@ -30,8 +30,8 @@ export interface Umbrales {
 export const UMBRALES_POR_DEFECTO: Umbrales = {
   estirado: 0.9,
   pulgarEstirado: 0.88,
-  pinza: 0.4,
-  indiceFuera: 1.15,
+  pinza: 0.5,
+  indiceFuera: 1.0,
 };
 
 const CADENAS = {

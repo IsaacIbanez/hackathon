@@ -45,6 +45,7 @@
       td { padding: 3px 4px; border-bottom: 1px solid #333; vertical-align: top; }
       td:first-child { white-space: nowrap; }
       .exp { color: var(--acento); font-size: 12px; font-weight: 700; }
+      #ajustes input { width: 100%; }
       ol { padding-left: 20px; max-height: 30vh; overflow: auto; font-size: 14px; margin: 0; }
     </style>
   </head>
@@ -75,6 +76,7 @@
             <dt>Puntero en doc.</dt><dd id="doc">—</dd>
             <dt>Volumen voz</dt><dd id="volumen">100 %</dd>
             <dt>Pulgar–índice</dt><dd id="separacion">—</dd>
+            <dt>Alcance índice</dt><dd id="alcance">—</dd>
             <dt>Mano</dt><dd id="manoUsada">—</dd>
             <dt>FPS</dt><dd id="fps">—</dd>
           </dl>
@@ -95,6 +97,18 @@
           <label><input type="checkbox" id="invertirMano" /> La mano detectada sale al revés<br /><small>márcalo si «Mano» no coincide con la mano que usas</small></label>
           <label><input type="checkbox" id="voz" checked /> Decir la acción en voz alta<br /><small>con el volumen que marques con la pinza 🤏</small></label>
           <p><button id="marcar">Marcar documento (4 clics)</button> <button id="reiniciar">Reiniciar cámara</button> <button id="recalibrar">Calibrar volumen</button></p>
+        </div>
+
+        <h2>Ajustes de la pinza</h2>
+        <div id="ajustes">
+          <label>Distancia para detectar la pinza: <b data-v="pinza"></b><br /><small>más alto = basta con acercar los dedos, sin tocarse</small>
+            <input type="range" data-k="pinza" min="0.2" max="1" step="0.05" /></label>
+          <label>Alcance del índice para arrancar: <b data-v="indiceFuera"></b><br /><small>más bajo = arranca aunque el índice esté doblado (compara con «Alcance índice»)</small>
+            <input type="range" data-k="indiceFuera" min="0.6" max="1.4" step="0.05" /></label>
+          <label>Alcance del índice que cuenta como puño: <b data-v="indiceCerrado"></b><br /><small>por debajo, se termina el ajuste</small>
+            <input type="range" data-k="indiceCerrado" min="0.5" max="1.2" step="0.05" /></label>
+          <label>Recorrido de 0 % a 100 %: <b data-v="amplitudNivel"></b><br /><small>más bajo = hay que abrir menos los dedos</small>
+            <input type="range" data-k="amplitudNivel" min="0.15" max="1.2" step="0.05" /></label>
         </div>
 
         <h2>Chuleta del contexto actual</h2>

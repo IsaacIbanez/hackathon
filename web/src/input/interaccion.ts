@@ -101,13 +101,13 @@ export const OPCIONES_POR_DEFECTO: OpcionesInteraccion = {
   requiereDespertar: false,
   despertarMs: 1000,
   dormirMs: 10000,
-  amplitudNivel: 0.7,
+  amplitudNivel: 0.45,
   zonaExtremosNivel: 0.08,
   pasoNivel: 0.1,
-  histeresisNivel: 0.3,
+  histeresisNivel: 0.4,
   confirmarNivelMs: 1000,
   inicioNivelMs: 150,
-  indiceCerrado: 1.05,
+  indiceCerrado: 0.9,
   elegirMenuMs: 500,
   esperaMenuMs: 300,
   caducidadMenuMs: 5000,
@@ -216,6 +216,8 @@ export class InteraccionManos {
   private votoMano = 0;
   private manoEstable: LadoMano | null = null;
   private tPinzaInicio: number | null = null;
+  /** Separación mínima vista mientras se detectaba la pinza: es el 0 % de la escala. */
+  private minPinza = Infinity;
   private nivel: EstadoNivel | null = null;
   private fSeparacion = new FiltroOneEuro({ minCorte: 1.0, beta: 0.3, corteDerivada: 1.0 });
   /** Recorrido de la escala (de la calibración guiada o el de por defecto). */
@@ -242,6 +244,7 @@ export class InteraccionManos {
     const antesInvertir = this.op.invertirLateralidad;
     this.op = { ...this.op, ...op };
     if (op.cabeza) this.cabeza = new DetectorCabeza(this.op.cabeza);
+    if (op.amplitudNivel !== undefined) this.amplitud = op.amplitudNivel;
     if (op.invertirLateralidad !== undefined && op.invertirLateralidad !== antesInvertir) {
       this.votoMano = -this.votoMano;
       this.manoEstable = this.manoEstable && (this.manoEstable === "derecha" ? "izquierda" : "derecha");
@@ -551,11 +554,13 @@ export class InteraccionManos {
     if (!this.nivel) {
       if (pose !== "pinza") {
         this.tPinzaInicio = null;
+        this.minPinza = Infinity;
         this.esperarSoltarPinza = false;
         return false;
       }
       if (this.esperarSoltarPinza) return false;
       this.tPinzaInicio ??= t;
+      this.minPinza = Math.min(this.minPinza, diag.separacion);
       if (t - this.tPinzaInicio < this.op.inicioNivelMs) return false;
       this.tPinzaInicio = null;
       this.fSeparacion.reiniciar();
@@ -570,7 +575,8 @@ export class InteraccionManos {
     // Escala: 0 % = separación al empezar esta pinza (dedos juntos); 100 % = esa más el recorrido.
     // No se aprende de un frame a otro, así no se desfasa.
     const sep = this.fSeparacion.filtrar(diag.separacion, t);
-    const cero = Math.min(this.nivel?.separacionCero ?? sep, sep);
+    const cero = Math.min(this.nivel?.separacionCero ?? this.minPinza, sep);
+    this.minPinza = Infinity;
     const bruto = (sep - cero) / this.amplitud;
     // Zonas de tolerancia: cerca de los extremos ya es 0 % o 100 %.
     const z = this.op.zonaExtremosNivel;

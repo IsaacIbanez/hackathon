@@ -124,7 +124,7 @@ test("pinza: la calibración guiada cambia el recorrido", () => {
   ctl.fijarAmplitudNivel(0.1, 1.6);
   assert.equal(ctl.escalaNivel.amplitud, 1.5);
   ctl.fijarAmplitudNivel(null);
-  assert.equal(ctl.escalaNivel.amplitud, 0.7);
+  assert.equal(ctl.escalaNivel.amplitud, 0.45);
 });
 
 test("pinza: temblar en el límite entre dos escalones no hace saltar el valor", () => {
@@ -133,11 +133,11 @@ test("pinza: temblar en el límite entre dos escalones no hace saltar el valor",
   const frames = [
     ...repetir(mano(FORMAS.pinza), 8),
     ...repetir(pinzaAbierta(0.2), 10),
-    ...repetir(pinzaAbierta(0.1), 15),
+    ...repetir(pinzaAbierta(0.05), 15),
   ];
   const ev1 = simular(ctl, frames).filter((e) => e.tipo === "nivel" && e.fase === "mover").length;
   // Oscila un poco alrededor del mismo punto.
-  const temblor = Array.from({ length: 30 }, (_, i) => pinzaAbierta(0.1 + (i % 2 ? 0.004 : -0.004)));
+  const temblor = Array.from({ length: 30 }, (_, i) => pinzaAbierta(0.05 + (i % 2 ? 0.003 : -0.003)));
   const ev2 = simular(ctl, temblor, 25 * 33).filter((e) => e.tipo === "nivel" && e.fase === "mover");
   assert.ok(ev1 > 0);
   assert.equal(ev2.length, 0, `cambios por temblor: ${ev2.length}`);

@@ -33,6 +33,9 @@ Opciones experimentales (en `OpcionesInteraccion`):
   botón «Calibrar volumen»). Hay zonas de tolerancia en los extremos (`zonaExtremosNivel`) y
   histéresis entre escalones (`histeresisNivel`). Se confirma quedándose quieto `confirmarNivelMs`
   (~1 s) en el mismo valor, o cerrando el puño. En la demo ajusta de verdad el volumen de la voz.
+  Umbrales por defecto: pinza si las puntas están a menos de 0,5 (`umbrales.pinza`) y el alcance del
+  índice es ≥ 1,0 (`umbrales.indiceFuera`); termina con alcance < 0,9 (`indiceCerrado`); recorrido
+  hasta el 100 % de 0,45 (`amplitudNivel`). La demo tiene deslizadores para ajustarlos en directo.
 - Menú: tras abrirlo con ✌️, se pone ☝️ y se lleva el puntero (la punta del índice) encima de una
   opción, manteniéndolo `elegirMenuMs` (~0,5 s). Las opciones ocupan zonas fijas de la pantalla en
   cruz (tercios, `sectorEnPantalla`); con ✌️ o en el centro no se elige nada; se cierra solo a los 5 s.
