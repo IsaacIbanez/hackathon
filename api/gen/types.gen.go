@@ -10,6 +10,87 @@ import (
 	"github.com/oapi-codegen/runtime"
 )
 
+// Defines values for CaptionsClientMessageType.
+const (
+	Config CaptionsClientMessageType = "config"
+	Stop   CaptionsClientMessageType = "stop"
+)
+
+// Valid indicates whether the value is a known member of the CaptionsClientMessageType enum.
+func (e CaptionsClientMessageType) Valid() bool {
+	switch e {
+	case Config:
+		return true
+	case Stop:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CaptionsEventCode.
+const (
+	CaptionsEventCodeDiarization  CaptionsEventCode = "diarization"
+	CaptionsEventCodeLimitReached CaptionsEventCode = "limit_reached"
+	CaptionsEventCodeNoKey        CaptionsEventCode = "no_key"
+	CaptionsEventCodeTranslation  CaptionsEventCode = "translation"
+	CaptionsEventCodeUpstream     CaptionsEventCode = "upstream"
+)
+
+// Valid indicates whether the value is a known member of the CaptionsEventCode enum.
+func (e CaptionsEventCode) Valid() bool {
+	switch e {
+	case CaptionsEventCodeDiarization:
+		return true
+	case CaptionsEventCodeLimitReached:
+		return true
+	case CaptionsEventCodeNoKey:
+		return true
+	case CaptionsEventCodeTranslation:
+		return true
+	case CaptionsEventCodeUpstream:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CaptionsEventType.
+const (
+	CaptionsEventTypeCost        CaptionsEventType = "cost"
+	CaptionsEventTypeError       CaptionsEventType = "error"
+	CaptionsEventTypeFinal       CaptionsEventType = "final"
+	CaptionsEventTypePartial     CaptionsEventType = "partial"
+	CaptionsEventTypeReady       CaptionsEventType = "ready"
+	CaptionsEventTypeSaved       CaptionsEventType = "saved"
+	CaptionsEventTypeSpeaker     CaptionsEventType = "speaker"
+	CaptionsEventTypeTranslation CaptionsEventType = "translation"
+)
+
+// Valid indicates whether the value is a known member of the CaptionsEventType enum.
+func (e CaptionsEventType) Valid() bool {
+	switch e {
+	case CaptionsEventTypeCost:
+		return true
+	case CaptionsEventTypeError:
+		return true
+	case CaptionsEventTypeFinal:
+		return true
+	case CaptionsEventTypePartial:
+		return true
+	case CaptionsEventTypeReady:
+		return true
+	case CaptionsEventTypeSaved:
+		return true
+	case CaptionsEventTypeSpeaker:
+		return true
+	case CaptionsEventTypeTranslation:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for DocumentMessageType.
 const (
 	DocumentMessageTypeDocument DocumentMessageType = "document"
@@ -149,6 +230,62 @@ type Box struct {
 	X float32 `json:"x"`
 	Y float32 `json:"y"`
 }
+
+// CaptionsClientMessage Text frame from the client on `/captions`.
+type CaptionsClientMessage struct {
+	// Target `config` only: new target language (ISO 639-1) or `none`.
+	//
+	// Example: en
+	Target *string                   `json:"target,omitempty"`
+	Type   CaptionsClientMessageType `json:"type"`
+}
+
+// CaptionsClientMessageType defines model for CaptionsClientMessage.Type.
+type CaptionsClientMessageType string
+
+// CaptionsEvent Text frame from Go on `/captions`. Which fields are set depends on `type`:
+//   - `ready` {model, lang, target}: connected to the speech-to-text service.
+//   - `partial` {text}: the sentence being spoken; each one replaces the previous.
+//   - `final` {id, start, text}: a finished sentence; `start` = seconds since the session began.
+//   - `speaker` {id, speaker}: who said sentence `id` ("Speaker 1"...). May arrive several
+//     times for the same `id` (live estimate first, whole-recording pass at the end).
+//   - `translation` {id, lang, text}: translation of sentence `id`.
+//   - `cost` {costUsd, limitUsd}: running cost of this session.
+//   - `saved` {path}: the transcript file was written (every minute and when stopping).
+//   - `error` {code, message, retryable}: `no_key`, `upstream`, `limit_reached`,
+//     `translation` and `diarization` (the last two are not fatal).
+type CaptionsEvent struct {
+	Code    *CaptionsEventCode `json:"code,omitempty"`
+	CostUsd *float64           `json:"costUsd,omitempty"`
+
+	// Id Example: s3
+	Id *string `json:"id,omitempty"`
+
+	// Lang Example: en
+	Lang      *string  `json:"lang,omitempty"`
+	LimitUsd  *float64 `json:"limitUsd,omitempty"`
+	Message   *string  `json:"message,omitempty"`
+	Model     *string  `json:"model,omitempty"`
+	Path      *string  `json:"path,omitempty"`
+	Retryable *bool    `json:"retryable,omitempty"`
+
+	// Speaker Example: Speaker 1
+	Speaker *string `json:"speaker,omitempty"`
+
+	// Start Example: 12.4
+	Start *float64 `json:"start,omitempty"`
+
+	// Target Example: en
+	Target *string           `json:"target,omitempty"`
+	Text   *string           `json:"text,omitempty"`
+	Type   CaptionsEventType `json:"type"`
+}
+
+// CaptionsEventCode defines model for CaptionsEvent.Code.
+type CaptionsEventCode string
+
+// CaptionsEventType defines model for CaptionsEvent.Type.
+type CaptionsEventType string
 
 // ClientMessage What the client (browser or local process) sends to Go
 type ClientMessage struct {
@@ -356,6 +493,15 @@ type UtterancePayload struct {
 	// Lang Example: es-ES
 	Lang *string `json:"lang,omitempty"`
 	Text string  `json:"text"`
+}
+
+// OpenCaptionsParams defines parameters for OpenCaptions.
+type OpenCaptionsParams struct {
+	// Lang Spoken language, ISO 639-1 (`es`, `en`...) or `auto` (default).
+	Lang *string `form:"lang,omitempty" json:"lang,omitempty"`
+
+	// Target Translate final sentences to this ISO 639-1 language; `none` (default) = no translation.
+	Target *string `form:"target,omitempty" json:"target,omitempty"`
 }
 
 // PostTranscribeParams defines parameters for PostTranscribe.
