@@ -2,26 +2,27 @@
 
 - **Persona:** Isaac
 - **Herramienta:** Claude Code
-- **Tarea actual:** T2 (esqueleto) — PR 1 (contrato) y PR 2 (CI y Wails)
-- **Rama:** feature/T2-contrato (PR 1), feature/T2-wails-ci (PR 2, sale de la de PR 1)
-- **Estado:** en revisión (PR 1 y PR 2)
+- **Tarea actual:** T8 (integración), primera parte: WebSocket dentro de la app
+- **Rama:** feature/T8-ws-en-app
+- **Estado:** en revisión
 - **Último cambio:** 2026-11-21
 
 ## Hecho
-- `api/openapi.yaml`: `/health`, `/ws` y mensajes `document`, `pointer`, `utterance`, `speak` en un sobre `{type, id, ts, payload}`.
-- `api/fixtures/*.json` y test que comprueba que encajan en los tipos.
-- `go.mod` (módulo `github.com/IsaacIbanez/hackathon`), tipos Go en `api/gen`, tipos TS en `web/src/api/types.ts`.
-- `backend/ws` (servidor WebSocket reutilizable) y `backend/cmd/mock` con tests.
-- `Taskfile.yml` (`gen`, `mock`, `check`) y documentación cambiada de `make` a `task`.
-
-- PR 2: `.github/workflows/ci.yml` (task check + tipos generados al día), Wails en la raíz (`main.go`, `app.go`, `wails.json`) y frontend React + Vite + TS + Tailwind en `web/` con una pantalla mínima que prueba el bucle document → speak contra el mock. `wails build` comprobado en Windows.
+- T2 parte 1 (contrato, fixtures, tipos generados, mock, Taskfile): fusionada en `main`.
+- T2 parte 2 (CI y Wails + React en `web/`): fusionada (#2), CI de Linux en verde.
+- T7 fusionada (#3): `backend/llm` con niveles barato/caro, caché, contador de coste y latencia y `CompleteEscalando`; 8 tests contra un OpenRouter falso. `backend/cmd/llmprueba` para probar con la clave real.
+- T8 (parte 1): la app Wails sirve `/health` y `/ws` en `127.0.0.1:8765` con las respuestas de ejemplo; el frontend pide la URL a Go. Probado: ejecutable arrancado + cliente WebSocket sin navegador → `speak`.
+- Limpieza: `.gitattributes` (LF en el código), `task fmt` y comprobación de `gofmt` en el CI.
 
 ## Pendiente
-- Servir `/ws` desde dentro de la app Wails (hoy el front se conecta al mock en `localhost:8080`): T7/T8.
-- Confirmar que el CI de Linux pasa en GitHub (no se ha podido probar en local).
+- Probar `go run ./backend/cmd/llmprueba` con la clave real de AXA (aquí no hay `OPENROUTER_API_KEY`).
+- Mostrar el coste en la UI: propuesta de mensaje `stats` (Go → navegador) con `Meter.Snapshot()`. Es un cambio de contrato: avisar antes.
+- T8: sustituir las respuestas de ejemplo por la lógica real (`backend/llm` + lo que defina B2).
 
 ## Bloqueos y preguntas para humanos
-- Hace falta Go ≥ 1.26 (lo piden las dependencias; con `GOTOOLCHAIN=auto`, el valor por defecto, Go lo descarga solo) y `task` (`go install github.com/go-task/task/v3/cmd/task@latest`).
+- **Decidir cómo llega el scanner de B a Go.** B trabaja en Python (`scanner/`: captura con la MX Brio, OCR con Tesseract, PDF buscable), no en el navegador. Propuesta: el scanner envía un mensaje `document` (bloques de texto con caja y confianza; Tesseract ya los da) a `ws://127.0.0.1:8765/ws`, y Go responde con `speak`. Encaja con el contrato sin cambiarlo. Falta que Didac, Pau e Isaac lo acuerden.
+- Hace falta Go ≥ 1.26 y `task`.
 
 ## Archivos tocados
-`api/`, `backend/ws/`, `backend/cmd/mock/`, `web/src/api/`, `go.mod`, `go.sum`, `Taskfile.yml`, `.gitignore`, `AGENTS.md`, `docs/ARQUITECTURA.md`; PR 2: `main.go`, `app.go`, `wails.json`, `Taskfile.yml`, `.github/workflows/ci.yml`, `web/` (salvo `camera`, `document`, `input`).
+T8 parte 1: `app.go`, `main.go`, `backend/mock/`, `backend/cmd/mock/`, `backend/ws/local*.go`, `web/src/app/`, `web/wailsjs/go/`, `.gitattributes`, `Taskfile.yml`, `.github/workflows/ci.yml`, `AGENTS.md`, `api/README.md`, `web/README.md`.
+T7: `backend/llm/`, `backend/cmd/llmprueba/`, `AGENTS.md` (Decisiones), `estado/P1-C.md`.

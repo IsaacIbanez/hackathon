@@ -59,6 +59,7 @@ main.go, app.go, wails.json, go.mod   en la raíz (lo exige Wails; rol A)
 Taskfile.yml               task gen | task mock | task check (rol A)
 api/                       contrato (rol A): openapi.yaml, fixtures/, gen/ (tipos Go generados)
 backend/cmd/mock           servidor mock sin Wails (A)
+backend/mock               respuestas de ejemplo (fixtures), las usan el mock y la app hasta T8 (A)
 backend/ws                 WebSocket (A)
 backend/session            sesiones (A)
 backend/llm                modelos, caché, coste (A)
@@ -70,7 +71,7 @@ web/src/document           vista del documento (B2)
 web/src/input              gestos y voz (C)
 docs/                      documentación
 ```
-Para trabajar contra el contrato sin Wails: `task mock` (servidor en `localhost:8080`, WebSocket en `/ws`, ver `api/README.md`).
+Para trabajar contra el contrato sin Wails: `task mock` (servidor en `localhost:8080`, WebSocket en `/ws`, ver `api/README.md`). La app de escritorio levanta su propio WebSocket en `ws://127.0.0.1:8765/ws`.
 
 **Reglas de estructura (comprobadas, no cambiar sin avisar):**
 - Nada de carpetas `internal/`: el `main.go` de la raíz no puede importarlas (Go lo rechaza). Los paquetes van en `backend/<nombre>` y se importan como `<módulo>/backend/<nombre>`.
@@ -100,6 +101,8 @@ Didac y Pau se reparten B1 y B2 entre ellos (por decidir). La asignación comple
 
 
 ## Decisiones
+- 2026-11-21 — La app Wails sirve el contrato en `127.0.0.1:8765` (`/health` y `/ws`; se cambia con `LAUZHACK_ADDR` y, si el puerto está ocupado, usa uno libre). El frontend pide la URL a Go con el binding `WsURL()`. Puerto fijo para que un proceso local (por ejemplo, el scanner en Python) pueda enviar `document` sin pasar por el navegador. Solo escucha en 127.0.0.1.
+- 2026-11-21 — Modelos vía `backend/llm`: nivel barato `anthropic/claude-haiku-5.5` y caro `anthropic/claude-sonnet-5.5` (ambos con visión; configurables con `LLM_MODELO_BARATO` y `LLM_MODELO_CARO`), clave en `OPENROUTER_API_KEY`. El paquete pone el mecanismo (caché, contador, `CompleteEscalando`) y B2 decide cuándo escalar con su función de duda — el criterio de frugalidad de AXA queda en un solo sitio y se puede medir.
 - 2026-11-21 — Mensajes del WebSocket: sobre común `{type, id, ts, payload}` (`ts` en ms desde epoch; coordenadas normalizadas a [0, 1] sobre el documento recortado). El navegador envía `document`, `pointer` y `utterance`; Go responde con `speak` (con `replyTo` = `id` del mensaje que contesta). Esquemas en `api/openapi.yaml`, ejemplos en `api/fixtures/` — un contrato único que comparten Go y TS.
 - 2026-11-21 — Tipos generados, nunca a mano: Go en `api/gen` (paquete `gen`, oapi-codegen como `go tool`) y TypeScript en `web/src/api/types.ts` (openapi-typescript, alias en `web/src/api/index.ts`). Se regeneran con `task gen` — así Go y TS no se desincronizan.
 - 2026-11-21 — `Taskfile.yml` en lugar de `Makefile`; módulo Go `github.com/IsaacIbanez/hackathon`, Go ≥ 1.26 — en Windows no hay `make`; las dependencias (oapi-codegen) piden Go 1.26.

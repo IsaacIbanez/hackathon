@@ -1,22 +1,20 @@
 // Servidor mock sin Wails: go run ./backend/cmd/mock
-//
-// Responde con las fixtures de api/fixtures:
-//   - document  -> speak.json
-//   - utterance -> speak-utterance.json (solo si isFinal)
-//   - pointer   -> nada (solo lo registra)
+// Responde con las fixtures de api/fixtures (ver backend/mock).
 package main
 
 import (
 	"flag"
 	"log"
 	"net/http"
+
+	"github.com/IsaacIbanez/hackathon/backend/mock"
 )
 
 func main() {
 	addr := flag.String("addr", "localhost:8080", "dirección de escucha")
 	flag.Parse()
 
-	h, err := newMux()
+	h, err := mock.NewMux()
 	if err != nil {
 		log.Fatal(err)
 	}

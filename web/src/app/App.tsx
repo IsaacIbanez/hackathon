@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import type { DocumentMessage, ServerMessage, SpeakPayload } from '../api'
-import { useSocket, WS_URL } from './useSocket'
+import { useSocket } from './useSocket'
 
 // Esqueleto (T2): conecta con el WebSocket y prueba el bucle document -> speak.
 // Las pantallas reales llegan con T4–T8.
@@ -37,14 +37,14 @@ export default function App() {
       hablar(msg.payload)
     }
   }, [])
-  const { status, send } = useSocket(onMessage)
+  const { status, send, url } = useSocket(onMessage)
 
   return (
     <main className="min-h-screen bg-slate-900 p-8 text-slate-50">
       <h1 className="text-4xl font-bold">Proyecto LauzHack</h1>
 
       <p className="mt-4 text-xl" role="status">
-        Servidor: <strong>{status}</strong> <span className="text-slate-400">({WS_URL})</span>
+        Servidor: <strong>{status}</strong> <span className="text-slate-400">({url ?? '…'})</span>
       </p>
 
       <button
