@@ -2,7 +2,7 @@
 
 - **Persona:** Isaac
 - **Herramienta:** Claude Code
-- **Tarea actual:** T10 (pitch y demo); T8 a la espera del equipo
+- **Tarea actual:** T11 (contrato 0.5 + `POST /scan`), según el plan de AGENTS.md
 - **Rama:** feature/T8-desktop-build
 - **Estado:** en curso
 - **Último cambio:** 2026-11-21
@@ -23,6 +23,7 @@
 - Revisada la rama de Didac (`feature/B-contexto-scanner`): `Resultado.documento()` ya cumple el contrato. Añadido a `docs/INTEGRACION_SCANNER.md` el código exacto para `escanear.py` (`enviar_a_app`, POST /message). Su estado tenía desfasados el conflicto de puertos (resuelto: Pau en 8766) y el modo de envío (ahora POST).
 - Revisados #19 (voz de Nil: aprobado y fusionado) y #20 (Gesture Control: cambios pedidos, falta validar la cabecera `Host` contra DNS rebinding).
 - Arreglado el apuntar con el dedo: (1) el puntero iba en espejo respecto a lo que ve el usuario; (2) los campos se dibujan sobre la imagen con el punto del dedo y el campo bajo el dedo en grande; (3) alcance de 0,05 alrededor de cada campo (mismo criterio en Go y en TS); (4) se relee un campo al volver a él; (5) vista previa más grande e indicador de «Pointing». Probado de punta a punta con el servidor real. Guía: `docs/PROBAR_GESTOS.md`.
+- Plan de trabajo en paralelo escrito en AGENTS.md («Plan actual»): una cámara en la app, orden «lee el documento», interfaces entre carriles y siguiente tarea de cada uno (T11–T16); lluvia de ideas en `docs/IDEAS.md`.
 
 ## Pendiente
 - T8: sustituir las respuestas de ejemplo por la lógica real (`backend/llm` + B2).
