@@ -7,7 +7,7 @@ Uso:
     python scanner/capturar.py --camara acer   # usa la primera cámara cuyo nombre contenga "acer"
     python scanner/capturar.py --probar        # hace la captura completa, pero no guarda nada
     python scanner/capturar.py --servidor      # deja la cámara abierta; cada captura con
-                                               #   curl http://127.0.0.1:8765/captura
+                                               #   curl http://127.0.0.1:8766/captura
 
 Guarda el frame tal cual (sin recortar ni procesar, a la resolución máxima) en PNG sin pérdida y,
 al lado, un JSON con los metadatos de la captura (cámara, resolución, formato, nitidez...).
@@ -38,7 +38,7 @@ import cv2
 
 CARPETA_POR_DEFECTO = Path(__file__).resolve().parent / "capturas"
 PREFERENCIA_POR_DEFECTO = "brio"
-PUERTO_POR_DEFECTO = 8765
+PUERTO_POR_DEFECTO = 8766  # 8765 lo usa la app Wails (WebSocket)
 # Una nitidez por debajo de esta fracción de la de referencia indica que el autoenfoque reajusta.
 UMBRAL_CAIDA = 0.65
 

@@ -22,8 +22,8 @@ scanner/.venv/Scripts/python scanner/capturar.py --json        # resultado en JS
 ### Modo servidor (capturas en ~0,4 s)
 ```
 scanner/.venv/Scripts/python scanner/capturar.py --servidor    # deja la cámara abierta (Ctrl+C para salir)
-curl http://127.0.0.1:8765/captura                             # captura -> {"ok":true,"png":...,"json":...}
-curl http://127.0.0.1:8765/estado                              # fps y nitidez actuales
+curl http://127.0.0.1:8766/captura                             # captura -> {"ok":true,"png":...,"json":...}
+curl http://127.0.0.1:8766/estado                              # fps y nitidez actuales
 ```
 Solo escucha en `127.0.0.1`. Mientras está abierto la cámara sigue encendida y decodifica 4K (~20 fps), con algo de CPU.
 Cada captura usa el frame más nítido de los que llegan **después** de la orden (unos 0,15 s); si el autoenfoque está
