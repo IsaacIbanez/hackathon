@@ -1,4 +1,4 @@
-package main
+package control
 
 import (
 	"errors"
@@ -192,3 +192,8 @@ func (d *DryRun) OpenApp(argv []string) error {
 	return d.record("open " + strings.Join(argv, " "))
 }
 func (d *DryRun) FocusWindow(app CallApp) error { return d.record("focus " + app.ID) }
+
+// screenPixels converts normalized coordinates to pixels.
+func screenPixels(x, y float64, w, h int) (int, int) {
+	return int(x*float64(w-1) + 0.5), int(y*float64(h-1) + 0.5)
+}

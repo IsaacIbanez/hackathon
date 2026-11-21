@@ -60,16 +60,12 @@ export function DocumentsMode() {
     readRef.current = read
   })
 
-  // Each attempt: free the camera from Gesture Control, start the reading service, open the
-  // camera and let the framing guide take the photo.
+  // Each attempt: start the reading service, open the camera and let the framing guide take the
+  // photo. (Gesture Control runs in option 1 of this same window and stops when leaving it, so the
+  // camera is free here.)
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      try {
-        if (await desktop().GesturesRunning()) await desktop().StopGestures() // one camera at a time
-      } catch {
-        // Outside the desktop app: the camera still works for trying the guide.
-      }
       const service = desktop().EnsureReadingService().catch((e) => errorText(e))
       try {
         const stream = await openCamera()

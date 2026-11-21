@@ -145,3 +145,20 @@ export function latestOnly<T>(send: (v: T) => Promise<unknown>): (v: T) => void 
   };
   return push;
 }
+
+/**
+ * A fetch for HelperClient that reaches the helper's API through a call instead of HTTP: inside the
+ * desktop app, Go's GestureCall binding answers it in-process ({"status", "body"} as JSON text).
+ */
+export function bindingFetch(call: (method: string, path: string, body: string) => Promise<string>): typeof fetch {
+  return (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const path = typeof input === "string" ? input : input instanceof URL ? input.pathname : input.url;
+    const body = typeof init?.body === "string" ? init.body : "";
+    const r = JSON.parse(await call(init?.method ?? "GET", path, body)) as { status: number; body: string };
+    // A 204 response can't carry a body.
+    return new Response(r.status === 204 || r.body === "" ? null : r.body, {
+      status: r.status,
+      headers: { "Content-Type": "application/json" },
+    });
+  }) as typeof fetch;
+}

@@ -1,6 +1,6 @@
 //go:build linux
 
-package main
+package control
 
 import (
 	"encoding/json"
@@ -17,7 +17,7 @@ type linuxDesktop struct {
 	w, h    int // screen size in pixels (0 = detect)
 }
 
-func newDesktop(w, h int) Desktop {
+func NewDesktop(w, h int) Desktop {
 	return &linuxDesktop{wayland: os.Getenv("WAYLAND_DISPLAY") != "", w: w, h: h}
 }
 

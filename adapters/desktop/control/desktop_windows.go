@@ -1,6 +1,6 @@
 //go:build windows
 
-package main
+package control
 
 import (
 	"encoding/base64"
@@ -16,7 +16,7 @@ import (
 // windowsDesktop calls the Windows API (user32.dll) directly: no extra tools needed.
 type windowsDesktop struct{}
 
-func newDesktop(_, _ int) Desktop { return windowsDesktop{} }
+func NewDesktop(_, _ int) Desktop { return windowsDesktop{} }
 
 var (
 	user32               = syscall.NewLazyDLL("user32.dll")

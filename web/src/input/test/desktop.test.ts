@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { HelperClient, latestOnly, OS_ACTIONS, toScreen } from "../desktop/client.ts";
+import { bindingFetch, HelperClient, latestOnly, OS_ACTIONS, toScreen } from "../desktop/client.ts";
 import { APP_CELLS, cellsOf, menuPage } from "../desktop/menu.ts";
 
 const near = (a: { x: number; y: number }, x: number, y: number) =>
@@ -116,4 +116,21 @@ test("menu: apps come from the helper; without any, placeholder slots", () => {
   const ids = APP_CELLS.map((c) => full[c]).map((i) => i?.kind === "app" && i.id);
   assert.deepEqual(ids, ["app0", "app1", "app2", "app3", "app4", "app5", "app6"]); // the rest don't fit
   assert.equal(full.down?.kind, "page"); // ↓ is always Back
+});
+
+test("bindingFetch sends the request through the call and rebuilds the response", async () => {
+  const calls: string[][] = [];
+  const call = async (method: string, path: string, body: string) => {
+    calls.push([method, path, body]);
+    return path === "/api/mouse"
+      ? JSON.stringify({ status: 204, body: "" })
+      : JSON.stringify({ status: 200, body: JSON.stringify({ did: "enter" }) });
+  };
+  const client = new HelperClient("", bindingFetch(call));
+  assert.equal(await client.action("enter"), "enter");
+  await client.mouse("click");
+  assert.deepEqual(calls, [
+    ["POST", "/api/action", JSON.stringify({ action: "enter" })],
+    ["POST", "/api/mouse", JSON.stringify({ action: "click" })],
+  ]);
 });

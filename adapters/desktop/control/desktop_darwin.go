@@ -1,6 +1,6 @@
 //go:build darwin
 
-package main
+package control
 
 import (
 	"fmt"
@@ -16,7 +16,7 @@ type macDesktop struct {
 	savedInputVol int
 }
 
-func newDesktop(w, h int) Desktop { return &macDesktop{w: w, h: h} }
+func NewDesktop(w, h int) Desktop { return &macDesktop{w: w, h: h} }
 
 func (d *macDesktop) Name() string { return "macOS (AppleScript)" }
 

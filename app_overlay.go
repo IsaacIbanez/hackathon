@@ -15,6 +15,7 @@ import (
 
 	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 
+	"github.com/IsaacIbanez/hackathon/adapters/desktop/control"
 	"github.com/IsaacIbanez/hackathon/api/gen"
 	"github.com/IsaacIbanez/hackathon/backend/overlay"
 	"github.com/IsaacIbanez/hackathon/backend/scanner"
@@ -35,7 +36,11 @@ type overlayState struct {
 	hotkeyOK bool
 	stopKey  func()
 	reading  *overlay.ReadingService
-	gestures *overlay.GestureControl
+	// Gesture Control (role C) runs inside this app: its camera page is option 1 and its actions
+	// go through GestureCall, with no separate program, port or token.
+	gestures   *control.Server
+	gesturesOn bool // option 1 is showing the camera
+	compact    bool // shrunk to a camera bubble in a corner instead of hidden
 }
 
 // startOverlay registers the shortcut; the window starts visible so the person sees it once.
@@ -43,7 +48,7 @@ func (a *App) startOverlay(ctx context.Context) {
 	o := &a.overlay
 	o.visible = true
 	o.reading = overlay.NewReadingService()
-	o.gestures = overlay.NewGestureControl()
+	o.gestures = newGestureControl()
 	h, err := overlay.HotkeyFromEnv()
 	if err != nil {
 		log.Printf("overlay: %v; using %s", err, overlay.DefaultHotkey)
@@ -65,9 +70,6 @@ func (a *App) stopOverlay() {
 	if o.stopKey != nil {
 		o.stopKey()
 	}
-	if o.gestures != nil {
-		o.gestures.Stop()
-	}
 	if o.reading != nil {
 		o.reading.Stop() // only if this app started it
 	}
@@ -76,6 +78,14 @@ func (a *App) stopOverlay() {
 func (a *App) toggleOverlay(ctx context.Context) {
 	o := &a.overlay
 	o.mu.Lock()
+	if o.gesturesOn {
+		// With the gestures on, the window is never hidden (a hidden page would pause the camera):
+		// the shortcut switches between the full overlay and the camera bubble.
+		compact := !o.compact
+		o.mu.Unlock()
+		a.setCompact(ctx, compact)
+		return
+	}
 	// Open but covered by another window: bring it to the front instead of hiding it.
 	show := !o.visible || !overlay.ForegroundIsOurs()
 	o.visible = show
@@ -115,6 +125,13 @@ func toJSON(v any) string {
 // minimises, so the window can't get lost.
 func (a *App) HideOverlay() {
 	o := &a.overlay
+	o.mu.Lock()
+	gestures := o.gesturesOn
+	o.mu.Unlock()
+	if gestures {
+		a.setCompact(a.ctx, true)
+		return
+	}
 	if !o.hotkeyOK {
 		wruntime.WindowMinimise(a.ctx)
 		return
@@ -247,8 +264,113 @@ func (a *App) readFilePath(path string) (FileDocument, error) {
 	return res, err
 }
 
-// ---- Option "Gestures" (Nil): Gesture Control, a separate program with its own camera window ----
+// ---- Option "Gestures" (Nil, role C): Gesture Control inside the app ----
 
-func (a *App) StartGestures() error  { return a.overlay.gestures.Start() }
-func (a *App) StopGestures()         { a.overlay.gestures.Stop() }
-func (a *App) GesturesRunning() bool { return a.overlay.gestures.Running() }
+// newGestureControl builds Gesture Control. LAUZHACK_GESTURES_DRY_RUN=1 only logs the actions;
+// LAUZHACK_SCREEN=1920x1080 gives the screen size where it can't be detected (Linux Wayland);
+// LAUZHACK_APPS points to the apps.json of the "Apps" menu.
+func newGestureControl() *control.Server {
+	w, h := 0, 0
+	if s := os.Getenv("LAUZHACK_SCREEN"); s != "" {
+		if _, err := fmt.Sscanf(strings.ToLower(s), "%dx%d", &w, &h); err != nil {
+			log.Printf("overlay: ignoring LAUZHACK_SCREEN=%q (expected WIDTHxHEIGHT)", s)
+			w, h = 0, 0
+		}
+	}
+	dry := os.Getenv("LAUZHACK_GESTURES_DRY_RUN") == "1"
+	g := control.New(control.Options{DryRun: dry, Width: w, Height: h, Apps: os.Getenv("LAUZHACK_APPS")})
+	log.Printf("overlay: gestures act through %s", g.Status.Desktop)
+	return g
+}
+
+// GestureCall is Gesture Control's API (GET /api/status, POST /api/action, /api/mouse,
+// /api/pointer) for the camera page inside this window. It returns {"status": …, "body": …} as JSON.
+func (a *App) GestureCall(method, path, body string) string {
+	code, out := a.overlay.gestures.Call(method, path, body)
+	return toJSON(struct {
+		Status int    `json:"status"`
+		Body   string `json:"body"`
+	}{code, out})
+}
+
+// SetGesturesActive tells Go that option 1 is using the camera (true) or has stopped (false).
+// While it is on, hiding the overlay shrinks it to a camera bubble instead.
+func (a *App) SetGesturesActive(on bool) {
+	o := &a.overlay
+	o.mu.Lock()
+	o.gesturesOn = on
+	compact := o.compact
+	o.mu.Unlock()
+	if !on && compact {
+		a.setCompact(a.ctx, false)
+	}
+}
+
+// SetCompact shrinks the window to a small camera bubble in the bottom-right corner (true), or
+// brings back the full overlay (false).
+func (a *App) SetCompact(on bool) { a.setCompact(a.ctx, on) }
+
+const (
+	compactWidth  = 360
+	compactHeight = 240
+	compactMargin = 24
+)
+
+func (a *App) setCompact(ctx context.Context, on bool) {
+	o := &a.overlay
+	o.mu.Lock()
+	o.compact = on
+	o.visible = true
+	o.mu.Unlock()
+	wruntime.WindowShow(ctx)
+	wruntime.WindowUnminimise(ctx)
+	wruntime.WindowSetAlwaysOnTop(ctx, true)
+	if on {
+		wruntime.WindowSetSize(ctx, compactWidth, compactHeight)
+		if sw, sh := currentScreen(ctx); sw > 0 {
+			// Above the taskbar, in the corner.
+			wruntime.WindowSetPosition(ctx, sw-compactWidth-compactMargin, sh-compactHeight-3*compactMargin)
+		}
+		wruntime.EventsEmit(ctx, "overlay:compact")
+		return
+	}
+	wruntime.WindowSetSize(ctx, overlayWidth, overlayHeight)
+	wruntime.WindowCenter(ctx)
+	wruntime.EventsEmit(ctx, "overlay:expanded")
+	wruntime.EventsEmit(ctx, "overlay:shown")
+}
+
+func currentScreen(ctx context.Context) (int, int) {
+	screens, err := wruntime.ScreenGetAll(ctx)
+	if err != nil {
+		return 0, 0
+	}
+	for _, s := range screens {
+		if s.IsCurrent {
+			return s.Size.Width, s.Size.Height
+		}
+	}
+	for _, s := range screens {
+		if s.IsPrimary {
+			return s.Size.Width, s.Size.Height
+		}
+	}
+	return 0, 0
+}
+
+// Size of the full overlay window.
+const (
+	overlayWidth  = 960
+	overlayHeight = 680
+)
+
+// keepCameraRunning asks WebView2 not to slow the page down when the window is covered by other
+// windows (a video call, for example): the gestures follow the hand from the camera there. Only
+// if nobody set these arguments already.
+func keepCameraRunning() {
+	const env = "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"
+	if os.Getenv(env) != "" {
+		return
+	}
+	_ = os.Setenv(env, "--disable-background-timer-throttling --disable-renderer-backgrounding --disable-backgrounding-occluded-windows")
+}

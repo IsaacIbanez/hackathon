@@ -1,4 +1,4 @@
-package main
+package control
 
 import (
 	"encoding/json"
@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
 )
@@ -23,7 +24,8 @@ type Status struct {
 	Launchers []LauncherInfo `json:"launchers"`
 }
 
-// Server serves the gesture page and the local API that acts on the computer.
+// Server serves the gesture page and the local API that acts on the computer (standalone program),
+// or answers the same API in-process (Call) when the page runs inside the desktop app.
 type Server struct {
 	Exec   *Executor
 	Token  string
@@ -32,7 +34,9 @@ type Server struct {
 	// Port the server listens on. Requests must name it in their Host header (empty: any port).
 	Port string
 
-	mu sync.Mutex // OS actions run one at a time
+	mu      sync.Mutex // OS actions run one at a time
+	apiOnce sync.Once
+	apiMux  *http.ServeMux
 }
 
 func (s *Server) Handler() http.Handler {
@@ -43,6 +47,33 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/pointer", s.guard(s.pointer))
 	mux.HandleFunc("GET /", s.page)
 	return s.localHostOnly(mux)
+}
+
+// api is the API without the HTTP protections, for callers inside this process (Call).
+func (s *Server) api() http.Handler {
+	s.apiOnce.Do(func() {
+		mux := http.NewServeMux()
+		mux.HandleFunc("GET /api/status", s.status)
+		mux.HandleFunc("POST /api/action", s.action)
+		mux.HandleFunc("POST /api/mouse", s.mouse)
+		mux.HandleFunc("POST /api/pointer", s.pointer)
+		s.apiMux = mux
+	})
+	return s.apiMux
+}
+
+// Call runs an API request from inside this process — the desktop app's bindings, where the page
+// lives in the app's own window — without HTTP, a port or a token. It returns the HTTP status and
+// the JSON body, the same as the HTTP API. Only the /api/ routes are reachable.
+func (s *Server) Call(method, path, body string) (int, string) {
+	if !strings.HasPrefix(path, "/api/") {
+		return http.StatusNotFound, `{"error":"not found"}`
+	}
+	r := httptest.NewRequest(method, "http://in-process"+path, strings.NewReader(body))
+	r.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	s.api().ServeHTTP(w, r)
+	return w.Code, w.Body.String()
 }
 
 // localHostOnly rejects every request (the page too) whose Host header isn't this computer.

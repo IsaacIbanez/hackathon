@@ -17,10 +17,10 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"runtime"
 	"strconv"
 	"strings"
-	"time"
+
+	"github.com/IsaacIbanez/hackathon/adapters/desktop/control"
 )
 
 //go:embed all:dist
@@ -40,36 +40,13 @@ func main() {
 	}
 	w, h := parseScreen(*screen)
 
-	var desktop Desktop
-	if *dryRun {
-		desktop = &DryRun{}
-	} else {
-		desktop = newDesktop(w, h)
-	}
-
-	launchers := LoadLaunchers(*appsFile, runtime.GOOS)
-
 	assets, err := fs.Sub(dist, "dist")
 	if err != nil {
 		log.Fatal(err)
 	}
-	srv := &Server{
-		Exec: &Executor{
-			Desktop:    desktop,
-			GOOS:       runtime.GOOS,
-			FocusDelay: 250 * time.Millisecond,
-			Launchers:  launchers,
-		},
-		Token:  newToken(),
-		Assets: assets,
-		Status: Status{
-			Platform:  runtime.GOOS,
-			Desktop:   desktop.Name(),
-			DryRun:    *dryRun,
-			Apps:      CallApps,
-			Launchers: ToLauncherInfos(launchers),
-		},
-	}
+	srv := control.New(control.Options{DryRun: *dryRun, Width: w, Height: h, Apps: *appsFile})
+	srv.Token = newToken()
+	srv.Assets = assets
 
 	ln, err := net.Listen("tcp", *addr)
 	if err != nil {
@@ -77,7 +54,7 @@ func main() {
 	}
 	_, srv.Port, _ = net.SplitHostPort(ln.Addr().String())
 	url := "http://" + ln.Addr().String() + "/"
-	log.Printf("Gesture Control on %s — acting through: %s", url, desktop.Name())
+	log.Printf("Gesture Control on %s — acting through: %s", url, srv.Status.Desktop)
 	if *open {
 		if err := openAppWindow(url); err != nil {
 			log.Printf("could not open a browser window (%v): open %s yourself", err, url)
@@ -108,9 +85,4 @@ func parseScreen(s string) (int, int) {
 		log.Fatalf("invalid -screen %q, expected WIDTHxHEIGHT", s)
 	}
 	return w, h
-}
-
-// screenPixels converts normalized coordinates to pixels.
-func screenPixels(x, y float64, w, h int) (int, int) {
-	return int(x*float64(w-1) + 0.5), int(y*float64(h-1) + 0.5)
 }

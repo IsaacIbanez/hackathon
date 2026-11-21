@@ -1,4 +1,4 @@
-package main
+package control
 
 // Keyboard shortcuts for the actions the gesture page can ask for, per platform and video-call app.
 

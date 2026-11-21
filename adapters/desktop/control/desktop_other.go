@@ -1,10 +1,10 @@
 //go:build !linux && !windows && !darwin
 
-package main
+package control
 
 type otherDesktop struct{}
 
-func newDesktop(_, _ int) Desktop { return otherDesktop{} }
+func NewDesktop(_, _ int) Desktop { return otherDesktop{} }
 
 func (otherDesktop) Name() string                   { return "unsupported system" }
 func (otherDesktop) PressKeys(Combo) error          { return ErrUnsupported }

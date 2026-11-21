@@ -22,9 +22,10 @@ interface GoBindings {
   EnsureReadingService(): Promise<string>
   ReadPhoto(photo: string): Promise<string>
   OpenAndReadFile(): Promise<string>
-  StartGestures(): Promise<void>
-  StopGestures(): Promise<void>
-  GesturesRunning(): Promise<boolean>
+  /** Gesture Control's API in-process: {"status", "body"} as JSON text. */
+  GestureCall(method: string, path: string, body: string): Promise<string>
+  SetGesturesActive(on: boolean): Promise<void>
+  SetCompact(on: boolean): Promise<void>
 }
 
 interface GoApp extends Omit<GoBindings, 'OverlayInfo' | 'ReadPhoto' | 'OpenAndReadFile'> {

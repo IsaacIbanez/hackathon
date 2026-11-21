@@ -1,4 +1,4 @@
-package main
+package control
 
 import (
 	"encoding/json"
@@ -415,5 +415,35 @@ func TestServerRejectsForeignHost(t *testing.T) {
 func TestScreenPixels(t *testing.T) {
 	if x, y := screenPixels(1, 0.5, 1920, 1080); x != 1919 || y != 540 {
 		t.Errorf("got %d,%d", x, y)
+	}
+}
+
+// In-process calls (the desktop app's bindings) reach the same API without HTTP or a token.
+func TestServerCallInProcess(t *testing.T) {
+	s, d := newTestServer()
+	if code, body := s.Call("GET", "/api/status", ""); code != http.StatusOK || !strings.Contains(body, `"platform":"linux"`) {
+		t.Errorf("status: %d %s", code, body)
+	}
+	if code, _ := s.Call("POST", "/api/action", `{"action":"enter"}`); code != http.StatusOK {
+		t.Errorf("action: %d", code)
+	}
+	if code, _ := s.Call("POST", "/api/mouse", `{"action":"click"}`); code != http.StatusNoContent {
+		t.Errorf("mouse: %d", code)
+	}
+	if code, _ := s.Call("POST", "/api/action", `{"action":"shutdown"}`); code == http.StatusOK {
+		t.Error("power still needs the confirmation in-process")
+	}
+	if code, _ := s.Call("GET", "/", ""); code != http.StatusNotFound {
+		t.Errorf("only /api/ is reachable: %d", code)
+	}
+	if got := strings.Join(d.Calls, "|"); got != "keys enter|click" {
+		t.Errorf("calls: %s", got)
+	}
+}
+
+func TestNewDryRun(t *testing.T) {
+	s := New(Options{DryRun: true})
+	if !s.Status.DryRun || s.Status.Desktop != "dry run" || s.Exec == nil {
+		t.Errorf("got %+v", s.Status)
 	}
 }

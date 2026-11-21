@@ -1,6 +1,6 @@
 # Project tasks. Install task once:
 #   go install github.com/go-task/task/v3/cmd/task@latest
-# Usage: task gen | task mock | task server | task dev | task overlay | task fmt | task check
+# Usage: task gen | task mock | task server | task dev | task overlay | task gestures | task fmt | task check
 version: "3"
 
 vars:
@@ -36,10 +36,13 @@ tasks:
       - wails dev {{.GOTAGS}}
 
   overlay:
-    desc: Builds the overlay app (build/bin/lauzhack.exe) and Gesture Control next to it (docs/OVERLAY.md)
+    desc: Builds the overlay app (build/bin/lauzhack.exe), with Gesture Control inside (docs/OVERLAY.md)
     cmds:
       - wails build {{.GOTAGS}}
-      # After wails build: it empties adapters/desktop/dist, which Gesture Control embeds.
+
+  gestures:
+    desc: Builds Gesture Control on its own (build/bin/gesture-control), for using it without the overlay
+    cmds:
       - task: gesture-page
       - go build {{.GOTAGS}} -o build/bin/gesture-control{{exeExt}} ./adapters/desktop
 

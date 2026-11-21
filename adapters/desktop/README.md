@@ -4,8 +4,15 @@ Dueño: rol C (Nil). Un programa local pequeño en Go que hace que los gestos de
 
 Sirve la página de la ventana de cámara (`web/src/input/desktop/`) y una API local en `127.0.0.1:8767` (el 8766 es del scanner), protegida por un token por ejecución, comprobación de cabecera `Host` (contra DNS rebinding) y verificación de `Origin`. Es independiente de la app Wails.
 
-## Cómo se arranca
-Desde la raíz del repositorio:
+## Dentro del overlay (un solo ejecutable)
+Lo normal es usarlo como **opción 1 del overlay** (`task overlay` → `build/bin/lauzhack.exe`, ver `docs/OVERLAY.md`):
+- la app de Wails usa el paquete `adapters/desktop/control` dentro de su propio proceso: no hay programa aparte, ni puerto 8767, ni token;
+- la página de la cámara (`web/src/input/desktop/gestureControl.ts`, `mountGestureControl`) se monta en la ventana del overlay, y sus peticiones van a Go por el binding `GestureCall`, que responde la misma API (`control.Server.Call`);
+- con los gestos activos, el atajo del overlay (o **M**) encoge la ventana a una **burbuja de cámara** en una esquina en vez de ocultarla; el atajo o un doble clic la devuelven;
+- opciones por variables de entorno: `LAUZHACK_GESTURES_DRY_RUN=1`, `LAUZHACK_SCREEN=1920x1080` y `LAUZHACK_APPS=<ruta de apps.json>`.
+
+## Cómo se arranca solo (sin el overlay)
+`task gestures` compila `build/bin/gesture-control`. A mano, desde la raíz del repositorio:
 
 ```bash
 cd web && npm ci && npx vite build src/input/desktop --outDir ../../../../adapters/desktop/dist --emptyOutDir && cd ..
