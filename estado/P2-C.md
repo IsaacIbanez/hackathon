@@ -5,7 +5,7 @@
 - **Tarea actual:** Subproyecto B / scanner: PNG a PDF buscable (`scanner/pdf/`)
 - **Rama:** feature/B-contexto-scanner
 - **Estado:** en curso (primera versión funcionando)
-- **Último cambio:** 2026-11-21 19:15
+- **Último cambio:** 2026-11-21 20:30
 
 ## Hecho
 - `scanner/AGENTS.md` (y copia `AGENTS_B.md`): reglas y contexto del subproyecto scanner.
@@ -42,6 +42,11 @@
   ilegibles como recorte, dudosas listadas en `a_revisar`. Además: realce con papel normalizado localmente y OCR
   con segundo pase psm 6 si la cobertura es baja (carta real: 128 -> 378 palabras). 69 tests.
 
+- Documento digital con **modelo de visión** (OpenRouter, `ia.py`): Haiku 5.5 maqueta por bloques, la posición se
+  ajusta al OCR local y se compone con tipografía uniforme (sin superposiciones); escalado a Sonnet si la
+  concordancia con el OCR es < 60 %; respaldo local sin clave o sin red. Carta real: 343/344 palabras, 0,002 $.
+  Clave en `scanner/.env` (ignorado por git). 74 tests (el modelo se simula: sin red).
+
 ## Pendiente
 - Probar con documentos en papel reales (A4, formulario) con la MX Brio y calibrar los umbrales de calidad (nitidez, brillo, reflejos).
 - Acordar con el rol A cómo se llama al escáner desde la app (Go/WebSocket).
@@ -57,7 +62,8 @@
   (`ultimo_frame()`) si se quiere usar fuera de la app provisional.
 - Cámara: MX Brio (confirmada). Su campo de visión es configurable (65/78/90°); si no es 78°, ajustar `fov_diagonal`.
 - ¿Una o varias páginas por documento? Ahora es una por llamada.
-- ¿Se pueden mandar imágenes a OpenRouter (privacidad y presupuesto)?
+- OpenRouter: aprobado por Didac para el documento digital (clave del equipo en `scanner/.env`). Con documentos
+  reales con datos personales, decidir si se usa `digital_ia=False`. La clave se pegó en un chat: rotarla tras la hackathon.
 
 ## Archivos tocados
 `scanner/`, `estado/P2-C.md`.

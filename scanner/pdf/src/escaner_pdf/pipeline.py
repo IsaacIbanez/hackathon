@@ -12,13 +12,14 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from . import digital, geometria, imagen, ocr, pdf
+from . import digital, geometria, ia, imagen, ocr, pdf
 from .entrada import cargar_png
 from .errores import ErrorEscaner
 
 log = logging.getLogger(__name__)
 
 DPI_POR_DEFECTO = 200.0          # si no hay papel estándar ni DPI en el PNG
+CONCORDANCIA_MINIMA = 0.6        # con menos, la maqueta del modelo barato se repite con el caro
 TAMANOS = ("auto", "imagen", *geometria.PAPELES_MM)
 BCP47 = {"spa": "es", "cat": "ca", "eng": "en"}
 
@@ -40,6 +41,7 @@ class Opciones:
     nivel_bloques: str = "linea"         # linea | parrafo
     ocr: bool = True
     digital: bool = False                # además, PDF digital: página en blanco con texto real e imágenes
+    digital_ia: bool = True              # el digital usa un modelo de visión (OpenRouter) si hay clave; si no, OCR local
     guardar_intermedios: bool = True
     titulo: str | None = None
 
@@ -227,11 +229,49 @@ def _documento_digital(r: "Resultado", op: Opciones, pagina: np.ndarray, res, dp
         r.avisos.append("digital_no_aplicable")
         r.digital = {"generado": False, "motivo": "el fondo no es papel claro (cartel, tarjeta o escena)"}
         return
-    datos, info = digital.digitalizar(pagina, res.detalle, dpi, op.titulo or nombre)
+    datos, info = None, {}
+    if op.digital_ia:
+        try:
+            datos, info = _digital_con_modelo(pagina, res.detalle, dpi, op, nombre, carpeta)
+        except ErrorEscaner as e:
+            r.avisos.append(f"digital_ia_no_disponible:{e.codigo}")
+            info = {"ia_error": e.a_dict()}
+            log.warning("Documento digital sin modelo (%s): se usa el OCR local", e.codigo)
+    if datos is None:
+        datos, local = digital.digitalizar(pagina, res.detalle, dpi, op.titulo or nombre)
+        info = {**info, "metodo": "ocr_local", **local}
     ruta = carpeta / f"{nombre}-digital.pdf"
     ruta.write_bytes(datos)
     r.pdf_digital = str(ruta)
-    r.digital = {"generado": True, **info, **pdf.validar_digital(datos, res.detalle)}
+    r.digital = {"generado": True, **info, **pdf.validar_digital(datos, res.detalle if info.get("metodo") == "ocr_local" else [])}
+
+
+def _digital_con_modelo(pagina: np.ndarray, palabras: list[dict], dpi: float, op: Opciones, nombre: str,
+                        carpeta: Path) -> tuple[bytes, dict]:
+    """Maqueta del modelo barato; si no concuerda con el OCR local (o falla el JSON), el caro (frugal)."""
+    llamadas = []
+    maqueta = conc = None
+    for modelo in (ia.MODELO_BARATO, ia.MODELO_CARO):
+        try:
+            candidata, meta = ia.maquetar(pagina, modelo)
+        except ErrorEscaner as e:
+            llamadas.append({"modelo": modelo, "error": e.codigo})
+            if e.codigo in ("ia_sin_clave", "ia_sin_conexion"):
+                raise
+            continue
+        c = digital.concordancia(candidata, palabras)
+        llamadas.append({**meta, "concordancia": c["ocr_en_modelo"]})
+        maqueta, conc = candidata, c
+        if c["ocr_en_modelo"] is None or c["ocr_en_modelo"] >= CONCORDANCIA_MINIMA:
+            break
+    if maqueta is None:
+        raise ErrorEscaner("ia_fallo", "Ningún modelo devolvió una maqueta válida")
+    if op.guardar_intermedios:
+        (carpeta / "maqueta_ia.json").write_text(json.dumps(maqueta, ensure_ascii=False, indent=2), encoding="utf-8")
+    datos, info = digital.digitalizar_maqueta(pagina, maqueta, palabras, dpi, op.titulo or nombre)
+    coste = sum(l.get("coste_usd") or 0 for l in llamadas)
+    return datos, {**info, "llamadas_ia": llamadas, "coste_ia_usd": round(coste, 5),
+                   "concordancia_ocr": conc["ocr_en_modelo"], "a_revisar": conc["sin_confirmar"]}
 
 
 def _tesseract_si_hace_falta(op: Opciones, r: Resultado) -> ocr.Tesseract | None:

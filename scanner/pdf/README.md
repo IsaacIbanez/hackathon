@@ -56,17 +56,25 @@ Para probar desde el navegador hay una app **provisional** en `scanner/app_prueb
 
 ## Documento digital (opcional: `Opciones(digital=True)`, `--digital`)
 Además del PDF escaneado, `<nombre>-digital.pdf`: una **página en blanco con el texto escrito de verdad**
-(Helvetica, en su sitio, con el tamaño, la negrita y el color de tinta medidos) y **las imágenes donde
-estaban** (firma, logos, sellos, rayas), como si el documento se hubiera hecho en el ordenador.
-- Las líneas se reconstruyen por geometría (no con la numeración de Tesseract) y se escriben rectas y de
-  una pieza; si hay un hueco grande (columnas, tabulaciones) se parten en tramos.
-- Palabras ilegibles (confianza < 50) van como recorte de la imagen + texto invisible (buscables). Las de
-  confianza media (50-75) se escriben como texto pero se listan en `resultado.digital["a_revisar"]`:
-  **un error del OCR escrito como texto es visible**; el escaneado sigue siendo la referencia fiel.
-- Solo en papel claro: en carteles, tarjetas de color o escenas no se crea (aviso `digital_no_aplicable`).
-- Calidad: con una captura buena (hoja entera, plana y enfocada) sale limpio. Con una hoja que se sale del
-  encuadre o está curvada (perspectiva en abanico) o desenfocada, el OCR da cajas malas y el resultado se
-  descuadra en esas zonas.
+y **las imágenes donde estaban** (firma, logos, sellos), como si el documento se hubiera hecho en el ordenador.
+
+**Con modelo de visión (por defecto si hay clave)** — `ia.py` + `digital.digitalizar_maqueta`:
+1. Haiku 5.5 (OpenRouter) transcribe la página por bloques: líneas exactas, alineación, negrita, firma/logos.
+2. Cada bloque se coloca con la geometría precisa local (palabras del OCR que coinciden con su texto).
+3. Tipografía coherente: tamaño de cuerpo e interlineado uniformes; cada bloque se compone dentro de su
+   caja (justificado, centrado...), así que no se pisan. Imágenes: solo sus trazos, sobre blanco.
+4. Control: concordancia con el OCR local; si es < 60 % (o el JSON falla) se repite con Sonnet 5.5.
+   Medido con una carta real: Haiku, 343/344 palabras, concordancia 0,88, **0,002 $** y ~14 s.
+   Coste, tokens y modelo quedan en `resultado.digital["llamadas_ia"]`; la maqueta en `maqueta_ia.json`.
+
+**Sin clave o sin conexión**: reconstrucción con el OCR local (`digital.digitalizar`), con aviso
+`digital_ia_no_disponible:<código>`. Palabras ilegibles como recorte; dudosas en `digital["a_revisar"]`.
+
+**Clave**: variable `OPENROUTER_API_KEY` o un archivo `scanner/.env` (está en `.gitignore`) con la línea
+`OPENROUTER_API_KEY=...`. **Nunca** en el repositorio. **Privacidad**: con el modelo, la imagen de la página
+se envía a OpenRouter; para documentos con datos personales reales, usar `Opciones(digital_ia=False)`.
+
+Solo en papel claro: en carteles o tarjetas de color no se crea (aviso `digital_no_aplicable`).
 
 ## Qué genera (`salida/<nombre>/`)
 | Archivo | Qué es |
@@ -138,7 +146,7 @@ a ~180-200 DPI. Lo que no se puede arreglar después: una foto desenfocada (p. e
 puede orientar. La app de prueba avisa en directo si la imagen está borrosa.
 
 ## Estado de las pruebas
-`pytest` (69 tests, ~30 s): entrada, geometría con 7 poses de cámara realistas, casos sin hoja
+`pytest` (74 tests, ~36 s; sin red: el modelo se simula): entrada, geometría con 7 poses de cámara realistas, casos sin hoja
 (textura, negro, hoja que llena el encuadre), iluminación, calidad, extremo a extremo con acentos,
 página girada, modos y formatos, fallos (sin Tesseract, entrada inválida, opciones inválidas).
 Las imágenes de prueba son **sintéticas** (`tests/sinteticos.py`).

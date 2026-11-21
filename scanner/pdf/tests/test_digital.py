@@ -32,7 +32,7 @@ def _imagenes(pdf_ruta: str) -> list[tuple[int, int]]:
 @pytest.mark.ocr
 def test_texto_real_y_sin_foto_de_pagina(tmp_path):
     img = s.con_sombra(s.en_mesa(_con_firma(s.pagina()), s.ESQUINAS_PERSPECTIVA))
-    r = convertir(s.png(img), tmp_path, Opciones(digital=True))
+    r = convertir(s.png(img), tmp_path, Opciones(digital=True, digital_ia=False))
     assert r.estado == "ok" and r.pdf_digital, (r.avisos, r.digital)
     assert r.digital["valido"] and r.digital["palabras_texto"] >= 25
     texto = extract_text(r.pdf_digital)
@@ -48,7 +48,7 @@ def test_texto_real_y_sin_foto_de_pagina(tmp_path):
 
 @pytest.mark.ocr
 def test_la_firma_va_como_imagen(tmp_path):
-    r = convertir(s.png(_con_firma(s.pagina())), tmp_path, Opciones(digital=True))
+    r = convertir(s.png(_con_firma(s.pagina())), tmp_path, Opciones(digital=True, digital_ia=False))
     assert r.pdf_digital and r.digital["regiones_imagen"] >= 1
     assert _imagenes(r.pdf_digital)
 
@@ -58,13 +58,13 @@ def test_cartel_oscuro_no_se_digitaliza(tmp_path):
     cartel = np.full((1754, 1240, 3), (30, 35, 60), np.uint8)
     for i in range(6):
         cv2.putText(cartel, f"Concierto {i}", (100, 200 + i * 220), cv2.FONT_HERSHEY_SIMPLEX, 3, (230, 240, 240), 6)
-    r = convertir(s.png(cartel), tmp_path, Opciones(digital=True))
+    r = convertir(s.png(cartel), tmp_path, Opciones(digital=True, digital_ia=False))
     assert r.pdf and r.pdf_digital is None
     assert "digital_no_aplicable" in r.avisos
 
 
 def test_sin_ocr_no_hay_digital(tmp_path):
-    r = convertir(s.png(s.pagina()), tmp_path, Opciones(digital=True, ocr=False, orientar=False))
+    r = convertir(s.png(s.pagina()), tmp_path, Opciones(digital=True, digital_ia=False, ocr=False, orientar=False))
     assert r.pdf_digital is None and "digital_sin_texto" in r.avisos
 
 
@@ -84,3 +84,87 @@ def test_lineas_fisicas_con_texto_inclinado():
 def test_aplicable_solo_en_papel_claro():
     assert digital.aplicable(np.full((100, 100, 3), 250, np.uint8))
     assert not digital.aplicable(np.full((100, 100, 3), 60, np.uint8))
+
+
+# ---------------------------------------------------------------- con modelo de visión (simulado: sin red)
+
+from escaner_pdf import ia  # noqa: E402
+from escaner_pdf.errores import ErrorEscaner  # noqa: E402
+
+MAQUETA = {"bloques": [
+    {"tipo": "texto", "bbox": [70, 70, 500, 100], "lineas": ["DECLARACIÓN DE PRUEBA"], "alineacion": "izquierda", "negrita": False},
+    {"tipo": "texto", "bbox": [70, 120, 600, 390], "lineas": [
+        "Nombre y apellidos: María Peña Güell", "Dirección: Carrer de la Pau 12, Barcelona",
+        "Fecha del siniestro: 21/11/2026", "Descripción: el vehículo sufrió daños leves.", "Firma del asegurado"],
+     "alineacion": "izquierda", "negrita": False},
+    {"tipo": "imagen", "bbox": [180, 780, 600, 870], "descripcion": "firma"},
+]}
+
+
+def _simular_modelo(monkeypatch, respuestas):
+    llamadas = []
+
+    def maquetar(pagina, modelo, timeout=120):
+        llamadas.append(modelo)
+        r = respuestas[modelo]
+        if isinstance(r, Exception):
+            raise r
+        return ia._limpiar(r), {"modelo": modelo, "segundos": 0.1, "tokens_entrada": 1, "tokens_salida": 1, "coste_usd": 0.001}
+
+    monkeypatch.setattr(ia, "maquetar", maquetar)
+    return llamadas
+
+
+@pytest.mark.ocr
+def test_digital_con_modelo_barato(tmp_path, monkeypatch):
+    llamadas = _simular_modelo(monkeypatch, {ia.MODELO_BARATO: MAQUETA, ia.MODELO_CARO: MAQUETA})
+    r = convertir(s.png(_con_firma(s.pagina())), tmp_path, Opciones(digital=True))
+    assert r.pdf_digital and r.digital["metodo"] == "modelo"
+    assert llamadas == [ia.MODELO_BARATO]                       # concuerda con el OCR: no se escala
+    assert r.digital["concordancia_ocr"] >= 0.9 and r.digital["coste_ia_usd"] == 0.001
+    texto = extract_text(r.pdf_digital)
+    assert "Güell" in texto and "siniestro" in texto            # el texto del modelo, con su diéresis
+    assert r.digital["regiones_imagen"] == 1                    # la firma
+    assert (tmp_path / r.pdf_digital).exists() or r.pdf_digital
+
+
+@pytest.mark.ocr
+def test_digital_escala_al_modelo_caro_si_no_concuerda(tmp_path, monkeypatch):
+    inventada = {"bloques": [{"tipo": "texto", "bbox": [100, 100, 900, 300], "lineas": ["Texto que no está en la hoja"],
+                              "alineacion": "izquierda", "negrita": False}]}
+    llamadas = _simular_modelo(monkeypatch, {ia.MODELO_BARATO: inventada, ia.MODELO_CARO: MAQUETA})
+    r = convertir(s.png(s.pagina()), tmp_path, Opciones(digital=True))
+    assert llamadas == [ia.MODELO_BARATO, ia.MODELO_CARO]
+    assert r.digital["concordancia_ocr"] >= 0.9
+
+
+@pytest.mark.ocr
+def test_digital_sin_conexion_usa_el_ocr_local(tmp_path, monkeypatch):
+    _simular_modelo(monkeypatch, {ia.MODELO_BARATO: ErrorEscaner("ia_sin_conexion", "simulado"),
+                                  ia.MODELO_CARO: ErrorEscaner("ia_sin_conexion", "simulado")})
+    r = convertir(s.png(s.pagina()), tmp_path, Opciones(digital=True))
+    assert r.pdf_digital and r.digital["metodo"] == "ocr_local"
+    assert "digital_ia_no_disponible:ia_sin_conexion" in r.avisos
+
+
+def test_maqueta_invalida_se_rechaza():
+    with pytest.raises(ErrorEscaner):
+        ia._limpiar({"bloques": [{"tipo": "texto", "bbox": [1, 2], "lineas": ["x"]}]})
+    m = ia._limpiar({"bloques": [{"tipo": "texto", "bbox": [100, 100, 900, 200], "lineas": ["hola"], "alineacion": "rara"}]})
+    assert m["bloques"][0]["bbox"] == [0.1, 0.1, 0.9, 0.2] and m["bloques"][0]["alineacion"] == "izquierda"
+
+
+def test_bloques_no_se_pisan():
+    import io as _io
+    pagina = np.full((1754, 1240, 3), 255, np.uint8)
+    solapados = {"bloques": [
+        {"tipo": "texto", "bbox": [100, 100, 900, 200], "lineas": ["uno uno uno", "dos dos dos", "tres tres"], "alineacion": "justificado", "negrita": False},
+        {"tipo": "texto", "bbox": [100, 170, 900, 250], "lineas": ["cuatro cuatro", "cinco cinco"], "alineacion": "izquierda", "negrita": False},
+    ]}
+    datos, info = digital.digitalizar_maqueta(pagina, ia._limpiar(solapados), [], 150.0)
+    from pdfminer.high_level import extract_pages
+    from pdfminer.layout import LTTextContainer
+    cajas = [e.bbox for pag in extract_pages(_io.BytesIO(datos)) for e in pag if isinstance(e, LTTextContainer)]
+    cajas.sort(key=lambda b: -b[3])
+    for a, b in zip(cajas, cajas[1:]):
+        assert b[3] <= a[1] + 0.5                               # cada bloque empieza por debajo del anterior
