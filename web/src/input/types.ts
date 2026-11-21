@@ -46,13 +46,21 @@ export type Gesture =
   | "fist"
   | "thumbs_up"
   | "thumbs_down"
-  | "victory"
   | "pinch";
 
 export type Direction = "left" | "right";
 
-/** Quick menu sectors, from the user's point of view. */
-export type MenuSector = "up" | "right" | "down" | "left";
+/**
+ * Quick menu cells, from the user's point of view: the screen is split into a 3×3 grid and the
+ * centre is empty. Menus that only use the cross (up, right, down, left) ignore the corners.
+ */
+export type MenuSector = "up" | "right" | "down" | "left" | "up_left" | "up_right" | "down_left" | "down_right";
+
+/** What the pinch level controls. */
+export type LevelTarget = "volume" | "brightness";
+
+/** Mouse button events from the click gesture (index pointing, middle finger touching the thumb). */
+export type MouseAction = "down" | "up" | "click" | "right_click";
 
 /** The user's hand (their real right or left, not the image's). */
 export type HandSide = "right" | "left";
@@ -81,8 +89,20 @@ export type HandEvent =
    * Level (volume) control with the pinch: it starts by touching the thumb and index fingertips,
    * and the level is the distance between them, from 0 (together) to 1 (wide apart).
    */
-  | { type: "level"; phase: "armed" | "start" | "move" | "end" | "cancel"; value: number; t: number }
-  /** Menu opened with ✌️; an option is chosen by holding the pointer (☝️) over it. */
+  | {
+      type: "level";
+      phase: "armed" | "start" | "move" | "end" | "cancel";
+      value: number;
+      /** What it controls: volume (default) or screen brightness. */
+      target: LevelTarget;
+      t: number;
+    }
+  /**
+   * Mouse buttons (only with `mouseClicks`): tap = click, two quick taps = right click, holding =
+   * button held down (drag) until released.
+   */
+  | { type: "mouse"; action: MouseAction; t: number }
+  /** Menu opened with ✊ (fist); an option is chosen by holding the pointer (☝️) over it. */
   | {
       type: "menu";
       phase: "open" | "highlight" | "choose" | "close";

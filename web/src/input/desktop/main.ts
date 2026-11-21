@@ -1,10 +1,17 @@
 // Gesture Control page: recognizes hand gestures and sends the computer and video-call actions to
 // the local helper (adapters/desktop), which performs them on the real computer.
-import { actionFor, MAPS, menuFor, type Action, type Context } from "../actions.ts";
-import { HandInteraction } from "../interaction.ts";
+//
+// - The detector sleeps until a strict open palm (fingers straight and spread, facing the camera)
+//   wakes it, and goes back to sleep after a while without gestures.
+// - ✊ opens the quick menu: volume, brightness, microphone, apps and computer (power) options.
+// - With "Move the mouse", ☝️ moves the cursor and touching the middle fingertip to the thumb clicks
+//   (twice quickly: right click; holding: drag).
+import { actionFor, MAPS, type Action } from "../actions.ts";
+import { HandInteraction, type WakeIssue } from "../interaction.ts";
 import { createTracker } from "../tracker.ts";
-import { CONNECTIONS, type HandFrame, type MenuSector } from "../types.ts";
-import { HelperClient, OS_ACTIONS, toScreen, type CallAppId } from "./client.ts";
+import { CONNECTIONS, L, type HandEvent, type HandFrame, type LevelTarget, type MenuSector, type MouseAction } from "../types.ts";
+import { HelperClient, latestOnly, OS_ACTIONS, toScreen, type ActionOptions, type CallAppId } from "./client.ts";
+import { cellsOf, menuPage, powerLabel, type DesktopContext, type Launcher, type MenuPage } from "./menu.ts";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const video = $<HTMLVideoElement>("video");
@@ -13,26 +20,44 @@ const ctx = canvas.getContext("2d")!;
 
 const token = document.querySelector<HTMLMetaElement>('meta[name="gesture-token"]')?.content ?? "";
 const helper = new HelperClient(token);
-const interaction = new HandInteraction();
+const interaction = new HandInteraction({ requireWake: true });
 
-type DesktopContext = Extract<Context, "pc" | "call">;
 let context: DesktopContext = "call";
+let page: MenuPage = { id: "main" };
+let launchers: Launcher[] = [];
 let lastFrame: HandFrame | null = null;
 let tAction = 0;
-let chosen: { sector: MenuSector; t: number } | null = null;
+/** The option just chosen, shown for a moment after the menu closes. */
+let chosen: { sector: MenuSector; label: string; t: number } | null = null;
+/** True while the page reopens the menu for a submenu (that "open" is not a new main menu). */
+let reopening = false;
 
 const LABELS: Partial<Record<Action, string>> = {
   enter: "Enter", escape: "Escape", next_tab: "Next tab", previous_tab: "Previous tab", undo: "Undo",
   click: "Click", volume: "Volume", toggle_mic: "Mute / unmute", toggle_camera: "Camera on / off",
-  raise_hand: "Raise hand", leave_call: "Leave call", adjust_volume: "Adjust volume",
-  ask_for_help: "Ask for help", repeat: "Repeat", dictate: "Dictate",
+  raise_hand: "Raise hand", leave_call: "Leave call", mic_mute: "Microphone on / off", brightness: "Brightness",
 };
 const label = (a: Action) => LABELS[a] ?? a.replaceAll("_", " ");
-const ARROWS: Record<MenuSector, string> = { up: "↑", right: "→", down: "↓", left: "←" };
+
+const WAKE_HINTS: Record<WakeIssue | "none", string> = {
+  none: "😴 Asleep — hold up an open palm, fingers spread, to wake",
+  open: "✋ Open all five fingers",
+  straight: "✋ Straighten your fingers",
+  spread: "✋ Spread your fingers apart",
+  facing: "✋ Turn your palm towards the camera",
+  upright: "✋ Hold your hand upright",
+};
+const MOUSE_LABELS: Record<MouseAction, string> = {
+  click: "🖱️ Click",
+  right_click: "🖱️ Right click",
+  down: "🖱️ Holding — move to drag",
+  up: "🖱️ Released",
+};
 
 const enabled = () => $<HTMLInputElement>("enabled").checked;
 const mouseOn = () => $<HTMLInputElement>("mouse").checked;
 const app = () => $<HTMLSelectElement>("app").value as CallAppId;
+const layout = () => menuPage(page, context, launchers);
 
 function toast(text: string, error = false) {
   const el = $("action");
@@ -49,43 +74,117 @@ function log(text: string) {
 }
 
 /** Sends an action to the helper and reports the result. */
-async function perform(action: Action, value?: number) {
-  const options = { ...(value === undefined ? {} : { value }), ...(context === "call" ? { app: app() } : {}) };
+async function perform(action: Action, options: ActionOptions = {}) {
+  const all = { ...options, ...(context === "call" ? { app: app() } : {}) };
   try {
-    const did = await helper.action(action, options);
+    const did = await helper.action(action, all);
     log(did);
+    return did;
   } catch (e) {
     toast(`${label(action)}: ${(e as Error).message}`, true);
     log(`✗ ${label(action)}: ${(e as Error).message}`);
+    return null;
+  }
+}
+
+// System calls for volume and brightness can be slower than the hand: only the newest value is sent.
+const sendLevel: Record<LevelTarget, (v: number) => void> = {
+  volume: latestOnly((v: number) => perform("volume", { value: v })),
+  brightness: latestOnly((v: number) => perform("brightness", { value: v })),
+};
+
+// ---------- Menu ----------
+
+/** Shows a menu page: the controller only offers the cells this page uses. */
+function showPage(p: MenuPage) {
+  page = p;
+  interaction.setMenuCells(cellsOf(layout()));
+}
+
+function onMenu(e: Extract<HandEvent, { type: "menu" }>) {
+  if (e.phase === "open") {
+    if (!reopening) showPage({ id: "main" });
+    return;
+  }
+  if (e.phase !== "choose" || !e.sector) return;
+  const item = layout()[e.sector];
+  if (!item) return;
+  if (item.kind === "page") {
+    showPage(item.page);
+    reopening = true;
+    try {
+      interaction.reopenMenu(e.t);
+    } finally {
+      reopening = false;
+    }
+    return;
+  }
+  chosen = { sector: e.sector, label: item.label, t: performance.now() };
+  showPage({ id: "main" });
+  if (!enabled()) return;
+  switch (item.kind) {
+    case "level":
+      interaction.startLevel(e.t, item.target);
+      toast(`🤏 ${item.target === "brightness" ? "Brightness" : "Volume"}: pinch, then open your fingers`);
+      break;
+    case "action":
+      toast(label(item.action));
+      void perform(item.action).then((did) => {
+        // The helper says whether the microphone ended up muted.
+        if (did && item.action === "mic_mute") toast(`🎙️ ${did}`);
+      });
+      break;
+    case "power":
+      toast(`${powerLabel(item.action)}…`);
+      void perform(item.action, { confirm: true });
+      break;
+    case "app":
+      if (item.id) {
+        toast(`🚀 ${item.label}`);
+        void perform("open_app", { target: item.id });
+      } else {
+        toast("Empty slot: add apps to apps.json (see the README)", true);
+      }
+      break;
+    case "close":
+      toast("Cancelled");
+      break;
   }
 }
 
 // ---------- Gestures → actions ----------
 
 interaction.on((e) => {
-  if (!enabled()) return;
-
-  if (e.type === "pointer" && mouseOn()) {
-    void helper.pointer(toScreen(e.image)).catch(() => {});
+  if (e.type === "mode") {
+    toast(e.awake ? "👋 Awake" : "😴 Asleep");
     return;
   }
-  if (e.type === "menu" && e.phase === "choose" && e.sector) chosen = { sector: e.sector, t: performance.now() };
+  if (e.type === "menu") {
+    onMenu(e);
+    return;
+  }
+  if (!enabled()) return;
+
+  if (e.type === "pointer") {
+    if (mouseOn()) void helper.pointer(toScreen(e.image)).catch(() => {});
+    return;
+  }
+  if (e.type === "mouse") {
+    if (!mouseOn()) return;
+    toast(MOUSE_LABELS[e.action]);
+    helper.mouse(e.action).catch((err: Error) => toast(`Mouse: ${err.message}`, true));
+    return;
+  }
 
   const action = actionFor(e, context);
   if (!action) return;
-
-  if (action === "adjust_volume") {
-    interaction.startLevel();
-    toast("🤏 Pinch, then open your fingers");
+  if (e.type === "level") {
+    toast(`${e.target === "brightness" ? "🔆" : "🔊"} ${Math.round(e.value * 100)} %`);
+    sendLevel[e.target](e.value);
     return;
   }
-  if (action === "volume" && e.type === "level") {
-    toast(`🔊 ${Math.round(e.value * 100)} %`);
-    void perform("volume", e.value);
-    return;
-  }
-  // A dwell "click" only makes sense when the pointer is also moving the real mouse.
-  if (action === "click" && !mouseOn()) return;
+  // Clicks come from the click gesture (with "Move the mouse"), not from holding the pointer still.
+  if (action === "click") return;
   if (!OS_ACTIONS.has(action)) {
     toast(`${label(action)} — not available here`, true);
     return;
@@ -101,6 +200,11 @@ $("enabled").addEventListener("change", () => {
   $("stage").classList.toggle("off", !enabled());
 });
 
+$("mouse").addEventListener("change", () => {
+  interaction.configure({ mouseClicks: mouseOn() });
+  paintGuide();
+});
+
 for (const b of document.querySelectorAll<HTMLButtonElement>("#context button")) {
   b.addEventListener("click", () => {
     context = b.dataset.c as DesktopContext;
@@ -108,6 +212,7 @@ for (const b of document.querySelectorAll<HTMLButtonElement>("#context button"))
       o.setAttribute("aria-pressed", String(o === b));
     }
     $("app").hidden = context !== "call";
+    showPage({ id: "main" });
     paintGuide();
   });
 }
@@ -115,19 +220,20 @@ for (const b of document.querySelectorAll<HTMLButtonElement>("#context button"))
 function paintGuide() {
   const m = MAPS[context];
   $("contextName").textContent = context === "call" ? "Video call" : "Computer";
-  const rows: [string, Action | null][] = [
-    ["✋ Open palm facing the camera", m.palm],
-    ["👍 Thumbs up", m.thumbs_up],
-    ["👎 Thumbs down", m.thumbs_down],
-    ["✋→ / ✋← Swipe", m.swipe_right && m.swipe_left ? m.swipe_right : null],
-    ["☝️ Point (with “Move the mouse”)", "click"],
-    ...(Object.entries(menuFor(interaction.handInUse, context)) as [MenuSector, Action][]).map(
-      ([s, a]) => [`✌️ Menu ${ARROWS[s]}`, a] as [string, Action],
-    ),
+  const menu = Object.values(menuPage({ id: "main" }, context, launchers))
+    .map((i) => i!.label.replace(/^\S+\s/, "").replace(" ▸", ""))
+    .join(", ");
+  const rows: [string, string | null][] = [
+    ["✋ Open palm, fingers spread (hold ~1 s)", "Wake up"],
+    ["👍 Thumbs up", m.thumbs_up && label(m.thumbs_up)],
+    ["👎 Thumbs down", m.thumbs_down && label(m.thumbs_down)],
+    ["✋→ / ✋← Swipe", m.swipe_right && m.swipe_left ? "Next / previous tab" : null],
+    ["✊ Fist (hold) → ☝️ hold on an option", `Menu: ${menu}`],
+    ["✊ again, inside the menu", "Close the menu"],
+    ["☝️ Point", mouseOn() ? "Move the mouse" : "Move the mouse (turn on “Move the mouse”)"],
+    ["☝️ + middle fingertip on the thumb", "Click · twice quickly: right click · hold: drag"],
   ];
-  $("guide").innerHTML = rows
-    .map(([g, a]) => `<tr><td>${g}</td><td>${a ? (g.startsWith("✋→") ? "Next / previous tab" : label(a)) : "—"}</td></tr>`)
-    .join("");
+  $("guide").innerHTML = rows.map(([g, a]) => `<tr><td>${g}</td><td>${a ?? "—"}</td></tr>`).join("");
 }
 
 // ---------- Drawing ----------
@@ -135,18 +241,20 @@ function paintGuide() {
 function paintMenu() {
   const t = performance.now();
   const open = interaction.menuOpen(t);
-  const shownChoice = chosen && t - chosen.t < 700 ? chosen : null;
+  const shownChoice = !open && chosen && t - chosen.t < 700 ? chosen : null;
   $("menu").hidden = !open && !shownChoice;
-  const options = menuFor(open?.hand ?? interaction.handInUse, context);
+  const options = layout();
   for (const op of document.querySelectorAll<HTMLElement>("#menu .op")) {
     const s = op.dataset.s as MenuSector;
-    const a = options[s];
-    op.style.visibility = a ? "visible" : "hidden";
-    op.textContent = a ? `${ARROWS[s]} ${label(a)}` : "";
+    const text = open ? options[s]?.label : shownChoice?.sector === s ? shownChoice.label : undefined;
+    op.style.visibility = text ? "visible" : "hidden";
+    op.textContent = text ?? "";
     op.classList.toggle("active", open?.sector === s);
     op.classList.toggle("chosen", shownChoice?.sector === s);
     op.style.setProperty("--p", open?.sector === s ? String(open.progress) : "0");
   }
+  const titles: Record<MenuPage["id"], string> = { main: "Menu", computer: "Computer", apps: "Apps", confirm: "Are you sure?" };
+  $("menuTitle").textContent = page.id === "confirm" ? `${powerLabel(page.action)}?` : titles[page.id];
   const p = interaction.pointer;
   const cursor = $("cursor");
   cursor.hidden = !(open && p);
@@ -156,7 +264,19 @@ function paintMenu() {
   }
 }
 
+function paintSleep(t: number) {
+  const asleep = !interaction.isAwake;
+  $("stage").classList.toggle("asleep", asleep);
+  const el = $("sleep");
+  el.hidden = !asleep;
+  if (!asleep) return;
+  const progress = interaction.wakeProgress(t);
+  el.textContent = progress > 0 ? "✋ Hold still…" : WAKE_HINTS[interaction.wakeHint ?? "none"];
+  el.style.setProperty("--p", String(progress));
+}
+
 function draw() {
+  const t = performance.now();
   const w = (canvas.width = video.videoWidth || 640);
   const h = (canvas.height = video.videoHeight || 360);
   ctx.clearRect(0, 0, w, h);
@@ -181,7 +301,20 @@ function draw() {
     }
   }
   ctx.globalAlpha = 1;
-  const lvl = interaction.levelActive(performance.now());
+
+  // Mouse button: a ring on the index tip, yellow while the fingers touch, red while dragging.
+  const hand = interaction.activeHand;
+  const button = interaction.mouseButton;
+  if (mouseOn() && hand && button !== "up") {
+    const tip = hand.points[L.INDEX_TIP];
+    ctx.strokeStyle = button === "dragging" ? "#ff5d5d" : "#ffd23f";
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.arc(tip.x * w, tip.y * h, 18, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  const lvl = interaction.levelActive(t);
   if (lvl) {
     ctx.strokeStyle = `hsl(${Math.round(120 * lvl.value)}, 90%, 55%)`;
     ctx.lineWidth = 8;
@@ -190,8 +323,9 @@ function draw() {
     ctx.lineTo(lvl.index.x * w, lvl.index.y * h);
     ctx.stroke();
   }
+  paintSleep(t);
   paintMenu();
-  if (performance.now() - tAction > 1800) $("action").textContent = "";
+  if (t - tAction > 1800) $("action").textContent = "";
   requestAnimationFrame(draw);
 }
 
@@ -200,7 +334,10 @@ function draw() {
 async function start() {
   try {
     const s = await helper.status();
+    launchers = s.launchers ?? [];
     $("status").textContent = `${s.dryRun ? "Dry run — nothing is pressed · " : ""}${s.desktop}`;
+    showPage({ id: "main" });
+    paintGuide();
   } catch {
     $("status").textContent = "Helper not reachable — start it with: go run ./adapters/desktop (port 8767)";
     $("status").classList.add("error");
@@ -220,5 +357,6 @@ async function start() {
   }
 }
 
+showPage({ id: "main" });
 paintGuide();
 start();

@@ -4,7 +4,7 @@ import { HandInteraction } from "../interaction.ts";
 import { actionFor } from "../actions.ts";
 import { HeadGestureDetector } from "../head.ts";
 import type { Face, Hand, HandEvent, HandFrame } from "../types.ts";
-import { makeHand, SHAPES } from "./hand.ts";
+import { makeHand, rotate, SHAPES, WAKE_PALM } from "./hand.ts";
 
 const STEP = 33;
 const repeat = <T>(x: T, n: number): T[] => Array.from({ length: n }, () => x);
@@ -17,20 +17,35 @@ function simulate(ctl: HandInteraction, frames: (Hand | null)[], t0 = 0): HandEv
   return events;
 }
 
-test("wake mode: gestures are ignored until an open palm is held ~1 s", () => {
+test("wake mode: gestures are ignored until a strict open palm is held ~1 s", () => {
   const ctl = new HandInteraction({ requireWake: true });
   const ev = simulate(ctl, [
     ...repeat(makeHand(SHAPES.thumbs_up), 20), // asleep: ignored
-    ...repeat(makeHand(SHAPES.palm), 40), // wakes (without triggering "pause")
+    ...repeat(makeHand(WAKE_PALM), 45), // wakes (without triggering "pause")
     ...repeat(makeHand(SHAPES.thumbs_up), 20), // now it counts
   ]);
   const actions = ev.map((e) => actionFor(e)).filter(Boolean);
   assert.deepEqual(actions, ["wake", "read"]);
 });
 
+test("wake mode: a relaxed, turned or tilted open hand doesn't wake (and says why)", () => {
+  const cases: [string, Hand, string][] = [
+    ["fingers together", makeHand({ ...WAKE_PALM, spread: 0 }), "spread"],
+    ["back of the hand", makeHand({ ...WAKE_PALM, handedness: "Right" }), "facing"],
+    ["no handedness: can't tell the palm from the back", makeHand({ ...WAKE_PALM, handedness: undefined }), "facing"],
+    ["tilted 60°", { ...rotate(makeHand(WAKE_PALM), 60), handedness: "Left" }, "upright"],
+  ];
+  for (const [name, hand, hint] of cases) {
+    const ctl = new HandInteraction({ requireWake: true });
+    const ev = simulate(ctl, repeat(hand, 60));
+    assert.ok(!ev.some((e) => e.type === "mode"), `${name}: must not wake`);
+    assert.equal(ctl.wakeHint, hint, name);
+  }
+});
+
 test("wake mode: goes back to sleep after a while without activity", () => {
   const ctl = new HandInteraction({ requireWake: true, sleepMs: 500 });
-  const ev = simulate(ctl, [...repeat(makeHand(SHAPES.palm), 40), ...repeat(null, 30)]);
+  const ev = simulate(ctl, [...repeat(makeHand(WAKE_PALM), 45), ...repeat(null, 30)]);
   assert.deepEqual(
     ev.filter((e) => e.type === "mode").map((e) => e.type === "mode" && e.awake),
     [true, false],
@@ -183,12 +198,12 @@ test("pinch: also works with the other three fingers folded", () => {
   assert.ok(last.type === "level" && last.value > 0.7, JSON.stringify(last));
 });
 
-/** Opens the menu with ✌️, then points with ☝️ with the hand shifted (dx, dy) in the image. */
+/** Opens the menu with ✊ (held ~0.5 s), then points with ☝️ with the hand shifted (dx, dy) in the image. */
 function pointerInMenu(dx: number, dy: number): Hand[] {
-  return [...repeat(makeHand(SHAPES.victory), 15), ...repeat(makeHand({ ...SHAPES.point, dx, dy }), 30)];
+  return [...repeat(makeHand(SHAPES.fist), 20), ...repeat(makeHand({ ...SHAPES.point, dx, dy }), 30)];
 }
 
-test("menu: ✌️ opens it and holding the pointer on the top option ~0.5 s chooses 'adjust_volume'", () => {
+test("menu: ✊ opens it and holding the pointer on the top option ~0.5 s chooses 'adjust_volume'", () => {
   const ev = simulate(new HandInteraction(), pointerInMenu(0, -0.3)).filter((e) => e.type === "menu");
   const phases = ev.map((e) => e.type === "menu" && `${e.phase}:${e.sector}`);
   assert.deepEqual(phases, ["open:null", "highlight:up", "choose:up"]);
@@ -213,20 +228,94 @@ test("menu: with the pointer in the centre nothing is chosen", () => {
   assert.ok(!ev.some((e) => e.type === "menu" && e.phase === "choose"));
 });
 
-test("menu: holding ✌️ chooses nothing and the menu closes by itself", () => {
+test("menu: holding ✊ chooses nothing and the menu closes by itself", () => {
   const ctl = new HandInteraction({ menuTimeoutMs: 800 });
-  const ev = simulate(ctl, repeat(makeHand(SHAPES.victory), 50)).filter((e) => e.type === "menu");
+  const ev = simulate(ctl, repeat(makeHand(SHAPES.fist), 50)).filter((e) => e.type === "menu");
   assert.deepEqual(
     ev.map((e) => e.type === "menu" && e.phase),
     ["open", "close"],
   );
 });
 
+test("menu: a brief fist doesn't open it", () => {
+  const ev = simulate(new HandInteraction(), [...repeat(makeHand(SHAPES.fist), 10), ...repeat(makeHand(SHAPES.thumbs_up), 3)]);
+  assert.ok(!ev.some((e) => e.type === "menu"));
+});
+
+test("menu: opening the hand and closing the fist again closes it (and doesn't reopen it)", () => {
+  const ev = simulate(new HandInteraction(), [
+    ...repeat(makeHand(SHAPES.fist), 20), // opens
+    ...repeat(makeHand(SHAPES.palm), 10), // the fist that opened it is released
+    ...repeat(makeHand(SHAPES.fist), 40), // closes after ~0.5 s and stays closed
+  ]).filter((e) => e.type === "menu");
+  assert.deepEqual(
+    ev.map((e) => e.type === "menu" && e.phase),
+    ["open", "close"],
+  );
+});
+
+test("menu: corners can be offered with setMenuCells (they aren't by default)", () => {
+  const toCorner = pointerInMenu(-0.15, 0.3); // the user's bottom right
+  assert.ok(!simulate(new HandInteraction(), toCorner).some((e) => e.type === "menu" && e.phase === "choose"));
+  const ctl = new HandInteraction();
+  ctl.setMenuCells(["up", "down_right"]);
+  assert.deepEqual(ctl.menuSectors(), ["up", "down_right"]);
+  const choose = simulate(ctl, toCorner).find((e) => e.type === "menu" && e.phase === "choose");
+  assert.ok(choose && choose.type === "menu" && choose.sector === "down_right");
+});
+
+test("menu: a submenu opened on 'choose' ignores the chosen cell until the pointer leaves it", () => {
+  const ctl = new HandInteraction();
+  const chosen: string[] = [];
+  ctl.on((e) => {
+    if (e.type !== "menu" || e.phase !== "choose") return;
+    chosen.push(e.sector!);
+    if (chosen.length === 1) {
+      ctl.setMenuCells(["up", "down"]); // the submenu also has an option where the pointer is
+      ctl.reopenMenu(e.t);
+    }
+  });
+  // Staying on "up": the submenu doesn't choose its own "up" by itself.
+  simulate(ctl, [...pointerInMenu(0, -0.3), ...repeat(makeHand({ ...SHAPES.point, dy: -0.3 }), 40)]);
+  assert.deepEqual(chosen, ["up"]);
+
+  // Leaving it and coming back does choose it.
+  const ctl2 = new HandInteraction();
+  const chosen2: string[] = [];
+  ctl2.on((e) => {
+    if (e.type !== "menu" || e.phase !== "choose") return;
+    chosen2.push(e.sector!);
+    if (chosen2.length === 1) {
+      ctl2.setMenuCells(["up", "down"]);
+      ctl2.reopenMenu(e.t);
+    }
+  });
+  simulate(ctl2, [
+    ...pointerInMenu(0, -0.3),
+    ...repeat(makeHand({ ...SHAPES.point, dy: 0 }), 10), // the centre
+    ...repeat(makeHand({ ...SHAPES.point, dy: -0.3 }), 30),
+  ]);
+  assert.deepEqual(chosen2, ["up", "up"]);
+});
+
+test("level: brightness is a target like volume", () => {
+  const ctl = new HandInteraction();
+  ctl.startLevel(0, "brightness");
+  assert.equal(ctl.levelTargetName, "brightness");
+  const ev = simulate(ctl, [...repeat(openPinch(0.02), 15), ...repeat(openPinch(0.15), 40)]).filter((e) => e.type === "level");
+  assert.ok(ev.length > 1 && ev.every((e) => e.type === "level" && e.target === "brightness"));
+  const move = ev.find((e) => e.type === "level" && (e.phase === "move" || e.phase === "end"))!;
+  assert.equal(actionFor(move, "pc"), "brightness");
+  assert.equal(actionFor({ ...move, target: "volume" } as HandEvent, "pc"), "volume");
+});
+
 // ---- Video call context ----
 
-test("call: palm raises your hand, thumbs up mutes, thumbs down toggles the camera", () => {
+test("call: thumbs up mutes, thumbs down toggles the camera; the palm only wakes", () => {
   const palm = simulate(new HandInteraction(), repeat(makeHand(SHAPES.palm), 20)).find((e) => e.type === "gesture")!;
-  assert.equal(actionFor(palm, "call"), "raise_hand");
+  assert.equal(actionFor(palm, "call"), null);
+  assert.equal(actionFor(palm, "pc"), null);
+  assert.equal(actionFor(palm, "document"), "pause"); // the reader still uses it
   const up = simulate(new HandInteraction(), repeat(makeHand(SHAPES.thumbs_up), 20)).find((e) => e.type === "gesture")!;
   assert.equal(actionFor(up, "call"), "toggle_mic");
   const down = simulate(new HandInteraction(), repeat(makeHand(SHAPES.thumbs_down), 20)).find((e) => e.type === "gesture")!;
@@ -265,7 +354,7 @@ test("menu with the right hand: no option on the right and 'ask for help' on the
   const ctl = new HandInteraction();
   assert.deepEqual(ctl.menuSectors("right"), ["up", "down", "left"]);
 
-  const open = repeat(right(makeHand(SHAPES.victory)), 20);
+  const open = repeat(right(makeHand(SHAPES.fist)), 20);
   const toTheRight = [...open, ...repeat(right(makeHand({ ...SHAPES.point, dx: -0.15 })), 30)];
   assert.ok(!simulate(ctl, toTheRight).some((e) => e.type === "menu" && e.phase === "choose"), "right chooses nothing");
 
@@ -278,7 +367,7 @@ test("menu with the right hand: no option on the right and 'ask for help' on the
 test("menu with the left hand: 'ask for help' is on the right", () => {
   const left = (h: Hand) => withLabel(h, "Left");
   const frames = [
-    ...repeat(left(makeHand(SHAPES.victory)), 20),
+    ...repeat(left(makeHand(SHAPES.fist)), 20),
     ...repeat(left(makeHand({ ...SHAPES.point, dx: -0.15 })), 30),
   ];
   const choose = simulate(new HandInteraction(), frames).find((e) => e.type === "menu" && e.phase === "choose")!;
@@ -297,11 +386,12 @@ test("palm: with the back of the hand towards the camera it doesn't count", () =
   assert.ok(!rightBack.some((e) => e.type === "gesture" && e.gesture === "palm"), "right: back of the hand");
 });
 
-test("fist: disabled by default, not emitted", () => {
+test("fist: held, it is emitted and opens the menu, with no action of its own", () => {
   const ev = simulate(new HandInteraction(), repeat(makeHand(SHAPES.fist), 20));
-  assert.ok(!ev.some((e) => e.type === "gesture" && e.gesture === "fist"));
-  const withFist = simulate(new HandInteraction({ useFist: true }), repeat(makeHand(SHAPES.fist), 20));
-  assert.ok(withFist.some((e) => e.type === "gesture" && e.gesture === "fist"));
+  const fist = ev.find((e) => e.type === "gesture" && e.gesture === "fist");
+  assert.ok(fist);
+  assert.equal(actionFor(fist, "pc"), null);
+  assert.ok(ev.some((e) => e.type === "menu" && e.phase === "open"));
 });
 
 // ---- Head ----

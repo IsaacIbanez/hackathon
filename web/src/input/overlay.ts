@@ -10,10 +10,9 @@ export const GESTURE_LABELS: Record<Gesture, string> = {
   none: "No gesture",
   point: "☝️ Pointing",
   palm: "✋ Open palm",
-  fist: "✊ Fist",
+  fist: "✊ Fist (menu)",
   thumbs_up: "👍 Thumbs up",
   thumbs_down: "👎 Thumbs down",
-  victory: "✌️ Victory (menu)",
   pinch: "🤏 Pinch",
 };
 
@@ -32,7 +31,9 @@ export const ACTION_LABELS: Partial<Record<Action, string>> = {
 };
 
 const HAND_LABELS: Record<HandSide, string> = { right: "right hand", left: "left hand" };
-const ARROWS: Record<MenuSector, string> = { up: "↑", right: "→", down: "↓", left: "←" };
+export const ARROWS: Record<MenuSector, string> = {
+  up: "↑", right: "→", down: "↓", left: "←", up_left: "↖", up_right: "↗", down_left: "↙", down_right: "↘",
+};
 
 export interface OverlayOptions {
   /** Show the image as a mirror (what the user expects from a front camera). Default true. */
@@ -182,7 +183,8 @@ function drawMenu(
   const options = menuFor(menu.hand);
   const bw = w * 0.3;
   const bh = h * 0.2;
-  const boxes: Record<MenuSector, [number, number]> = {
+  // This menu only uses the cross; the corners are for menus with more options.
+  const boxes: Partial<Record<MenuSector, [number, number]>> = {
     up: [(w - bw) / 2, h * 0.06],
     down: [(w - bw) / 2, h * 0.94 - bh],
     left: [w * 0.04, (h - bh) / 2],
@@ -191,7 +193,7 @@ function drawMenu(
   for (const s of Object.keys(boxes) as MenuSector[]) {
     const action = options[s];
     if (!action) continue;
-    const [x, y] = boxes[s];
+    const [x, y] = boxes[s]!;
     const active = menu.sector === s;
     ctx.fillStyle = active ? "#ffd23f33" : "#1b2030ee";
     ctx.fillRect(x, y, bw, bh);

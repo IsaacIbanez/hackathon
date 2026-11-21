@@ -48,7 +48,7 @@ const ACTION_LABELS: Record<string, string> = {
 };
 const GESTURE_LABELS: Record<string, string> = {
   none: "—", point: "Pointing", palm: "Open palm", fist: "Fist", thumbs_up: "Thumbs up",
-  thumbs_down: "Thumbs down", victory: "Victory", pinch: "Pinch",
+  thumbs_down: "Thumbs down", pinch: "Pinch",
 };
 const CONTEXT_LABELS: Record<Context, string> = { document: "Reading", form: "Form", pc: "Computer", call: "Video call" };
 const HAND_LABELS: Record<HandSide, string> = { right: "Right", left: "Left" };
@@ -60,7 +60,7 @@ const EVENT_LABELS: Record<string, string> = {
   gesture: "Gesture", swipe: "Swipe", menu: "Menu", level: "Volume", head: "Head", mode: "Mode",
   hand: "Hand", select: "Select", pointer: "Pointer",
 };
-const ARROWS: Record<MenuSector, string> = { up: "↑", right: "→", down: "↓", left: "←" };
+const ARROWS: Partial<Record<MenuSector, string>> = { up: "↑", right: "→", down: "↓", left: "←" };
 
 /** Human-readable label for an action (or any other text). */
 const label = (s: string) => ACTION_LABELS[s] ?? s.replaceAll("_", " ");
@@ -208,7 +208,7 @@ function paintGuide() {
     ["☝️ Point", "Move the pointer", false],
     ["☝️ Point and hold still ~1 s", m.select, false],
     ["👎 Thumbs down", m.thumbs_down, true],
-    ["✌️ Victory", "Open the quick menu, then move the pointer onto an option and hold ~0.5 s", true],
+    ["✊ Fist (hold)", "Open the quick menu, then move the pointer onto an option and hold ~0.5 s", true],
     ...(Object.entries(menuFor(interaction.handInUse, context)) as [MenuSector, string][]).map(
       ([s, a]) => [`      Menu ${ARROWS[s]} ${s}`, a, true] as [string, string, boolean],
     ),

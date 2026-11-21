@@ -5,8 +5,17 @@
 
 import { HeadGestureDetector, type HeadOptions } from "./head.ts";
 import { OneEuroFilter } from "./filter.ts";
-import { applyHomography, distance2D, documentHomography, mean } from "./geometry.ts";
-import { classifyPose, DEFAULT_THRESHOLDS, indexReach, shapePoints, type Thresholds } from "./poses.ts";
+import { applyHomography, distance, distance2D, documentHomography, mean } from "./geometry.ts";
+import {
+  classifyPose,
+  DEFAULT_THRESHOLDS,
+  fingerState,
+  handSize,
+  indexReach,
+  shapePoints,
+  straightness,
+  type Thresholds,
+} from "./poses.ts";
 import {
   L,
   type Corners,
@@ -15,7 +24,9 @@ import {
   type HandEvent,
   type HandFrame,
   type HandSide,
+  type LevelTarget,
   type MenuSector,
+  type MouseAction,
   type Point,
 } from "./types.ts";
 
@@ -50,10 +61,19 @@ export interface InteractionOptions {
   thresholds: Thresholds;
 
   // ---- Experimental ----
-  /** If true, gestures are ignored until the user "wakes" the system by holding an open palm. */
+  /**
+   * If true, gestures are ignored until the user "wakes" the detector by holding an open palm.
+   * Waking is deliberately strict (see the wake* options) so it doesn't happen by accident.
+   */
   requireWake: boolean;
-  /** Time holding a still open palm to wake. */
+  /** Time holding a still, strict open palm to wake. */
   wakeMs: number;
+  /** Wake palm: minimum straightness of each of the four fingers (1 = perfectly straight). */
+  wakeStraightness: number;
+  /** Wake palm: fingers spread, as index-tip-to-pinky-tip distance ÷ hand size. */
+  wakeSpread: number;
+  /** Wake palm: maximum tilt of the hand from upright, in degrees. */
+  wakeUprightDeg: number;
   /** Idle time before going back to sleep. */
   sleepMs: number;
   /**
@@ -77,8 +97,26 @@ export interface InteractionOptions {
   levelArmMs: number;
   /** Index reach below which the hand counts as closed (fist). */
   fistReach: number;
-  /** If false, the fist is not used: it is neither emitted as a gesture nor ends the volume control. */
+  /** If true, closing the fist also ends the volume/brightness control (it always opens the menu). */
   useFist: boolean;
+  /** The fist must be held this long (and still) to open the menu; inside the menu, to close it. */
+  menuHoldMs: number;
+  /**
+   * Mouse buttons with the hand: while pointing with the index, touching the middle fingertip to the
+   * thumb tip presses the button. A short tap is a click, two quick taps a right click, and holding
+   * keeps the button down (drag) until the fingers separate. Disables the dwell selection.
+   */
+  mouseClicks: boolean;
+  /** Middle–thumb distance (÷ hand size) below which the button is pressed… */
+  clickPress: number;
+  /** …and above which it is released (hysteresis, so it doesn't flicker). */
+  clickRelease: number;
+  /** To press, the middle fingertip must be at least this far from the wrist (÷ hand size). */
+  clickReach: number;
+  /** Holding the fingers together longer than this is a drag (button held), not a tap. */
+  dragMs: number;
+  /** A second tap within this time after the first one makes a right click. */
+  doubleTapMs: number;
   /** If true, the palm only counts when the palm (not the back of the hand) faces the camera. */
   palmMustFaceCamera: boolean;
   /** Time holding the pointer over a menu option to choose it. */
@@ -112,7 +150,10 @@ export const DEFAULT_OPTIONS: InteractionOptions = {
   invertHandedness: false,
   thresholds: DEFAULT_THRESHOLDS,
   requireWake: false,
-  wakeMs: 1000,
+  wakeMs: 1200,
+  wakeStraightness: 0.93,
+  wakeSpread: 0.8,
+  wakeUprightDeg: 40,
   sleepMs: 10000,
   levelZero: 0.25,
   levelFull: 1.0,
@@ -123,6 +164,13 @@ export const DEFAULT_OPTIONS: InteractionOptions = {
   fistReach: 0.9,
   levelArmMs: 8000,
   useFist: false,
+  menuHoldMs: 500,
+  mouseClicks: false,
+  clickPress: 0.3,
+  clickRelease: 0.45,
+  clickReach: 0.9,
+  dragMs: 300,
+  doubleTapMs: 350,
   palmMustFaceCamera: true,
   menuSelectMs: 500,
   menuSettleMs: 300,
@@ -140,6 +188,8 @@ export const REDUCED_MOBILITY_PROFILE: Partial<InteractionOptions> = {
   swipeDistance: 0.15,
   swipeWindowMs: 700,
   wakeMs: 1500,
+  dragMs: 450,
+  doubleTapMs: 500,
   menuSelectMs: 900,
   menuTimeoutMs: 8000,
 };
@@ -154,6 +204,11 @@ interface MenuState {
   /** Option currently under the pointer, and since when. */
   sector: MenuSector | null;
   tSector: number;
+  /**
+   * After reopening (submenu), the cell just chosen is ignored until the pointer leaves it, so the
+   * option that sits there in the new page isn't chosen without moving.
+   */
+  blocked: MenuSector | null;
 }
 
 /** Raw measurements from the last frame, to show on screen and calibrate. */
@@ -170,6 +225,15 @@ export interface Diagnostics {
   /** Detected (stabilised) hand, or null if not clear yet. */
   hand: HandSide | null;
 }
+
+type ClickState = "idle" | "pressed" | "dragging" | "tapWait" | "secondPress";
+
+/**
+ * Why an open hand doesn't wake the detector: a finger isn't extended ("open"), the fingers are
+ * bent ("straight") or together ("spread"), it's the back of the hand ("facing") or it is tilted
+ * ("upright").
+ */
+export type WakeIssue = "open" | "straight" | "spread" | "facing" | "upright";
 
 interface LevelState {
   /** Stepped value (0, 0.1, 0.2…). */
@@ -188,7 +252,7 @@ interface LevelState {
 }
 
 /** Events that count as activity (they keep the system awake). */
-const ACTIVITY = new Set<HandEvent["type"]>(["gesture", "swipe", "select", "level", "menu", "head"]);
+const ACTIVITY = new Set<HandEvent["type"]>(["gesture", "swipe", "select", "level", "menu", "head", "pointer", "mouse"]);
 
 export class HandInteraction {
   private opts: InteractionOptions;
@@ -235,6 +299,20 @@ export class HandInteraction {
   private fSeparation = new OneEuroFilter({ minCutoff: 1.0, beta: 0.3, derivativeCutoff: 1.0 });
   /** Volume armed from the menu, waiting for the fingers to touch (time it was armed). */
   private levelArmedAt: number | null = null;
+  private levelTarget: LevelTarget = "volume";
+  /** Cells the current menu offers (null: the cross, without the hand's side). */
+  private menuCells: MenuSector[] | null = null;
+  /** When the fist started inside the open menu (to close it by holding the fist). */
+  private tMenuFist: number | null = null;
+  private lastMenuCenter: Point | null = null;
+  private lastChosenSector: MenuSector | null = null;
+  private wakeIssue: WakeIssue | null = null;
+  // Mouse buttons (click gesture).
+  private click: ClickState = "idle";
+  private clickTouching = false;
+  private clickReady = false;
+  private tClickPress = 0;
+  private tClickRelease = 0;
   private headDetector: HeadGestureDetector;
   /** The hand being followed (its wrist position, to recognise it in the next frame). */
   private followed: { wrist: Point; hand: Hand } | null = null;
@@ -322,10 +400,13 @@ export class HandInteraction {
     return this.stableHand;
   }
 
-  /** Menu sectors that can be chosen with the current hand (that hand's side is removed). */
+  /**
+   * Menu cells that can be chosen: the ones set with setMenuCells or, by default, the cross without
+   * the current hand's side.
+   */
   menuSectors(hand: HandSide | null = this.menu?.hand ?? this.stableHand): MenuSector[] {
-    const all: MenuSector[] = ["up", "right", "down", "left"];
-    return all.filter((s) => s !== hand);
+    const all: MenuSector[] = ["up", "right", "down", "left", "up_left", "up_right", "down_left", "down_right"];
+    return all.filter((s) => this.menuOffers(s, hand));
   }
 
   /** Raw measurements of the last frame with a hand (null if there is no hand). */
@@ -354,12 +435,33 @@ export class HandInteraction {
    * Arms the volume control (called when "adjust volume" is chosen in the menu). From then on,
    * touching the thumb and index fingertips starts the adjustment. Otherwise the pinch does nothing.
    */
-  startLevel(t: number = this.tLastHand): void {
+  startLevel(t: number = this.tLastHand, target: LevelTarget = "volume"): void {
     if (this.level) return;
     this.levelArmedAt = t;
+    this.levelTarget = target;
     this.tPinchStart = null;
     this.lastPointer = null;
-    this.emit({ type: "level", phase: "armed", value: 0, t });
+    this.emit({ type: "level", phase: "armed", value: 0, target, t });
+  }
+
+  /** What the current (or last) level control adjusts. */
+  get levelTargetName(): LevelTarget {
+    return this.levelTarget;
+  }
+
+  /**
+   * Sets which cells the quick menu offers (for menus with more than 4 options, or submenus).
+   * null goes back to the cross (up, right, down, left) without the side of the hand in use.
+   */
+  setMenuCells(cells: MenuSector[] | null): void {
+    this.menuCells = cells;
+  }
+
+  /** Opens the menu again at the same place (e.g. to show a submenu after choosing an option). */
+  reopenMenu(t: number = this.tLastHand): void {
+    const hand = this.followed?.hand;
+    if (!hand) return;
+    this.openMenu(t, hand, 1, this.lastMenuCenter ?? undefined, this.lastChosenSector);
   }
 
   /** true while the volume is armed, waiting for the fingers to touch. */
@@ -395,8 +497,10 @@ export class HandInteraction {
     if (!hand) {
       this.currentPose = "none";
       this.diag = null;
+      this.wakeIssue = null;
       if (this.present && t - this.tLastHand > this.opts.handLostMs) {
         this.present = false;
+        this.releaseMouse(t);
         this.endLevel(t);
         this.cancelArmedLevel(t);
         this.closeMenu(t);
@@ -417,13 +521,17 @@ export class HandInteraction {
     }
 
     let pose = classifyPose(hand, aspect, this.opts.thresholds);
-    if (pose === "palm" && this.opts.palmMustFaceCamera && palmFacesCamera(hand, this.sideOf(hand)) === false) {
-      pose = "none"; // it's the back of the hand
+    const backOfHand = pose === "palm" && palmFacesCamera(hand, this.sideOf(hand)) === false;
+    if (backOfHand && this.opts.palmMustFaceCamera) pose = "none";
+    const pts = shapePoints(hand, aspect);
+    if (this.opts.mouseClicks && pose === "pinch") {
+      // While clicking, the thumb comes close to the index too and the pose can read as a pinch:
+      // with the index still straight (and ring and pinky folded) it is still pointing.
+      const f = fingerState(pts, this.opts.thresholds);
+      if (f.index && !f.ring && !f.pinky) pose = "point";
     }
-    if (pose === "fist" && !this.opts.useFist) pose = "none";
     this.currentPose = pose;
     const center = palmCenter(hand, aspect);
-    const pts = shapePoints(hand, aspect);
     this.updateHandedness(hand);
     this.diag = {
       separation: screenSeparation(hand, aspect),
@@ -435,7 +543,8 @@ export class HandInteraction {
     };
 
     if (!this.awake) {
-      this.tryWake(t, pose, center);
+      this.tryWake(t, pose, center, hand, aspect);
+      if (backOfHand) this.wakeIssue = "facing";
       return;
     }
     if (this.menu) {
@@ -447,6 +556,7 @@ export class HandInteraction {
     const swiped = this.detectSwipe(t, center, pose, aspect);
     if (!swiped) this.stabilizeGesture(t, pose, center, hand, aspect);
     this.updatePointer(t, hand, pose, aspect);
+    if (this.opts.mouseClicks) this.updateClick(t, pose, hand, aspect);
   }
 
   // ---------- Stable gestures ----------
@@ -464,10 +574,14 @@ export class HandInteraction {
       this.resetCandidate(t, pose, center);
       return;
     }
-    if (t - this.tCandidate >= this.opts.gestureHoldMs && this.candidate !== this.stableGesture) {
+    // The fist opens the menu, so it must be held a bit longer (passing through a fist while
+    // changing gestures must not open it).
+    const hold =
+      this.candidate === "fist" ? Math.max(this.opts.gestureHoldMs, this.opts.menuHoldMs) : this.opts.gestureHoldMs;
+    if (t - this.tCandidate >= hold && this.candidate !== this.stableGesture) {
       this.stableGesture = this.candidate;
       this.emit({ type: "gesture", gesture: this.stableGesture, t });
-      if (this.stableGesture === "victory") this.openMenu(t, hand, aspect);
+      if (this.stableGesture === "fist" && this.click === "idle") this.openMenu(t, hand, aspect);
     }
   }
 
@@ -525,6 +639,18 @@ export class HandInteraction {
     this.lastPointer = p;
     const onDocument = this.toDocument(p);
 
+    // With mouse clicks, the buttons come from the click gesture: no dwell selection. The pointer
+    // stays put while the fingers tap (moving the middle finger shifts the index a little), so the
+    // click lands where the user was pointing; it moves again when dragging.
+    if (this.opts.mouseClicks) {
+      const tapping = this.click === "pressed" || this.click === "tapWait" || this.click === "secondPress";
+      if (!tapping && t - this.tLastPointer >= this.opts.pointerIntervalMs) {
+        this.tLastPointer = t;
+        this.emit({ type: "pointer", image: p, document: onDocument, t });
+      }
+      return;
+    }
+
     // Dwell selection: the pointer stays still within a radius for a while.
     if (!this.anchor || distance2D(p, this.anchor, aspect) > this.opts.dwellRadius) {
       // To select again, the pointer must clearly leave the radius.
@@ -555,9 +681,10 @@ export class HandInteraction {
 
   // ---------- Experimental: sleep / wake ----------
 
-  private tryWake(t: number, pose: Gesture, center: Point): void {
+  private tryWake(t: number, pose: Gesture, center: Point, hand: Hand, aspect: number): void {
     const still = distance2D(center, this.wakePos) <= this.opts.gestureStillness;
-    if (pose !== "palm") {
+    if (pose !== "palm") this.wakeIssue = null;
+    if (pose !== "palm" || !this.isWakePalm(hand, aspect)) {
       this.tWakeStart = null;
       return;
     }
@@ -567,6 +694,45 @@ export class HandInteraction {
       return;
     }
     if (t - this.tWakeStart >= this.opts.wakeMs) this.wake(t, "palm");
+  }
+
+  /**
+   * The wake palm is strict on purpose: all fingers clearly straight and spread, thumb out, the
+   * palm (not the back) facing the camera, and the hand upright. A relaxed or half-open hand
+   * while talking or gesturing doesn't count.
+   */
+  private isWakePalm(hand: Hand, aspect: number): boolean {
+    this.wakeIssue = this.wakePalmIssue(hand, aspect);
+    return this.wakeIssue === null;
+  }
+
+  /** What keeps an open hand from being a wake palm (null: it is one). */
+  private wakePalmIssue(hand: Hand, aspect: number): WakeIssue | null {
+    const pts = shapePoints(hand, aspect);
+    const f = fingerState(pts, this.opts.thresholds);
+    if (!(f.thumb && f.index && f.middle && f.ring && f.pinky)) return "open";
+    const chains = [
+      [L.INDEX_MCP, L.INDEX_PIP, L.INDEX_DIP, L.INDEX_TIP],
+      [L.MIDDLE_MCP, L.MIDDLE_PIP, L.MIDDLE_DIP, L.MIDDLE_TIP],
+      [L.RING_MCP, L.RING_PIP, L.RING_DIP, L.RING_TIP],
+      [L.PINKY_MCP, L.PINKY_PIP, L.PINKY_DIP, L.PINKY_TIP],
+    ];
+    if (chains.some((c) => straightness(pts, c) < this.opts.wakeStraightness)) return "straight";
+    if (distance(pts[L.INDEX_TIP], pts[L.PINKY_TIP]) / handSize(pts) < this.opts.wakeSpread) return "spread";
+    if (palmFacesCamera(hand, this.sideOf(hand)) !== true) return "facing";
+    // Upright: from the wrist to the middle knuckle, pointing up in the image.
+    const w = hand.points[L.WRIST];
+    const m = hand.points[L.MIDDLE_MCP];
+    const tilt = (Math.atan2(Math.abs((m.x - w.x) * aspect), w.y - m.y) * 180) / Math.PI;
+    return w.y > m.y && tilt <= this.opts.wakeUprightDeg ? null : "upright";
+  }
+
+  /**
+   * While asleep: why the hand in view doesn't wake the detector yet, to tell the user (null: no
+   * open hand in view, or it is a good wake palm).
+   */
+  get wakeHint(): WakeIssue | null {
+    return this.awake ? null : this.wakeIssue;
   }
 
   private wake(t: number, currentPose: Gesture): void {
@@ -582,6 +748,7 @@ export class HandInteraction {
 
   private sleep(t: number): void {
     this.awake = false;
+    this.releaseMouse(t);
     this.endLevel(t);
     this.closeMenu(t);
     this.resetTracking();
@@ -643,7 +810,7 @@ export class HandInteraction {
         thumb,
         index,
       };
-      this.emit({ type: "level", phase: "start", value, t });
+      this.emit({ type: "level", phase: "start", value, target: this.levelTarget, t });
       return true;
     }
 
@@ -658,7 +825,7 @@ export class HandInteraction {
       n.value = roundLevel(continuous, step);
       n.tChange = t;
       n.moved = true;
-      this.emit({ type: "level", phase: "move", value: n.value, t });
+      this.emit({ type: "level", phase: "move", value: n.value, target: this.levelTarget, t });
     }
     n.history.push({ t, value: n.value });
     while (n.history.length && t - n.history[0].t > 400) n.history.shift();
@@ -676,7 +843,7 @@ export class HandInteraction {
     if (this.levelArmedAt === null) return;
     this.levelArmedAt = null;
     this.tPinchStart = null;
-    this.emit({ type: "level", phase: "cancel", value: 0, t });
+    this.emit({ type: "level", phase: "cancel", value: 0, target: this.levelTarget, t });
   }
 
   /** @param onClose true if it ends by closing the fist or losing the hand (an earlier value is used). */
@@ -688,16 +855,18 @@ export class HandInteraction {
     const value = onClose
       ? (n.history.find((h) => h.t >= n.tLastValid - 300) ?? n.history[0])?.value ?? n.value
       : n.value;
-    this.emit({ type: "level", phase: "end", value, t });
+    this.emit({ type: "level", phase: "end", value, target: this.levelTarget, t });
   }
 
   // ---------- Experimental: quick menu ----------
 
-  private openMenu(t: number, hand: Hand, aspect: number): void {
+  private openMenu(t: number, hand: Hand, aspect: number, at?: Point, blocked: MenuSector | null = null): void {
     const c = palmCenter(hand, aspect);
-    const center = { x: c.x / aspect, y: c.y };
+    const center = at ?? { x: c.x / aspect, y: c.y };
     const menuHand = this.stableHand;
-    this.menu = { center, hand: menuHand, tOpened: t, sector: null, tSector: t };
+    this.menu = { center, hand: menuHand, tOpened: t, sector: null, tSector: t, blocked };
+    this.lastMenuCenter = center;
+    this.tMenuFist = null;
     this.lastPointer = null;
     this.emit({ type: "menu", phase: "open", sector: null, center, hand: menuHand, t });
   }
@@ -715,15 +884,31 @@ export class HandInteraction {
     }
     if (t - m.tOpened < this.opts.menuSettleMs) return;
 
-    // Only ☝️ moves the pointer (✌️, which opens the menu, chooses nothing).
+    // Holding the fist again closes the menu. The fist that opened it must be released first: only
+    // a fist that starts after the menu opened counts.
+    if (pose === "fist") {
+      if (this.tMenuFist === null) this.tMenuFist = this.stableGesture === "fist" ? Infinity : t;
+      if (t - this.tMenuFist >= this.opts.menuHoldMs) {
+        this.closeMenu(t);
+        this.stableGesture = "fist"; // released before it can open the menu again
+        this.resetCandidate(t, pose, center);
+        return;
+      }
+    } else {
+      this.tMenuFist = null;
+      if (this.stableGesture === "fist") this.stableGesture = pose;
+    }
+
+    // Only ☝️ moves the pointer (✊, which opens the menu, chooses nothing).
     if (pose === "point") this.tLastPointing = t;
     let sector: MenuSector | null = null;
     if (t - this.tLastPointing <= 150) {
       const p = this.indexPointer(t, hand);
       this.lastPointer = p;
       sector = screenSector(p, this.opts.mirror);
-      // The side of the hand in use doesn't exist in the menu.
-      if (sector === m.hand) sector = null;
+      if (m.blocked && sector === m.blocked) sector = null;
+      else m.blocked = null; // the pointer left the cell chosen in the previous page
+      if (sector && !this.menuOffers(sector, m.hand)) sector = null;
     } else {
       this.lastPointer = null;
       this.fx.reset();
@@ -739,6 +924,8 @@ export class HandInteraction {
     if (sector && t - m.tSector >= this.opts.menuSelectMs) {
       this.menu = null;
       this.lastPointer = null;
+      this.lastChosenSector = sector;
+      // A listener may reopen the menu (a submenu) from inside this event.
       this.emit({ type: "menu", phase: "choose", sector, center: m.center, hand: m.hand, t });
       // The pose must change before "point" does anything else.
       this.stableGesture = pose;
@@ -747,6 +934,93 @@ export class HandInteraction {
       this.anchor = null;
       this.selectionDone = true; // so the dwell doesn't also trigger a "select"
     }
+  }
+
+  /** Whether the open menu has an option in that cell. */
+  private menuOffers(sector: MenuSector, hand: HandSide | null): boolean {
+    if (this.menuCells) return this.menuCells.includes(sector);
+    // Default: the cross, without the side of the hand in use (pointing outwards is awkward).
+    return (sector === "up" || sector === "down" || sector === "left" || sector === "right") && sector !== hand;
+  }
+
+  // ---------- Mouse buttons (click gesture) ----------
+
+  /**
+   * Index pointing + middle fingertip touching the thumb tip = button pressed.
+   * - short tap → "click" (sent after a short wait, in case a second tap follows);
+   * - two quick taps → "right_click";
+   * - held longer than dragMs → "down", and "up" when the fingers separate (drag).
+   */
+  private updateClick(t: number, pose: Gesture, hand: Hand, aspect: number): void {
+    const pointing = pose === "point" || t - this.tLastPointing <= 150;
+    const pts = shapePoints(hand, aspect);
+    const size = handSize(pts);
+    const gap = distance(pts[L.THUMB_TIP], pts[L.MIDDLE_TIP]) / size;
+    // Pointing with the middle finger curled into the palm can leave its tip next to the thumb. Two
+    // guards keep that from clicking: the fingers must first be seen apart after pointing starts
+    // (clickReady), and the middle fingertip must be out in front of the palm, where it meets the
+    // thumb, not tucked in near the wrist.
+    if (!pointing) this.clickReady = false;
+    else if (gap > this.opts.clickRelease) this.clickReady = true;
+    const outInFront = distance(pts[L.WRIST], pts[L.MIDDLE_TIP]) / size >= this.opts.clickReach;
+    this.clickTouching =
+      pointing &&
+      (this.clickTouching ? gap < this.opts.clickRelease : this.clickReady && outInFront && gap < this.opts.clickPress);
+    const touching = this.clickTouching;
+
+    switch (this.click) {
+      case "idle":
+        if (touching) {
+          this.click = "pressed";
+          this.tClickPress = t;
+        }
+        break;
+      case "pressed":
+        if (!touching) {
+          this.click = "tapWait";
+          this.tClickRelease = t;
+        } else if (t - this.tClickPress >= this.opts.dragMs) {
+          this.click = "dragging";
+          this.emitMouse("down", t);
+        }
+        break;
+      case "dragging":
+        if (!touching) {
+          this.click = "idle";
+          this.emitMouse("up", t);
+        }
+        break;
+      case "tapWait":
+        if (touching) {
+          this.click = "secondPress";
+          this.emitMouse("right_click", t);
+        } else if (t - this.tClickRelease > this.opts.doubleTapMs) {
+          this.click = "idle";
+          this.emitMouse("click", t);
+        }
+        break;
+      case "secondPress":
+        if (!touching) this.click = "idle";
+        break;
+    }
+  }
+
+  /** Lets go of the mouse button if it was held (hand lost, sleeping…). */
+  private releaseMouse(t: number): void {
+    if (this.click === "dragging") this.emitMouse("up", t);
+    else if (this.click === "tapWait") this.emitMouse("click", t);
+    this.click = "idle";
+    this.clickTouching = false;
+    this.clickReady = false;
+  }
+
+  private emitMouse(action: MouseAction, t: number): void {
+    this.emit({ type: "mouse", action, t });
+  }
+
+  /** Mouse button state, for drawing: "pressed" or "dragging" while the fingers touch. */
+  get mouseButton(): "up" | "pressed" | "dragging" {
+    return this.click === "dragging" ? "dragging" : this.clickTouching ? "pressed" : "up";
   }
 
   /** Index fingertip (slightly ahead), filtered against tremor. */
@@ -924,19 +1198,21 @@ export function screenSeparation(hand: Hand, aspect: number): number {
   return distance2D(p[L.THUMB_TIP], p[L.INDEX_TIP], aspect) / size;
 }
 
+const GRID: (MenuSector | null)[][] = [
+  ["up_left", "up", "up_right"],
+  ["left", null, "right"],
+  ["down_left", "down", "down_right"],
+];
+
 /**
- * Menu option under the pointer: the screen (as seen by the user) is split into thirds and the
- * options form a cross. Outside those 4 zones, none.
+ * Menu cell under the pointer: the screen (as seen by the user) is split into a 3×3 grid with an
+ * empty centre. Each menu decides which cells it uses (setMenuCells).
  */
 export function screenSector(p: Point, mirror: boolean): MenuSector | null {
   const x = mirror ? 1 - p.x : p.x;
   const col = Math.floor(Math.min(0.999, Math.max(0, x)) * 3);
   const row = Math.floor(Math.min(0.999, Math.max(0, p.y)) * 3);
-  if (col === 1 && row === 0) return "up";
-  if (col === 1 && row === 2) return "down";
-  if (col === 0 && row === 1) return "left";
-  if (col === 2 && row === 1) return "right";
-  return null;
+  return GRID[row][col];
 }
 
 function roundLevel(v: number, step: number): number {

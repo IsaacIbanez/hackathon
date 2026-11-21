@@ -27,6 +27,12 @@ export type Action =
   | "next_tab"
   | "previous_tab"
   | "click"
+  | "brightness"
+  | "mic_mute"
+  | "suspend"
+  | "restart"
+  | "shutdown"
+  | "open_app"
   // Video call
   | "toggle_mic"
   | "toggle_camera"
@@ -39,6 +45,7 @@ export type Action =
   | "sleep"
   // Quick menu
   | "adjust_volume"
+  | "adjust_brightness"
   | "repeat"
   | "copy_text"
   | "dictate"
@@ -47,7 +54,8 @@ export type Action =
 interface ContextMap {
   thumbs_up: Action;
   thumbs_down: Action;
-  palm: Action;
+  /** null: the open palm does nothing (in the Gesture Control window it only wakes the detector). */
+  palm: Action | null;
   swipe_right: Action | null;
   swipe_left: Action | null;
   select: Action;
@@ -80,19 +88,19 @@ export const MAPS: Record<Context, ContextMap> = {
   pc: {
     thumbs_up: "enter",
     thumbs_down: "undo",
-    palm: "escape",
+    palm: null,
     swipe_right: "next_tab",
     swipe_left: "previous_tab",
     select: "click",
     pinch: "volume",
     head: { nod: "enter", shake: "escape" },
   },
-  // In a video call: ✋ raises your hand, 👍 mutes/unmutes, 👎 turns the camera on/off. Swipes do
-  // nothing (people move their hands while talking); leaving the call is in the quick menu.
+  // In a video call: 👍 mutes/unmutes, 👎 turns the camera on/off. Swipes do nothing (people move
+  // their hands while talking); raising your hand and leaving the call are in the quick menu.
   call: {
     thumbs_up: "toggle_mic",
     thumbs_down: "toggle_camera",
-    palm: "raise_hand",
+    palm: null,
     swipe_right: null,
     swipe_left: null,
     select: "click",
@@ -101,8 +109,8 @@ export const MAPS: Record<Context, ContextMap> = {
   },
 };
 
-/** Quick menu (✌️) options when the hand in use is unknown; the same in every context. */
-export const QUICK_MENU: Record<MenuSector, Action> = {
+/** Quick menu (✊) options when the hand in use is unknown; the same in every context. */
+export const QUICK_MENU: Partial<Record<MenuSector, Action>> = {
   up: "adjust_volume",
   right: "dictate",
   down: "repeat",
@@ -115,7 +123,7 @@ export const QUICK_MENU: Record<MenuSector, Action> = {
  * dropped. In a video call, ↓ leaves the call (behind the menu so it can't happen by accident).
  */
 export function menuFor(hand: HandSide | null, context: Context = "document"): Partial<Record<MenuSector, Action>> {
-  const base: Record<MenuSector, Action> = context === "call" ? { ...QUICK_MENU, down: "leave_call" } : QUICK_MENU;
+  const base = context === "call" ? { ...QUICK_MENU, down: "leave_call" as const } : QUICK_MENU;
   if (!hand) return base;
   const otherSide: MenuSector = hand === "right" ? "left" : "right";
   return { up: base.up, down: base.down, [otherSide]: "ask_for_help" };
@@ -133,13 +141,14 @@ export function actionFor(event: HandEvent, context: Context = "document"): Acti
       if (event.gesture === "thumbs_up") return m.thumbs_up;
       if (event.gesture === "thumbs_down") return m.thumbs_down;
       if (event.gesture === "palm") return m.palm;
-      return null; // victory opens the menu; the rest have no action of their own
+      return null; // the fist opens the menu; the rest have no action of their own
     case "swipe":
       return event.direction === "right" ? m.swipe_right : m.swipe_left;
     case "select":
       return m.select;
     case "level":
-      return event.phase === "move" || event.phase === "end" ? m.pinch : null;
+      if (event.phase !== "move" && event.phase !== "end") return null;
+      return event.target === "brightness" ? "brightness" : m.pinch;
     case "menu":
       return event.phase === "choose" && event.sector ? (menuFor(event.hand, context)[event.sector] ?? null) : null;
     case "head":
