@@ -56,7 +56,8 @@ type Response struct {
 	Model            string        `json:"model"`
 	Tier             Tier          `json:"tier"`
 	CostUSD          float64       `json:"costUsd"` // 0 si viene de la caché
-	Latency          time.Duration `json:"latency"`
+	Latency          time.Duration `json:"-"`
+	LatencyMs        int64         `json:"latencyMs"`
 	Cached           bool          `json:"cached"`
 	PromptTokens     int           `json:"promptTokens"`
 	CompletionTokens int           `json:"completionTokens"`
@@ -119,7 +120,7 @@ func (c *Client) Complete(ctx context.Context, req Request) (Response, error) {
 	key := cacheKey(model, req)
 	if c.Cache != nil {
 		if r, ok := c.Cache.Get(key); ok {
-			r.Cached, r.CostUSD, r.Latency = true, 0, 0
+			r.Cached, r.CostUSD, r.Latency, r.LatencyMs = true, 0, 0, 0
 			c.meter().Record(r)
 			return r, nil
 		}
@@ -128,6 +129,7 @@ func (c *Client) Complete(ctx context.Context, req Request) (Response, error) {
 	inicio := time.Now()
 	r, err := c.call(ctx, model, req)
 	r.Latency = time.Since(inicio)
+	r.LatencyMs = r.Latency.Milliseconds()
 	r.Tier = req.Tier
 	if err != nil {
 		c.meter().RecordError(req.Tier)

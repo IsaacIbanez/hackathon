@@ -41,6 +41,9 @@ func main() {
 			log.Fatal(err)
 		}
 		tipo := mime.TypeByExtension(filepath.Ext(*imagen))
+		if tipo == "" {
+			tipo = "image/jpeg"
+		}
 		msg.Images = []string{"data:" + tipo + ";base64," + base64.StdEncoding.EncodeToString(datos)}
 	}
 	req := llm.Request{Tier: llm.Barato, Messages: []llm.Message{msg}, MaxTokens: 300}
