@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: LauzHack project — backend <-> frontend contract
-  version: 0.3.0
+  version: 0.4.0
   description: |
     The only interface between modules. HTTP for health and WebSocket (`/ws`) for everything else.
 
@@ -13,7 +13,9 @@ info:
 
     Direction: the client (browser or a local process such as the scanner) sends `document`,
     `pointer` and `utterance` (ClientMessage); Go answers with `speak` and, after each model
-    call, sends `stats` (ServerMessage).
+    call, sends `stats` (ServerMessage). When Go accepts a `document` from any client, it also
+    broadcasts that `document` to every WebSocket client, so the UI can show and highlight it
+    even when the scanner sent it.
 
     The app has ONE shared session: a message from any client (WebSocket or POST /message)
     updates the same state, and every `speak` and `stats` is broadcast to all WebSocket clients.
@@ -292,12 +294,14 @@ components:
           utterance: "#/components/schemas/UtteranceMessage"
 
     ServerMessage:
-      description: What Go sends to the client
+      description: What Go sends to the client (document = the current document, echoed to every client)
       oneOf:
         - $ref: "#/components/schemas/SpeakMessage"
         - $ref: "#/components/schemas/StatsMessage"
+        - $ref: "#/components/schemas/DocumentMessage"
       discriminator:
         propertyName: type
         mapping:
           speak: "#/components/schemas/SpeakMessage"
           stats: "#/components/schemas/StatsMessage"
+          document: "#/components/schemas/DocumentMessage"

@@ -80,6 +80,17 @@ func (c *collector) next(t *testing.T) any {
 		return nil
 	}
 }
+
+// skipEcho reads the next message, skipping a document echo.
+func (c *collector) skipEcho(t *testing.T) any {
+	t.Helper()
+	v := c.next(t)
+	if _, ok := v.(gen.DocumentMessage); ok {
+		return c.next(t)
+	}
+	return v
+}
+
 func (c *collector) none(t *testing.T) {
 	t.Helper()
 	select {
@@ -120,6 +131,10 @@ func TestDocumentIsExplainedWithSpeakAndStats(t *testing.T) {
 
 	s.Handle(context.Background(), envelope(t, "document", "doc-1", fixtureDocument(t)), c.send)
 
+	echo, ok := c.next(t).(gen.DocumentMessage)
+	if !ok || echo.Id != "doc-1" || len(echo.Payload.Blocks) != 4 {
+		t.Fatalf("expected the document echo first, got %+v", echo)
+	}
 	sp, ok := c.next(t).(gen.SpeakMessage)
 	if !ok || !strings.Contains(sp.Payload.Text, "declaración") || *sp.Payload.ReplyTo != "doc-1" || sp.Payload.Lang != "es-ES" {
 		t.Fatalf("speak: %+v", sp)
@@ -158,6 +173,7 @@ func TestPointerReadsBlockOnceWithoutModel(t *testing.T) {
 	c := newCollector()
 	ctx := context.Background()
 	s.Handle(ctx, envelope(t, "document", "doc-1", fixtureDocument(t)), c.send)
+	c.next(t) // document echo
 	c.next(t) // speak
 	c.next(t) // stats
 
@@ -186,6 +202,7 @@ func TestUtteranceAsksAboutTheDocument(t *testing.T) {
 	}
 
 	s.Handle(ctx, envelope(t, "document", "doc-1", fixtureDocument(t)), c.send)
+	c.next(t) // document echo
 	c.next(t)
 	c.next(t)
 	s.Handle(ctx, envelope(t, "pointer", "p-1", gen.PointerPayload{BlockId: strPtr("b2")}), c.send)
@@ -213,7 +230,7 @@ func TestBadCheapAnswerEscalates(t *testing.T) {
 	s := New(m, DefaultConfig())
 	c := newCollector()
 	s.Handle(context.Background(), envelope(t, "document", "doc-1", fixtureDocument(t)), c.send)
-	sp := c.next(t).(gen.SpeakMessage)
+	sp := c.skipEcho(t).(gen.SpeakMessage)
 	if m.escalated != 1 || !strings.Contains(sp.Payload.Text, "declaración") {
 		t.Fatalf("escalated=%d speak=%q", m.escalated, sp.Payload.Text)
 	}
@@ -224,7 +241,7 @@ func TestModelErrorGivesLocalMessage(t *testing.T) {
 	s := New(m, DefaultConfig())
 	c := newCollector()
 	s.Handle(context.Background(), envelope(t, "document", "doc-1", fixtureDocument(t)), c.send)
-	if sp := c.next(t).(gen.SpeakMessage); !strings.Contains(sp.Payload.Text, "no puedo") {
+	if sp := c.skipEcho(t).(gen.SpeakMessage); !strings.Contains(sp.Payload.Text, "no puedo") {
 		t.Fatalf("speak: %q", sp.Payload.Text)
 	}
 }
@@ -236,6 +253,8 @@ func TestNewerDocumentCancelsSlowAnswer(t *testing.T) {
 	ctx := context.Background()
 	s.Handle(ctx, envelope(t, "document", "doc-1", fixtureDocument(t)), c.send)
 	s.Handle(ctx, envelope(t, "document", "doc-2", fixtureDocument(t)), c.send)
+	c.next(t) // echo doc-1
+	c.next(t) // echo doc-2
 
 	sp := c.next(t).(gen.SpeakMessage)
 	if *sp.Payload.ReplyTo != "doc-2" {
@@ -276,6 +295,10 @@ func TestScannerPostReachesTheUI(t *testing.T) {
 	}
 
 	for i, ui := range []*websocket.Conn{ui1, ui2} {
+		var doc gen.DocumentMessage
+		if err := wsjson.Read(ctx, ui, &doc); err != nil || doc.Type != "document" || len(doc.Payload.Blocks) != 4 {
+			t.Fatalf("client %d document echo: %+v %v", i, doc, err)
+		}
 		var sp gen.SpeakMessage
 		if err := wsjson.Read(ctx, ui, &sp); err != nil || sp.Type != "speak" || *sp.Payload.ReplyTo != "doc-0001" {
 			t.Fatalf("client %d speak: %+v %v", i, sp, err)
@@ -330,6 +353,7 @@ func TestPointerWithoutBlockIdIsHitTested(t *testing.T) {
 	c := newCollector()
 	ctx := context.Background()
 	s.Handle(ctx, envelope(t, "document", "doc-1", fixtureDocument(t)), c.send)
+	c.next(t) // document echo
 	c.next(t)
 	c.next(t)
 

@@ -57,6 +57,12 @@ func TestDocumentAndUtteranceAnswerWithSpeakAndStats(t *testing.T) {
 		if c.replyTo == "" {
 			continue
 		}
+		if c.fixture == "document.json" {
+			var echo gen.DocumentMessage
+			if err := wsjson.Read(ctx, conn, &echo); err != nil || echo.Type != "document" {
+				t.Fatalf("expected the document echo first: %+v %v", echo, err)
+			}
+		}
 		var resp gen.SpeakMessage
 		if err := wsjson.Read(ctx, conn, &resp); err != nil {
 			t.Fatal(err)
@@ -91,6 +97,7 @@ func TestLargeDocumentDoesNotCloseConnection(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer conn.CloseNow()
+	conn.SetReadLimit(4 << 20) // the server echoes the large document back
 
 	doc := gen.DocumentMessage{Type: "document", Id: "large", Ts: 1, Payload: gen.DocumentPayload{Quality: gen.FrameQuality{Issues: []gen.FrameIssue{}}}}
 	for i := range 600 {
@@ -105,7 +112,7 @@ func TestLargeDocumentDoesNotCloseConnection(t *testing.T) {
 	if err := conn.Write(ctx, websocket.MessageText, data); err != nil {
 		t.Fatal(err)
 	}
-	var resp gen.SpeakMessage
+	var resp gen.DocumentMessage
 	if err := wsjson.Read(ctx, conn, &resp); err != nil {
 		t.Fatalf("no answer to a %d-byte document: %v", len(data), err)
 	}

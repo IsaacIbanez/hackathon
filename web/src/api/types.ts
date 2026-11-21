@@ -236,8 +236,8 @@ export interface components {
         };
         /** @description What the client (browser or local process) sends to Go */
         ClientMessage: components["schemas"]["DocumentMessage"] | components["schemas"]["PointerMessage"] | components["schemas"]["UtteranceMessage"];
-        /** @description What Go sends to the client */
-        ServerMessage: components["schemas"]["SpeakMessage"] | components["schemas"]["StatsMessage"];
+        /** @description What Go sends to the client (document = the current document, echoed to every client) */
+        ServerMessage: components["schemas"]["SpeakMessage"] | components["schemas"]["StatsMessage"] | components["schemas"]["DocumentMessage"];
     };
     responses: never;
     parameters: never;

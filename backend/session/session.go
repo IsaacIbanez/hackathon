@@ -99,6 +99,9 @@ func (s *Session) onDocument(ctx context.Context, id string, doc *gen.DocumentPa
 	s.doc = doc
 	s.lastPointed = ""
 	s.mu.Unlock()
+	// Echo the accepted document so every UI can show and highlight it, even when the
+	// scanner sent it. Documents with bad framing are not echoed: the UI keeps the last good one.
+	send(gen.DocumentMessage{Type: "document", Id: id, Ts: time.Now().UnixMilli(), Payload: *doc})
 
 	req := llm.Request{
 		System:    systemPrompt,
