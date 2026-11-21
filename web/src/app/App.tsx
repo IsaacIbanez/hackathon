@@ -1,18 +1,15 @@
 import { useCallback, useState } from 'react'
 import type { DocumentMessage, ServerMessage, SpeakPayload, StatsPayload } from '../api'
 import { Cost } from './Cost'
+import { Gestures } from './Gestures'
 import { useSocket } from './useSocket'
+import { Voice } from './voice.ts'
+
+/** Language of the spoken requests and default voice. */
+const LANG = 'es-ES'
 
 // Skeleton (T2): connects to the WebSocket and exercises the document -> speak loop.
 // The real screens arrive with T4–T8.
-
-function speak({ text, lang }: SpeakPayload) {
-  if (!('speechSynthesis' in window)) return
-  const u = new SpeechSynthesisUtterance(text)
-  u.lang = lang
-  window.speechSynthesis.cancel()
-  window.speechSynthesis.speak(u)
-}
 
 function sampleDocument(): DocumentMessage {
   return {
@@ -30,17 +27,18 @@ function sampleDocument(): DocumentMessage {
 }
 
 export default function App() {
+  const [voice] = useState(() => new Voice())
   const [last, setLast] = useState<SpeakPayload | null>(null)
   const [stats, setStats] = useState<StatsPayload | null>(null)
 
   const onMessage = useCallback((msg: ServerMessage) => {
     if (msg.type === 'speak') {
       setLast(msg.payload)
-      speak(msg.payload)
+      voice.speak(msg.payload)
     } else if (msg.type === 'stats') {
       setStats(msg.payload)
     }
-  }, [])
+  }, [voice])
   const { status, send, url } = useSocket(onMessage)
 
   return (
@@ -63,6 +61,8 @@ export default function App() {
       <section aria-live="polite" className="mt-8 text-3xl leading-relaxed">
         {last?.text}
       </section>
+
+      <Gestures send={send} voice={voice} lang={LANG} />
 
       <Cost stats={stats} />
     </main>

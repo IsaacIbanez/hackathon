@@ -1,6 +1,6 @@
 # Project tasks. Install task once:
 #   go install github.com/go-task/task/v3/cmd/task@latest
-# Usage: task gen | task mock | task dev | task fmt | task check
+# Usage: task gen | task mock | task server | task dev | task fmt | task check
 version: "3"
 
 vars:
@@ -24,6 +24,11 @@ tasks:
     desc: Starts the mock server (without Wails) on localhost:8080
     cmds:
       - go run ./backend/cmd/mock {{.CLI_ARGS}}
+
+  server:
+    desc: Starts the real server (sessions + models, without Wails) on 127.0.0.1:8765
+    cmds:
+      - go run ./backend/cmd/server {{.CLI_ARGS}}
 
   dev:
     desc: Starts the desktop app with hot reload (wails dev)
