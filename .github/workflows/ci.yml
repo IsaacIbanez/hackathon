@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Instalar task
+        run: go install github.com/go-task/task/v3/cmd/task@latest
+
+      - name: Dependencias de Wails en Linux (GTK y WebKitGTK 4.1)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+
+      - name: task check
+        run: task check
+
+      - name: Los tipos generados están al día con api/openapi.yaml
+        run: |
+          task gen --force
+          git diff --exit-code -- api/gen web/src/api
