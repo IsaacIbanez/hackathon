@@ -369,18 +369,53 @@ func TestPointerWithoutBlockIdIsHitTested(t *testing.T) {
 	c.none(t)
 }
 
-func TestBlockAtPrefersSmallestBox(t *testing.T) {
+func TestBlockAtPrefersSmallestBoxThenNearest(t *testing.T) {
 	doc := &gen.DocumentPayload{Blocks: []gen.TextBlock{
 		{Id: "section", Box: gen.Box{X: 0, Y: 0, W: 1, H: 0.5}},
 		{Id: "field", Box: gen.Box{X: 0.2, Y: 0.2, W: 0.3, H: 0.05}},
+		{Id: "signature", Box: gen.Box{X: 0.55, Y: 0.85, W: 0.35, H: 0.04}},
 	}}
-	if got := blockAt(doc, 0.3, 0.22); got != "field" {
-		t.Fatalf("got %q", got)
+	cases := []struct {
+		x, y float32
+		want string
+	}{
+		{0.3, 0.22, "field"},     // inside both: the smallest wins
+		{0.9, 0.4, "section"},    // inside only the section
+		{0.7, 0.82, "signature"}, // 0.03 above the signature: within reach
+		{0.7, 0.91, "signature"}, // 0.02 below it
+		{0.3, 0.7, ""},           // far from everything
+		{0.5, 0.79, ""},          // 0.06 from the signature: out of reach
 	}
-	if got := blockAt(doc, 0.9, 0.4); got != "section" {
-		t.Fatalf("got %q", got)
+	for _, c := range cases {
+		if got := blockAt(doc, c.x, c.y); got != c.want {
+			t.Errorf("blockAt(%v, %v) = %q, want %q", c.x, c.y, got, c.want)
+		}
 	}
-	if got := blockAt(doc, 0.5, 0.9); got != "" {
-		t.Fatalf("got %q", got)
+}
+
+func TestPointerRereadsAfterLeavingTheBlock(t *testing.T) {
+	m := &fakeModel{cheap: goodAnswer}
+	s := New(m, DefaultConfig())
+	c := newCollector()
+	ctx := context.Background()
+	s.Handle(ctx, envelope(t, "document", "doc-1", fixtureDocument(t)), c.send)
+	c.next(t) // echo
+	c.next(t) // speak
+	c.next(t) // stats
+
+	date := gen.PointerPayload{X: 0.3, Y: 0.27}  // b3
+	empty := gen.PointerPayload{X: 0.3, Y: 0.6}  // nothing within reach
+	below := gen.PointerPayload{X: 0.3, Y: 0.31} // 0.02 under b3: still b3
+	s.Handle(ctx, envelope(t, "pointer", "p-1", date), c.send)
+	if sp := c.next(t).(gen.SpeakMessage); sp.Payload.HighlightBlockIds[0] != "b3" {
+		t.Fatalf("first: %v", sp.Payload.HighlightBlockIds)
+	}
+	s.Handle(ctx, envelope(t, "pointer", "p-2", below), c.send)
+	c.none(t) // same block
+	s.Handle(ctx, envelope(t, "pointer", "p-3", empty), c.send)
+	c.none(t) // empty space says nothing
+	s.Handle(ctx, envelope(t, "pointer", "p-4", date), c.send)
+	if sp := c.next(t).(gen.SpeakMessage); sp.Payload.HighlightBlockIds[0] != "b3" {
+		t.Fatalf("coming back must read again: %v", sp.Payload.HighlightBlockIds)
 	}
 }
