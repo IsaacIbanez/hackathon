@@ -118,23 +118,48 @@ func (s *Session) onDocument(ctx context.Context, id string, doc *gen.DocumentPa
 }
 
 func (s *Session) onPointer(id string, p *gen.PointerPayload, send func(any)) {
-	if p.BlockId == nil || *p.BlockId == "" {
-		return
-	}
 	s.mu.Lock()
 	doc := s.doc
-	repeated := *p.BlockId == s.lastPointed
-	s.lastPointed = *p.BlockId
-	s.mu.Unlock()
-	if doc == nil || repeated {
-		return
-	}
-	for _, b := range doc.Blocks {
-		if b.Id == *p.BlockId {
-			send(s.speak(id, b.Text, []string{b.Id}, speechLang(deref(doc.Lang))))
-			return
+	var block *gen.TextBlock
+	if doc != nil {
+		// The client may send only coordinates (the gesture bridge does): find the block here.
+		blockID := deref(p.BlockId)
+		if blockID == "" {
+			blockID = blockAt(doc, p.X, p.Y)
+		}
+		if blockID != "" && blockID != s.lastPointed {
+			for i := range doc.Blocks {
+				if doc.Blocks[i].Id == blockID {
+					block = &doc.Blocks[i]
+					s.lastPointed = blockID
+					break
+				}
+			}
 		}
 	}
+	s.mu.Unlock()
+	if block != nil {
+		send(s.speak(id, block.Text, []string{block.Id}, speechLang(deref(doc.Lang))))
+	}
+}
+
+// pointerMargin lets a fingertip slightly outside a box still select it.
+const pointerMargin = 0.01
+
+// blockAt returns the id of the block under (x, y), or "" if none. When boxes overlap,
+// the smallest one wins (it is the most specific: a field inside a section).
+func blockAt(doc *gen.DocumentPayload, x, y float32) string {
+	best, bestArea := "", float32(2)
+	for _, b := range doc.Blocks {
+		bx := b.Box
+		if x < bx.X-pointerMargin || x > bx.X+bx.W+pointerMargin || y < bx.Y-pointerMargin || y > bx.Y+bx.H+pointerMargin {
+			continue
+		}
+		if area := bx.W * bx.H; area < bestArea {
+			best, bestArea = b.Id, area
+		}
+	}
+	return best
 }
 
 func (s *Session) onUtterance(ctx context.Context, id string, u *gen.UtterancePayload, send func(any)) {
