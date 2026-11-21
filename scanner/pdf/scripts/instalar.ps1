@@ -20,6 +20,12 @@ if (-not (Test-Path "$tess\tesseract.exe")) {
     winget install --id UB-Mannheim.TesseractOCR -e --silent --accept-package-agreements --accept-source-agreements
 }
 
+# 2b. ffmpeg: capturar.py lo usa para saber el nombre de cada cámara (y encontrar la MX Brio)
+if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
+    Write-Host "Instalando ffmpeg con winget (abre una terminal nueva después para que esté en el PATH)..."
+    winget install --id Gyan.FFmpeg -e --silent --accept-package-agreements --accept-source-agreements
+}
+
 # 3. Idiomas en scanner/pdf/tessdata (sin tocar Program Files; el código lo usa solo)
 New-Item -ItemType Directory -Force tessdata | Out-Null
 foreach ($l in "eng", "spa", "cat", "osd") {

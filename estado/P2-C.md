@@ -15,6 +15,10 @@
 - CLI (`python -m escaner_pdf`) y API (`convertir()` -> `Resultado`, con `documento()` = payload del contrato).
 - 49 tests en verde; scripts de instalación para Windows y Linux/macOS.
 - Medido: OCRmyPDF 2,07 s frente a 1,06 s con Tesseract directo (mismo texto, y además bloques con confianza).
+- Fusionada la captura de Pau (`feature/B-scanner-captura`) y `main`. Conector `scanner/escanear.py`
+  (captura -> PDF, con metadatos de cámara) + `scanner/test_escanear.py`. Instalado ffmpeg (nombres de cámaras).
+- App provisional de prueba en `scanner/app_prueba/` (localhost:8765), en commit aparte; no es parte del producto.
+- Probado con la webcam integrada (1280x720): vista previa, captura y PDF en ~4,4 s. Falta probar con la MX Brio.
 
 ## Pendiente
 - Probar con PNG reales de la captura del compañero y calibrar los umbrales de calidad.

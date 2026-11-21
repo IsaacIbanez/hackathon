@@ -37,6 +37,21 @@ r.documento()   # payload del mensaje `document` del contrato (api/openapi.yaml)
 ```
 `convertir` no lanza excepciones por errores esperables: siempre devuelve un `Resultado`.
 
+## Conexión con la captura (`scanner/escanear.py`)
+Une la captura de Pau (`scanner/capturar.py`) con este paquete, usando solo sus interfaces públicas:
+```
+scanner\pdf\.venv\Scripts\python scanner\escanear.py                 # MX Brio -> PNG -> PDF
+scanner\pdf\.venv\Scripts\python scanner\escanear.py --camara 0      # otra cámara
+scanner\pdf\.venv\Scripts\python scanner\escanear.py --png foto.png  # sin cámara
+```
+Desde Python: `escanear.escanear()` devuelve `Escaneo(png, metadatos_captura, resultado)`; los errores
+de cámara vuelven en `error_captura` (mismos códigos que `capturar.py`). Los metadatos de la cámara
+quedan en `resultado.entrada["metadatos"]` y el PDF se llama igual que la captura.
+Un solo entorno para todo: `scanner/pdf/.venv` (OpenCV *headless* también captura; no instalar a la vez
+`opencv-python`, chocan). Tests sin cámara: `python -m unittest discover -s scanner`.
+
+Para probar desde el navegador hay una app **provisional** en `scanner/app_prueba/` (no es parte del producto).
+
 ## Qué genera (`salida/<nombre>/`)
 | Archivo | Qué es |
 |---------|--------|
