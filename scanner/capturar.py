@@ -150,15 +150,15 @@ def capturar(camara: Camara, ancho: int, alto: int, calentamiento_s: float):
     import cv2  # importación tardía: --listar y los tests no necesitan OpenCV
 
     backend, nombre_backend = _backend(cv2)
-    cap = cv2.VideoCapture(camara.indice, backend)
+    # MJPG es el formato que permite resoluciones altas por USB (YUY2 a 4K va a ~5 fps).
+    # Se pasan al abrir: con cap.set() cada ajuste reinicia el stream (~1 s cada uno en la
+    # MX Brio) y, si el formato va antes que el tamaño, se queda en YUY2 (comprobado).
+    params = [cv2.CAP_PROP_FRAME_WIDTH, ancho, cv2.CAP_PROP_FRAME_HEIGHT, alto,
+              cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG")]
+    cap = cv2.VideoCapture(camara.indice, backend, params)
     if not cap.isOpened():
         raise ErrorCaptura(f"No se puede abrir la cámara {camara.indice} ({camara.nombre}).", ERR_NO_ABRE)
     try:
-        # MJPG es el formato que permite resoluciones altas por USB (YUY2 a 4K no cabe).
-        # El orden importa en DirectShow: primero el formato y después el tamaño.
-        cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, ancho)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, alto)
 
         # Calentamiento: los primeros frames suelen salir oscuros o desenfocados.
         frames_descartados = 0
@@ -203,7 +203,8 @@ def guardar(frame, metadatos: dict, carpeta: Path, momento: datetime) -> Path:
     base = carpeta / nombre_captura(momento)
     ruta_png = base.with_suffix(".png")
     # Se escribe con imencode + write_bytes para que funcionen rutas con acentos en Windows.
-    ok, datos = cv2.imencode(".png", frame)
+    # Compresión 1: sigue siendo sin pérdida, pero mucho más rápida a 4K.
+    ok, datos = cv2.imencode(".png", frame, [cv2.IMWRITE_PNG_COMPRESSION, 1])
     if not ok:
         raise ErrorCaptura("No se pudo codificar el frame como PNG.", ERR_SIN_FRAME)
     ruta_png.write_bytes(datos.tobytes())
