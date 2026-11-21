@@ -14,6 +14,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -31,6 +32,15 @@ const (
 	ModeloBaratoPorDefecto = "anthropic/claude-haiku-5.5"  // 0,10 / 0,50
 	ModeloCaroPorDefecto   = "anthropic/claude-sonnet-5.5" // 2 / 10
 	URLPorDefecto          = "https://openrouter.ai/api/v1"
+)
+
+// Perfil de pruebas (LLM_PERFIL=pruebas): modelos gratuitos con visión primero y, si están
+// saturados (429), Haiku como último recurso, que es muy barato. Para no gastar el presupuesto
+// de AXA mientras desarrollamos. Comprobado el 2026-11-21: nemotron responde bien a texto e
+// imagen; los :free fallan a menudo con 429, por eso hay varios.
+const (
+	ModelosBaratoPruebas = "nvidia/nemotron-3.5-super-vl:free,google/gemma-4-31b-it:free,google/gemma-4-26b-a4b-it:free," + ModeloBaratoPorDefecto
+	ModelosCaroPruebas   = ModeloBaratoPorDefecto
 )
 
 // Message es un turno de la conversación. Images son URLs o data URLs
@@ -70,10 +80,12 @@ var ErrSinClave = errors.New("llm: falta la variable de entorno OPENROUTER_API_K
 type Client struct {
 	BaseURL string
 	APIKey  string
-	Models  map[Tier]string
-	HTTP    *http.Client
-	Cache   *Cache // nil = sin caché
-	Meter   *Meter // nunca nil si se crea con New
+	// Models: modelo de cada nivel. Admite una lista separada por comas: si uno falla
+	// (saturado, caído o respuesta vacía) se prueba el siguiente.
+	Models map[Tier]string
+	HTTP   *http.Client
+	Cache  *Cache // nil = sin caché
+	Meter  *Meter // nunca nil si se crea con New
 }
 
 // New crea un cliente con caché y contador.
@@ -88,13 +100,19 @@ func New(apiKey string) *Client {
 	}
 }
 
-// NewFromEnv lee OPENROUTER_API_KEY y, si existen, LLM_MODELO_BARATO, LLM_MODELO_CARO y OPENROUTER_URL.
+// NewFromEnv lee la configuración del entorno (y de un archivo .env, si existe):
+// OPENROUTER_API_KEY y, opcionales, LLM_PERFIL (pruebas), LLM_MODELO_BARATO, LLM_MODELO_CARO y OPENROUTER_URL.
 func NewFromEnv() (*Client, error) {
+	CargarDotEnv(".env")
 	key := os.Getenv("OPENROUTER_API_KEY")
 	if key == "" {
 		return nil, ErrSinClave
 	}
 	c := New(key)
+	if os.Getenv("LLM_PERFIL") == "pruebas" {
+		c.Models[Barato] = ModelosBaratoPruebas
+		c.Models[Caro] = ModelosCaroPruebas
+	}
 	if v := os.Getenv("LLM_MODELO_BARATO"); v != "" {
 		c.Models[Barato] = v
 	}
@@ -127,14 +145,24 @@ func (c *Client) Complete(ctx context.Context, req Request) (Response, error) {
 	}
 
 	inicio := time.Now()
-	r, err := c.call(ctx, model, req)
+	var r Response
+	var err error
+	for _, m := range strings.Split(model, ",") {
+		r, err = c.call(ctx, strings.TrimSpace(m), req)
+		if err == nil {
+			break
+		}
+		c.meter().RecordError(req.Tier)
+		if ctx.Err() != nil {
+			break
+		}
+	}
+	if err != nil {
+		return Response{}, err
+	}
 	r.Latency = time.Since(inicio)
 	r.LatencyMs = r.Latency.Milliseconds()
 	r.Tier = req.Tier
-	if err != nil {
-		c.meter().RecordError(req.Tier)
-		return Response{}, err
-	}
 	c.meter().Record(r)
 	if c.Cache != nil {
 		c.Cache.Put(key, r)
@@ -272,6 +300,10 @@ func (c *Client) call(ctx context.Context, model string, req Request) (Response,
 	}
 	if len(or.Choices) == 0 {
 		return Response{}, fmt.Errorf("llm: %s: respuesta sin choices", model)
+	}
+	if strings.TrimSpace(or.Choices[0].Message.Content) == "" {
+		// Pasa con modelos que razonan y se quedan sin tokens antes de contestar.
+		return Response{}, fmt.Errorf("llm: %s: respuesta vacía (¿max_tokens demasiado bajo?)", model)
 	}
 	if or.Model == "" {
 		or.Model = model

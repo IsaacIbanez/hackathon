@@ -24,6 +24,7 @@ import (
 func main() {
 	caro := flag.Bool("caro", false, "usar el modelo caro")
 	imagen := flag.String("imagen", "", "ruta de una imagen para enviar con la pregunta")
+	maxTokens := flag.Int("max", 1500, "máximo de tokens de respuesta (los modelos que razonan gastan parte en pensar)")
 	flag.Parse()
 	pregunta := strings.Join(flag.Args(), " ")
 	if pregunta == "" {
@@ -46,7 +47,7 @@ func main() {
 		}
 		msg.Images = []string{"data:" + tipo + ";base64," + base64.StdEncoding.EncodeToString(datos)}
 	}
-	req := llm.Request{Tier: llm.Barato, Messages: []llm.Message{msg}, MaxTokens: 300}
+	req := llm.Request{Tier: llm.Barato, Messages: []llm.Message{msg}, MaxTokens: *maxTokens}
 	if *caro {
 		req.Tier = llm.Caro
 	}
