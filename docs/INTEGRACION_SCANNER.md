@@ -31,6 +31,8 @@ No hace falta ninguna librería: `urllib` de la biblioteca estándar basta.
 - **`quality.score`** en [0, 1] y **`issues`** de `blurry`, `dark`, `glare`, `cropped`, `tilted`, `too_far`. Si `score` < 0,5, la app **no gasta IA**: da en voz alta un consejo de encuadre («la imagen está borrosa…»). Usad la nitidez que ya mide `capturar.py`.
 - `id` de los bloques estables dentro del documento (`b1`, `b2`…).
 
+Si un cliente escucha el WebSocket (no hace falta para el scanner, que usa `POST`), recibirá también el `document` reenviado: subid su límite de tamaño de mensaje (en Go, `conn.SetReadLimit(4 << 20)`; el navegador no tiene límite).
+
 ## Ejemplo
 `api/examples/send_message.py` tiene `document_from_ocr_lines(...)` (de líneas de OCR en píxeles al mensaje) y `post(...)`:
 ```
