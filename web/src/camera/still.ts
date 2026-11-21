@@ -1,6 +1,7 @@
 // captureStill: the sharpest full-resolution frame of the video during a short window (~0.5 s).
 // Same criterion as scanner/capturar.py: variance of the Laplacian on a reduced copy.
 
+import { eachFrame, makeCanvas, toBlob, waitForVideo } from './frames.ts'
 import { analysisSize, frameMetrics } from './sharpness.ts'
 
 export interface StillOptions {
@@ -24,50 +25,6 @@ export interface StillResult {
   frames: number
   /** Time from the call to the blob being ready. */
   elapsedMs: number
-}
-
-type Canvas2D = { canvas: HTMLCanvasElement | OffscreenCanvas; ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D }
-
-function makeCanvas(width: number, height: number, readBack: boolean): Canvas2D {
-  const canvas: HTMLCanvasElement | OffscreenCanvas =
-    typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(width, height) : Object.assign(document.createElement('canvas'), { width, height })
-  const ctx = canvas.getContext('2d', { willReadFrequently: readBack }) as Canvas2D['ctx'] | null
-  if (!ctx) throw new Error('captureStill: 2D canvas not available')
-  return { canvas, ctx }
-}
-
-function toBlob(canvas: HTMLCanvasElement | OffscreenCanvas, type: string, quality: number): Promise<Blob> {
-  if ('convertToBlob' in canvas) return canvas.convertToBlob({ type, quality })
-  return new Promise((resolve, reject) =>
-    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('captureStill: could not encode the image'))), type, quality),
-  )
-}
-
-function waitForVideo(video: HTMLVideoElement, timeoutMs = 3000): Promise<void> {
-  if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth > 0) return Promise.resolve()
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      video.removeEventListener('loadeddata', onData)
-      reject(new Error('captureStill: the video has no frames'))
-    }, timeoutMs)
-    const onData = () => {
-      clearTimeout(timer)
-      resolve()
-    }
-    video.addEventListener('loadeddata', onData, { once: true })
-  })
-}
-
-/** Calls `fn` once per new video frame (requestVideoFrameCallback, or every animation frame as a fallback). */
-function eachFrame(video: HTMLVideoElement, fn: () => boolean): void {
-  const step = () => {
-    if (fn()) schedule()
-  }
-  const schedule = () => {
-    if ('requestVideoFrameCallback' in video) video.requestVideoFrameCallback(step)
-    else requestAnimationFrame(step)
-  }
-  schedule()
 }
 
 /**

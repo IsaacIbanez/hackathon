@@ -146,7 +146,7 @@ Puertos: 8765 app · 8766 captura de Pau (pruebas) · 8767 Gesture Control (Nil)
 | Quién | Ya hecho | Ahora | Para probar sin los demás |
 |---|---|---|---|
 | **Didac (B2)** | Pipeline foto → PDF + `document`; envío a la app (`scan.py --send`); cámara disponible sin Brio; OCR en paralelo; código en inglés; `scanner/ENTREGA.md` (todo en `feature/B-contexto-scanner`) | ~~Abrir el PR~~ (fusionado, #26). **Ahora** T13: servicio `POST /scan` en 8770 que reciba la foto (su pipeline ya admite `--png`) y devuelva `document()` + `pageCorners`. Después, 2–3 documentos reales anonimizados en `api/fixtures/real/` | `curl --data-binary @foto.png http://127.0.0.1:8770/scan` |
-| **Pau (B1)** | Captura de la MX Brio (#12); **cámara en la app** (`openCamera`, `captureStill`, #31) | **1)** T19: **guía de encuadre por voz y disparo automático** (sus dos ideas mejor valoradas, ver abajo). **2)** Traducir `capturar.py` al inglés **avisando a Didac** (`scan.py` y `demo_app` usan sus nombres) | su página de prueba (`web/src/camera/demo`) |
+| **Pau (B1)** | Captura de la MX Brio (#12); **cámara en la app** (`openCamera`, `captureStill`, #31); ideas (#32); **T19 hecha** en `feature/T19-encuadre` (`startFramingGuide`, ver abajo; probada con la cámara del portátil) | **1)** Probar T19 con la **MX Brio** y una hoja real y ajustar los umbrales si hace falta. **2)** Traducir `capturar.py` al inglés **avisando a Didac** (`scan.py` y `demo_app` usan sus nombres) | su página de prueba (`npx vite web/src/camera` → `/demo/`, botón «Start framing guide») |
 | **Nil (C)** | Gestos (#9), voz con Whisper local (#19), arreglo del puntero (#23, de Isaac) | **1)** Arreglar #20 (cabecera `Host`). **2)** T17: **mejorar el reconocimiento de voz** (ver abajo). **3)** T15: acción `scan_document` (frase «lee el documento» y gesto) y puntero con `pageCorners` en `Gestures.tsx`. **4)** MediaPipe y modelos servidos en local para la demo | `docs/PROBAR_GESTOS.md`; las esquinas de un ejemplo de `api/fixtures/real/` |
 | **Isaac (A)** | Contrato, servidor, sesión, modelos, pantalla, puente de gestos, empaquetado, pitch | ~~Fusionar el PR de Didac~~ (#26). ~~T11: contrato 0.5 y `POST /scan`~~ (hecho). ~~T18: `POST /transcribe`~~ (hecho). **Ahora** T14: botón «Read document» y unión en la app | servicios falsos en los tests de Go |
 | **Todos** | — | T16: lluvia de ideas en `docs/IDEAS.md` (3 ideas cada uno como mínimo) | — |
@@ -169,6 +169,13 @@ type FramingHint = 'dark' | 'blurry' | 'moving' | 'hold_still' | 'ready'
 - Al disparar: un pitido corto (como los de la voz de Nil) y `onCapture` con la mejor foto (`captureStill`).
 - Lo que depende de la hoja (`cropped`, `too_far`, inclinada) lo dice Go con el `document` que devuelve el escáner; no hace falta detectarla en el navegador.
 - **Lo une Isaac** en la app (T14): la orden «lee el documento» → `startFramingGuide` → `POST /scan` con la foto.
+
+**Estado (2026-11-21, 22:30): hecha** en `feature/T19-encuadre`, con la interfaz de arriba. Además, `onCapture` recibe un segundo argumento `info` (`reason: 'ready' | 'timeout'`, tamaño, nitidez, `elapsedMs`) y hay `onError` y `onFrame` opcionales.
+- Avisos en es, ca y en. Un aviso tiene que durar 0,3 s antes de decirse, no se repite mientras sigue igual y se repite a los 5 s.
+- Dispara cuando el papel lleva 0,7 s quieto, con luz y con la nitidez estable (el autoenfoque ha terminado): el fotograma más nítido de ese momento, a resolución completa, con pitido y «Foto hecha». A los 8 s, la mejor foto vista.
+- Umbral de movimiento medido con la MX Brio (escena quieta: 1,4 de media, 2,8 en el p95 → 4,5). Detalle en `web/src/camera/README.md`.
+- Probado: tests (91 en `web`), y en el navegador con la cámara del portátil (1280x720, disparo `ready` a los 2,8 s).
+- **Falta:** probarlo con la MX Brio (4K) y una hoja sujeta a mano, comprobar que el `motion` de una mano quieta queda por debajo de 4,5 y ajustar si no; y la unión en la app (Isaac, T14).
 
 ### Voz: reconocimiento mejor que el actual (T17 Nil, T18 Isaac)
 Hoy el dictado usa `whisper-tiny` en la CPU y se equivoca mucho. Medido el 2026-11-21 con la misma frase en español («¿Qué tengo que poner aquí, en la fecha del siniestro? ¿Y dónde firmo?»), detalle en `docs/VOZ.md`:
