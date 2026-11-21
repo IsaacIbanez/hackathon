@@ -62,6 +62,7 @@ const (
 	CaptionsEventTypeFinal       CaptionsEventType = "final"
 	CaptionsEventTypePartial     CaptionsEventType = "partial"
 	CaptionsEventTypeReady       CaptionsEventType = "ready"
+	CaptionsEventTypeRevise      CaptionsEventType = "revise"
 	CaptionsEventTypeSaved       CaptionsEventType = "saved"
 	CaptionsEventTypeSpeaker     CaptionsEventType = "speaker"
 	CaptionsEventTypeTranslation CaptionsEventType = "translation"
@@ -79,6 +80,8 @@ func (e CaptionsEventType) Valid() bool {
 	case CaptionsEventTypePartial:
 		return true
 	case CaptionsEventTypeReady:
+		return true
+	case CaptionsEventTypeRevise:
 		return true
 	case CaptionsEventTypeSaved:
 		return true
@@ -246,7 +249,11 @@ type CaptionsClientMessageType string
 // CaptionsEvent Text frame from Go on `/captions`. Which fields are set depends on `type`:
 //   - `ready` {model, lang, target}: connected to the speech-to-text service.
 //   - `partial` {text}: the sentence being spoken; each one replaces the previous.
-//   - `final` {id, start, text}: a finished sentence; `start` = seconds since the session began.
+//   - `final` {id, start, text, lang?}: a finished sentence; `start` = seconds since the
+//     session began; `lang` = its main language (ISO 639-1), when already known. Words from
+//     another language come in double quotes.
+//   - `revise` {id, text, lang}: a better text or language for sentence `id` (e.g. after
+//     learning who said it); replaces the previous one.
 //   - `speaker` {id, speaker}: who said sentence `id` ("Speaker 1"...). May arrive several
 //     times for the same `id` (live estimate first, whole-recording pass at the end).
 //   - `translation` {id, lang, text}: translation of sentence `id`.
@@ -502,6 +509,9 @@ type OpenCaptionsParams struct {
 
 	// Target Translate final sentences to this ISO 639-1 language; `none` (default) = no translation.
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
+
+	// Speakers How many people talk, if known (1-10); it helps telling them apart. 0 or absent = unknown.
+	Speakers *int `form:"speakers,omitempty" json:"speakers,omitempty"`
 }
 
 // PostTranscribeParams defines parameters for PostTranscribe.

@@ -103,9 +103,12 @@ export interface paths {
          * @description Upgrade to WebSocket. Separate from `/ws`: it carries audio, not contract envelopes.
          *     Go relays the audio to a streaming speech-to-text service (Together AI realtime,
          *     `CAPTIONS_ASR_MODEL`), labels speakers with a batch diarization pass every ~15 s and
-         *     once more over the whole recording when the client stops, translates each final
-         *     sentence (`CAPTIONS_TRANSLATE_MODEL`) and saves the transcript as a `.txt` file outside
-         *     the repository. The API key (`TOGETHER_API_KEY`) stays in Go.
+         *     once more over the whole recording when the client stops, and sends each final
+         *     sentence to a small language model (`CAPTIONS_TRANSLATE_MODEL`) that finds its main
+         *     language (people may speak different languages), wraps words from another language in
+         *     double quotes (barbarisms such as "el \"meeting\"") and translates it. It saves the
+         *     transcript as a `.txt` file outside the repository. The API key (`TOGETHER_API_KEY`)
+         *     stays in Go.
          *
          *     Client -> server:
          *     - binary frames: raw PCM, signed 16-bit little-endian, 16 kHz, mono (~100 ms each);
@@ -177,7 +180,11 @@ export interface components {
          * @description Text frame from Go on `/captions`. Which fields are set depends on `type`:
          *     - `ready` {model, lang, target}: connected to the speech-to-text service.
          *     - `partial` {text}: the sentence being spoken; each one replaces the previous.
-         *     - `final` {id, start, text}: a finished sentence; `start` = seconds since the session began.
+         *     - `final` {id, start, text, lang?}: a finished sentence; `start` = seconds since the
+         *       session began; `lang` = its main language (ISO 639-1), when already known. Words from
+         *       another language come in double quotes.
+         *     - `revise` {id, text, lang}: a better text or language for sentence `id` (e.g. after
+         *       learning who said it); replaces the previous one.
          *     - `speaker` {id, speaker}: who said sentence `id` ("Speaker 1"...). May arrive several
          *       times for the same `id` (live estimate first, whole-recording pass at the end).
          *     - `translation` {id, lang, text}: translation of sentence `id`.
@@ -188,7 +195,7 @@ export interface components {
          */
         CaptionsEvent: {
             /** @enum {string} */
-            type: "ready" | "partial" | "final" | "speaker" | "translation" | "cost" | "saved" | "error";
+            type: "ready" | "partial" | "final" | "revise" | "speaker" | "translation" | "cost" | "saved" | "error";
             /** @example s3 */
             id?: string;
             text?: string;
@@ -566,6 +573,8 @@ export interface operations {
                 lang?: string;
                 /** @description Translate final sentences to this ISO 639-1 language; `none` (default) = no translation. */
                 target?: string;
+                /** @description How many people talk, if known (1-10); it helps telling them apart. 0 or absent = unknown. */
+                speakers?: number;
             };
             header?: never;
             path?: never;
