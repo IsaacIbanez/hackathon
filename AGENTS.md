@@ -66,7 +66,7 @@ api/                       contrato (rol A): openapi.yaml, fixtures/, gen/ (tipo
 backend/cmd/mock           servidor mock sin Wails (A)
 backend/mock               respuestas de ejemplo (fixtures), las usan el mock y la app hasta T8 (A)
 backend/ws                 WebSocket (A)
-backend/session            sesiones (A)
+backend/session            lógica real: una sesión por conexión, prompts, respuestas locales (A)
 backend/llm                modelos, caché, coste (A)
 backend/ocr                comprensión de documentos (B2)
 web/src/api                tipos TypeScript generados del contrato (A; no editar types.ts)
