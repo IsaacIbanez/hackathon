@@ -1,0 +1,10 @@
+{
+  "type": "stats",
+  "id": "sts-0001",
+  "ts": 1795262401100,
+  "payload": {
+    "barato": { "calls": 3, "cacheHits": 1, "errors": 0, "costUsd": 0.00042, "avgLatencyMs": 820, "lastLatencyMs": 760 },
+    "caro": { "calls": 1, "cacheHits": 0, "errors": 0, "costUsd": 0.0061, "avgLatencyMs": 2400, "lastLatencyMs": 2400 },
+    "totalCostUsd": 0.00652
+  }
+}
