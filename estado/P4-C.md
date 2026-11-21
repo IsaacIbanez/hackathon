@@ -2,29 +2,32 @@
 
 - **Persona:** Pau
 - **Herramienta:** Claude Code
-- **Tarea actual:** T12 — `web/src/camera` (`openCamera`, `captureStill`); después, traducir `capturar.py` avisando a Didac
-- **Rama:** feature/T12-camara
-- **Estado:** en revisión
-- **Último cambio:** 2026-11-21 21:00
+- **Tarea actual:** T19 — guía de encuadre por voz y disparo automático (`startFramingGuide` en `web/src/camera`); después, traducir `capturar.py` avisando a Didac
+- **Rama:** feature/T19-encuadre
+- **Estado:** en revisión (falta probarlo con la MX Brio en la página de prueba)
+- **Último cambio:** 2026-11-21 22:00
 
 ## Hecho
-- #12 (fusionado): `scanner/capturar.py`, captura de la MX Brio (única ≈2,7 s, modo servidor ≈0,4 s, puerto 8766).
-- T12: `web/src/camera`:
-  - `openCamera(opts?)`: prefiere la cámara cuyo nombre lleve «Brio» > «Logitech» > «Logi»; ignora las virtuales; si no hay, abre la que haya. Pide 3840x2160 a 30 fps.
-  - `captureStill(video, opts?)`: el frame más nítido de ~0,5 s (varianza del laplaciano sobre una copia de 960 px, como `capturar.py`), a resolución completa, PNG sin pérdida (o JPEG 0,95).
-  - Tests sin DOM (11) en `src/camera/test/`; página de prueba en `src/camera/demo/` (`npx vite web/src/camera` → `/demo/`).
-  - `tsc -b`, `npm run build`, `npm test` (80 tests) y oxlint en verde.
+- #12: `scanner/capturar.py`, captura de la MX Brio (única ≈2,7 s, modo servidor ≈0,4 s, puerto 8766).
+- #31 (T12): `openCamera` (Logitech por nombre) y `captureStill` (foto más nítida de ~0,5 s) en `web/src/camera`.
+- #32 (T16): 4 ideas en `docs/IDEAS.md`.
+- T19: `startFramingGuide(video, { lang, onHint, onCapture, timeoutMs })`:
+  - Avisos `dark`, `moving`, `blurry`, `hold_still` (es, ca, en). Un aviso tiene que durar 0,3 s, no se repite mientras sigue igual y se repite a los 5 s.
+  - Disparo automático: 0,7 s quieto, con luz y nitidez estable (autoenfoque terminado). Guarda el fotograma más nítido de ese momento a resolución completa, con pitido, «Foto hecha» y `onCapture`. A los 8 s dispara con la mejor foto vista.
+  - Umbral de movimiento calibrado con la MX Brio (ruido con la escena quieta: 1,4 de media y 2,8 en el p95 → umbral 4,5).
+  - Lógica pura en `framing.ts` (11 tests nuevos; 22 en `src/camera`, 91 en `web`). `tsc`, build y oxlint en verde.
+  - Página de prueba: botón «Start framing guide», con los avisos en voz alta y los valores en directo.
 
 ## Pendiente
-- Probar la página de prueba con la MX Brio dentro de la ventana de Wails (WebView2): resolución entregada y tiempo de `captureStill`.
-- Traducir `capturar.py` al inglés en un PR aparte, dejando `capturar.py` como alias de los nombres antiguos para no romper `scan.py` ni `demo_app` de Didac.
-- T16: 3 ideas en `docs/IDEAS.md` (PR aparte).
+- Probar T19 con la MX Brio y una hoja de verdad (`npx vite web/src/camera` → `/demo/`) y ajustar los umbrales si hace falta.
+- Traducir `capturar.py` al inglés en un PR aparte, cambiando también las llamadas de `scan.py` y `demo_app` de Didac (con su permiso), o dejando `capturar.py` como alias.
 
 ## Bloqueos y preguntas para humanos
-- Isaac (A) / Nil (C): `openCamera` pide 4K por defecto para que se lea la letra a mano. Si los gestos van lentos con 4K, se puede abrir a 1080p con `openCamera({ width: 1920, height: 1080 })`; la decisión es vuestra al integrarlo en `Gestures.tsx`.
-- `oxlint` de `web/node_modules` no arranca en Windows (falta el binario nativo `@oxlint/binding-win32-*` en `package-lock.json`); con `npx oxlint@1.90.0` funciona. No es de mi carpeta: aviso a A.
+- Isaac (A), para T14: `startFramingGuide` usa el mismo `<video>` que los gestos; los avisos llegan por `onHint` y la app los dice con su voz (en la demo uso `speechSynthesis`). El pitido de disparo es propio (`shutter.ts`): Nil podría añadir un earcon `capture` a `earcons.ts` si se quiere uno solo.
+- Isaac (A) y Nil (C): `openCamera` pide 4K por defecto. Si los gestos van lentos, se puede usar `openCamera({ width: 1920, height: 1080 })`.
+- `oxlint` de `web/node_modules` no arranca en Windows (falta el binario nativo en `package-lock.json`); con `npx oxlint@1.90.0` funciona.
 - La MX Brio no la pueden usar dos programas a la vez: con `capturar.py --servidor` abierto, la app no puede abrirla.
 
 ## Archivos tocados
-- `web/src/camera/{index,open,still,select,sharpness}.ts`, `web/src/camera/README.md`, `web/src/camera/test/*`, `web/src/camera/demo/*`
+- `web/src/camera/{guide,framing,frames,shutter}.ts` (nuevos), `still.ts` (usa `frames.ts`), `sharpness.ts` (`downsample`, `meanAbsDiff`), `index.ts`, `README.md`, `test/framing.test.ts`, `demo/*`
 - `estado/P4-C.md`
