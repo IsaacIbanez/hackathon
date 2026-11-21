@@ -110,10 +110,12 @@ ESCANEANDO = threading.Lock()  # un escaneo a la vez
 
 # ---------------------------------------------------------------- utilidades
 
-def _respuesta_escaneo(esc: escanear.Escaneo) -> dict:
-    """Resultado + URLs de los archivos para el navegador."""
+def _respuesta_escaneo(esc: escanear.Escaneo, enviar: bool = False) -> dict:
+    """Resultado + URLs de los archivos para el navegador (y, si se pide, envío a la app Go)."""
     d = esc.a_dict()
     r = esc.resultado
+    if enviar and r is not None and r.pdf:
+        d["enviado_a_app"] = escanear.enviar_a_app(r)
     if r is not None:
         urls = {k: _url(v) for k, v in r.intermedios.items()}
         if r.pdf:
@@ -239,7 +241,7 @@ class Manejador(BaseHTTPRequestHandler):
             else:                  # captura única: abre, espera al enfoque, captura y cierra
                 esc = escanear.escanear(q.get("camara"), espera_enfoque=float(q.get("espera", escanear.ESPERA_ENFOQUE)),
                                         opciones=_opciones(q))
-            return self._json(_respuesta_escaneo(esc))
+            return self._json(_respuesta_escaneo(esc, q.get("enviar") == "1"))
         finally:
             ESCANEANDO.release()
 
@@ -260,7 +262,7 @@ class Manejador(BaseHTTPRequestHandler):
         op.esquinas = [[v[i] * ancho, v[i + 1] * alto] for i in range(0, 8, 2)]
         with ESCANEANDO:
             esc = escanear.Escaneo(png, None, escanear.convertir_png(png, opciones=op))
-        return self._json(_respuesta_escaneo(esc))
+        return self._json(_respuesta_escaneo(esc, q.get("enviar") == "1"))
 
     def _subir(self, q):
         largo = int(self.headers.get("Content-Length", 0))
@@ -281,7 +283,7 @@ class Manejador(BaseHTTPRequestHandler):
             png.write_bytes(cv2.imencode(".png", img)[1].tobytes())
         with ESCANEANDO:
             esc = escanear.Escaneo(png, None, escanear.convertir_png(png, opciones=_opciones(q)))
-        return self._json(_respuesta_escaneo(esc))
+        return self._json(_respuesta_escaneo(esc, q.get("enviar") == "1"))
 
 
 def main() -> int:

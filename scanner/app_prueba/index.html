@@ -73,6 +73,7 @@
     </div>
     <div class="checks">
       <label><input type="checkbox" id="digital"> Crear también PDF digital (texto real)</label>
+      <label><input type="checkbox" id="enviar"> Enviar a la app</label>
     </div>
     <div class="vista" id="vista">Cámara cerrada</div>
     <div id="pista"></div>
@@ -97,7 +98,8 @@ let nitidezViva = null, camaraAbierta = false, ultimo = null, pestana = "pdf", s
 
 function opciones() {
   const p = new URLSearchParams({ modo: $("modo").value, recortar: $("recortar").checked ? "1" : "0",
-                                  iluminacion: $("iluminacion").checked ? "1" : "0", digital: $("digital").checked ? "1" : "0" });
+                                  iluminacion: $("iluminacion").checked ? "1" : "0", digital: $("digital").checked ? "1" : "0",
+                                  enviar: $("enviar").checked ? "1" : "0" });
   if ($("camara").value !== "") p.set("camara", $("camara").value);
   p.set("espera", $("espera").value || "1.4");
   return p;
@@ -175,7 +177,9 @@ async function trabajar(promesa, etiqueta) {
     clearInterval(reloj);
     if (d.error_captura) { estado("Error de captura: " + d.error_captura.mensaje, true); return; }
     if (d.error) { estado(d.error, true); return; }
-    estado(`Listo en ${((performance.now() - t0) / 1000).toFixed(1)} s`);
+    const envio = d.enviado_a_app === undefined ? "" : d.enviado_a_app ? " · enviado a la app"
+      : " · <span style=\"color:var(--error)\">no se pudo enviar: ¿está la app abierta (task dev / task server)?</span>";
+    estado(`Listo en ${((performance.now() - t0) / 1000).toFixed(1)} s${envio}`);
     ultimo = d; pintar();
   } catch (e) { clearInterval(reloj); estado("Error: " + e, true); }
   finally { $("btnEscanear").disabled = false; }
