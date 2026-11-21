@@ -34,6 +34,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
+import cv2
+
 CARPETA_POR_DEFECTO = Path(__file__).resolve().parent / "capturas"
 PREFERENCIA_POR_DEFECTO = "brio"
 PUERTO_POR_DEFECTO = 8765
@@ -143,7 +145,6 @@ class Muestra:
 
 def metricas(frame) -> tuple[float, float]:
     """(brillo, nitidez) sobre una versión reducida del frame: ~5 ms en 4K."""
-    import cv2
 
     alto, ancho = frame.shape[:2]
     escala = 960 / max(ancho, 1)
@@ -238,7 +239,6 @@ def _backend(cv2):
 
 def abrir(camara: Camara, ancho: int, alto: int):
     """Abre la cámara a la resolución pedida en MJPG. Devuelve (cap, nombre_backend)."""
-    import cv2
 
     backend, nombre_backend = _backend(cv2)
     # MJPG es el formato que permite resoluciones altas por USB (YUY2 a 4K va a ~5 fps).
@@ -261,7 +261,6 @@ def leer_muestra(cap) -> Muestra | None:
 
 
 def metadatos_camara(cap, camara: Camara, backend: str, ancho: int, alto: int, frame) -> dict:
-    import cv2
 
     alto_real, ancho_real = frame.shape[:2]
     return {
@@ -325,7 +324,6 @@ def capturar(camara: Camara, ancho: int, alto: int, espera_max_s: float):
 
 
 def guardar(frame, metadatos: dict, carpeta: Path, momento: datetime) -> Path:
-    import cv2
 
     carpeta.mkdir(parents=True, exist_ok=True)
     base = carpeta / nombre_captura(momento)
