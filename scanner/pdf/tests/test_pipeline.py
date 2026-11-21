@@ -6,7 +6,7 @@ import pytest
 from pdfminer.high_level import extract_text
 
 import synthetic as s
-from scanner_pdf import Options, convert, ocr
+from scanner_pdf import Options, Result, convert, ocr
 from scanner_pdf.errors import ScannerError
 
 
@@ -54,6 +54,22 @@ def test_document_matches_the_contract(tmp_path, desk_png):
         assert all(0 <= box[k] <= 1 for k in "xywh")
         assert box["x"] + box["w"] <= 1.0001 and box["y"] + box["h"] <= 1.0001
     assert len({b["id"] for b in d["blocks"]}) == len(d["blocks"])
+    # pageCorners (contract 0.5): the sheet corners on the photo, normalised, document TL first.
+    expected = s.PERSPECTIVE_CORNERS / np.array([1920, 1440])
+    got = np.array([[p["x"], p["y"]] for p in d["pageCorners"]])
+    assert np.abs(got - expected).max() < 0.003
+
+
+@pytest.mark.parametrize("degrees, first", [(0, 0), (90, 3), (180, 2), (270, 1)])
+def test_page_corners_follow_the_rotation(degrees, first):
+    # Photo corners TL, TR, BR, BL; after rotating the page clockwise by `degrees` to read it, the
+    # document's top-left is a different photo corner.
+    photo = [[100, 50], [900, 60], [880, 700], [90, 690]]
+    r = Result(status="ok", input={"width": 1000, "height": 800},
+               detection={"found": True, "corners": photo}, page={"rotation_degrees": degrees})
+    tl = r.page_corners()[0]
+    assert (tl["x"], tl["y"]) == (photo[first][0] / 1000, photo[first][1] / 800)
+    assert Result(status="ok", input={"width": 1000, "height": 800}, detection={"found": False}).page_corners() is None
 
 
 @pytest.mark.ocr
@@ -77,6 +93,9 @@ def test_portrait_sheet_photographed_in_landscape_on_the_desk(tmp_path):
     assert r.status == "ok", (r.error, r.warnings)
     assert r.detection["found"] and r.page["rotation_degrees"] == 270
     assert r.page["paper"] == "A4" and r.page["height_px"] > r.page["width_px"]
+    # The sheet was turned clockwise on the desk: the document's top-left is the photo's top-right corner.
+    tl = r.document()["pageCorners"][0]
+    assert abs(tl["x"] - corners[1][0] / 1920) < 0.003 and abs(tl["y"] - corners[1][1] / 1440) < 0.003
     assert "siniestro" in extract_text(r.pdf)
 
 

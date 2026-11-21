@@ -100,7 +100,28 @@ class Result:
         languages = (self.languages or "").split("+")
         if len(languages) == 1 and languages[0] in BCP47:
             d["lang"] = BCP47[languages[0]]
+        corners = self.page_corners()
+        if corners:
+            d["pageCorners"] = corners
         return d
+
+    def page_corners(self) -> list[dict] | None:
+        """The 4 sheet corners on the input photo, normalised to [0, 1]: the document's top-left, top-right,
+        bottom-right and bottom-left (contract 0.5, `document.pageCorners`). None if no sheet was found.
+
+        They follow the text, not the photo: if the page was rotated to read it, the order is rotated too,
+        so that corner 0 is always where the first line starts. The homography unit square -> these 4
+        points maps any `box` of the blocks onto the photo (finger pointing, highlights on the paper).
+        """
+        det = self.detection or {}
+        width, height = self.input.get("width"), self.input.get("height")
+        if not (det.get("found") and det.get("corners") and width and height):
+            return None
+        # A clockwise rotation of k*90 degrees makes the old bottom-left the new top-left: roll by k.
+        k = (self.page.get("rotation_degrees") or 0) // 90
+        pts = np.roll(np.asarray(det["corners"], dtype=float), k, axis=0)
+        return [{"x": round(float(np.clip(x / width, 0, 1)), 4), "y": round(float(np.clip(y / height, 0, 1)), 4)}
+                for x, y in pts]
 
 
 def convert(source: str | Path | bytes, output_dir: str | Path, options: Options | None = None,
