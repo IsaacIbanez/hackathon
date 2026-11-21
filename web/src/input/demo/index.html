@@ -9,9 +9,11 @@
       body { margin: 0; font: 18px/1.4 system-ui, sans-serif; background: var(--fondo); color: var(--texto); }
       main { display: grid; grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); gap: 16px; padding: 16px; }
       @media (max-width: 800px) { main { grid-template-columns: 1fr; } }
-      .escena { position: relative; }
+      /* align-self: start evita que la celda de la rejilla se estire más que el vídeo
+         (eso deformaba el lienzo y el esqueleto salía desplazado hacia abajo). */
+      .escena { position: relative; align-self: start; }
       video, canvas { width: 100%; display: block; transform: scaleX(-1); border-radius: 8px; }
-      canvas { position: absolute; inset: 0; height: 100%; }
+      canvas { position: absolute; inset: 0; height: 100%; pointer-events: auto; }
       h1 { font-size: 24px; margin: 0 0 8px; }
       dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0 0 12px; }
       dt { opacity: 0.7; } dd { margin: 0; font-weight: 700; }
