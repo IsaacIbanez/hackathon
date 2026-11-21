@@ -90,7 +90,7 @@
 
 <script>
 const $ = (id) => document.getElementById(id);
-let camaraAbierta = false, ultimo = null, pestana = "pdf", sondeo = null, sondeoDet = null, esquinasEdit = null;
+let nitidezViva = null, camaraAbierta = false, ultimo = null, pestana = "pdf", sondeo = null, sondeoDet = null, esquinasEdit = null;
 
 function opciones() {
   const p = new URLSearchParams({ modo: $("modo").value, recortar: $("recortar").checked ? "1" : "0",
@@ -130,6 +130,7 @@ function mostrarAbierta() {
   clearInterval(sondeo);
   sondeo = setInterval(async () => {
     const d = await (await fetch("/api/camara/estado")).json();
+    nitidezViva = d.ok ? d.nitidez : null;
     $("vivo").textContent = d.ok ? `${d.camara} · ${d.fps ?? "—"} fps · nitidez ${d.nitidez ?? "—"}` : (d.error || "");
   }, 1000);
 }
@@ -141,8 +142,10 @@ async function dibujarDeteccion() {
   if (d.esquinas && d.encontrada) {
     poli.setAttribute("points", d.esquinas.map(p => p.join(",")).join(" "));
     poli.setAttribute("stroke", "#1fbf6b");
+    // Umbral medido con capturas reales de la MX Brio: borrosas 76-103, nítidas 336-400.
     $("pista").innerHTML = d.toca_borde ? '<span style="color:var(--parcial)">Documento cortado: aléjalo un poco</span>'
-                                         : '<span style="color:var(--ok)">Documento detectado: puedes escanear</span>';
+      : (nitidezViva !== null && nitidezViva < 150) ? '<span style="color:var(--parcial)">Imagen borrosa: espera al enfoque o aleja un poco el documento</span>'
+      : '<span style="color:var(--ok)">Documento detectado: puedes escanear</span>';
   } else {
     poli.setAttribute("points", "");
     $("pista").innerHTML = '<span style="color:var(--suave)">Buscando documento… (mejor sobre fondo oscuro, entero y a 30–40 cm)</span>';
