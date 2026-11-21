@@ -47,6 +47,10 @@ Experimental options (in `InteractionOptions`):
   label; `invertHandedness` in case it comes out swapped). The menu removes that hand's side
   (`menuSectors`, `menuFor`): ↑ adjust volume, ↓ repeat and, on the opposite side, ask for help.
   If the hand is unknown, all 4 options are shown.
+- Several people or hands: the tracker detects up to 2 hands and 2 faces (`numHands`, `numFaces`)
+  and the interaction follows the one nearest the camera (largest in the image, `handExtent`). Another
+  hand only takes over when it is clearly nearer (`switchHandRatio`, 1.25), and switching resets the
+  gesture in progress. `activeHand` tells which one is followed (the demo draws the others dimmed).
 - Head: `createTracker(..., { face: true })` or `tracker.enableFace(true)` (another model, ~4 MB;
   only 1 in every 2 frames is analysed).
 - Point + ask: only in the demo, using the browser's speech recognition (Chrome/Edge; Firefox

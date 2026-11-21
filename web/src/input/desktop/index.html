@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- The Go helper replaces the placeholder with a per-run token when it serves this page. -->
+    <meta name="gesture-token" content="__GESTURE_TOKEN__" />
+    <title>Gesture Control</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0b0d12; --surface: #141821; --surface-2: #1b2030; --border: #262d3c;
+        --text: #e9edf5; --muted: #8e98ab; --accent: #ffd23f; --accent-ink: #1a1400;
+        --cyan: #4cc9f0; --ok: #3ddc97; --bad: #ff5d5d;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; background: var(--bg); color: var(--text); }
+      body { font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; padding: 14px; max-width: 720px; margin: 0 auto; }
+      button, select, input { font: inherit; color: inherit; }
+      header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+      .brand { display: flex; align-items: center; gap: 10px; }
+      .logo { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; font-size: 19px;
+        background: linear-gradient(135deg, var(--accent), #ff9f1c); }
+      h1 { font-size: 17px; margin: 0; }
+      #status { margin: 0; font-size: 12.5px; color: var(--muted); }
+      #status.error { color: var(--bad); }
+
+      /* Big on/off switch: gestures only act on the computer while it is on. */
+      .power { display: flex; align-items: center; gap: 8px; font-weight: 700; cursor: pointer; }
+      .power input { appearance: none; width: 52px; height: 30px; border-radius: 999px; background: var(--surface-2);
+        box-shadow: inset 0 0 0 1px var(--border); position: relative; cursor: pointer; transition: background .2s; }
+      .power input::after { content: ""; position: absolute; top: 4px; left: 4px; width: 22px; height: 22px; border-radius: 50%;
+        background: #cfd6e4; transition: transform .2s; }
+      .power input:checked { background: var(--ok); }
+      .power input:checked::after { transform: translateX(22px); background: #08130d; }
+
+      .stage { position: relative; border-radius: 16px; overflow: hidden; background: #000; box-shadow: 0 0 0 1px var(--border); }
+      canvas { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; transform: scaleX(-1); }
+      video { position: absolute; inset: 0; width: 100%; opacity: 0; pointer-events: none; }
+      .stage.off canvas { filter: grayscale(1) brightness(.5); }
+      #action { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); white-space: nowrap;
+        font-size: 20px; font-weight: 800; color: var(--accent-ink); background: var(--accent); padding: 6px 16px; border-radius: 999px; }
+      #action:empty { display: none; }
+      #action.error { background: var(--bad); color: #fff; }
+      #menu { position: absolute; inset: 0; display: grid; background: #0b0d12a6;
+        grid-template: ". up ." 1fr "left center right" 1fr ". down ." 1fr / 1fr 1fr 1fr; }
+      #menu[hidden] { display: none; }
+      #menu .op { --p: 0; margin: 8px; display: flex; align-items: center; justify-content: center; text-align: center;
+        border-radius: 14px; font-size: clamp(13px, 3vw, 20px); font-weight: 800; background: #141821ee; box-shadow: 0 0 0 2px #ffffff22;
+        background-image: linear-gradient(90deg, #ffd23f55 calc(var(--p) * 100%), transparent 0); }
+      #menu .op.active { box-shadow: 0 0 0 3px var(--accent); color: var(--accent); }
+      #menu .op.chosen { background: var(--accent); color: var(--accent-ink); }
+      #menu .center { grid-area: center; display: flex; align-items: center; justify-content: center; text-align: center; color: #cfd6e4; font-size: 12px; }
+      #cursor { position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%;
+        background: var(--bad); border: 3px solid #fff; pointer-events: none; }
+      #cursor[hidden] { display: none; }
+
+      .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 12px 0; }
+      .seg { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--surface); box-shadow: 0 0 0 1px var(--border); }
+      .seg button { border: 0; background: none; padding: 7px 14px; border-radius: 999px; cursor: pointer; color: var(--muted); font-weight: 600; white-space: nowrap; }
+      .seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+      select { background: var(--surface); border: 0; box-shadow: 0 0 0 1px var(--border); border-radius: 999px; padding: 8px 12px; }
+      .check { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); cursor: pointer; }
+      .check input { accent-color: var(--accent); width: 16px; height: 16px; }
+      button:focus-visible, select:focus-visible, input:focus-visible { outline: 3px solid var(--cyan); outline-offset: 2px; }
+
+      .card { background: var(--surface); border-radius: 14px; padding: 12px 14px; box-shadow: 0 0 0 1px var(--border); margin-bottom: 10px; }
+      .card h2 { margin: 0 0 6px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+      table { width: 100%; border-collapse: collapse; }
+      td { padding: 5px 4px; border-top: 1px solid var(--border); }
+      tr:first-child td { border-top: 0; }
+      td:last-child { color: var(--accent); font-weight: 600; }
+      ol { list-style: none; margin: 0; padding: 0; max-height: 160px; overflow: auto; font-size: 13px; font-variant-numeric: tabular-nums; }
+      ol li { padding: 4px 0; border-top: 1px solid var(--border); color: #cfd6e4; }
+      ol li:first-child { border-top: 0; }
+      ol:empty::before { content: "Nothing yet — try a gesture."; color: var(--muted); }
+      .hint { color: var(--muted); font-size: 12.5px; margin: 0; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="brand">
+        <div class="logo" aria-hidden="true">✋</div>
+        <div>
+          <h1>Gesture Control</h1>
+          <p id="status" role="status">Connecting to the helper…</p>
+        </div>
+      </div>
+      <label class="power"><input type="checkbox" id="enabled" checked /> <span id="enabledLabel">On</span></label>
+    </header>
+
+    <div class="stage" id="stage">
+      <video id="video" autoplay playsinline muted></video>
+      <canvas id="canvas" aria-label="Camera view with hand tracking"></canvas>
+      <div id="action" aria-live="assertive"></div>
+      <div id="menu" hidden>
+        <div class="op" data-s="up" style="grid-area: up"></div>
+        <div class="op" data-s="left" style="grid-area: left"></div>
+        <div class="center">☝️ Hold the pointer<br />on an option</div>
+        <div class="op" data-s="right" style="grid-area: right"></div>
+        <div class="op" data-s="down" style="grid-area: down"></div>
+      </div>
+      <div id="cursor" hidden></div>
+    </div>
+
+    <div class="controls">
+      <div class="seg" id="context" role="group" aria-label="Mode">
+        <button data-c="call" aria-pressed="true">📞 Video call</button>
+        <button data-c="pc" aria-pressed="false">💻 Computer</button>
+      </div>
+      <select id="app" aria-label="Video call app">
+        <option value="meet">Google Meet</option>
+        <option value="zoom">Zoom</option>
+        <option value="teams">Microsoft Teams</option>
+      </select>
+      <label class="check"><input type="checkbox" id="mouse" /> Move the mouse with ☝️</label>
+    </div>
+
+    <section class="card">
+      <h2>Gestures · <span id="contextName">Video call</span></h2>
+      <table id="guide"></table>
+    </section>
+    <section class="card">
+      <h2>Done</h2>
+      <ol id="log"></ol>
+    </section>
+    <p class="hint">Keep this window open (it can sit behind the call). The call app should be open; shortcuts go to its window.</p>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
