@@ -33,6 +33,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
 
+      - name: Código Go formateado (si falla, ejecuta task fmt)
+        run: |
+          sin_formato=$(gofmt -l $(git ls-files '*.go'))
+          if [ -n "$sin_formato" ]; then echo "$sin_formato"; exit 1; fi
+
       - name: task check
         run: task check
 

@@ -1,4 +1,10 @@
-package main
+// Package mock responde a los mensajes del contrato con las fixtures de api/fixtures:
+//   - document  -> speak.json
+//   - utterance -> speak-utterance.json (solo si isFinal)
+//   - pointer   -> nada (solo lo registra)
+//
+// Lo usan el servidor mock (backend/cmd/mock) y la app Wails hasta que exista la lógica real (T8).
+package mock
 
 import (
 	"context"
@@ -35,7 +41,8 @@ func responder(plantilla gen.SpeakMessage, a gen.Envelope) gen.SpeakMessage {
 	return m
 }
 
-func newMux() (http.Handler, error) {
+// NewMux devuelve un http.Handler con GET /health y el WebSocket /ws.
+func NewMux() (http.Handler, error) {
 	speakDoc, err := cargarSpeak("speak.json")
 	if err != nil {
 		return nil, err

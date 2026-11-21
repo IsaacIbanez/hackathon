@@ -27,7 +27,9 @@ Coordenadas normalizadas a [0, 1] sobre el documento recortado, origen arriba a 
 | `utterance` | navegador → Go | `text`, `isFinal`, opcional `lang` |
 | `speak` | Go → navegador | `text`, `highlightBlockIds[]`, `lang`, opcional `replyTo` |
 
-## Servidor mock
+## Servidor mock y app
+La app de escritorio (`task dev` o el ejecutable) sirve lo mismo en `ws://127.0.0.1:8765/ws`, por ahora con las mismas respuestas de ejemplo. Cualquier proceso local puede conectarse (no hace falta un navegador).
+
 `task mock` (o `go run ./backend/cmd/mock -addr localhost:8080`):
 - `GET http://localhost:8080/health` → `{"status":"ok"}`
 - `ws://localhost:8080/ws`: `document` → responde `fixtures/speak.json`; `utterance` final → `fixtures/speak-utterance.json`; `pointer` → no responde. El `replyTo` de la respuesta es el `id` recibido.

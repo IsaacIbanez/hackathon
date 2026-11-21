@@ -15,5 +15,5 @@ Lee primero `../api/` (el contrato) y solo tu carpeta.
 ## Cómo arrancarlo
 - Con ventana: `task dev` (`wails dev` desde la raíz).
 - Sin ventana: `task mock` en la raíz y `npm run dev` aquí; abre la URL de Vite en el navegador.
-- El WebSocket se toma de `VITE_WS_URL` (por defecto `ws://localhost:8080/ws`, el mock).
+- URL del WebSocket: dentro de Wails se la pide a Go (`WsURL()`, normalmente `ws://127.0.0.1:8765/ws`); fuera de Wails usa `VITE_WS_URL` o, por defecto, el mock (`ws://localhost:8080/ws`).
 - `wailsjs/` lo genera Wails: no se edita a mano.
