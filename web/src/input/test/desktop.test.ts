@@ -99,7 +99,8 @@ test("menu: power actions always ask first, and only ↓ confirms", () => {
     const confirm = menuPage({ id: "confirm", action }, "pc");
     const yes = Object.entries(confirm).filter(([, i]) => i?.kind === "power");
     assert.deepEqual(yes.map(([s]) => s), ["down"]);
-    assert.ok(Object.entries(confirm).every(([s, i]) => s === "down" || i?.kind === "close"));
+    assert.equal(Object.keys(confirm).length, 2, "confirm should have only 2 options (down to confirm, up to go back), not 4");
+    assert.deepEqual(confirm.up, { kind: "page", page: { id: "computer" }, label: "↩ Back" });
   }
 });
 

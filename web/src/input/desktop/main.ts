@@ -101,9 +101,41 @@ function showPage(p: MenuPage) {
   interaction.setMenuCells(cellsOf(layout()));
 }
 
+function goBack(t: number) {
+  if (page.id === "confirm") {
+    showPage({ id: "computer" });
+    reopening = true;
+    try {
+      interaction.reopenMenu(t);
+    } finally {
+      reopening = false;
+    }
+    toast("↩ Back");
+    return;
+  }
+  if (page.id === "computer" || page.id === "apps") {
+    showPage({ id: "main" });
+    reopening = true;
+    try {
+      interaction.reopenMenu(t);
+    } finally {
+      reopening = false;
+    }
+    toast("↩ Back");
+    return;
+  }
+  showPage({ id: "main" });
+  interaction.closeMenu(t);
+  toast("Closed");
+}
+
 function onMenu(e: Extract<HandEvent, { type: "menu" }>) {
   if (e.phase === "open") {
     if (!reopening) showPage({ id: "main" });
+    return;
+  }
+  if (e.phase === "back") {
+    goBack(e.t);
     return;
   }
   if (e.phase !== "choose" || !e.sector) return;
@@ -230,6 +262,7 @@ function paintGuide() {
     ["✋→ / ✋← Swipe", m.swipe_right && m.swipe_left ? "Next / previous tab" : null],
     ["✊ Fist (hold) → ☝️ hold on an option", `Menu: ${menu}`],
     ["✊ again, inside the menu", "Close the menu"],
+    ["👎 Thumbs down / ✋← Swipe, in menu", "Go back / close"],
     ["☝️ Point", mouseOn() ? "Move the mouse" : "Move the mouse (turn on “Move the mouse”)"],
     ["☝️ + middle fingertip on the thumb", "Click · twice quickly: right click · hold: drag"],
   ];

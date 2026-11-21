@@ -254,6 +254,25 @@ test("menu: opening the hand and closing the fist again closes it (and doesn't r
   );
 });
 
+test("menu: thumbs down 👎 inside the menu emits a 'back' phase", () => {
+  const ev = simulate(new HandInteraction(), [
+    ...repeat(makeHand(SHAPES.fist), 20), // opens
+    ...repeat(makeHand(SHAPES.palm), 12), // settle > 300 ms
+    ...repeat(makeHand(SHAPES.thumbs_down), 15), // thumbs down > 300 ms
+  ]).filter((e) => e.type === "menu");
+  assert.ok(ev.some((e) => e.type === "menu" && e.phase === "back"));
+});
+
+test("menu: swipe inside the menu emits a 'back' phase", () => {
+  const swipeFrames = Array.from({ length: 10 }, (_, i) => makeHand({ ...SHAPES.palm, dx: 0.04 * i }));
+  const ev = simulate(new HandInteraction(), [
+    ...repeat(makeHand(SHAPES.fist), 20), // opens
+    ...repeat(makeHand(SHAPES.palm), 12), // settle > 300 ms
+    ...swipeFrames, // swipe
+  ]).filter((e) => e.type === "menu");
+  assert.ok(ev.some((e) => e.type === "menu" && e.phase === "back"));
+});
+
 test("menu: corners can be offered with setMenuCells (they aren't by default)", () => {
   const toCorner = pointerInMenu(-0.15, 0.3); // the user's bottom right
   assert.ok(!simulate(new HandInteraction(), toCorner).some((e) => e.type === "menu" && e.phase === "choose"));

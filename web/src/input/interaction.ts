@@ -99,6 +99,8 @@ export interface InteractionOptions {
   fistReach: number;
   /** If true, closing the fist also ends the volume/brightness control (it always opens the menu). */
   useFist: boolean;
+  /** Time holding thumbs down (👎) inside the open menu to go back. */
+  menuBackMs: number;
   /** The fist must be held this long (and still) to open the menu; inside the menu, to close it. */
   menuHoldMs: number;
   /**
@@ -164,6 +166,7 @@ export const DEFAULT_OPTIONS: InteractionOptions = {
   fistReach: 0.9,
   levelArmMs: 8000,
   useFist: false,
+  menuBackMs: 300,
   menuHoldMs: 500,
   mouseClicks: false,
   clickPress: 0.3,
@@ -304,6 +307,8 @@ export class HandInteraction {
   private menuCells: MenuSector[] | null = null;
   /** When the fist started inside the open menu (to close it by holding the fist). */
   private tMenuFist: number | null = null;
+  /** When thumbs down started inside the open menu (to go back). */
+  private tMenuBack: number | null = null;
   private lastMenuCenter: Point | null = null;
   private lastChosenSector: MenuSector | null = null;
   private wakeIssue: WakeIssue | null = null;
@@ -548,7 +553,7 @@ export class HandInteraction {
       return;
     }
     if (this.menu) {
-      this.updateMenu(t, pose, center, hand);
+      this.updateMenu(t, pose, center, hand, aspect);
       return;
     }
     if (this.updateLevel(t, pose, center)) return;
@@ -876,7 +881,7 @@ export class HandInteraction {
    * option for ~0.5 s. Options fill screen zones in a cross (thirds): top-centre, bottom-centre,
    * left-centre and right-centre, as seen by the user.
    */
-  private updateMenu(t: number, pose: Gesture, center: Point, hand: Hand): void {
+  private updateMenu(t: number, pose: Gesture, center: Point, hand: Hand, aspect: number): void {
     const m = this.menu!;
     if (t - m.tOpened > this.opts.menuTimeoutMs) {
       this.closeMenu(t);
@@ -897,6 +902,27 @@ export class HandInteraction {
     } else {
       this.tMenuFist = null;
       if (this.stableGesture === "fist") this.stableGesture = pose;
+    }
+
+    // Holding thumbs down (👎) goes back to the previous menu page or closes it.
+    if (pose === "thumbs_down") {
+      if (this.tMenuBack === null) this.tMenuBack = t;
+      if (t - this.tMenuBack >= this.opts.menuBackMs) {
+        this.tMenuBack = null;
+        this.emitMenuBack(t, m);
+        this.stableGesture = "thumbs_down";
+        this.resetCandidate(t, pose, center);
+        return;
+      }
+    } else {
+      this.tMenuBack = null;
+    }
+
+    // Swiping left (or lateral swipe with palm) goes back.
+    if (this.detectSwipe(t, center, pose, aspect)) {
+      this.emitMenuBack(t, m);
+      this.resetCandidate(t, pose, center);
+      return;
     }
 
     // Only ☝️ moves the pointer (✊, which opens the menu, chooses nothing).
@@ -1033,10 +1059,18 @@ export class HandInteraction {
     };
   }
 
-  private closeMenu(t: number): void {
+  private emitMenuBack(t: number, m: MenuState): void {
+    this.menu = null;
+    this.lastPointer = null;
+    this.tMenuBack = null;
+    this.emit({ type: "menu", phase: "back", sector: null, center: m.center, hand: m.hand, t });
+  }
+
+  closeMenu(t: number = this.tLastHand): void {
     if (!this.menu) return;
     const { center, hand } = this.menu;
     this.menu = null;
+    this.tMenuBack = null;
     this.emit({ type: "menu", phase: "close", sector: null, center, hand, t });
   }
 

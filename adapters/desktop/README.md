@@ -37,6 +37,7 @@ El detector arranca en modo **dormido** (`requireWake`) para prevenir gestos acc
 ## Menú rápido con el puño (✊) y páginas
 El menú se presenta en una rejilla 3×3 de pantalla (con el centro vacío):
 - **Abrir y cerrar:** un ✊ puño mantenido ~0,5 s y quieto abre el menú principal. Dentro del menú, soltar el puño y volver a mostrar ✊ durante ~0,5 s lo cierra. También se cierra solo tras 5 s de inactividad.
+- **Tirar atrás (navegación):** un pulgar hacia abajo 👎 mantenido ~0,3 s o un barrido lateral ✋← permite retroceder de página en el menú (o cerrarlo desde la página principal).
 - **Página principal:**
   - ↑ 🔊 Volume y ↓ 🔆 Brightness: activan el control de nivel por pinza (🤏 abrir o cerrar dedos pulgar e índice, fijándolo al quedarse quieto).
   - ← 🎙️ Microphone: conmuta el micrófono. En modo Videollamada utiliza el atajo de la app (`toggle_mic`), y en modo Ordenador conmuta el micrófono del sistema operativo (`mic_mute`).
@@ -47,8 +48,8 @@ El menú se presenta en una rejilla 3×3 de pantalla (con el centro vacío):
   - Opciones: ↑ Suspender…, ← Reiniciar…, → Apagar… y ↓ Volver.
   - Todas las opciones de apagado/reinicio requieren confirmación previa.
 - **Página de confirmación de energía:**
-  - Por seguridad, sólo la celda inferior (↓ «✔ Yes, ...») confirma la acción.
-  - Las celdas ↑, ← y → cancelan y cierran el menú.
+  - Menú simplificado a sólo 2 opciones: ↑ ↩ Back (volver a Computer) y ↓ ✔ Yes, <action> (confirma la acción).
+  - Por seguridad, sólo la celda inferior confirma la acción.
   - La celda elegida queda temporalmente bloqueada para que la nueva pantalla no active opciones accidentalmente al cambiar de página.
 - **Submenú Apps:**
   - Permite abrir hasta 7 aplicaciones configuradas en `apps.json` distribuidas en las celdas disponibles (`APP_CELLS`), con ↓ Volver. Si no hay apps configuradas, muestra huecos («App N · not set»).

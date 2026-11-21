@@ -80,11 +80,11 @@ export function menuPage(page: MenuPage, context: DesktopContext, launchers: rea
         down: BACK,
       };
     case "confirm": {
-      // "Yes" sits alone at the bottom, away from where the previous page's options were: confirming
-      // needs a deliberate move. Everywhere else cancels.
-      const cancel: MenuItem = { kind: "close", label: "✕ Cancel" };
       const p = POWER[page.action];
-      return { up: cancel, left: cancel, right: cancel, down: { kind: "power", action: page.action, label: `✔ Yes, ${p.name.toLowerCase()}` } };
+      return {
+        up: { kind: "page", page: { id: "computer" }, label: "↩ Back" },
+        down: { kind: "power", action: page.action, label: `✔ Yes, ${p.name.toLowerCase()}` },
+      };
     }
     case "apps": {
       const layout: MenuLayout = { down: BACK };

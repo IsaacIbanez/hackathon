@@ -34,6 +34,7 @@ Experimental options (in `InteractionOptions`):
 - Menu: opened with a steady ✊ fist held ~0.5 s. Inside the menu, a new ✊ fist held ~0.5 s closes it.
   While open, the user shows ☝️ and holds the pointer (the index tip) over an option for `menuSelectMs` (~0.5 s).
   Options fill configurable sectors; in the centre or with a fist nothing is chosen; it closes by itself after 5 s.
+  A 👎 thumbs down held ~0.3 s or a lateral swipe ✋← emits a `back` phase, navigating back to previous menu pages or closing it.
 - `REDUCED_MOBILITY_PROFILE`: longer times and larger radii for tremor or reduced mobility.
 - Level control (volume and brightness) with the pinch (`level` event), deliberately simple. **Only enabled from the menu**
   ("adjust volume" or "adjust brightness" options, which call `startLevel()`) so it can't trigger by accident; if the fingers

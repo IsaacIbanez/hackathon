@@ -105,7 +105,7 @@ export type HandEvent =
   /** Menu opened with ✊ (fist); an option is chosen by holding the pointer (☝️) over it. */
   | {
       type: "menu";
-      phase: "open" | "highlight" | "choose" | "close";
+      phase: "open" | "highlight" | "choose" | "close" | "back";
       sector: MenuSector | null;
       /** Menu centre in image coordinates (for drawing). */
       center: Point;
