@@ -146,10 +146,29 @@ Puertos: 8765 app · 8766 captura de Pau (pruebas) · 8767 Gesture Control (Nil)
 | Quién | Ya hecho | Ahora | Para probar sin los demás |
 |---|---|---|---|
 | **Didac (B2)** | Pipeline foto → PDF + `document`; envío a la app (`scan.py --send`); cámara disponible sin Brio; OCR en paralelo; código en inglés; `scanner/ENTREGA.md` (todo en `feature/B-contexto-scanner`) | ~~Abrir el PR~~ (fusionado, #26). **Ahora** T13: servicio `POST /scan` en 8770 que reciba la foto (su pipeline ya admite `--png`) y devuelva `document()` + `pageCorners`. Después, 2–3 documentos reales anonimizados en `api/fixtures/real/` | `curl --data-binary @foto.png http://127.0.0.1:8770/scan` |
-| **Pau (B1)** | Captura de la MX Brio (#12) | **1)** T12: `web/src/camera` (`openCamera` prefiriendo la Logitech por nombre; `captureStill` con la nitidez del laplaciano de `capturar.py`). **2)** Traducir `capturar.py` al inglés **avisando a Didac**: `scan.py` y `demo_app` usan sus nombres | una página de prueba propia |
+| **Pau (B1)** | Captura de la MX Brio (#12); **cámara en la app** (`openCamera`, `captureStill`, #31) | **1)** T19: **guía de encuadre por voz y disparo automático** (sus dos ideas mejor valoradas, ver abajo). **2)** Traducir `capturar.py` al inglés **avisando a Didac** (`scan.py` y `demo_app` usan sus nombres) | su página de prueba (`web/src/camera/demo`) |
 | **Nil (C)** | Gestos (#9), voz con Whisper local (#19), arreglo del puntero (#23, de Isaac) | **1)** Arreglar #20 (cabecera `Host`). **2)** T17: **mejorar el reconocimiento de voz** (ver abajo). **3)** T15: acción `scan_document` (frase «lee el documento» y gesto) y puntero con `pageCorners` en `Gestures.tsx`. **4)** MediaPipe y modelos servidos en local para la demo | `docs/PROBAR_GESTOS.md`; las esquinas de un ejemplo de `api/fixtures/real/` |
 | **Isaac (A)** | Contrato, servidor, sesión, modelos, pantalla, puente de gestos, empaquetado, pitch | ~~Fusionar el PR de Didac~~ (#26). **1)** T11: contrato 0.5 (`pageCorners`) y `POST /scan` en Go → servicio de Didac. **2)** T18: `POST /transcribe` en Go (respaldo de voz en la nube, ver abajo). **3)** T14: botón «Read document» y unión en la app | servicios falsos en los tests de Go |
 | **Todos** | — | T16: lluvia de ideas en `docs/IDEAS.md` (3 ideas cada uno como mínimo) | — |
+
+### Guía de encuadre y disparo automático (T19, Pau)
+Para quien no ve, el problema no es leer: es saber si el papel está bien puesto. En local y sin IA, en `web/src/camera`:
+
+```ts
+// Mira el vídeo mientras dura la orden «lee el documento» y va dando avisos hasta que la foto es buena.
+startFramingGuide(video: HTMLVideoElement, opts: {
+  lang: string                                  // "es-ES": textos de los avisos en el idioma del usuario
+  onHint: (hint: FramingHint, text: string) => void   // la app lo dice en voz alta (sin repetir el mismo aviso seguido)
+  onCapture: (still: Blob) => void              // disparo automático: papel quieto + nítido + con luz
+  timeoutMs?: number                            // si no se consigue, se dispara igualmente con la mejor foto (por defecto 8 s)
+}): { stop(): void }
+
+type FramingHint = 'dark' | 'blurry' | 'moving' | 'hold_still' | 'ready'
+```
+- **Quieto:** comparar fotogramas seguidos (diferencia media pequeña durante ~0,7 s). **Nítido** y **con luz:** `frameMetrics` (ya existe).
+- Al disparar: un pitido corto (como los de la voz de Nil) y `onCapture` con la mejor foto (`captureStill`).
+- Lo que depende de la hoja (`cropped`, `too_far`, inclinada) lo dice Go con el `document` que devuelve el escáner; no hace falta detectarla en el navegador.
+- **Lo une Isaac** en la app (T14): la orden «lee el documento» → `startFramingGuide` → `POST /scan` con la foto.
 
 ### Voz: reconocimiento mejor que el actual (T17 Nil, T18 Isaac)
 Hoy el dictado usa `whisper-tiny` en la CPU y se equivoca mucho. Medido el 2026-11-21 con la misma frase en español («¿Qué tengo que poner aquí, en la fecha del siniestro? ¿Y dónde firmo?»), detalle en `docs/VOZ.md`:
