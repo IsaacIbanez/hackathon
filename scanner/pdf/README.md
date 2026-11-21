@@ -1,43 +1,90 @@
-# scanner/pdf/ — Imagen a PDF buscable
+# scanner/pdf/ — Imagen PNG a PDF buscable
 
 Parte del subproyecto `scanner/` (reglas en `../AGENTS.md`). Dueño: Didac (P2-C).
 
-## Qué hace
-Recibe la imagen de un documento en papel y produce un **PDF buscable**: la imagen de la página
-(fiel al original) más una capa de texto OCR invisible y bien posicionada, para poder seleccionar,
-copiar y buscar. No reconstruye el documento con IA ni sustituye su aspecto.
+Recibe el **PNG** que genera la parte de captura y produce un **PDF buscable**: la página con su
+aspecto real (enderezada, recortada, con la iluminación igualada) más una capa de texto OCR
+invisible y alineada, para seleccionar, copiar y buscar. No reconstruye el documento con IA.
 
-## Interfaz (conceptual, pendiente de acordar)
-- **Entrada:** imagen (ruta o bytes) + metadatos de captura opcionales + opciones (idiomas, color/grises, guardar intermedios).
-- **Salida:** PDF final (ruta o bytes) + resultado estructurado: éxito/fallo, nº de páginas, idioma OCR,
-  avisos, confianza/calidad e intermedios si se piden.
-- El formato exacto de la imagen de entrada lo define quien hace la captura; aquí no se asume ninguna cámara.
-- Relación con el contrato del repo (`api/openapi.yaml`): los bloques OCR (texto + caja + confianza) encajan
-  con `TextBlock` del mensaje `document`. Si se integra, se acuerda con el rol A; aquí no se cambia el contrato.
-
-## Pipeline previsto
-1. **Entrada:** se guarda el original sin tocar (PNG) y sus metadatos.
-2. **Preparación (OpenCV):** detección del borde de la hoja, perspectiva, rotación, recorte, iluminación.
-   Conservador y configurable; si la detección duda, se avisa (recorte manual) en vez de generar una página mala.
-3. **PDF base:** la página preparada a tamaño y proporción correctos (sin estirar).
-4. **Capa OCR invisible:** Tesseract (spa, cat, eng) / OCRmyPDF, a evaluar. PaddleOCR solo si mejora de forma medida.
-5. **Validación:** páginas, dimensiones, texto extraíble, búsqueda y copia en un lector PDF real.
-6. **IA (opcional):** OpenRouter solo para casos dudosos y nunca como requisito para generar el PDF.
-
-## Estructura
+## Instalación
 ```
-scanner/pdf/
-├── README.md     este archivo
-├── src/          código del pipeline
-├── tests/        tests automáticos (geometría, OCR/PDF, fallos)
-├── muestras/     imágenes de prueba (solo con permiso; ver muestras/README.md)
-└── salida/       resultados locales (ignorado por git)
+# Windows (Python 3.10+; instala Tesseract con winget y descarga spa/cat/eng a tessdata/)
+powershell -ExecutionPolicy Bypass -File scanner\pdf\scripts\instalar.ps1
+# Linux / macOS
+bash scanner/pdf/scripts/instalar.sh
 ```
+Los dos scripts acaban ejecutando los tests.
 
-## Entorno (comprobado en el PC de Didac, Windows 11, 2026-11-21)
-- Python 3.14.6 instalado. **Faltan:** Tesseract, OCRmyPDF, Ghostscript, qpdf, y los paquetes `opencv-python` y `reportlab`.
-- Lenguaje propuesto: Python (lo que sugiere `../AGENTS.md`). Pendiente de confirmar con el equipo antes de instalar dependencias.
+## Uso
+```
+cd scanner/pdf
+.venv\Scripts\python -m escaner_pdf captura.png -o salida        # Windows
+.venv/bin/python -m escaner_pdf captura.png -o salida            # Linux/macOS
+```
+Opciones útiles: `--modo gris|bn`, `--tamano A4|Letter|imagen`, `--esquinas x1,y1,...,x4,y4`
+(recorte manual), `--sin-recorte`, `--jpeg`, `--json`. Ver `--help`.
+Código de salida: 0 = ok, 2 = PDF generado pero parcial (p. ej. sin OCR), 1 = error.
 
-## Preguntas abiertas
-Ver la sección 10 de `../AGENTS.md`. Las que afectan a esta parte: formato de la imagen de entrada,
-una o varias páginas, idiomas, color o grises, y si se pueden mandar imágenes a OpenRouter.
+Desde Python:
+```python
+from escaner_pdf import convertir, Opciones
+r = convertir("captura.png", "salida/")            # también acepta los bytes del PNG
+r.estado        # "ok" | "parcial" | "error"
+r.pdf           # ruta del PDF final
+r.avisos        # p. ej. ["pagina_no_detectada"]
+r.error         # {"codigo": ..., "mensaje": ...} si estado == "error"
+r.documento()   # payload del mensaje `document` del contrato (api/openapi.yaml)
+```
+`convertir` no lanza excepciones por errores esperables: siempre devuelve un `Resultado`.
+
+## Qué genera (`salida/<nombre>/`)
+| Archivo | Qué es |
+|---------|--------|
+| `<nombre>.pdf` | PDF final: imagen + capa de texto invisible |
+| `original.png` | el PNG recibido, byte a byte (nunca se modifica) |
+| `pagina.png` | la página preparada (lo que va dentro del PDF) |
+| `base.pdf` | PDF solo imagen, antes del OCR |
+| `deteccion.jpg` | la captura con la hoja detectada dibujada (verde = usada, rojo = descartada) |
+| `entrada.json`, `resultado.json` | metadatos de entrada y resultado completo |
+
+Si el nombre ya existe se crea `<nombre>-2`, `-3`…: nunca se sobrescribe un resultado.
+
+## Pipeline (`src/escaner_pdf/`)
+1. `entrada.py` — valida el PNG (firma, tamaño, 8/16 bits, alfa sobre blanco, DPI del PNG).
+2. `geometria.py` — detecta la hoja (bordes + umbral, puntuando soporte de borde, contraste,
+   ángulos y tamaño), refina las esquinas a resolución completa (< 1 px de error en pruebas),
+   calcula la **proporción real** con el modelo de cámara de Zhang y He y la ajusta a A4/Letter/A5/Legal
+   si coincide. Si no está segura, **no recorta** y avisa (`pagina_no_detectada`).
+3. `ocr.py` — orientación 90/180/270 (OSD de Tesseract) y OCR en **un solo pase** que da a la vez
+   la capa de texto invisible (renderizador "sandwich") y las palabras con caja y confianza.
+   Si la página tiene menos de 300 DPI, Tesseract lee una copia ampliada; el PDF guarda la original.
+4. `imagen.py` — iluminación (ganancia por canal limitada a 1,8: quita sombras sin borrar zonas
+   oscuras grandes), modos `color` / `gris` / `bn` (este último solo si se pide) y calidad con el
+   vocabulario `FrameIssue` del contrato (`blurry`, `dark`, `glare`, `cropped`, `tilted`, `too_far`).
+5. `pdf.py` — img2pdf incrusta la imagen **sin recodificar** al tamaño físico exacto; pikepdf superpone
+   la capa de texto con escala exacta; y se valida: páginas, tamaño, resolución de la imagen
+   incrustada, texto extraíble, alineación de la capa y fidelidad (render vs imagen, PSNR).
+
+## Decisiones (medidas, no supuestas)
+- **Tesseract directo en vez de OCRmyPDF.** Sobre la misma página: OCRmyPDF 2,07 s; nuestro camino
+  1,06 s con el mismo texto, y además devuelve los bloques con confianza que pide el contrato
+  (OCRmyPDF obligaría a un segundo pase). OCRmyPDF 17 tampoco necesita Ghostscript.
+- **Sin ReportLab:** img2pdf + pikepdf bastan y no recodifican la imagen.
+- **PNG sin pérdidas por defecto** (PSNR 99 dB entre la página y el PDF). `--jpeg` es opcional.
+- **Sin IA por ahora.** OpenRouter queda como mejora opcional para casos dudosos (no hace falta para el PDF).
+
+## Estado de las pruebas
+`pytest` (49 tests, ~15 s): entrada, geometría con 7 poses de cámara realistas, casos sin hoja
+(textura, negro, hoja que llena el encuadre), iluminación, calidad, extremo a extremo con acentos,
+página girada, modos y formatos, fallos (sin Tesseract, entrada inválida, opciones inválidas).
+Las imágenes de prueba son **sintéticas** (`tests/sinteticos.py`).
+
+## Limitaciones y pendientes
+- Falta probar con **capturas reales** de la cámara de Logitech: los umbrales de calidad (nitidez,
+  brillo, reflejos) son heurísticos y hay que calibrarlos. Muestras en `muestras/`.
+- Con la hoja inclinada en **un solo eje**, la focal no se puede deducir y se supone una webcam de
+  78° de campo diagonal (`Opciones.fov_diagonal`). Si la cámara real es distinta, ajustarlo.
+- Una sola página por llamada. Sin deskew fino (Tesseract tolera inclinaciones pequeñas).
+- Escritura a mano: Tesseract no la reconoce bien; la imagen sí se conserva fiel.
+- Integración con la app (Go/WebSocket): pendiente de acordar con el rol A. `Resultado.documento()`
+  ya da el payload `document` sin cambiar el contrato.
