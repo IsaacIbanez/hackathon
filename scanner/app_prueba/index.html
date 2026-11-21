@@ -244,9 +244,13 @@ function pintarPestana() {
       return;
     }
     const rev = dg.a_revisar || [];
-    el.innerHTML = `<p style="font-size:13px;color:var(--suave);margin-top:0">Documento reconstruido: ${dg.palabras_texto} palabras como texto,
-        ${dg.palabras_imagen} ilegibles como imagen, ${dg.regiones_imagen} imágenes (firma, logos...). El escaneado sigue siendo la referencia fiel.</p>
-      ${rev.length ? `<p style="font-size:13px;color:var(--parcial)">Revisa ${rev.length} palabras dudosas: ${rev.slice(0, 40).map(w => esc(w.text)).join(", ")}${rev.length > 40 ? "…" : ""}</p>` : ""}
+    const modelo = dg.metodo === "modelo";
+    const llamadas = (dg.llamadas_ia || []).map(l => `${esc(l.modelo.split("/").pop())} ${f(l.segundos, 1)} s`).join(" → ");
+    el.innerHTML = `<p style="font-size:13px;color:var(--suave);margin-top:0">${modelo
+        ? `Maquetado con modelo de visión (${llamadas}; coste ${f(dg.coste_ia_usd, 4)} $; concordancia con el OCR local ${f(dg.concordancia_ocr)}): ${dg.bloques_texto} bloques de texto, ${dg.palabras_texto} palabras, ${dg.regiones_imagen} imágenes.`
+        : `Reconstruido con el OCR local${(r.avisos || []).some(a => a.startsWith("digital_ia_no_disponible")) ? " (el modelo no estaba disponible)" : ""}: ${dg.palabras_texto} palabras como texto, ${dg.palabras_imagen} ilegibles como imagen, ${dg.regiones_imagen} imágenes.`}
+        El escaneado sigue siendo la referencia fiel.</p>
+      ${rev.length ? `<p style="font-size:13px;color:var(--parcial)">${modelo ? "Palabras que el OCR local no confirma" : "Palabras dudosas"} (revísalas en el escaneado): ${rev.slice(0, 40).map(w => esc(w.text ?? w)).join(", ")}${rev.length > 40 ? "…" : ""}</p>` : ""}
       <iframe src="${u.pdf_digital}#view=FitH" title="PDF digital"></iframe>`;
   } else if (pestana === "pagina") {
     if (!u.pagina) { el.innerHTML = '<div class="vacio">Sin página guardada</div>'; return; }
