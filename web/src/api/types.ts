@@ -69,6 +69,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/transcribe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cloud backup of the voice recognizer (a WAV recording to text)
+         * @description Used by the UI only when the on-device recognizer fails or returns nothing. Go sends
+         *     the recording to an audio model (TranscribeModels, default Gemini 2.5 Flash Lite and a
+         *     free backup); the cost goes to the meter and an updated `stats` is broadcast.
+         */
+        post: operations["postTranscribe"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ws": {
         parameters: {
             query?: never;
@@ -97,6 +119,14 @@ export interface components {
         Health: {
             /** @example ok */
             status: string;
+        };
+        Transcription: {
+            text: string;
+            model: string;
+            /** Format: double */
+            costUsd: number;
+            /** Format: int64 */
+            latencyMs: number;
         };
         /** @enum {string} */
         MessageType: "document" | "pointer" | "utterance" | "speak" | "stats";
@@ -382,6 +412,60 @@ export interface operations {
             };
             /** @description Not a JPEG, PNG or WebP image */
             415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    postTranscribe: {
+        parameters: {
+            query?: {
+                lang?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "audio/wav": string;
+            };
+        };
+        responses: {
+            /** @description The transcription (empty text = nobody spoke) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Transcription"];
+                };
+            };
+            /** @description Empty recording */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Recording larger than 10 MB */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not audio/wav */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No audio model answered */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };
