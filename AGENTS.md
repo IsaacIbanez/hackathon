@@ -21,16 +21,42 @@ Cuatro personas, cada una con una cuenta de Claude Pro y una de Gemini Plus (ver
 
 ## Roles
 - **Humanos:** dan directrices, priorizan, revisan y aprueban merges.
-- **Agentes:** ejecutan lo que les asigne un humano (el reparto se redefinirá; tablero único en `TAREAS.md`) y abren un PR. El estado por agente anterior está en `docs/historial/estado/`.
+- **Agentes:** ejecutan lo que les asigne un humano (el reparto se redefinirá; tablero único en `TAREAS.md`) y abren un PR. El estado por agente anterior está en `docs/historial/estado/`. *Nota: ahora cada agente trabaja también a partir del brief de su persona (ver «Al empezar una sesión»).*
 
 ## Idioma
 - **Código en inglés:** identificadores, comentarios, mensajes de log y de error, nombres de tests, textos de la interfaz, variables de entorno, descripciones del contrato (`api/openapi.yaml`), mensajes de commit y títulos de PR.
 - **En español:** la conversación con el equipo, la documentación (`*.md`, `docs/`, `TAREAS.md`) y los datos de ejemplo que imitan documentos reales en español (fixtures, textos de prueba).
 - El código que ya existe se pasa a inglés por partes: cada dueño traduce sus carpetas cuando le venga bien, sin mezclarlo con otros cambios. Rol A ya lo ha hecho (#8).
 
+## Al empezar una sesión: entrevista a tu persona
+Desde el 2026-11-21 ya no se reparten tareas cerradas desde arriba. Cada persona trabaja con su propio agente en lo que decida, y el agente **empieza entrevistándola**.
+1. **Identifica a tu persona.** Mira `ROSTER.md`, el mensaje con el que te han abierto y, como historial, tu slot en `docs/historial/estado/` (antes `estado/`). Si no está claro, pregunta primero: «¿Eres Isaac, Didac, Pau o Nil?».
+2. **Busca el brief.** Si existe `docs/briefs/<persona>.md` (`isaac`, `didac`, `pau` o `nil`), léelo y trabaja con él. No repitas la entrevista: pregunta solo lo que falte o haya cambiado.
+   - Si no existe, haz la entrevista con el guion `docs/arranque/<persona>.md`.
+   - Lee **solo el guion de tu persona**, no los de los demás.
+3. **Lee antes de preguntar.** No preguntes lo que ya puedas leer en el repo:
+   - `docs/ESTADO_PROYECTO.md` y `TAREAS.md`;
+   - el contrato (`api/openapi.yaml`);
+   - `docs/ideas/`;
+   - el código de las carpetas implicadas.
+4. **Pregunta en tandas pequeñas.**
+   - De 3 a 5 preguntas por tanda, en español.
+   - Usa una herramienta de preguntas con opciones si la tienes (en Claude Code, `AskUserQuestion`).
+   - Ofrece opciones concretas sacadas del repo, con la que recomiendas primero.
+5. **No escribas código sin un brief confirmado.**
+   - Redáctalo con la plantilla de `docs/briefs/README.md`: objetivo, alcance, fuera de alcance, criterios de «hecho» medibles, carpetas que tocas, mensajes del contrato que consumes o añades, riesgos y preguntas abiertas.
+   - Enséñaselo a la persona y guárdalo en `docs/briefs/<persona>.md` solo cuando lo confirme.
+   - Súbelo en un commit propio (solo documentación). Así lo ven los demás y las sesiones nuevas no vuelven a gastar tokens entrevistando.
+6. **El contrato, aparte.** Si el brief necesita cambiar `api/` (mensajes, endpoints, campos), propón el cambio en un PR separado y pequeño, y que lo vea otra persona antes de construir sobre él. Mientras tanto, trabaja contra el mock o un falso.
+7. **Trabaja solo en tus carpetas y en tu brief.**
+   - Las carpetas son las de «Roles y carpetas», más tu propio `docs/briefs/<persona>.md`.
+   - Si necesitas una carpeta de otra persona, pídeselo a esa persona y apúntalo en el brief como dependencia.
+   - Si la persona cambia de idea, actualiza primero el brief y después el código.
+8. **Rama** (nota provisional): con un brief no hay id de tarea `T<n>`. Usa `feature/<persona>-<nombre-corto>`, por ejemplo con `scripts/nueva-tarea.sh P2-C didac <nombre-corto>`.
+
 ## Reglas de trabajo para los agentes
 1. Al empezar: `git pull`, lee `AGENTS.md`, `TAREAS.md` (tablero único) y `docs/ESTADO_PROYECTO.md`.
-2. Trabaja solo en lo que te haya asignado un humano (el reparto se está redefiniendo). Si necesitas algo de otra parte, pregunta a un humano.
+2. Trabaja solo en la tarea que te haya asignado un humano **o** en el brief confirmado de tu persona (`docs/briefs/<persona>.md`, ver la sección anterior). Si necesitas algo de otra parte, pregunta a un humano.
 3. Rama: `feature/<id-tarea>-<nombre-corto>`. Usa `scripts/nueva-tarea.sh` para crear la rama y tu carpeta de trabajo.
 4. Commits pequeños, con mensaje claro en inglés.
 5. Solo escribes en tus carpetas de rol. **No edites `TAREAS.md`**: lo actualiza un humano al fusionar (así se evitan conflictos). Los archivos de estado por agente ya no se usan (historial en `docs/historial/estado/`).
@@ -80,6 +106,8 @@ scanner/                   captura MX Brio y OCR a PDF en Python (B; reglas en s
 docs/                      documentación: ESTADO_PROYECTO.md (estado real), PITCH.md, INTEGRACION_SCANNER.md, PROBAR_GESTOS.md, VOZ.md, ARQUITECTURA.md
 docs/ideas/                lluvia de ideas (IDEAS.md) y agrupación de duplicados
 docs/historial/            estado, tareas y plan por agente anteriores (solo consulta)
+docs/arranque/             guion de entrevista de cada persona (cada agente lee solo el suyo)
+docs/briefs/               brief confirmado de cada persona (plantilla en README.md)
 adapters/desktop/          Gesture Control: gestos → teclas reales del sistema, puerto 8767 (C)
 ```
 ## Cómo probar
@@ -114,7 +142,7 @@ Detalle en `docs/ARQUITECTURA.md`. Resumen:
 - **Frugalidad** (criterio de AXA): lo caro solo se llama si lo barato duda, y se muestra el coste.
 
 ## Roles y carpetas
-Cada persona es dueña de sus carpetas; no se edita código de otro rol sin avisar. *El reparto de esta tabla se redefinirá (ver «Reparto» más abajo).*
+Cada persona es dueña de sus carpetas; no se edita código de otro rol sin avisar. *El reparto de esta tabla se redefinirá (ver «Reparto» más abajo). Nota: con el arranque por persona, la tabla sigue diciendo de quién es cada carpeta. Si un brief necesita otras, lo acuerdan las personas.*
 
 | Rol | Persona | Carpetas | Responsabilidad |
 |-----|---------|----------|-----------------|
@@ -145,9 +173,13 @@ Decidido por Isaac el 2026-11-21. La app abre **una sola cámara** (la que haya;
 Puertos: 8765 app · 8766 captura de Pau (pruebas) · 8767 Gesture Control (Nil) · 8770 servicio de lectura (Didac) · 8780 app de prueba de Didac · 8080 mock.
 
 ### Reparto
-El reparto por persona y las tareas T1–T19 se cerraron con la integración del 2026-11-21 (rama `integration/proyecto-unificado`). **El reparto se redefinirá** después de la lluvia de ideas (`docs/ideas/`). El plan por persona anterior está íntegro en `docs/historial/plan_por_agente.md` y el estado real de cada pieza, en `docs/ESTADO_PROYECTO.md`.
+El reparto por persona y las tareas T1–T19 se cerraron con la integración del 2026-11-21 (rama `integration/proyecto-unificado`). **El reparto se redefinirá** después de la lluvia de ideas (`docs/ideas/`). El plan por persona anterior está íntegro en `docs/historial/plan_por_agente.md` y el estado real de cada pieza, en `docs/ESTADO_PROYECTO.md`. *Nota (2026-11-21): el reparto ya no se decide desde arriba. Cada persona define el suyo con su agente en `docs/briefs/` (ver «Al empezar una sesión»). Este plan y sus interfaces siguen valiendo mientras ningún brief los cambie.*
 
 ## Decisiones
+- 2026-11-21 — **Arranque por persona:** no se reparten más tareas cerradas.
+  - Cada persona trabaja con su agente en lo que decida: Nil, en la cámara y su entorno (voz, cara, manos, teclado); Didac y Pau, en una funcionalidad grande y distinta cada uno; Isaac decide entre el backend, una funcionalidad o ayudar a otra persona.
+  - El agente entrevista primero a su persona (`docs/arranque/<persona>.md`) y deja un brief confirmado en `docs/briefs/<persona>.md`.
+  - Motivo: más autonomía. Con el brief por escrito, las sesiones nuevas no repiten la entrevista.
 - 2026-11-21 — **Proyecto unificado:** todas las ramas integradas en `integration/proyecto-unificado` (merges normales, ver `docs/ESTADO_PROYECTO.md`); las tareas por agente se disuelven: `TAREAS.md` pasa a ser un tablero único sin responsables y el estado y el plan por agente se guardan en `docs/historial/`. El reparto se redefinirá tras la lluvia de ideas (`docs/ideas/`).
 - 2026-11-21 — **API local protegida** (`ws.Guard`): solo responde a `Host` 127.0.0.1 o localhost (sin DNS rebinding) y a los orígenes de la app (Vite, Wails), con CORS para ellos; `POST /message` solo acepta JSON. Los procesos locales (el scanner) no mandan `Origin` y siguen funcionando. Sin esto, cualquier web abierta podía enviarnos documentos o preguntas y gastar IA.
 - 2026-11-21 — **Respaldo de voz hecho (T18):** `POST /transcribe` (WAV → texto, contrato 0.6) con Gemini 2.5 Flash Lite y un respaldo gratuito; `transcribeRemote()` en `web/src/app/transcribe.ts` para el rol C.
