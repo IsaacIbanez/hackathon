@@ -60,6 +60,7 @@ const (
 	MessageTypeDocument  MessageType = "document"
 	MessageTypePointer   MessageType = "pointer"
 	MessageTypeSpeak     MessageType = "speak"
+	MessageTypeStats     MessageType = "stats"
 	MessageTypeUtterance MessageType = "utterance"
 )
 
@@ -71,6 +72,8 @@ func (e MessageType) Valid() bool {
 	case MessageTypePointer:
 		return true
 	case MessageTypeSpeak:
+		return true
+	case MessageTypeStats:
 		return true
 	case MessageTypeUtterance:
 		return true
@@ -103,6 +106,21 @@ const (
 func (e SpeakMessageType) Valid() bool {
 	switch e {
 	case SpeakMessageTypeSpeak:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for StatsMessageType.
+const (
+	StatsMessageTypeStats StatsMessageType = "stats"
+)
+
+// Valid indicates whether the value is a known member of the StatsMessageType enum.
+func (e StatsMessageType) Valid() bool {
+	switch e {
+	case StatsMessageTypeStats:
 		return true
 	default:
 		return false
@@ -249,6 +267,29 @@ type SpeakPayload struct {
 	Text string `json:"text"`
 }
 
+// StatsMessage defines model for StatsMessage.
+type StatsMessage struct {
+	Id string `json:"id"`
+
+	// Payload Contador de coste y latencia (criterio de frugalidad de AXA)
+	Payload StatsPayload     `json:"payload"`
+	Ts      int64            `json:"ts"`
+	Type    StatsMessageType `json:"type"`
+}
+
+// StatsMessageType defines model for StatsMessage.Type.
+type StatsMessageType string
+
+// StatsPayload Contador de coste y latencia (criterio de frugalidad de AXA)
+type StatsPayload struct {
+	// Barato Uso acumulado de un nivel de modelo en esta sesión de la app
+	Barato TierStats `json:"barato"`
+
+	// Caro Uso acumulado de un nivel de modelo en esta sesión de la app
+	Caro         TierStats `json:"caro"`
+	TotalCostUsd float64   `json:"totalCostUsd"`
+}
+
 // TextBlock defines model for TextBlock.
 type TextBlock struct {
 	// Box Caja normalizada a [0, 1] (origen arriba a la izquierda)
@@ -260,6 +301,20 @@ type TextBlock struct {
 	// Id Estable dentro del documento; lo usan pointer y speak
 	Id   string `json:"id"`
 	Text string `json:"text"`
+}
+
+// TierStats Uso acumulado de un nivel de modelo en esta sesión de la app
+type TierStats struct {
+	AvgLatencyMs int64 `json:"avgLatencyMs"`
+
+	// CacheHits Respuestas servidas desde la caché (coste 0)
+	CacheHits int `json:"cacheHits"`
+
+	// Calls Llamadas reales al modelo
+	Calls         int     `json:"calls"`
+	CostUsd       float64 `json:"costUsd"`
+	Errors        int     `json:"errors"`
+	LastLatencyMs int64   `json:"lastLatencyMs"`
 }
 
 // UtteranceMessage defines model for UtteranceMessage.
@@ -454,6 +509,40 @@ func (t *ServerMessage) MergeSpeakMessage(v SpeakMessage) error {
 	return err
 }
 
+// AsStatsMessage returns the union data inside the ServerMessage as a StatsMessage
+func (t ServerMessage) AsStatsMessage() (StatsMessage, error) {
+	var body StatsMessage
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromStatsMessage overwrites any union data inside the ServerMessage as the provided StatsMessage
+func (t *ServerMessage) FromStatsMessage(v StatsMessage) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"type":"stats"}`))
+	t.union = b
+	return err
+}
+
+// MergeStatsMessage performs a merge with any union data inside the ServerMessage, using the provided StatsMessage
+func (t *ServerMessage) MergeStatsMessage(v StatsMessage) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"type":"stats"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
 func (t ServerMessage) Discriminator() (string, error) {
 	var discriminator struct {
 		Discriminator string `json:"type"`
@@ -470,6 +559,8 @@ func (t ServerMessage) ValueByDiscriminator() (interface{}, error) {
 	switch discriminator {
 	case "speak":
 		return t.AsSpeakMessage()
+	case "stats":
+		return t.AsStatsMessage()
 	default:
 		return nil, errors.New("unknown discriminator value: " + discriminator)
 	}

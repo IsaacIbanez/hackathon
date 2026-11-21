@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
-import type { DocumentMessage, ServerMessage, SpeakPayload } from '../api'
+import type { DocumentMessage, ServerMessage, SpeakPayload, StatsPayload } from '../api'
+import { Coste } from './Coste'
 import { useSocket } from './useSocket'
 
 // Esqueleto (T2): conecta con el WebSocket y prueba el bucle document -> speak.
@@ -30,11 +31,14 @@ function documentoDeEjemplo(): DocumentMessage {
 
 export default function App() {
   const [ultimo, setUltimo] = useState<SpeakPayload | null>(null)
+  const [stats, setStats] = useState<StatsPayload | null>(null)
 
   const onMessage = useCallback((msg: ServerMessage) => {
     if (msg.type === 'speak') {
       setUltimo(msg.payload)
       hablar(msg.payload)
+    } else if (msg.type === 'stats') {
+      setStats(msg.payload)
     }
   }, [])
   const { status, send, url } = useSocket(onMessage)
@@ -59,6 +63,8 @@ export default function App() {
       <section aria-live="polite" className="mt-8 text-3xl leading-relaxed">
         {ultimo?.text}
       </section>
+
+      <Coste stats={stats} />
     </main>
   )
 }

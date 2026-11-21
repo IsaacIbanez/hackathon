@@ -1,6 +1,6 @@
 // Package mock responde a los mensajes del contrato con las fixtures de api/fixtures:
-//   - document  -> speak.json
-//   - utterance -> speak-utterance.json (solo si isFinal)
+//   - document  -> speak.json + stats.json
+//   - utterance -> speak-utterance.json + stats.json (solo si isFinal)
 //   - pointer   -> nada (solo lo registra)
 //
 // Lo usan el servidor mock (backend/cmd/mock) y la app Wails hasta que exista la lógica real (T8).
@@ -19,8 +19,8 @@ import (
 	"github.com/IsaacIbanez/hackathon/backend/ws"
 )
 
-func cargarSpeak(nombre string) (gen.SpeakMessage, error) {
-	var m gen.SpeakMessage
+func cargar[T any](nombre string) (T, error) {
+	var m T
 	datos, err := api.Fixtures.ReadFile("fixtures/" + nombre)
 	if err != nil {
 		return m, err
@@ -43,24 +43,35 @@ func responder(plantilla gen.SpeakMessage, a gen.Envelope) gen.SpeakMessage {
 
 // NewMux devuelve un http.Handler con GET /health y el WebSocket /ws.
 func NewMux() (http.Handler, error) {
-	speakDoc, err := cargarSpeak("speak.json")
+	speakDoc, err := cargar[gen.SpeakMessage]("speak.json")
 	if err != nil {
 		return nil, err
 	}
-	speakUtt, err := cargarSpeak("speak-utterance.json")
+	speakUtt, err := cargar[gen.SpeakMessage]("speak-utterance.json")
 	if err != nil {
 		return nil, err
+	}
+	stats, err := cargar[gen.StatsMessage]("stats.json")
+	if err != nil {
+		return nil, err
+	}
+	// Como en la app real: tras cada respuesta del modelo, el contador actualizado.
+	conStats := func(s gen.SpeakMessage) []any {
+		st := stats
+		st.Ts = s.Ts
+		st.Id = fmt.Sprintf("sts-%d", st.Ts)
+		return []any{s, st}
 	}
 
 	handle := func(_ context.Context, msg gen.Envelope) []any {
 		log.Printf("recibido %s (%s): %s", msg.Type, msg.Id, msg.Payload)
 		switch msg.Type {
 		case "document":
-			return []any{responder(speakDoc, msg)}
+			return conStats(responder(speakDoc, msg))
 		case "utterance":
 			var p gen.UtterancePayload
 			if err := json.Unmarshal(msg.Payload, &p); err == nil && p.IsFinal {
-				return []any{responder(speakUtt, msg)}
+				return conStats(responder(speakUtt, msg))
 			}
 		}
 		return nil

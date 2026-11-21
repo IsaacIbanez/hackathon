@@ -6,13 +6,13 @@ info:
     Única interfaz entre módulos. HTTP para salud y WebSocket (`/ws`) para todo lo demás.
 
     Todos los mensajes del WebSocket viajan en un sobre común `{type, id, ts, payload}`:
-    - `type`: tipo de mensaje (`document`, `pointer`, `utterance`, `speak`).
+    - `type`: tipo de mensaje (`document`, `pointer`, `utterance`, `speak`, `stats`).
     - `id`: identificador único del mensaje (UUID o cualquier cadena única por sesión).
     - `ts`: marca de tiempo en milisegundos desde epoch (`Date.now()` en el navegador).
     - `payload`: el contenido, cuyo esquema depende de `type`.
 
     Sentido: el navegador envía `document`, `pointer` y `utterance` (ClientMessage);
-    Go responde con `speak` (ServerMessage).
+    Go responde con `speak` y, tras cada llamada a un modelo, envía `stats` (ServerMessage).
 
     Coordenadas: siempre normalizadas a [0, 1] respecto a la imagen del documento
     recortado, con origen arriba a la izquierda.
@@ -52,7 +52,7 @@ components:
 
     MessageType:
       type: string
-      enum: [document, pointer, utterance, speak]
+      enum: [document, pointer, utterance, speak, stats]
 
     Envelope:
       description: Sobre genérico. Sirve para leer `type` antes de decodificar `payload`.
@@ -186,6 +186,27 @@ components:
           type: string
           description: id del mensaje al que responde, si aplica
 
+    TierStats:
+      description: Uso acumulado de un nivel de modelo en esta sesión de la app
+      type: object
+      required: [calls, cacheHits, errors, costUsd, avgLatencyMs, lastLatencyMs]
+      properties:
+        calls: { type: integer, description: Llamadas reales al modelo }
+        cacheHits: { type: integer, description: Respuestas servidas desde la caché (coste 0) }
+        errors: { type: integer }
+        costUsd: { type: number, format: double }
+        avgLatencyMs: { type: integer, format: int64 }
+        lastLatencyMs: { type: integer, format: int64 }
+
+    StatsPayload:
+      description: Contador de coste y latencia (criterio de frugalidad de AXA)
+      type: object
+      required: [barato, caro, totalCostUsd]
+      properties:
+        barato: { $ref: "#/components/schemas/TierStats" }
+        caro: { $ref: "#/components/schemas/TierStats" }
+        totalCostUsd: { type: number, format: double }
+
     # ---------- Mensajes tipados (sobre + payload) ----------
 
     DocumentMessage:
@@ -224,6 +245,15 @@ components:
         ts: { type: integer, format: int64 }
         payload: { $ref: "#/components/schemas/SpeakPayload" }
 
+    StatsMessage:
+      type: object
+      required: [type, id, ts, payload]
+      properties:
+        type: { type: string, enum: [stats] }
+        id: { type: string }
+        ts: { type: integer, format: int64 }
+        payload: { $ref: "#/components/schemas/StatsPayload" }
+
     ClientMessage:
       description: Lo que envía el navegador a Go
       oneOf:
@@ -241,7 +271,9 @@ components:
       description: Lo que envía Go al navegador
       oneOf:
         - $ref: "#/components/schemas/SpeakMessage"
+        - $ref: "#/components/schemas/StatsMessage"
       discriminator:
         propertyName: type
         mapping:
           speak: "#/components/schemas/SpeakMessage"
+          stats: "#/components/schemas/StatsMessage"

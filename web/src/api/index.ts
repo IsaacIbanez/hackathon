@@ -14,11 +14,14 @@ export type DocumentPayload = S["DocumentPayload"];
 export type PointerPayload = S["PointerPayload"];
 export type UtterancePayload = S["UtterancePayload"];
 export type SpeakPayload = S["SpeakPayload"];
+export type TierStats = S["TierStats"];
+export type StatsPayload = S["StatsPayload"];
 
 export type DocumentMessage = S["DocumentMessage"];
 export type PointerMessage = S["PointerMessage"];
 export type UtteranceMessage = S["UtteranceMessage"];
 export type SpeakMessage = S["SpeakMessage"];
+export type StatsMessage = S["StatsMessage"];
 
 /** Lo que envía el navegador a Go. */
 export type ClientMessage = S["ClientMessage"];

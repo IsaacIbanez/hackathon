@@ -51,7 +51,7 @@ export interface components {
             status: string;
         };
         /** @enum {string} */
-        MessageType: "document" | "pointer" | "utterance" | "speak";
+        MessageType: "document" | "pointer" | "utterance" | "speak" | "stats";
         /** @description Sobre genérico. Sirve para leer `type` antes de decodificar `payload`. */
         Envelope: {
             type: components["schemas"]["MessageType"];
@@ -137,6 +137,27 @@ export interface components {
             /** @description id del mensaje al que responde, si aplica */
             replyTo?: string;
         };
+        /** @description Uso acumulado de un nivel de modelo en esta sesión de la app */
+        TierStats: {
+            /** @description Llamadas reales al modelo */
+            calls: number;
+            /** @description Respuestas servidas desde la caché (coste 0) */
+            cacheHits: number;
+            errors: number;
+            /** Format: double */
+            costUsd: number;
+            /** Format: int64 */
+            avgLatencyMs: number;
+            /** Format: int64 */
+            lastLatencyMs: number;
+        };
+        /** @description Contador de coste y latencia (criterio de frugalidad de AXA) */
+        StatsPayload: {
+            barato: components["schemas"]["TierStats"];
+            caro: components["schemas"]["TierStats"];
+            /** Format: double */
+            totalCostUsd: number;
+        };
         DocumentMessage: {
             /**
              * @description discriminator enum property added by openapi-typescript
@@ -181,10 +202,21 @@ export interface components {
             ts: number;
             payload: components["schemas"]["SpeakPayload"];
         };
+        StatsMessage: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "stats";
+            id: string;
+            /** Format: int64 */
+            ts: number;
+            payload: components["schemas"]["StatsPayload"];
+        };
         /** @description Lo que envía el navegador a Go */
         ClientMessage: components["schemas"]["DocumentMessage"] | components["schemas"]["PointerMessage"] | components["schemas"]["UtteranceMessage"];
         /** @description Lo que envía Go al navegador */
-        ServerMessage: components["schemas"]["SpeakMessage"];
+        ServerMessage: components["schemas"]["SpeakMessage"] | components["schemas"]["StatsMessage"];
     };
     responses: never;
     parameters: never;

@@ -29,7 +29,7 @@ func TestHealth(t *testing.T) {
 	}
 }
 
-func TestDocumentYUtteranceRespondenConSpeak(t *testing.T) {
+func TestDocumentYUtteranceRespondenConSpeakYStats(t *testing.T) {
 	h, err := NewMux()
 	if err != nil {
 		t.Fatal(err)
@@ -63,6 +63,13 @@ func TestDocumentYUtteranceRespondenConSpeak(t *testing.T) {
 		}
 		if resp.Type != "speak" || resp.Payload.ReplyTo == nil || *resp.Payload.ReplyTo != c.replyTo || resp.Payload.Text == "" {
 			t.Fatalf("%s: respuesta inesperada %+v", c.fixture, resp)
+		}
+		var st gen.StatsMessage
+		if err := wsjson.Read(ctx, conn, &st); err != nil {
+			t.Fatal(err)
+		}
+		if st.Type != "stats" || st.Payload.TotalCostUsd <= 0 {
+			t.Fatalf("%s: tras speak esperaba stats, llegó %+v", c.fixture, st)
 		}
 	}
 	conn.Close(websocket.StatusNormalClosure, "")

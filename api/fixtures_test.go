@@ -16,6 +16,7 @@ func TestFixturesEncajanEnElContrato(t *testing.T) {
 		"utterance.json":       "utterance",
 		"speak.json":           "speak",
 		"speak-utterance.json": "speak",
+		"stats.json":           "stats",
 	}
 	for archivo, tipo := range casos {
 		t.Run(archivo, func(t *testing.T) {
@@ -47,6 +48,9 @@ func TestFixturesEncajanEnElContrato(t *testing.T) {
 				payload = &p
 			case "speak":
 				var p gen.SpeakPayload
+				payload = &p
+			case "stats":
+				var p gen.StatsPayload
 				payload = &p
 			}
 			// Campos desconocidos = errata en la fixture o contrato desactualizado.
