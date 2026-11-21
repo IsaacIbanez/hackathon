@@ -2,7 +2,7 @@
 
 - **Persona:** Isaac
 - **Herramienta:** Claude Code
-- **Tarea actual:** T10 (pitch y demo); T8 a la espera del equipo
+- **Tarea actual:** T11 (contrato 0.5 + `POST /scan`), según el plan de AGENTS.md
 - **Rama:** feature/T8-desktop-build
 - **Estado:** en curso
 - **Último cambio:** 2026-11-21
@@ -21,6 +21,10 @@
 - T10: guion del pitch y de la demo en `docs/PITCH.md`, con cifras medidas (Haiku: 1,8 s y 0,00012 $ por explicación; 0 $ con modelos gratis), plan B, encaje con cada challenge, preguntas difíciles y checklist.
 - Ejecutable de escritorio comprobado: arrancado desde `build/bin` encuentra el `.env` de la raíz, responde al scanner y escribe `lauzhack.log`. Diagnóstico de la ventana (WebView2): voz de salida sí (3 voces es-ES), cámara sí, API de reconocimiento de voz presente (falta probar que funcione de verdad: rol C).
 - Revisada la rama de Didac (`feature/B-contexto-scanner`): `Resultado.documento()` ya cumple el contrato. Añadido a `docs/INTEGRACION_SCANNER.md` el código exacto para `escanear.py` (`enviar_a_app`, POST /message). Su estado tenía desfasados el conflicto de puertos (resuelto: Pau en 8766) y el modo de envío (ahora POST).
+- Revisados #19 (voz de Nil: aprobado y fusionado) y #20 (Gesture Control: cambios pedidos, falta validar la cabecera `Host` contra DNS rebinding).
+- Arreglado el apuntar con el dedo: (1) el puntero iba en espejo respecto a lo que ve el usuario; (2) los campos se dibujan sobre la imagen con el punto del dedo y el campo bajo el dedo en grande; (3) alcance de 0,05 alrededor de cada campo (mismo criterio en Go y en TS); (4) se relee un campo al volver a él; (5) vista previa más grande e indicador de «Pointing». Probado de punta a punta con el servidor real. Guía: `docs/PROBAR_GESTOS.md`.
+- Plan de trabajo en paralelo escrito en AGENTS.md («Plan actual»): una cámara en la app, orden «lee el documento», interfaces entre carriles y siguiente tarea de cada uno (T11–T16); lluvia de ideas en `docs/IDEAS.md`.
+- Distribución actualizada en AGENTS.md tras lo subido por Didac (envío a la app, inglés, `scanner/ENTREGA.md`) y lo pendiente de Nil (carpeta `adapters/desktop/`, #20). Voz investigada y medida (`docs/VOZ.md`): T17 Nil (`whisper-small` local), T18 Isaac (`POST /transcribe` con Gemini como respaldo).
 
 ## Pendiente
 - T8: sustituir las respuestas de ejemplo por la lógica real (`backend/llm` + B2).
@@ -28,7 +32,7 @@
 ## Bloqueos y preguntas para humanos
 - **Qué dispara el escaneo en la demo** (botón/tecla en la app de B, automático cuando la hoja está quieta, o un gesto → haría falta un mensaje nuevo en el contrato).
 - **Para Nil:** en la ventana de escritorio existe `webkitSpeechRecognition`, pero hay que probar que reconoce de verdad (en Edge/WebView2 depende de un servicio en la nube). Probarlo pronto con el micro dentro de `task dev`.
-- **Decidir quién es dueño de la cámara** (el scanner de B en Python y los gestos de Nil en el navegador no pueden abrir la misma cámara a la vez en Windows). Opciones: A) dos cámaras; B) el navegador captura y envía la imagen al scanner (recomendada: el dedo y el papel en la misma imagen); C) el Python captura y envía frames. Mientras tanto, `Gestures.tsx` usa la imagen entera como documento.
+- **Cámara decidida (Isaac):** la que haya; la Logitech si está conectada. Queda por resolver quién abre la cámara cuando solo hay una (scanner o navegador). Mientras tanto, `Gestures.tsx` usa la imagen entera como documento.
 - **Cómo llega el scanner de B a Go.** B trabaja en Python (`scanner/`: captura con la MX Brio, OCR con Tesseract, PDF buscable), no en el navegador. Propuesta: el scanner envía `document` (bloques con caja y confianza, que Tesseract ya da) a `ws://127.0.0.1:8765/ws`, y Go responde con `speak`. Encaja con el contrato sin cambiarlo. Falta que Didac, Pau e Isaac lo acuerden.
 - **Para Nil (rama `claude/kind-cray-863b6t`):** probada en local sobre `main`, sus 43 tests pasan en `task check`. Falla un único error de TypeScript: `web/src/input/interaccion.ts:230`, `esperarSoltarPinza` está declarada y no se usa (`noUnusedLocals`). Hay que quitarla o usarla antes del PR.
 - Hace falta Go ≥ 1.26 y `task`.
