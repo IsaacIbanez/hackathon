@@ -60,8 +60,11 @@ export function drawHandOverlay(
   if (!ctx) return;
   const mirror = options.mirror ?? true;
   const t = options.t ?? performance.now();
-  const w = (canvas.width = video.videoWidth || 640);
-  const h = (canvas.height = video.videoHeight || 480);
+  const w = video.videoWidth || 640;
+  const h = video.videoHeight || 480;
+  // Resizing a canvas reallocates it: only do it when the video size changes.
+  if (canvas.width !== w) canvas.width = w;
+  if (canvas.height !== h) canvas.height = h;
   const X = (p: Point) => (mirror ? 1 - p.x : p.x) * w;
   const Y = (p: Point) => p.y * h;
   const unit = h / 480; // scale text and strokes with the image

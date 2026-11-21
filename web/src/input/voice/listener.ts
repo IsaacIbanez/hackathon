@@ -192,6 +192,8 @@ const WHISPER_LANGUAGES: Record<string, string> = {
 };
 
 type AsrPipeline = (audio: Float32Array, options: Record<string, unknown>) => Promise<{ text: string } | { text: string }[]>;
+/** Turns 16 kHz mono audio into text. */
+type Transcriber = (audio: Float32Array, language: string) => Promise<string>;
 interface TransformersModule {
   pipeline(task: string, model: string, options: Record<string, unknown>): Promise<AsrPipeline>;
 }
@@ -205,8 +207,9 @@ export interface WhisperOptions {
 export class WhisperListener implements Listener {
   readonly name = "local Whisper";
   private o: WhisperOptions;
-  private model: Promise<AsrPipeline> | null = null;
+  private engine: Promise<Transcriber> | null = null;
   private loaded = false;
+  private onStatus: ((text: string) => void) | null = null;
   private stopNow: (() => void) | null = null;
   private finishNow: (() => void) | null = null;
 
@@ -228,53 +231,100 @@ export class WhisperListener implements Listener {
 
   /**
    * Loads the model in advance (call it when the app opens, so the first question doesn't wait);
-   * it is also loaded on first use. Downloaded once, then kept in the browser's cache.
+   * it is also loaded on first use. Downloaded once, then kept in the browser's cache. It runs in
+   * a Web Worker, so the page never freezes; without workers, on the main thread.
    */
-  preload(onStatus?: (text: string) => void): Promise<AsrPipeline> {
-    this.model ??= (async () => {
-      const tf = (await import(/* @vite-ignore */ `${this.o.transformersUrl}`)) as TransformersModule;
-      // Several files download at once: show the overall progress.
-      const files = new Map<string, { loaded: number; total: number }>();
-      const progress_callback = (p: { status?: string; file?: string; loaded?: number; total?: number }) => {
-        if (p.status !== "progress" || !p.file || !p.total) return;
-        files.set(p.file, { loaded: p.loaded ?? 0, total: p.total });
-        let loaded = 0;
-        let total = 0;
-        for (const f of files.values()) [loaded, total] = [loaded + f.loaded, total + f.total];
-        onStatus?.(`Preparing the voice (${this.modelName})… ${Math.round((100 * loaded) / total)} %`);
+  preload(onStatus?: (text: string) => void): Promise<Transcriber> {
+    if (onStatus) this.onStatus = onStatus;
+    const status = (t: string) => this.onStatus?.(t);
+    this.engine ??= (typeof Worker !== "undefined" ? this.loadInWorker(status) : Promise.reject(new Error("no workers")))
+      .catch(() => this.loadHere(status))
+      .then((engine) => {
+        this.loaded = true;
+        status("Voice ready.");
+        return engine;
+      });
+    this.engine.catch(() => (this.engine = null));
+    return this.engine;
+  }
+
+  private loadInWorker(status: (t: string) => void): Promise<Transcriber> {
+    const worker = new Worker(new URL("./whisperWorker.ts", import.meta.url), { type: "module" });
+    const pending = new Map<number, { resolve: (t: string) => void; reject: (e: Error) => void }>();
+    let next = 0;
+    return new Promise<Transcriber>((resolve, reject) => {
+      worker.onmessage = (e: MessageEvent) => {
+        const m = e.data as { type: string; percent?: number; id?: number; text?: string; message?: string };
+        if (m.type === "progress") status(`Preparing the voice (${this.modelName})… ${m.percent} %`);
+        else if (m.type === "ready") {
+          resolve((audio, language) => {
+            const id = ++next;
+            return new Promise<string>((res, rej) => {
+              pending.set(id, { resolve: res, reject: rej });
+              // The audio buffer is moved to the worker, not copied.
+              worker.postMessage({ type: "transcribe", id, audio, language }, [audio.buffer]);
+            });
+          });
+        } else if (m.type === "result" && m.id !== undefined) {
+          pending.get(m.id)?.resolve(m.text ?? "");
+          pending.delete(m.id);
+        } else if (m.type === "error") {
+          if (m.id !== undefined) {
+            pending.get(m.id)?.reject(new Error(m.message));
+            pending.delete(m.id);
+          } else {
+            worker.terminate();
+            reject(new Error(m.message));
+          }
+        }
       };
-      const load = (device: string, dtype: unknown) =>
-        tf.pipeline("automatic-speech-recognition", this.o.model, { device, dtype, progress_callback });
-      const { device, dtype } = await whisperDevice();
-      let asr: AsrPipeline;
-      try {
-        asr = await load(device, dtype);
-      } catch (err) {
-        if (device === "wasm") throw err;
-        asr = await load("wasm", "q8"); // the GPU path failed: the CPU always works
-      }
-      this.loaded = true;
-      onStatus?.("Voice ready.");
-      return asr;
-    })();
-    this.model.catch(() => (this.model = null));
-    return this.model;
+      worker.onerror = (e) => {
+        worker.terminate();
+        reject(new Error(e.message || "speech worker failed"));
+      };
+      worker.postMessage({ type: "load", model: this.o.model, transformersUrl: this.o.transformersUrl });
+    });
+  }
+
+  /** Same as the worker, on the main thread (the page may freeze while it works). */
+  private async loadHere(status: (t: string) => void): Promise<Transcriber> {
+    const tf = (await import(/* @vite-ignore */ `${this.o.transformersUrl}`)) as TransformersModule;
+    const files = new Map<string, { loaded: number; total: number }>();
+    const progress_callback = (p: { status?: string; file?: string; loaded?: number; total?: number }) => {
+      if (p.status !== "progress" || !p.file || !p.total) return;
+      files.set(p.file, { loaded: p.loaded ?? 0, total: p.total });
+      let loaded = 0;
+      let total = 0;
+      for (const f of files.values()) [loaded, total] = [loaded + f.loaded, total + f.total];
+      status(`Preparing the voice (${this.modelName})… ${Math.round((100 * loaded) / total)} %`);
+    };
+    const load = (device: string, dtype: unknown) =>
+      tf.pipeline("automatic-speech-recognition", this.o.model, { device, dtype, progress_callback });
+    const { device, dtype } = await whisperDevice();
+    let asr: AsrPipeline;
+    try {
+      asr = await load(device, dtype);
+    } catch (err) {
+      if (device === "wasm") throw err;
+      asr = await load("wasm", "q8"); // the GPU path failed: the CPU always works
+    }
+    return async (audio, language) => {
+      const out = await asr(audio, { language, task: "transcribe" });
+      return (Array.isArray(out) ? out.map((x) => x.text).join(" ") : out.text).trim();
+    };
   }
 
   async listen(o: ListenOptions): Promise<string> {
-    const modelPromise = this.preload(o.onStatus);
+    const engine = this.preload(o.onStatus);
     const recorded = await this.record(o);
     if (!recorded) return "";
     const audio = await resampleTo16kHQ(recorded.samples, recorded.rate);
     o.onPartial?.("…");
-    const asr = await modelPromise;
+    const transcribe = await engine;
     const base = o.lang.split("-")[0].toLowerCase();
-    const out = await asr(audio, { language: WHISPER_LANGUAGES[base] ?? "english", task: "transcribe" });
-    const text = Array.isArray(out) ? out.map((x) => x.text).join(" ") : out.text;
-    return text.trim();
+    return transcribe(audio, WHISPER_LANGUAGES[base] ?? "english");
   }
 
-  /** Records one phrase: waits for speech, stops after a silence. null if nobody spoke. */
   private async record(o: ListenOptions): Promise<{ samples: Float32Array; rate: number } | null> {
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
