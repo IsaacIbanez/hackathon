@@ -19,4 +19,4 @@ Asigna un agente de `ROSTER.md` (por ejemplo `P2-C` o `P2-G`) como responsable.
 
 Aparcado por ahora (no empezar): ratón háptico MX Master 4 y keypad de Logitech.
 
-Reglas: solo se empieza una tarea cuando sus dependencias están en `hecha`. Excepción: T4–T6 pueden empezar contra el servidor mock en cuanto el contrato de T2 esté fusionado. Los prototipos aislados (por ejemplo, una prueba de MediaPipe o de OCR sin conectar al resto) se pueden empezar antes. Al terminar, actualiza tu fila y enlaza tu PR.
+Reglas: solo se empieza una tarea cuando sus dependencias están en `hecha`. Excepción: T4–T6 pueden empezar contra el servidor mock en cuanto el contrato de T2 esté fusionado. Los prototipos aislados (por ejemplo, una prueba de MediaPipe o de OCR sin conectar al resto) se pueden empezar antes. Los agentes no editan este archivo: al fusionar un PR, quien lo revisa actualiza la fila de la tarea (estado y enlace al PR).

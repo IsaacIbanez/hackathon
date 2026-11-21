@@ -22,10 +22,11 @@ Cuatro personas, cada una con un agente de Claude (Pro) y uno de Gemini (Plus): 
 ## Flujo
 - Una tarea = una rama = un Pull Request.
 - Cada agente trabaja en su propia carpeta de trabajo (worktree) para no pisar a los demás.
-- Nadie mergea a `main` sin revisión humana.
+- Nadie mergea a `main` sin revisión de una persona que no sea la autora. PRs pequeños, fusionados cada 30–60 minutos.
 - Antes de cada sesión, `git pull`. Al terminar, `git push` y PR.
 
 ## Reglas de oro
 - Los agentes no tocan `estado/` de otro agente.
 - Los cambios de contrato entre módulos se anotan en `AGENTS.md` (sección Decisiones).
+- Los agentes no editan `TAREAS.md`; lo actualiza quien fusiona el PR.
 - Las credenciales de las cuentas nunca van al repositorio.

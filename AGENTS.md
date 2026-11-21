@@ -17,7 +17,7 @@ Este archivo lo leen todos los agentes (Claude Code, Gemini CLI) al empezar. Es 
 4. Fuera de alcance por ahora: ratón háptico (MX Master 4) y keypad de Logitech.
 
 ## Equipo
-Cuatro personas, cada una con una cuenta de Claude Pro y una de Gemini Plus (ver `ROSTER.md`). Cada persona es responsable de su propio agente Claude y de su agente Gemini.
+Cuatro personas, cada una con una cuenta de Claude Pro y una de Gemini Plus (ver `ROSTER.md`). Cada persona supervisa **un agente principal (Claude)** y usa Gemini como segunda opción: una tarea paralela pequeña o la revisión del PR de otra persona. Una persona no puede supervisar bien más de uno o dos agentes a la vez.
 
 ## Roles
 - **Humanos:** dan directrices, priorizan, revisan y aprueban merges.
@@ -28,10 +28,19 @@ Cuatro personas, cada una con una cuenta de Claude Pro y una de Gemini Plus (ver
 2. Trabaja solo en la tarea asignada a tu slot. Si necesitas algo de otra tarea, anótalo en tu estado y pregunta a un humano.
 3. Rama: `feature/<id-tarea>-<nombre-corto>`. Usa `scripts/nueva-tarea.sh` para crear la rama y tu carpeta de trabajo.
 4. Commits pequeños, con mensaje claro en español.
-5. Solo escribes en tu archivo de `estado/` y en la fila de tu tarea en `TAREAS.md`.
+5. Solo escribes en tu archivo de `estado/` y en tus carpetas de rol. **No edites `TAREAS.md`**: lo actualiza un humano al fusionar (así se evitan conflictos).
 6. Si cambias una interfaz o un contrato entre módulos, anótalo en "Decisiones".
-7. No mergees a `main`. Abre un PR con: qué hiciste, qué falta, decisiones tomadas y cómo probarlo.
+7. No mergees a `main` salvo que una persona del equipo te lo pida expresamente. Abre un PR pequeño con: qué hiciste, qué falta, decisiones tomadas y cómo probarlo.
 8. Nunca escribas claves, contraseñas ni datos de cuentas en el repositorio.
+
+## Flujo de integración a `main`
+1. El agente termina, hace commit, empuja su rama y abre el PR (pequeño: una tarea o parte de ella).
+2. Revisa otra persona, no el autor, en pocos minutos: CI en verde, solo toca carpetas de su rol y la app arranca (probar la rama, o leer el diff si es corto). Gemini puede hacer una primera revisión.
+3. Se pulsa **Merge** (preferible *squash and merge*) y se borra la rama.
+4. Esa misma persona marca la tarea en `TAREAS.md` (`hecha`) y enlaza el PR.
+5. Los demás hacen `git pull` en `main` y rebasan sus ramas. Si hay conflicto, lo resuelve el agente de la rama atrasada.
+6. Objetivo: fusionar a menudo (cada 30–60 minutos), PRs pequeños y revisiones rápidas.
+7. Cuando exista CI (T2), `make check` (go vet, tests, lint, build del front) debe pasar antes de abrir el PR.
 
 ## Arquitectura
 Detalle en `docs/ARQUITECTURA.md`. Resumen:
@@ -55,6 +64,8 @@ Didac y Pau se reparten B1 y B2 entre ellos (por decidir). La asignación comple
 
 
 ## Decisiones
+- 2026-11-21 — Un agente principal (Claude) por persona y Gemini de apoyo o revisión; los agentes no editan `TAREAS.md` — menos conflictos y más control con cuatro personas.
+- 2026-11-21 — PRs pequeños, revisados por otra persona y fusionados cada 30–60 minutos — el proceso no debe frenar el desarrollo.
 - 2026-11-21 — Monorepo único con Go + frontend web dentro de una app de escritorio — queda todo en un sitio y los agentes se coordinan por archivos.
 - 2026-11-21 — Contrato (OpenAPI y mensajes WebSocket) antes que el código — permite trabajar en paralelo con mocks.
 - 2026-11-21 — Visión, gestos y voz en el navegador, Go solo orquesta — es local, barato y encaja con la frugalidad de AXA.

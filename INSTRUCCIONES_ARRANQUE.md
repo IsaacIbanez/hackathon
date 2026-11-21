@@ -20,7 +20,7 @@
 ```
 Lee AGENTS.md, TAREAS.md y estado/<AGENTE>.md. Eres el agente <AGENTE> y tu tarea es <ID-TAREA>.
 Trabaja solo en esa tarea, en la rama que ya está creada. Actualiza estado/<AGENTE>.md
-y tu fila en TAREAS.md al avanzar. Si necesitas algo de otra tarea o tienes dudas,
+al avanzar. No edites TAREAS.md. Si necesitas algo de otra tarea o tienes dudas,
 anótalo en estado/<AGENTE>.md en "Bloqueos y preguntas para humanos" y pregunta.
 Al terminar: haz commit, deja la rama lista y propón el texto del Pull Request.
 ```
@@ -29,7 +29,7 @@ Al terminar: haz commit, deja la rama lista y propón el texto del Pull Request.
 ```
 Lee AGENTS.md, TAREAS.md y estado/<AGENTE>.md. Eres el agente <AGENTE> y tu tarea es <ID-TAREA>.
 Trabaja solo en esa tarea, en la rama que ya está creada. Actualiza estado/<AGENTE>.md
-y tu fila en TAREAS.md al avanzar. Si necesitas algo de otra tarea o tienes dudas,
+al avanzar. No edites TAREAS.md. Si necesitas algo de otra tarea o tienes dudas,
 anótalo en estado/<AGENTE>.md en "Bloqueos y preguntas para humanos" y pregunta.
 Al terminar: haz commit, deja la rama lista y propón el texto del Pull Request.
 ```
@@ -37,7 +37,9 @@ Al terminar: haz commit, deja la rama lista y propón el texto del Pull Request.
 ## 4. Cómo coordinar a los agentes
 - Los agentes no se hablan entre sí: se coordinan leyendo `estado/` y `TAREAS.md`.
 - Una persona revisa periódicamente `estado/` y reasigna tareas si hace falta.
-- Cuando una tarea depende de otra, el agente dependiente espera a que la fila de la dependencia esté en `hecha`.
+- Cuando una tarea depende de otra, el agente dependiente espera a que la fila de la dependencia esté en `hecha`, salvo lo que permite `TAREAS.md` (mock del contrato y prototipos aislados).
+- Cada persona lanza un agente principal (Claude). Gemini se usa para una tarea paralela pequeña o para revisar PRs.
+- Flujo de revisión y merge: ver "Flujo de integración a `main`" en `AGENTS.md`.
 
 ## 5. Instalacion rapida (Windows)
 ```

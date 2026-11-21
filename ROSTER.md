@@ -14,6 +14,7 @@ Nombres confirmados. Los roles (A, B1, B2, C) están descritos en `AGENTS.md`.
 ## Reglas de uso
 - Cada persona usa solo sus propias cuentas. Nadie inicia sesión en la cuenta de otro.
 - Cada agente trabaja en una tarea a la vez.
+- Cada persona supervisa un agente principal (Claude); Gemini queda de apoyo o para revisar PRs.
 - Las tareas se asignan a un slot en `TAREAS.md` durante la planificación.
 - Herramientas: Claude Code para los agentes `-C`, Gemini CLI para los `-G`. Ambas leen `AGENTS.md` desde la carpeta del repositorio.
 
