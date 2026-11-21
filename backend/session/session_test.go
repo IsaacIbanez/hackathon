@@ -1,8 +1,10 @@
 package session
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
@@ -15,6 +17,7 @@ import (
 	"github.com/IsaacIbanez/hackathon/api"
 	"github.com/IsaacIbanez/hackathon/api/gen"
 	"github.com/IsaacIbanez/hackathon/backend/llm"
+	"github.com/IsaacIbanez/hackathon/backend/ws"
 )
 
 // fakeModel answers with cheap and, if doubt says so, expensive. It records the prompts.
@@ -77,6 +80,17 @@ func (c *collector) next(t *testing.T) any {
 		return nil
 	}
 }
+
+// skipEcho reads the next message, skipping a document echo.
+func (c *collector) skipEcho(t *testing.T) any {
+	t.Helper()
+	v := c.next(t)
+	if _, ok := v.(gen.DocumentMessage); ok {
+		return c.next(t)
+	}
+	return v
+}
+
 func (c *collector) none(t *testing.T) {
 	t.Helper()
 	select {
@@ -117,6 +131,10 @@ func TestDocumentIsExplainedWithSpeakAndStats(t *testing.T) {
 
 	s.Handle(context.Background(), envelope(t, "document", "doc-1", fixtureDocument(t)), c.send)
 
+	echo, ok := c.next(t).(gen.DocumentMessage)
+	if !ok || echo.Id != "doc-1" || len(echo.Payload.Blocks) != 4 {
+		t.Fatalf("expected the document echo first, got %+v", echo)
+	}
 	sp, ok := c.next(t).(gen.SpeakMessage)
 	if !ok || !strings.Contains(sp.Payload.Text, "declaración") || *sp.Payload.ReplyTo != "doc-1" || sp.Payload.Lang != "es-ES" {
 		t.Fatalf("speak: %+v", sp)
@@ -155,6 +173,7 @@ func TestPointerReadsBlockOnceWithoutModel(t *testing.T) {
 	c := newCollector()
 	ctx := context.Background()
 	s.Handle(ctx, envelope(t, "document", "doc-1", fixtureDocument(t)), c.send)
+	c.next(t) // document echo
 	c.next(t) // speak
 	c.next(t) // stats
 
@@ -183,6 +202,7 @@ func TestUtteranceAsksAboutTheDocument(t *testing.T) {
 	}
 
 	s.Handle(ctx, envelope(t, "document", "doc-1", fixtureDocument(t)), c.send)
+	c.next(t) // document echo
 	c.next(t)
 	c.next(t)
 	s.Handle(ctx, envelope(t, "pointer", "p-1", gen.PointerPayload{BlockId: strPtr("b2")}), c.send)
@@ -210,7 +230,7 @@ func TestBadCheapAnswerEscalates(t *testing.T) {
 	s := New(m, DefaultConfig())
 	c := newCollector()
 	s.Handle(context.Background(), envelope(t, "document", "doc-1", fixtureDocument(t)), c.send)
-	sp := c.next(t).(gen.SpeakMessage)
+	sp := c.skipEcho(t).(gen.SpeakMessage)
 	if m.escalated != 1 || !strings.Contains(sp.Payload.Text, "declaración") {
 		t.Fatalf("escalated=%d speak=%q", m.escalated, sp.Payload.Text)
 	}
@@ -221,7 +241,7 @@ func TestModelErrorGivesLocalMessage(t *testing.T) {
 	s := New(m, DefaultConfig())
 	c := newCollector()
 	s.Handle(context.Background(), envelope(t, "document", "doc-1", fixtureDocument(t)), c.send)
-	if sp := c.next(t).(gen.SpeakMessage); !strings.Contains(sp.Payload.Text, "no puedo") {
+	if sp := c.skipEcho(t).(gen.SpeakMessage); !strings.Contains(sp.Payload.Text, "no puedo") {
 		t.Fatalf("speak: %q", sp.Payload.Text)
 	}
 }
@@ -233,6 +253,8 @@ func TestNewerDocumentCancelsSlowAnswer(t *testing.T) {
 	ctx := context.Background()
 	s.Handle(ctx, envelope(t, "document", "doc-1", fixtureDocument(t)), c.send)
 	s.Handle(ctx, envelope(t, "document", "doc-2", fixtureDocument(t)), c.send)
+	c.next(t) // echo doc-1
+	c.next(t) // echo doc-2
 
 	sp := c.next(t).(gen.SpeakMessage)
 	if *sp.Payload.ReplyTo != "doc-2" {
@@ -242,29 +264,86 @@ func TestNewerDocumentCancelsSlowAnswer(t *testing.T) {
 	c.none(t)
 }
 
-// End to end through the real WebSocket server.
-func TestThroughWebSocket(t *testing.T) {
-	srv := httptest.NewServer(NewServer(&fakeModel{cheap: goodAnswer}, DefaultConfig(), nil))
+// End to end through the real API: the scanner POSTs a document, the UI (WebSocket) hears it.
+func TestScannerPostReachesTheUI(t *testing.T) {
+	h, hub := NewMux(&fakeModel{cheap: goodAnswer}, DefaultConfig())
+	srv := httptest.NewServer(h)
 	defer srv.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	conn, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(srv.URL, "http"), nil)
+
+	ui1, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(srv.URL, "http")+"/ws", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer conn.CloseNow()
+	defer ui1.CloseNow()
+	ui2, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(srv.URL, "http")+"/ws", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ui2.CloseNow()
+	waitClients(t, hub, 2)
 
 	data, _ := api.Fixtures.ReadFile("fixtures/document.json")
-	if err := conn.Write(ctx, websocket.MessageText, data); err != nil {
+	resp, err := http.Post(srv.URL+"/message", "application/json", bytes.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("POST /message: %d", resp.StatusCode)
+	}
+
+	for i, ui := range []*websocket.Conn{ui1, ui2} {
+		var doc gen.DocumentMessage
+		if err := wsjson.Read(ctx, ui, &doc); err != nil || doc.Type != "document" || len(doc.Payload.Blocks) != 4 {
+			t.Fatalf("client %d document echo: %+v %v", i, doc, err)
+		}
+		var sp gen.SpeakMessage
+		if err := wsjson.Read(ctx, ui, &sp); err != nil || sp.Type != "speak" || *sp.Payload.ReplyTo != "doc-0001" {
+			t.Fatalf("client %d speak: %+v %v", i, sp, err)
+		}
+		var st gen.StatsMessage
+		if err := wsjson.Read(ctx, ui, &st); err != nil || st.Type != "stats" {
+			t.Fatalf("client %d stats: %+v %v", i, st, err)
+		}
+	}
+
+	// The document is shared: a pointer from the UI is answered with the scanner's document.
+	ptr, _ := json.Marshal(gen.PointerMessage{Type: "pointer", Id: "p-1", Ts: 1, Payload: gen.PointerPayload{X: 0.3, Y: 0.27}})
+	if err := ui1.Write(ctx, websocket.MessageText, ptr); err != nil {
 		t.Fatal(err)
 	}
 	var sp gen.SpeakMessage
-	if err := wsjson.Read(ctx, conn, &sp); err != nil || sp.Type != "speak" || *sp.Payload.ReplyTo != "doc-0001" {
-		t.Fatalf("speak: %+v %v", sp, err)
+	if err := wsjson.Read(ctx, ui2, &sp); err != nil || sp.Payload.HighlightBlockIds[0] != "b3" {
+		t.Fatalf("pointer speak on the other client: %+v %v", sp, err)
 	}
-	var st gen.StatsMessage
-	if err := wsjson.Read(ctx, conn, &st); err != nil || st.Type != "stats" {
-		t.Fatalf("stats: %+v %v", st, err)
+}
+
+func TestPostRejectsNonEnvelopes(t *testing.T) {
+	h, _ := NewMux(&fakeModel{cheap: goodAnswer}, DefaultConfig())
+	srv := httptest.NewServer(h)
+	defer srv.Close()
+	resp, err := http.Post(srv.URL+"/message", "application/json", strings.NewReader(`{"hello":1}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status %d", resp.StatusCode)
+	}
+}
+
+// waitClients waits until the hub has registered n connections (the server registers a
+// client right after the handshake, which may be just after Dial returns).
+func waitClients(t *testing.T, hub *ws.Hub, n int) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for hub.Clients() < n {
+		if time.Now().After(deadline) {
+			t.Fatalf("only %d of %d clients registered", hub.Clients(), n)
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 }
 
@@ -274,6 +353,7 @@ func TestPointerWithoutBlockIdIsHitTested(t *testing.T) {
 	c := newCollector()
 	ctx := context.Background()
 	s.Handle(ctx, envelope(t, "document", "doc-1", fixtureDocument(t)), c.send)
+	c.next(t) // document echo
 	c.next(t)
 	c.next(t)
 

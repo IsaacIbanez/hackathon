@@ -2,8 +2,8 @@
 
 - **Persona:** Isaac
 - **Herramienta:** Claude Code
-- **Tarea actual:** T8 (integración)
-- **Rama:** feature/T8-gesture-bridge
+- **Tarea actual:** T10 (pitch y demo); T8 a la espera del equipo
+- **Rama:** feature/T10-pitch
 - **Estado:** en curso
 - **Último cambio:** 2026-11-21
 
@@ -15,6 +15,10 @@
 - Limpieza: `.gitattributes` (LF en el código), `task fmt` y comprobación de `gofmt` en el CI.
 - T8 parte 2: lógica real en `backend/session` (document → explicación, pointer → lectura local, utterance → respuesta con contexto, consejos de encuadre locales, `stats`). Probada de punta a punta con la clave real y modelos gratis: 0 $. `task server` para probar sin ventana.
 - T8 parte 3: puente gestos → contrato (`web/src/app/bridge.ts`, `Gestures.tsx`, `voice.ts`) y búsqueda del bloque bajo el dedo en Go. Probado contra el servidor real: señalar → lectura local; mantener → explicación; 👍 → lectura del documento. 0 $.
+- T8 parte 4: sesión compartida (`ws.Hub`) y `POST /message` para el scanner, con guía `docs/INTEGRACION_SCANNER.md` y ejemplo en Python sin dependencias (`api/examples/send_message.py`). Probado: POST del «scanner» → la interfaz oye la explicación. 0 $.
+- Revisado y fusionado el PR #12 de Pau (captura MX Brio) con permiso de Isaac; comentarios en el PR.
+- T8 parte 5: Go reenvía el `document` aceptado a la pantalla (contrato 0.4.0) y vista accesible del documento (`DocumentText.tsx`: letra grande, orden de lectura, línea resaltada con `aria-current`, «(unclear)» si el OCR duda). Pantalla reorganizada: explicación + gestos + coste | documento; herramientas de desarrollo plegadas.
+- T10: guion del pitch y de la demo en `docs/PITCH.md`, con cifras medidas (Haiku: 1,8 s y 0,00012 $ por explicación; 0 $ con modelos gratis), plan B, encaje con cada challenge, preguntas difíciles y checklist.
 
 ## Pendiente
 - T8: sustituir las respuestas de ejemplo por la lógica real (`backend/llm` + B2).

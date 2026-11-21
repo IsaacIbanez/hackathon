@@ -1,5 +1,5 @@
 // Package mock answers contract messages with the fixtures in api/fixtures:
-//   - document  -> speak.json + stats.json
+//   - document  -> the same document (echo) + speak.json + stats.json
 //   - utterance -> speak-utterance.json + stats.json (only if isFinal)
 //   - pointer   -> nothing (only logged)
 //
@@ -64,10 +64,15 @@ func NewMux() (http.Handler, error) {
 	}
 
 	handle := func(_ context.Context, msg gen.Envelope) []any {
-		log.Printf("received %s (%s): %s", msg.Type, msg.Id, msg.Payload)
+		log.Printf("received %s (%s, %d bytes)", msg.Type, msg.Id, len(msg.Payload))
 		switch msg.Type {
 		case "document":
-			return withStats(reply(speakDoc, msg))
+			var doc gen.DocumentMessage
+			if err := json.Unmarshal(msg.Payload, &doc.Payload); err != nil {
+				return nil
+			}
+			doc.Type, doc.Id, doc.Ts = "document", msg.Id, time.Now().UnixMilli()
+			return append([]any{doc}, withStats(reply(speakDoc, msg))...)
 		case "utterance":
 			var p gen.UtterancePayload
 			if err := json.Unmarshal(msg.Payload, &p); err == nil && p.IsFinal {

@@ -21,6 +21,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/message": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sends one client message without a WebSocket (for local processes such as the scanner)
+         * @description The body is one envelope (ClientMessage). The answers are NOT returned here: they are
+         *     broadcast to the WebSocket clients (the UI).
+         */
+        post: operations["postMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ws": {
         parameters: {
             query?: never;
@@ -215,8 +236,8 @@ export interface components {
         };
         /** @description What the client (browser or local process) sends to Go */
         ClientMessage: components["schemas"]["DocumentMessage"] | components["schemas"]["PointerMessage"] | components["schemas"]["UtteranceMessage"];
-        /** @description What Go sends to the client */
-        ServerMessage: components["schemas"]["SpeakMessage"] | components["schemas"]["StatsMessage"];
+        /** @description What Go sends to the client (document = the current document, echoed to every client) */
+        ServerMessage: components["schemas"]["SpeakMessage"] | components["schemas"]["StatsMessage"] | components["schemas"]["DocumentMessage"];
     };
     responses: never;
     parameters: never;
@@ -243,6 +264,42 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Health"];
                 };
+            };
+        };
+    };
+    postMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClientMessage"];
+            };
+        };
+        responses: {
+            /** @description Accepted; the answers go to the WebSocket clients */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The body is not a contract envelope */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Body larger than 4 MB */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

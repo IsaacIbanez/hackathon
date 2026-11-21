@@ -234,7 +234,7 @@ type PointerPayload struct {
 	Y       float32 `json:"y"`
 }
 
-// ServerMessage What Go sends to the client
+// ServerMessage What Go sends to the client (document = the current document, echoed to every client)
 type ServerMessage struct {
 	union json.RawMessage
 }
@@ -337,6 +337,9 @@ type UtterancePayload struct {
 	Lang *string `json:"lang,omitempty"`
 	Text string  `json:"text"`
 }
+
+// PostMessageJSONRequestBody defines body for PostMessage for application/json ContentType.
+type PostMessageJSONRequestBody = ClientMessage
 
 // AsDocumentMessage returns the union data inside the ClientMessage as a DocumentMessage
 func (t ClientMessage) AsDocumentMessage() (DocumentMessage, error) {
@@ -543,6 +546,40 @@ func (t *ServerMessage) MergeStatsMessage(v StatsMessage) error {
 	return err
 }
 
+// AsDocumentMessage returns the union data inside the ServerMessage as a DocumentMessage
+func (t ServerMessage) AsDocumentMessage() (DocumentMessage, error) {
+	var body DocumentMessage
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromDocumentMessage overwrites any union data inside the ServerMessage as the provided DocumentMessage
+func (t *ServerMessage) FromDocumentMessage(v DocumentMessage) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"type":"document"}`))
+	t.union = b
+	return err
+}
+
+// MergeDocumentMessage performs a merge with any union data inside the ServerMessage, using the provided DocumentMessage
+func (t *ServerMessage) MergeDocumentMessage(v DocumentMessage) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"type":"document"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
 func (t ServerMessage) Discriminator() (string, error) {
 	var discriminator struct {
 		Discriminator string `json:"type"`
@@ -557,6 +594,8 @@ func (t ServerMessage) ValueByDiscriminator() (interface{}, error) {
 		return nil, err
 	}
 	switch discriminator {
+	case "document":
+		return t.AsDocumentMessage()
 	case "speak":
 		return t.AsSpeakMessage()
 	case "stats":

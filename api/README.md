@@ -26,7 +26,14 @@ Coordenadas normalizadas a [0, 1] sobre el documento recortado, origen arriba a 
 | `pointer` | navegador → Go | `x`, `y`, opcional `blockId` |
 | `utterance` | navegador → Go | `text`, `isFinal`, opcional `lang` |
 | `speak` | Go → navegador | `text`, `highlightBlockIds[]`, `lang`, opcional `replyTo` |
-| `stats` | Go → navegador | coste y latencia acumulados: `cheap` y `expensive` (`calls`, `cacheHits`, `errors`, `costUsd`, `avgLatencyMs`, `lastLatencyMs`) y `totalCostUsd`. Se envía tras cada llamada a un modelo |
+| `document` (eco) | Go → todos | el documento aceptado, tal cual, para que la pantalla lo muestre aunque lo enviara el scanner |
+| `stats` | Go → todos | coste y latencia acumulados: `cheap` y `expensive` (`calls`, `cacheHits`, `errors`, `costUsd`, `avgLatencyMs`, `lastLatencyMs`) y `totalCostUsd`. Se envía tras cada llamada a un modelo |
+
+## Sesión compartida y `POST /message`
+La app tiene **una sola sesión** para todos sus clientes: un mensaje de cualquiera (la interfaz por WebSocket o el scanner con `POST /message`) actualiza el mismo estado, y cada `speak` y `stats` se envía a **todos** los clientes WebSocket.
+
+- `POST http://127.0.0.1:8765/message` con un sobre en el cuerpo → `202 {"ok":true}`; la respuesta llega a la interfaz, no aquí.
+- Ejemplo en Python sin dependencias: `api/examples/send_message.py` (y la guía `docs/INTEGRACION_SCANNER.md`).
 
 ## Servidor mock, servidor real y app
 `task server` arranca la lógica real (sesiones + modelos) sin ventana en `ws://127.0.0.1:8765/ws`; necesita la clave en `.env`. Es lo que hay que usar para probar el scanner o el frontend con respuestas de verdad.
@@ -35,7 +42,7 @@ La app de escritorio (`task dev` o el ejecutable) sirve lo mismo en `ws://127.0.
 
 `task mock` (o `go run ./backend/cmd/mock -addr localhost:8080`):
 - `GET http://localhost:8080/health` → `{"status":"ok"}`
-- `ws://localhost:8080/ws`: `document` → responde `fixtures/speak.json` y después `fixtures/stats.json`; `utterance` final → `fixtures/speak-utterance.json` y `stats`; `pointer` → no responde. El `replyTo` de la respuesta es el `id` recibido.
+- `ws://localhost:8080/ws`: `document` → reenvía el mismo `document` y responde `fixtures/speak.json` y `fixtures/stats.json`; `utterance` final → `fixtures/speak-utterance.json` y `stats`; `pointer` → no responde. El `replyTo` de la respuesta es el `id` recibido.
 
 Prueba rápida desde la consola del navegador:
 ```js
