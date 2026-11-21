@@ -5,48 +5,48 @@ import numpy as np
 import pytest
 from pdfminer.high_level import extract_text
 
-import sinteticos as s
-from escaner_pdf import Opciones, convertir, ocr
-from escaner_pdf.errores import ErrorEscaner
+import synthetic as s
+from scanner_pdf import Options, convert, ocr
+from scanner_pdf.errors import ScannerError
 
 
 @pytest.fixture(scope="module")
-def mesa_png() -> bytes:
-    return s.png(s.con_sombra(s.en_mesa(s.pagina(), s.ESQUINAS_PERSPECTIVA)))
+def desk_png() -> bytes:
+    return s.png(s.with_shadow(s.on_desk(s.page(), s.PERSPECTIVE_CORNERS)))
 
 
 @pytest.mark.ocr
-def test_extremo_a_extremo(tmp_path, mesa_png):
-    r = convertir(mesa_png, tmp_path, nombre="prueba")
-    assert r.estado == "ok", (r.error, r.avisos, r.validacion)
-    assert r.buscable and r.paginas == 1
-    assert r.pagina["papel"] == "A4"
-    v = r.validacion
-    assert v["tamano_correcto"] and v["imagen_resolucion_completa"]
-    assert v["psnr_db"] >= 40                      # la imagen del PDF es la página, sin recodificar
-    assert v["palabras_encontradas"] > 0.95
-    assert v["desfase_mediano"] < 0.01             # capa de texto alineada con la imagen
+def test_end_to_end(tmp_path, desk_png):
+    r = convert(desk_png, tmp_path, name="test")
+    assert r.status == "ok", (r.error, r.warnings, r.validation)
+    assert r.searchable and r.pages == 1
+    assert r.page["paper"] == "A4"
+    v = r.validation
+    assert v["size_ok"] and v["full_resolution_image"]
+    assert v["psnr_db"] >= 40                      # the PDF image is the page, not re-encoded
+    assert v["words_found"] > 0.95
+    assert v["median_offset"] < 0.01               # text layer aligned with the image
 
-    texto = extract_text(r.pdf)
-    for palabra in ("siniestro", "Barcelona", "asegurado", "Dirección"):
-        assert palabra in texto
+    text = extract_text(r.pdf)
+    for word in ("siniestro", "Barcelona", "asegurado", "Dirección"):
+        assert word in text
 
-    # Original intacto, intermedios y resultado guardados.
-    assert open(r.intermedios["original"], "rb").read() == mesa_png
-    for clave in ("pagina", "base_pdf", "deteccion"):
-        assert r.intermedios[clave]
-    guardado = json.loads((tmp_path / "prueba" / "resultado.json").read_text(encoding="utf-8"))
-    assert guardado["estado"] == "ok"
+    # Original untouched, intermediates and result saved.
+    assert open(r.intermediates["original"], "rb").read() == desk_png
+    for key in ("page", "base_pdf", "detection"):
+        assert r.intermediates[key]
+    saved = json.loads((tmp_path / "test" / "result.json").read_text(encoding="utf-8"))
+    assert saved["status"] == "ok"
 
 
 @pytest.mark.ocr
-def test_documento_encaja_con_el_contrato(tmp_path, mesa_png):
-    r = convertir(mesa_png, tmp_path)
-    d = r.documento()
+def test_document_matches_the_contract(tmp_path, desk_png):
+    r = convert(desk_png, tmp_path)
+    d = r.document()
     assert set(d) >= {"blocks", "quality"}
     assert 0 <= d["quality"]["score"] <= 1
-    assert d["imageWidth"] == r.pagina["ancho_px"]
-    assert d["blocks"], "debe haber bloques"
+    assert d["imageWidth"] == r.page["width_px"]
+    assert d["blocks"], "there must be blocks"
     for b in d["blocks"]:
         assert set(b) == {"id", "text", "box", "confidence"}
         assert 0 <= b["confidence"] <= 1
@@ -57,79 +57,79 @@ def test_documento_encaja_con_el_contrato(tmp_path, mesa_png):
 
 
 @pytest.mark.ocr
-@pytest.mark.parametrize("giro_foto, correccion", [(cv2.ROTATE_90_CLOCKWISE, 270), (cv2.ROTATE_90_COUNTERCLOCKWISE, 90),
-                                                  (cv2.ROTATE_180, 180)])
-def test_pagina_girada_se_endereza(tmp_path, giro_foto, correccion):
-    # Caso real: hoja vertical fotografiada en horizontal (90/270) o del revés sobre la mesa (180).
-    girada = cv2.rotate(s.pagina(), giro_foto)
-    r = convertir(s.png(girada), tmp_path)
-    assert r.estado == "ok", (r.error, r.avisos)
-    assert r.pagina["giro_grados"] == correccion
-    assert r.pagina["alto_px"] > r.pagina["ancho_px"]
+@pytest.mark.parametrize("photo_rotation, correction", [(cv2.ROTATE_90_CLOCKWISE, 270),
+                                                        (cv2.ROTATE_90_COUNTERCLOCKWISE, 90), (cv2.ROTATE_180, 180)])
+def test_rotated_page_is_straightened(tmp_path, photo_rotation, correction):
+    # Real case: portrait sheet photographed in landscape (90/270) or upside down on the desk (180).
+    rotated = cv2.rotate(s.page(), photo_rotation)
+    r = convert(s.png(rotated), tmp_path)
+    assert r.status == "ok", (r.error, r.warnings)
+    assert r.page["rotation_degrees"] == correction
+    assert r.page["height_px"] > r.page["width_px"]
     assert "siniestro" in extract_text(r.pdf)
 
 
 @pytest.mark.ocr
-def test_hoja_vertical_fotografiada_en_horizontal_sobre_la_mesa(tmp_path):
-    hoja = cv2.rotate(s.pagina(), cv2.ROTATE_90_CLOCKWISE)          # la hoja está tumbada en la mesa
-    esquinas = s.esquinas_camara(10, -5, distancia_mm=480, papel_mm=(297.0, 210.0))
-    r = convertir(s.png(s.en_mesa(hoja, esquinas)), tmp_path)
-    assert r.estado == "ok", (r.error, r.avisos)
-    assert r.deteccion["encontrada"] and r.pagina["giro_grados"] == 270
-    assert r.pagina["papel"] == "A4" and r.pagina["alto_px"] > r.pagina["ancho_px"]
+def test_portrait_sheet_photographed_in_landscape_on_the_desk(tmp_path):
+    sheet = cv2.rotate(s.page(), cv2.ROTATE_90_CLOCKWISE)          # the sheet lies sideways on the desk
+    corners = s.camera_corners(10, -5, distance_mm=480, paper_mm=(297.0, 210.0))
+    r = convert(s.png(s.on_desk(sheet, corners)), tmp_path)
+    assert r.status == "ok", (r.error, r.warnings)
+    assert r.detection["found"] and r.page["rotation_degrees"] == 270
+    assert r.page["paper"] == "A4" and r.page["height_px"] > r.page["width_px"]
     assert "siniestro" in extract_text(r.pdf)
 
 
 @pytest.mark.ocr
-@pytest.mark.parametrize("modo, formato", [("gris", "png"), ("bn", "png"), ("color", "jpeg")])
-def test_modos_y_formatos(tmp_path, mesa_png, modo, formato):
-    r = convertir(mesa_png, tmp_path, Opciones(modo=modo, formato_imagen=formato))
-    assert r.estado == "ok", (r.error, r.avisos, r.validacion)
+@pytest.mark.parametrize("mode, fmt", [("gray", "png"), ("bw", "png"), ("color", "jpeg")])
+def test_modes_and_formats(tmp_path, desk_png, mode, fmt):
+    r = convert(desk_png, tmp_path, Options(mode=mode, image_format=fmt))
+    assert r.status == "ok", (r.error, r.warnings, r.validation)
     assert "siniestro" in extract_text(r.pdf)
 
 
-def test_sin_ocr_da_pdf_solo_imagen(tmp_path, mesa_png):
-    r = convertir(mesa_png, tmp_path, Opciones(ocr=False, orientar=False))
-    assert r.estado == "parcial" and not r.buscable
-    assert r.validacion["paginas"] == 1 and r.validacion["imagen_resolucion_completa"]
+def test_without_ocr_gives_image_only_pdf(tmp_path, desk_png):
+    r = convert(desk_png, tmp_path, Options(ocr=False, orient=False))
+    assert r.status == "partial" and not r.searchable
+    assert r.validation["pages"] == 1 and r.validation["full_resolution_image"]
 
 
-def test_sin_tesseract_sigue_generando_pdf(tmp_path, mesa_png, monkeypatch):
-    def falla():
-        raise ErrorEscaner("ocr_no_disponible", "simulado")
-    monkeypatch.setattr(ocr, "preparar_tesseract", falla)
-    r = convertir(mesa_png, tmp_path)
-    assert r.estado == "parcial" and r.pdf
-    assert "sin_capa_ocr:ocr_no_disponible" in r.avisos
+def test_without_tesseract_still_makes_a_pdf(tmp_path, desk_png, monkeypatch):
+    def fail():
+        raise ScannerError("ocr_unavailable", "simulated")
+    monkeypatch.setattr(ocr, "prepare_tesseract", fail)
+    r = convert(desk_png, tmp_path)
+    assert r.status == "partial" and r.pdf
+    assert "no_ocr_layer:ocr_unavailable" in r.warnings
 
 
-def test_entrada_invalida_devuelve_error_sin_lanzar(tmp_path):
-    r = convertir(b"esto no es un png", tmp_path)
-    assert r.estado == "error" and r.error["codigo"] == "entrada_no_png" and r.pdf is None
+def test_invalid_input_returns_error_without_raising(tmp_path):
+    r = convert(b"this is not a png", tmp_path)
+    assert r.status == "error" and r.error["code"] == "input_not_png" and r.pdf is None
 
 
-def test_opciones_invalidas(tmp_path, mesa_png):
-    r = convertir(mesa_png, tmp_path, Opciones(modo="sepia"))
-    assert r.error["codigo"] == "opciones_invalidas"
+def test_invalid_options(tmp_path, desk_png):
+    r = convert(desk_png, tmp_path, Options(mode="sepia"))
+    assert r.error["code"] == "options_invalid"
 
 
-def test_no_sobrescribe_resultados(tmp_path, mesa_png):
-    op = Opciones(ocr=False, orientar=False, guardar_intermedios=False)
-    a = convertir(mesa_png, tmp_path, op, nombre="doc")
-    b = convertir(mesa_png, tmp_path, op, nombre="doc")
-    assert a.carpeta != b.carpeta and b.carpeta.endswith("doc-2")
+def test_does_not_overwrite_results(tmp_path, desk_png):
+    op = Options(ocr=False, orient=False, save_intermediates=False)
+    a = convert(desk_png, tmp_path, op, name="doc")
+    b = convert(desk_png, tmp_path, op, name="doc")
+    assert a.folder != b.folder and b.folder.endswith("doc-2")
 
 
-def test_recorte_manual(tmp_path):
-    esquinas = s.esquinas_camara(20, -12)
-    img = s.en_mesa(s.pagina(), esquinas)
-    r = convertir(s.png(img), tmp_path, Opciones(esquinas=esquinas.tolist(), ocr=False, orientar=False))
-    assert r.deteccion["metodo"] == "manual" and r.pagina["papel"] == "A4"
+def test_manual_crop(tmp_path):
+    corners = s.camera_corners(20, -12)
+    img = s.on_desk(s.page(), corners)
+    r = convert(s.png(img), tmp_path, Options(corners=corners.tolist(), ocr=False, orient=False))
+    assert r.detection["method"] == "manual" and r.page["paper"] == "A4"
 
 
-def test_sin_hoja_usa_imagen_entera_y_avisa(tmp_path):
+def test_no_sheet_uses_whole_image_and_warns(tmp_path):
     rng = np.random.default_rng(3)
-    ruido = cv2.GaussianBlur((rng.random((800, 1000, 3)) * 255).astype(np.uint8), (0, 0), 3)
-    r = convertir(s.png(ruido), tmp_path, Opciones(ocr=False, orientar=False))
-    assert "pagina_no_detectada" in r.avisos
-    assert (r.pagina["ancho_px"], r.pagina["alto_px"]) == (1000, 800)
+    noise = cv2.GaussianBlur((rng.random((800, 1000, 3)) * 255).astype(np.uint8), (0, 0), 3)
+    r = convert(s.png(noise), tmp_path, Options(ocr=False, orient=False))
+    assert "page_not_detected" in r.warnings
+    assert (r.page["width_px"], r.page["height_px"]) == (1000, 800)

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Instala el escáner en Linux (Debian/Ubuntu) o macOS: entorno Python, Tesseract y spa/cat/eng.
-# Uso: bash scanner/pdf/scripts/instalar.sh
+# Installs the scanner on Linux (Debian/Ubuntu) or macOS: Python environment, Tesseract and spa/cat/eng.
+# Usage: bash scanner/pdf/scripts/install.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."   # scanner/pdf
 
@@ -10,15 +10,15 @@ if ! command -v tesseract >/dev/null; then
   elif command -v brew >/dev/null; then
     brew install tesseract tesseract-lang
   else
-    echo "Instala Tesseract con spa y cat con tu gestor de paquetes y vuelve a ejecutar." >&2; exit 1
+    echo "Install Tesseract with spa and cat using your package manager and run this again." >&2; exit 1
   fi
 fi
 for l in spa cat; do
-  tesseract --list-langs 2>/dev/null | grep -qx "$l" || echo "AVISO: falta el idioma $l (tesseract-ocr-$l)" >&2
+  tesseract --list-langs 2>/dev/null | grep -qx "$l" || echo "WARNING: language $l is missing (tesseract-ocr-$l)" >&2
 done
 
 [ -d .venv ] || python3 -m venv .venv
 .venv/bin/python -m pip install -q --upgrade pip
 .venv/bin/python -m pip install -q -e ".[dev]"
 .venv/bin/python -m pytest -q
-echo "Listo. Prueba: .venv/bin/python -m escaner_pdf captura.png -o salida"
+echo "Done. Try: .venv/bin/python -m scanner_pdf capture.png -o output"

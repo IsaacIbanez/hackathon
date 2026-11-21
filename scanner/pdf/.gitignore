@@ -1,7 +1,9 @@
+output/
+# old Spanish name of output/, kept so existing local results stay ignored
 salida/
 .venv/
 *.pyc
 .pytest_cache/
 *.egg-info/
-# Idiomas de Tesseract descargados por scripts/instalar.ps1 (pesan ~50 MB)
+# Tesseract languages downloaded by scripts/install.ps1 (~50 MB)
 tessdata/

@@ -1,4 +1,4 @@
-"""Documento digital: página en blanco con texto real e imágenes en su sitio."""
+"""Digital document: blank page with real text and images in place."""
 
 import io
 
@@ -6,212 +6,210 @@ import cv2
 import numpy as np
 import pikepdf
 import pytest
-from pdfminer.high_level import extract_text
+from pdfminer.high_level import extract_pages, extract_text
+from pdfminer.layout import LTTextContainer
 
-import sinteticos as s
-from escaner_pdf import Opciones, convertir, digital
+import synthetic as s
+from scanner_pdf import Options, convert, digital, vision
+from scanner_pdf.errors import ScannerError
 
 
-def _con_firma(hoja: np.ndarray) -> np.ndarray:
-    """Añade una "firma" (trazo curvo azul) dentro del recuadro inferior."""
-    hoja = hoja.copy()
-    alto, ancho = hoja.shape[:2]
+def _with_signature(sheet: np.ndarray) -> np.ndarray:
+    """Adds a "signature" (curved blue stroke) inside the bottom box."""
+    sheet = sheet.copy()
+    height, width = sheet.shape[:2]
     t = np.linspace(0, 4 * np.pi, 400)
-    xs = (ancho * 0.2 + t / (4 * np.pi) * ancho * 0.35).astype(np.int32)
-    ys = (alto * 0.82 + np.sin(t * 1.5) * alto * 0.025).astype(np.int32)
-    cv2.polylines(hoja, [np.stack([xs, ys], axis=1).reshape(-1, 1, 2)], False, (150, 40, 20), 5)
-    return hoja
+    xs = (width * 0.2 + t / (4 * np.pi) * width * 0.35).astype(np.int32)
+    ys = (height * 0.82 + np.sin(t * 1.5) * height * 0.025).astype(np.int32)
+    cv2.polylines(sheet, [np.stack([xs, ys], axis=1).reshape(-1, 1, 2)], False, (150, 40, 20), 5)
+    return sheet
 
 
-def _imagenes(pdf_ruta: str) -> list[tuple[int, int]]:
-    with pikepdf.open(pdf_ruta) as pdf:
-        pagina = pdf.pages[0]
-        return [(int(i.Width), int(i.Height)) for i in pagina.get_images().values()]
-
-
-@pytest.mark.ocr
-def test_texto_real_y_sin_foto_de_pagina(tmp_path):
-    img = s.con_sombra(s.en_mesa(_con_firma(s.pagina()), s.ESQUINAS_PERSPECTIVA))
-    r = convertir(s.png(img), tmp_path, Opciones(digital=True, digital_ia=False))
-    assert r.estado == "ok" and r.pdf_digital, (r.avisos, r.digital)
-    assert r.digital["valido"] and r.digital["palabras_texto"] >= 25
-    texto = extract_text(r.pdf_digital)
-    for palabra in ("siniestro", "Barcelona", "asegurado", "Dirección"):
-        assert palabra in texto
-    # Ninguna imagen ocupa la página: solo recortes (firma, recuadro).
-    ancho, alto = r.pagina["ancho_px"], r.pagina["alto_px"]
-    for w, h in _imagenes(r.pdf_digital):
-        assert w * h < 0.35 * ancho * alto
-    # El PDF escaneado sigue generándose igual.
-    assert r.pdf and r.validacion["ok"]
+def _images(pdf_path) -> list[tuple[int, int]]:
+    with pikepdf.open(pdf_path) as pdf:
+        return [(int(i.Width), int(i.Height)) for i in pdf.pages[0].get_images().values()]
 
 
 @pytest.mark.ocr
-def test_la_firma_va_como_imagen(tmp_path):
-    r = convertir(s.png(_con_firma(s.pagina())), tmp_path, Opciones(digital=True, digital_ia=False))
-    assert r.pdf_digital and r.digital["regiones_imagen"] >= 1
-    assert _imagenes(r.pdf_digital)
+def test_real_text_and_no_page_photo(tmp_path):
+    img = s.with_shadow(s.on_desk(_with_signature(s.page()), s.PERSPECTIVE_CORNERS))
+    r = convert(s.png(img), tmp_path, Options(digital=True, digital_ai=False))
+    assert r.status == "ok" and r.digital_pdf, (r.warnings, r.digital)
+    assert r.digital["valid"] and r.digital["text_words"] >= 25
+    text = extract_text(r.digital_pdf)
+    for word in ("siniestro", "Barcelona", "asegurado", "Dirección"):
+        assert word in text
+    # No image fills the page: only crops (signature, box).
+    width, height = r.page["width_px"], r.page["height_px"]
+    for w, h in _images(r.digital_pdf):
+        assert w * h < 0.35 * width * height
+    # The scanned PDF is still made the same way.
+    assert r.pdf and r.validation["ok"]
 
 
 @pytest.mark.ocr
-def test_cartel_oscuro_no_se_digitaliza(tmp_path):
-    cartel = np.full((1754, 1240, 3), (30, 35, 60), np.uint8)
+def test_signature_goes_as_an_image(tmp_path):
+    r = convert(s.png(_with_signature(s.page())), tmp_path, Options(digital=True, digital_ai=False))
+    assert r.digital_pdf and r.digital["image_regions"] >= 1
+    assert _images(r.digital_pdf)
+
+
+@pytest.mark.ocr
+def test_dark_poster_is_not_digitalized(tmp_path):
+    poster = np.full((1754, 1240, 3), (30, 35, 60), np.uint8)
     for i in range(6):
-        cv2.putText(cartel, f"Concierto {i}", (100, 200 + i * 220), cv2.FONT_HERSHEY_SIMPLEX, 3, (230, 240, 240), 6)
-    r = convertir(s.png(cartel), tmp_path, Opciones(digital=True, digital_ia=False))
-    assert r.pdf and r.pdf_digital is None
-    assert "digital_no_aplicable" in r.avisos
+        cv2.putText(poster, f"Concierto {i}", (100, 200 + i * 220), cv2.FONT_HERSHEY_SIMPLEX, 3, (230, 240, 240), 6)
+    r = convert(s.png(poster), tmp_path, Options(digital=True, digital_ai=False))
+    assert r.pdf and r.digital_pdf is None
+    assert "digital_not_applicable" in r.warnings
 
 
-def test_sin_ocr_no_hay_digital(tmp_path):
-    r = convertir(s.png(s.pagina()), tmp_path, Opciones(digital=True, digital_ia=False, ocr=False, orientar=False))
-    assert r.pdf_digital is None and "digital_sin_texto" in r.avisos
+def test_without_ocr_there_is_no_digital(tmp_path):
+    r = convert(s.png(s.page()), tmp_path, Options(digital=True, digital_ai=False, ocr=False, orient=False))
+    assert r.digital_pdf is None and "digital_no_text" in r.warnings
 
 
-def test_lineas_fisicas_con_texto_inclinado():
-    # Dos líneas de 6 palabras inclinadas ~3°: Tesseract las parte a veces; aquí deben salir 2 líneas.
-    palabras, cajas = [], []
-    for fila in range(2):
+def test_physical_lines_with_tilted_text():
+    # Two lines of 6 words tilted ~3 degrees: Tesseract sometimes splits them; here they must give 2 lines.
+    words, boxes = [], []
+    for row in range(2):
         for k in range(6):
             x0 = 100 + k * 120
-            y1 = 300 + fila * 60 + int(k * 120 * 0.05)
-            palabras.append({"text": "palabra", "conf": 90, "linea": [1, 1, 7]})
-            cajas.append((x0, y1 - 20, x0 + 100, y1))
-    lineas = digital._lineas_fisicas(palabras, cajas, list(range(len(palabras))))
-    assert len(lineas) == 2 and all(len(l) == 6 for l in lineas)
+            y1 = 300 + row * 60 + int(k * 120 * 0.05)
+            words.append({"text": "palabra", "conf": 90, "line": [1, 1, 7]})
+            boxes.append((x0, y1 - 20, x0 + 100, y1))
+    lines = digital._physical_lines(words, boxes, list(range(len(words))))
+    assert len(lines) == 2 and all(len(line) == 6 for line in lines)
 
 
-def test_aplicable_solo_en_papel_claro():
-    assert digital.aplicable(np.full((100, 100, 3), 250, np.uint8))
-    assert not digital.aplicable(np.full((100, 100, 3), 60, np.uint8))
+def test_applicable_only_on_light_paper():
+    assert digital.applicable(np.full((100, 100, 3), 250, np.uint8))
+    assert not digital.applicable(np.full((100, 100, 3), 60, np.uint8))
 
 
-# ---------------------------------------------------------------- con modelo de visión (simulado: sin red)
+# ---------------------------------------------------------------- with a vision model (simulated: no network)
 
-from escaner_pdf import ia  # noqa: E402
-from escaner_pdf.errores import ErrorEscaner  # noqa: E402
-
-MAQUETA = {"bloques": [
-    {"tipo": "texto", "bbox": [70, 70, 500, 100], "lineas": ["DECLARACIÓN DE PRUEBA"], "alineacion": "izquierda", "negrita": False},
-    {"tipo": "texto", "bbox": [70, 120, 600, 390], "lineas": [
+LAYOUT = {"blocks": [
+    {"type": "text", "bbox": [70, 70, 500, 100], "lines": ["DECLARACIÓN DE PRUEBA"], "align": "left", "bold": False},
+    {"type": "text", "bbox": [70, 120, 600, 390], "lines": [
         "Nombre y apellidos: María Peña Güell", "Dirección: Carrer de la Pau 12, Barcelona",
         "Fecha del siniestro: 21/11/2026", "Descripción: el vehículo sufrió daños leves.", "Firma del asegurado"],
-     "alineacion": "izquierda", "negrita": False},
-    {"tipo": "imagen", "bbox": [180, 780, 600, 870], "descripcion": "firma"},
+     "align": "left", "bold": False},
+    {"type": "image", "bbox": [180, 780, 600, 870], "description": "signature"},
 ]}
 
 
-def _simular_modelo(monkeypatch, respuestas):
-    llamadas = []
+def _simulate_model(monkeypatch, answers):
+    calls = []
 
-    def maquetar(pagina, modelo, timeout=120):
-        llamadas.append(modelo)
-        r = respuestas[modelo]
-        if isinstance(r, Exception):
-            raise r
-        return ia._limpiar(r), {"modelo": modelo, "segundos": 0.1, "tokens_entrada": 1, "tokens_salida": 1, "coste_usd": 0.001}
+    def page_layout(page, model, timeout=120):
+        calls.append(model)
+        a = answers[model]
+        if isinstance(a, Exception):
+            raise a
+        return vision.clean_layout(a), {"model": model, "seconds": 0.1, "input_tokens": 1, "output_tokens": 1,
+                                        "cost_usd": 0.001}
 
-    monkeypatch.setattr(ia, "maquetar", maquetar)
-    return llamadas
-
-
-@pytest.mark.ocr
-def test_digital_con_modelo_barato(tmp_path, monkeypatch):
-    llamadas = _simular_modelo(monkeypatch, {ia.MODELO_BARATO: MAQUETA, ia.MODELO_CARO: MAQUETA})
-    r = convertir(s.png(_con_firma(s.pagina())), tmp_path, Opciones(digital=True))
-    assert r.pdf_digital and r.digital["metodo"] == "modelo"
-    assert llamadas == [ia.MODELO_BARATO]                       # concuerda con el OCR: no se escala
-    assert r.digital["concordancia_ocr"] >= 0.9 and r.digital["coste_ia_usd"] == 0.001
-    texto = extract_text(r.pdf_digital)
-    assert "Güell" in texto and "siniestro" in texto            # el texto del modelo, con su diéresis
-    assert r.digital["regiones_imagen"] == 1                    # la firma
-    assert (tmp_path / r.pdf_digital).exists() or r.pdf_digital
+    monkeypatch.setattr(vision, "page_layout", page_layout)
+    monkeypatch.setattr(vision, "api_key", lambda: "test-key")
+    return calls
 
 
 @pytest.mark.ocr
-def test_digital_escala_al_modelo_caro_si_no_concuerda(tmp_path, monkeypatch):
-    inventada = {"bloques": [{"tipo": "texto", "bbox": [100, 100, 900, 300], "lineas": ["Texto que no está en la hoja"],
-                              "alineacion": "izquierda", "negrita": False}]}
-    llamadas = _simular_modelo(monkeypatch, {ia.MODELO_BARATO: inventada, ia.MODELO_CARO: MAQUETA})
-    r = convertir(s.png(s.pagina()), tmp_path, Opciones(digital=True))
-    assert llamadas == [ia.MODELO_BARATO, ia.MODELO_CARO]
-    assert r.digital["concordancia_ocr"] >= 0.9
+def test_digital_with_the_cheap_model(tmp_path, monkeypatch):
+    calls = _simulate_model(monkeypatch, {vision.CHEAP_MODEL: LAYOUT, vision.EXPENSIVE_MODEL: LAYOUT})
+    r = convert(s.png(_with_signature(s.page())), tmp_path, Options(digital=True))
+    assert r.digital_pdf and r.digital["method"] == "model"
+    assert calls == [vision.CHEAP_MODEL]                        # agrees with the OCR: no escalation
+    assert r.digital["ocr_agreement"] >= 0.9 and r.digital["ai_cost_usd"] == 0.001
+    text = extract_text(r.digital_pdf)
+    assert "Güell" in text and "siniestro" in text              # the model text, with its diaeresis
+    assert r.digital["image_regions"] == 1                      # the signature
 
 
 @pytest.mark.ocr
-def test_digital_sin_conexion_usa_el_ocr_local(tmp_path, monkeypatch):
-    _simular_modelo(monkeypatch, {ia.MODELO_BARATO: ErrorEscaner("ia_sin_conexion", "simulado"),
-                                  ia.MODELO_CARO: ErrorEscaner("ia_sin_conexion", "simulado")})
-    r = convertir(s.png(s.pagina()), tmp_path, Opciones(digital=True))
-    assert r.pdf_digital and r.digital["metodo"] == "ocr_local"
-    assert "digital_ia_no_disponible:ia_sin_conexion" in r.avisos
+def test_digital_escalates_to_the_expensive_model_when_it_disagrees(tmp_path, monkeypatch):
+    invented = {"blocks": [{"type": "text", "bbox": [100, 100, 900, 300], "lines": ["Texto que no está en la hoja"],
+                            "align": "left", "bold": False}]}
+    calls = _simulate_model(monkeypatch, {vision.CHEAP_MODEL: invented, vision.EXPENSIVE_MODEL: LAYOUT})
+    r = convert(s.png(s.page()), tmp_path, Options(digital=True))
+    assert calls == [vision.CHEAP_MODEL, vision.EXPENSIVE_MODEL]
+    assert r.digital["ocr_agreement"] >= 0.9
 
 
-def test_maqueta_invalida_se_rechaza():
-    with pytest.raises(ErrorEscaner):
-        ia._limpiar({"bloques": [{"tipo": "texto", "bbox": [1, 2], "lineas": ["x"]}]})
-    m = ia._limpiar({"bloques": [{"tipo": "texto", "bbox": [100, 100, 900, 200], "lineas": ["hola"], "alineacion": "rara"}]})
-    assert m["bloques"][0]["bbox"] == [0.1, 0.1, 0.9, 0.2] and m["bloques"][0]["alineacion"] == "izquierda"
+@pytest.mark.ocr
+def test_digital_without_connection_uses_the_local_ocr(tmp_path, monkeypatch):
+    _simulate_model(monkeypatch, {vision.CHEAP_MODEL: ScannerError("ai_no_connection", "simulated"),
+                                  vision.EXPENSIVE_MODEL: ScannerError("ai_no_connection", "simulated")})
+    r = convert(s.png(s.page()), tmp_path, Options(digital=True))
+    assert r.digital_pdf and r.digital["method"] == "local_ocr"
+    assert "digital_ai_unavailable:ai_no_connection" in r.warnings
 
 
-def test_bloques_no_se_pisan():
-    import io as _io
-    pagina = np.full((1754, 1240, 3), 255, np.uint8)
-    solapados = {"bloques": [
-        {"tipo": "texto", "bbox": [100, 100, 900, 200], "lineas": ["uno uno uno", "dos dos dos", "tres tres"], "alineacion": "justificado", "negrita": False},
-        {"tipo": "texto", "bbox": [100, 170, 900, 250], "lineas": ["cuatro cuatro", "cinco cinco"], "alineacion": "izquierda", "negrita": False},
+def test_invalid_layout_is_rejected():
+    with pytest.raises(ScannerError):
+        vision.clean_layout({"blocks": [{"type": "text", "bbox": [1, 2], "lines": ["x"]}]})
+    m = vision.clean_layout({"blocks": [{"type": "text", "bbox": [100, 100, 900, 200], "lines": ["hola"], "align": "odd"}]})
+    assert m["blocks"][0]["bbox"] == [0.1, 0.1, 0.9, 0.2] and m["blocks"][0]["align"] == "left"
+
+
+def test_blocks_do_not_overlap():
+    page = np.full((1754, 1240, 3), 255, np.uint8)
+    overlapping = {"blocks": [
+        {"type": "text", "bbox": [100, 100, 900, 200], "lines": ["uno uno uno", "dos dos dos", "tres tres"],
+         "align": "justify", "bold": False},
+        {"type": "text", "bbox": [100, 170, 900, 250], "lines": ["cuatro cuatro", "cinco cinco"], "align": "left", "bold": False},
     ]}
-    datos, info = digital.digitalizar_maqueta(pagina, ia._limpiar(solapados), [], 150.0)
-    from pdfminer.high_level import extract_pages
-    from pdfminer.layout import LTTextContainer
-    cajas = [e.bbox for pag in extract_pages(_io.BytesIO(datos)) for e in pag if isinstance(e, LTTextContainer)]
-    cajas.sort(key=lambda b: -b[3])
-    for a, b in zip(cajas, cajas[1:]):
-        assert b[3] <= a[1] + 0.5                               # cada bloque empieza por debajo del anterior
+    data, _ = digital.digitalize_layout(page, vision.clean_layout(overlapping), [], 150.0)
+    boxes = [e.bbox for p in extract_pages(io.BytesIO(data)) for e in p if isinstance(e, LTTextContainer)]
+    boxes.sort(key=lambda b: -b[3])
+    for a, b in zip(boxes, boxes[1:]):
+        assert b[3] <= a[1] + 0.5                               # each block starts below the previous one
 
 
-def _pagina_con_bloques():
-    """Página blanca: un párrafo arriba, "Signat," y una firma de trazo claro debajo."""
-    pagina = np.full((1754, 1240, 3), 255, np.uint8)
+def _page_with_signature():
+    """White page with a light-stroke signature."""
+    page = np.full((1754, 1240, 3), 255, np.uint8)
     t = np.linspace(0, 4 * np.pi, 400)
     xs = (300 + t / (4 * np.pi) * 300).astype(np.int32)
     ys = (1100 + np.sin(t * 1.5) * 40).astype(np.int32)
-    cv2.polylines(pagina, [np.stack([xs, ys], axis=1).reshape(-1, 1, 2)], False, (205, 190, 160), 3)  # bolígrafo suave
-    return pagina
+    cv2.polylines(page, [np.stack([xs, ys], axis=1).reshape(-1, 1, 2)], False, (205, 190, 160), 3)  # soft pen
+    return page
 
 
-def test_firma_de_trazo_claro_sale_entera():
-    maqueta = ia._limpiar({"bloques": [{"tipo": "imagen", "bbox": [230, 600, 510, 660], "descripcion": "firma"}]})
-    datos, info = digital.digitalizar_maqueta(_pagina_con_bloques(), maqueta, [], 150.0)
-    assert info["regiones_imagen"] == 1
-    with pikepdf.open(io.BytesIO(datos)) as pdf:
+def test_light_stroke_signature_comes_out_whole():
+    layout = vision.clean_layout({"blocks": [{"type": "image", "bbox": [230, 600, 510, 660], "description": "signature"}]})
+    data, info = digital.digitalize_layout(_page_with_signature(), layout, [], 150.0)
+    assert info["image_regions"] == 1
+    with pikepdf.open(io.BytesIO(data)) as pdf:
         (w, h), = [(int(i.Width), int(i.Height)) for i in pdf.pages[0].get_images().values()]
-    assert w >= 290 and h >= 70                                   # toda la firma (300 x 80 px), no solo lo oscuro
+    assert w >= 290 and h >= 70                                   # the whole signature (300 x 80 px), not only the dark part
 
 
-def test_manda_el_orden_de_lectura_aunque_la_caja_venga_desplazada():
-    # El modelo sitúa "Signat," por debajo de la firma, pero lo lista antes: debe quedar encima.
-    maqueta = ia._limpiar({"bloques": [
-        {"tipo": "texto", "bbox": [230, 640, 320, 650], "lineas": ["Signat,"], "alineacion": "izquierda", "negrita": False},
-        {"tipo": "imagen", "bbox": [230, 600, 510, 660], "descripcion": "firma"},
+def test_reading_order_wins_even_if_the_box_is_displaced():
+    # The model places "Signat," below the signature, but lists it first: it must end up above.
+    layout = vision.clean_layout({"blocks": [
+        {"type": "text", "bbox": [230, 640, 320, 650], "lines": ["Signat,"], "align": "left", "bold": False},
+        {"type": "image", "bbox": [230, 600, 510, 660], "description": "signature"},
     ]})
-    pagina = _pagina_con_bloques()
-    alto = pagina.shape[0]
-    textos, _ = digital._bloques_texto(maqueta, [], [], 1240, alto, 20.0, 72 / 150)
-    digital._tipografia(textos, 72 / 150)
-    imagenes = digital._bloques_imagen(maqueta, pagina, cv2.cvtColor(pagina, cv2.COLOR_BGR2GRAY), [], 20.0)
-    for t_ in textos:
-        t_["alto_px"] = ((len(t_["lineas"]) - 1) * t_["interlineado"] + 0.925 * t_["tam"]) / (72 / 150)
-    digital._flujo(textos + imagenes, 20.0, alto)
-    assert textos[0]["y"] + textos[0]["alto_px"] <= imagenes[0]["y"]
+    page = _page_with_signature()
+    height = page.shape[0]
+    s_ = 72 / 150
+    texts, _ = digital._text_blocks(layout, [], [], 1240, height, 20.0, s_)
+    digital._typography(texts, s_)
+    images = digital._image_blocks(layout, page, cv2.cvtColor(page, cv2.COLOR_BGR2GRAY), [], 20.0)
+    for t in texts:
+        t["height_px"] = ((len(t["lines"]) - 1) * t["line_spacing"] + 0.925 * t["size"]) / s_
+    digital._flow(texts + images, 20.0, height)
+    assert texts[0]["y"] + texts[0]["height_px"] <= images[0]["y"]
 
 
-def test_cabecera_corta_no_sale_mas_pequena_que_el_cuerpo():
-    textos = [
-        {"lineas": ["Un párrafo normal con bastantes palabras para llenar la línea entera",
-                    "y una segunda línea del mismo párrafo justificado"], "alineacion": "justificado",
-         "negrita": False, "caja": [100, 300, 1100, 360], "tam_ocr": None},
-        {"lineas": ["CERTIFICA"], "alineacion": "izquierda", "negrita": True, "caja": [100, 250, 180, 262], "tam_ocr": 6.0},
+def test_short_heading_is_not_smaller_than_the_body():
+    texts = [
+        {"lines": ["Un párrafo normal con bastantes palabras para llenar la línea entera",
+                   "y una segunda línea del mismo párrafo justificado"], "align": "justify",
+         "bold": False, "box": [100, 300, 1100, 360], "ocr_size": None},
+        {"lines": ["CERTIFICA"], "align": "left", "bold": True, "box": [100, 250, 180, 262], "ocr_size": 6.0},
     ]
-    comun = digital._tipografia(textos, 72 / 150)
-    assert textos[1]["tam"] == comun
+    body = digital._typography(texts, 72 / 150)
+    assert texts[1]["size"] == body

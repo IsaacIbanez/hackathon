@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "escaner-pdf"
+name = "scanner-pdf"
 version = "0.1.0"
-description = "Imagen PNG de un documento en papel -> PDF buscable (imagen fiel + capa OCR invisible)"
+description = "PNG image of a paper document -> searchable PDF (faithful image + invisible OCR layer)"
 requires-python = ">=3.10"
 dependencies = [
     "numpy>=1.26",
@@ -22,7 +22,7 @@ dependencies = [
 dev = ["pytest>=8"]
 
 [project.scripts]
-escaner-pdf = "escaner_pdf.__main__:main"
+scanner-pdf = "scanner_pdf.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -30,4 +30,4 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
-markers = ["ocr: necesita Tesseract instalado"]
+markers = ["ocr: needs Tesseract installed"]

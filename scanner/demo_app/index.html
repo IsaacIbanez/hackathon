@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scanner — test app (provisional)</title>
+<style>
+  :root { --bg:#f4f5f7; --panel:#fff; --border:#dfe2e7; --text:#1d2129; --muted:#5b6472;
+          --accent:#2457d6; --ok:#1a7f4b; --partial:#b26a00; --error:#c2352b; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--text); }
+  header { padding:12px 20px; background:var(--panel); border-bottom:1px solid var(--border); display:flex; gap:12px; align-items:baseline; }
+  header h1 { font-size:18px; margin:0; }
+  header span { color:var(--partial); font-size:13px; font-weight:600; }
+  main { display:grid; grid-template-columns: 420px 1fr; gap:16px; padding:16px; align-items:start; }
+  section { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:14px; }
+  h2 { font-size:15px; margin:0 0 10px; }
+  label { display:block; font-size:13px; color:var(--muted); margin:8px 0 3px; }
+  select, input[type=number] { width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:6px; font:inherit; }
+  .row { display:flex; gap:8px; } .row > * { flex:1; }
+  .checks { display:flex; gap:14px; margin-top:8px; font-size:13px; }
+  .checks label { display:flex; gap:5px; align-items:center; margin:0; color:var(--text); }
+  button { padding:9px 12px; border-radius:7px; border:1px solid var(--border); background:#fff; font:inherit; cursor:pointer; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; }
+  button:disabled { opacity:.5; cursor:default; }
+  .preview { position:relative; margin-top:12px; aspect-ratio:16/9; background:#111; border-radius:8px; display:flex; align-items:center; justify-content:center; color:#888; overflow:hidden; }
+  .preview img { width:100%; height:100%; object-fit:fill; }
+  .preview svg, .editor svg { position:absolute; inset:0; width:100%; height:100%; }
+  #hint { font-size:13px; margin-top:6px; min-height:18px; font-weight:600; }
+  .editor { position:relative; display:inline-block; max-width:100%; user-select:none; }
+  .editor img { max-width:100%; max-height:70vh; display:block; }
+  .handle { fill:#fff; stroke:var(--accent); stroke-width:.004; cursor:grab; }
+  .drop { margin-top:12px; border:2px dashed var(--border); border-radius:8px; padding:14px; text-align:center; color:var(--muted); font-size:13px; }
+  .drop.over { border-color:var(--accent); color:var(--accent); }
+  #status { margin-top:12px; font-size:13px; color:var(--muted); min-height:20px; }
+  .badge { display:inline-block; padding:2px 9px; border-radius:20px; color:#fff; font-weight:600; font-size:13px; }
+  .ok { background:var(--ok); } .partial { background:var(--partial); } .error { background:var(--error); }
+  .facts { display:grid; grid-template-columns: repeat(auto-fill, minmax(190px,1fr)); gap:8px 16px; margin:12px 0; font-size:13px; }
+  .facts b { display:block; color:var(--muted); font-weight:500; font-size:12px; }
+  .warnings { font-size:13px; color:var(--partial); }
+  .tabs { display:flex; gap:4px; border-bottom:1px solid var(--border); margin-top:8px; }
+  .tabs button { border:none; border-bottom:2px solid transparent; border-radius:0; background:none; color:var(--muted); }
+  .tabs button.active { border-bottom-color:var(--accent); color:var(--text); font-weight:600; }
+  .content { padding-top:12px; }
+  iframe { width:100%; height:78vh; border:1px solid var(--border); border-radius:6px; }
+  .page { position:relative; display:inline-block; max-width:100%; }
+  .page img { max-width:100%; max-height:78vh; display:block; border:1px solid var(--border); }
+  .box { position:absolute; border:1px solid rgba(36,87,214,.55); background:rgba(36,87,214,.08); }
+  .box:hover { background:rgba(36,87,214,.25); }
+  .box.low { border-color:rgba(194,53,43,.7); background:rgba(194,53,43,.1); }
+  table { border-collapse:collapse; width:100%; font-size:13px; }
+  td, th { text-align:left; padding:5px 8px; border-bottom:1px solid var(--border); vertical-align:top; }
+  pre { font-size:12px; background:#f7f8fa; padding:10px; border-radius:6px; overflow:auto; max-height:78vh; }
+  .empty { color:var(--muted); padding:40px; text-align:center; }
+</style>
+</head>
+<body>
+<header><h1>Scanner: capture → searchable PDF</h1><span>PROVISIONAL TEST APP</span></header>
+<main>
+  <section>
+    <h2>Capture</h2>
+    <label for="camera">Camera</label>
+    <select id="camera"></select>
+    <div class="row">
+      <div><label for="wait">Max focus wait (s)</label><input id="wait" type="number" value="1.4" step="0.1" min="0"></div>
+      <div><label for="mode">Mode</label><select id="mode"><option>color</option><option>gray</option><option value="bw">black and white</option></select></div>
+    </div>
+    <div class="checks">
+      <label><input type="checkbox" id="crop" checked> Crop sheet</label>
+      <label><input type="checkbox" id="lighting" checked> Correct lighting</label>
+    </div>
+    <div class="checks">
+      <label><input type="checkbox" id="digital"> Also create a digital PDF (real text)</label>
+      <label><input type="checkbox" id="send"> Send to the app</label>
+    </div>
+    <div class="preview" id="preview">Camera closed</div>
+    <div id="hint"></div>
+    <div id="live" style="font-size:12px;color:var(--muted);margin-top:4px;min-height:16px"></div>
+    <div class="row" style="margin-top:10px">
+      <button id="btnPreview">Open camera</button>
+      <button id="btnScan" class="primary">Scan</button>
+    </div>
+    <div class="drop" id="drop">Drop an image here (PNG, or a phone JPG)<br>or <a href="#" id="choose">choose a file</a>
+      <input type="file" id="file" accept="image/*" hidden></div>
+    <div id="status"></div>
+    <p style="font-size:12px;color:var(--muted);margin:8px 0 0">With the camera open, a scan takes ~0.4 s to capture
+      (sharpest frame after the request). Closed, it makes a single capture: open, wait for focus and close.</p>
+  </section>
+
+  <section id="result"><div class="empty">Scan or upload an image to see the result.</div></section>
+</main>
+
+<script>
+// Keys such as `nitidez`, `camara`, `resolucion_entregada` or `seleccion` come from capturar.py (Pau), which is still in Spanish.
+const $ = (id) => document.getElementById(id);
+let liveSharpness = null, cameraOpen = false, last = null, tab = "pdf", poll = null, pollDet = null, editCorners = null;
+
+function options() {
+  const p = new URLSearchParams({ mode: $("mode").value, crop: $("crop").checked ? "1" : "0",
+                                  lighting: $("lighting").checked ? "1" : "0", digital: $("digital").checked ? "1" : "0",
+                                  send: $("send").checked ? "1" : "0" });
+  if ($("camera").value !== "") p.set("camera", $("camera").value);
+  p.set("wait", $("wait").value || "1.4");
+  return p;
+}
+
+async function loadCameras() {
+  const r = await (await fetch("/api/cameras")).json();
+  const sel = $("camera");
+  sel.innerHTML = r.cameras.length ? "" : '<option value="">(no names: "brio" will be used)</option>';
+  for (const c of r.cameras) sel.add(new Option(`${c.index}: ${c.name}`, String(c.index)));
+  const brio = r.cameras.find(c => /brio/i.test(c.name));
+  if (brio) sel.value = String(brio.index);
+  if (r.open != null) { sel.value = String(r.open); showOpen(); }
+}
+
+async function openCamera() {
+  $("btnPreview").disabled = true;
+  $("preview").textContent = "Opening the camera and waiting for focus…";
+  try {
+    const r = await fetch("/api/camera/open?" + options(), { method: "POST" });
+    const d = await r.json();
+    if (!r.ok || d.capture_error) { status(d.capture_error?.message || "Could not open the camera", true); $("preview").textContent = "Camera closed"; return; }
+    showOpen();
+  } finally { $("btnPreview").disabled = false; }
+}
+function showOpen() {
+  cameraOpen = true;
+  $("preview").innerHTML = `<img src="/preview.mjpg?t=${Date.now()}" alt="Camera preview">
+    <svg viewBox="0 0 1 1" preserveAspectRatio="none"><polygon id="outline" points="" fill="rgba(26,127,75,.12)" stroke-width=".006"/></svg>`;
+  clearInterval(pollDet);
+  pollDet = setInterval(drawDetection, 500);
+  $("btnPreview").textContent = "Close camera";
+  clearInterval(poll);
+  poll = setInterval(async () => {
+    const d = await (await fetch("/api/camera/state")).json();
+    liveSharpness = d.ok ? d.nitidez : null;
+    $("live").textContent = d.ok ? `${d.camara} · ${d.fps ?? "—"} fps · sharpness ${d.nitidez ?? "—"}` : (d.error || "");
+  }, 1000);
+}
+async function drawDetection() {
+  if (!cameraOpen) return;
+  const d = await (await fetch("/api/detection")).json();
+  const poly = $("outline");
+  if (!poly) return;
+  if (d.corners && d.found) {
+    poly.setAttribute("points", d.corners.map(p => p.join(",")).join(" "));
+    poly.setAttribute("stroke", "#1fbf6b");
+    // Threshold measured with real MX Brio captures: blurry 76-103, sharp 336-400.
+    $("hint").innerHTML = d.touches_border ? '<span style="color:var(--partial)">Document cut off: move it a bit further away</span>'
+      : (liveSharpness !== null && liveSharpness < 150) ? '<span style="color:var(--partial)">Blurry image: wait for focus or move the document a bit away</span>'
+      : '<span style="color:var(--ok)">Document detected: you can scan</span>';
+  } else {
+    poly.setAttribute("points", "");
+    $("hint").innerHTML = '<span style="color:var(--muted)">Looking for a document… (best on a dark background, whole and at 30–40 cm)</span>';
+  }
+}
+
+async function closeCamera() {
+  clearInterval(poll); clearInterval(pollDet); $("hint").textContent = "";
+  await fetch("/api/camera/close", { method: "POST" });
+  cameraOpen = false;
+  $("preview").textContent = "Camera closed"; $("live").textContent = "";
+  $("btnPreview").textContent = "Open camera";
+}
+
+function status(text, error = false) { $("status").innerHTML = error ? `<span style="color:var(--error)">${text}</span>` : text; }
+
+async function work(promise, label) {
+  $("btnScan").disabled = true;
+  const t0 = performance.now();
+  const clock = setInterval(() => status(`${label}… ${((performance.now() - t0) / 1000).toFixed(1)} s`), 100);
+  try {
+    const r = await promise;
+    const d = await r.json();
+    clearInterval(clock);
+    if (d.capture_error) { status("Capture error: " + d.capture_error.message, true); return; }
+    if (d.error) { status(d.error, true); return; }
+    const sent = d.sent_to_app === undefined ? "" : d.sent_to_app ? " · sent to the app"
+      : " · <span style=\"color:var(--error)\">could not send: is the app running (task dev / task server)?</span>";
+    status(`Done in ${((performance.now() - t0) / 1000).toFixed(1)} s${sent}`);
+    last = d; render();
+  } catch (e) { clearInterval(clock); status("Error: " + e, true); }
+  finally { $("btnScan").disabled = false; }
+}
+
+async function scan() {
+  await work(fetch("/api/scan?" + options(), { method: "POST" }),
+             cameraOpen ? "Capturing and building the PDF" : "Opening the camera, capturing and building the PDF");
+}
+
+function upload(file) {
+  if (!file) return;
+  work(fetch("/api/upload?" + options(), { method: "POST", body: file }), `Processing ${file.name}`);
+}
+
+const f = (v, d = 2) => v == null ? "—" : (typeof v === "number" ? v.toFixed(d) : v);
+const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function render() {
+  const d = last, r = d.result, el = $("result");
+  if (!r) { el.innerHTML = '<div class="empty">No result</div>'; return; }
+  if (r.status === "error") {
+    el.innerHTML = `<h2><span class="badge error">error</span> ${esc(r.error.code)}</h2><p>${esc(r.error.message)}</p>`;
+    return;
+  }
+  const v = r.validation || {}, p = r.page || {}, q = r.quality || {}, o = r.ocr || {}, cap = d.capture || {};
+  const res = cap.resolucion_entregada;
+  el.innerHTML = `
+    <h2><span class="badge ${r.status}">${r.status}</span> ${esc(r.pdf.split(/[\\/]/).pop())}</h2>
+    <div class="facts">
+      <div><b>Capture</b>${res ? `${res.ancho}×${res.alto} ${esc(cap.formato || "")} · ${esc(cap.camara?.nombre || "")}` : "uploaded image"}</div>
+      <div><b>Chosen frame</b>${cap.seleccion ? `${cap.modo === "servidor" ? "open camera" : "single capture"} · sharpness ${f(cap.seleccion.nitidez, 0)} · ${cap.seleccion.estado === "listo" ? "focus settled" : "timed out"}` : "—"}</div>
+      <div><b>Page</b>${p.width_px}×${p.height_px} px · ${p.paper || "no standard paper"} · ${f(p.dpi?.[0], 0)} DPI</div>
+      <div><b>Sheet detected</b>${r.detection ? (r.detection.found ? `yes (confidence ${f(r.detection.confidence)})` : "no") : "—"}${p.rotation_degrees ? ` · rotated ${p.rotation_degrees}°` : ""}</div>
+      <div><b>Quality</b>${f(q.score)} ${q.issues?.length ? "· " + q.issues.join(", ") : ""}</div>
+      <div><b>OCR</b>${o.words ?? 0} words · confidence ${f(o.mean_confidence)}</div>
+      <div><b>Validation</b>${v.ok ? "passed" : "with failures"} · PSNR ${f(v.psnr_db, 1)} dB · offset ${f(v.median_offset, 4)}</div>
+      <div><b>Time</b>${f(r.timings_ms.total / 1000, 1)} s (OCR ${f((r.timings_ms.ocr || 0) / 1000, 1)} s)</div>
+      <div><b>Measures</b>sharpness ${f(q.measures?.sharpness, 0)} · brightness ${f(q.measures?.mean_brightness, 0)}</div>
+    </div>
+    ${r.warnings.length ? `<div class="warnings">Warnings: ${r.warnings.map(esc).join(", ")}</div>` : ""}
+    <div class="tabs">
+      ${[["pdf", "PDF"], ["digital", "Digital PDF"], ["corners", "Adjust corners"], ["page", "Page + blocks"], ["text", "Text"], ["json", "JSON"]]
+        .map(([k, t]) => `<button data-t="${k}" class="${k === tab ? "active" : ""}">${t}</button>`).join("")}
+    </div>
+    <div class="content" id="content"></div>`;
+  el.querySelectorAll(".tabs button").forEach(b => b.onclick = () => { tab = b.dataset.t; render(); });
+  renderTab();
+}
+
+function drawCorners() {
+  $("editPoly").setAttribute("points", editCorners.map(p => p.join(",")).join(" "));
+  document.querySelectorAll(".handle").forEach(c => { const [x, y] = editCorners[+c.dataset.i]; c.setAttribute("cx", x); c.setAttribute("cy", y); });
+}
+
+function renderTab() {
+  const d = last, r = d.result, u = d.urls || {}, el = $("content");
+  const blocks = d.document?.blocks || [];
+  if (tab === "pdf") {
+    el.innerHTML = `<iframe src="${u.pdf}#view=FitH" title="Generated PDF"></iframe>
+      <p style="font-size:13px;color:var(--muted)">Try Ctrl+F inside the PDF to search the text, and select and copy it.</p>`;
+  } else if (tab === "digital") {
+    const dg = r.digital || {};
+    if (!u.digital_pdf) {
+      el.innerHTML = `<div class="empty">${dg.reason ? "Not created: " + esc(dg.reason) : "Tick «Also create a digital PDF» and scan again."}</div>`;
+      return;
+    }
+    const review = dg.to_review || [];
+    const model = dg.method === "model";
+    const calls = (dg.model_calls || []).map(c => `${esc(c.model.split("/").pop())} ${f(c.seconds, 1)} s`).join(" → ");
+    el.innerHTML = `<p style="font-size:13px;color:var(--muted);margin-top:0">${model
+        ? `Laid out with a vision model (${calls}; cost $${f(dg.ai_cost_usd, 4)}; agreement with the local OCR ${f(dg.ocr_agreement)}): ${dg.text_blocks} text blocks, ${dg.text_words} words, ${dg.image_regions} images.`
+        : `Rebuilt with the local OCR${(r.warnings || []).some(w => w.startsWith("digital_ai_unavailable")) ? " (the model was not available)" : ""}: ${dg.text_words} words as text, ${dg.image_words} illegible ones as images, ${dg.image_regions} images.`}
+        The scan is still the faithful reference.</p>
+      ${review.length ? `<p style="font-size:13px;color:var(--partial)">${model ? "Words the local OCR does not confirm" : "Doubtful words"} (check them on the scan): ${review.slice(0, 40).map(w => esc(w.text ?? w)).join(", ")}${review.length > 40 ? "…" : ""}</p>` : ""}
+      <iframe src="${u.digital_pdf}#view=FitH" title="Digital PDF"></iframe>`;
+  } else if (tab === "page") {
+    if (!u.page) { el.innerHTML = '<div class="empty">No saved page</div>'; return; }
+    el.innerHTML = `<div class="page"><img src="${u.page}" alt="Corrected page">${blocks.map(b =>
+      `<div class="box ${b.confidence < 0.6 ? "low" : ""}" title="${esc(b.text)} (${f(b.confidence)})"
+        style="left:${b.box.x * 100}%;top:${b.box.y * 100}%;width:${b.box.w * 100}%;height:${b.box.h * 100}%"></div>`).join("")}</div>
+      <p style="font-size:13px;color:var(--muted)">Boxes of the <code>document</code> message (normalised coordinates). Red: confidence &lt; 0.6. Hover to see the text.</p>`;
+  } else if (tab === "corners") {
+    const inp = r.input || {}, det = r.detection || {};
+    if (!u.original) { el.innerHTML = '<div class="empty">No original capture</div>'; return; }
+    editCorners = det.corners ? det.corners.map(([x, y]) => [x / inp.width, y / inp.height])
+                              : [[.15, .1], [.85, .1], [.85, .9], [.15, .9]];
+    el.innerHTML = `<p style="font-size:13px;color:var(--muted);margin-top:0">${det.found ? "Sheet detected automatically." :
+        "The sheet was not detected with confidence."} Drag the 4 corners onto the document corners and rebuild the PDF.</p>
+      <div class="editor" id="editor"><img src="${u.original}" alt="Original capture">
+        <svg viewBox="0 0 1 1" preserveAspectRatio="none"><polygon id="editPoly" fill="rgba(36,87,214,.12)" stroke="#2457d6" stroke-width=".004"/>
+        ${[0, 1, 2, 3].map(i => `<circle class="handle" data-i="${i}" r=".012"/>`).join("")}</svg></div>
+      <div style="margin-top:10px"><button class="primary" id="btnRebuild">Rebuild the PDF with these corners</button></div>`;
+    drawCorners();
+    const svg = el.querySelector("svg");
+    let dragging = null;
+    svg.querySelectorAll(".handle").forEach(c => c.addEventListener("pointerdown", (e) => { dragging = +c.dataset.i; svg.setPointerCapture(e.pointerId); }));
+    svg.addEventListener("pointermove", (e) => {
+      if (dragging === null) return;
+      const box = svg.getBoundingClientRect();
+      editCorners[dragging] = [Math.min(1, Math.max(0, (e.clientX - box.left) / box.width)),
+                               Math.min(1, Math.max(0, (e.clientY - box.top) / box.height))];
+      drawCorners();
+    });
+    svg.addEventListener("pointerup", () => { dragging = null; });
+    $("btnRebuild").onclick = () => {
+      const p = options(); p.set("png", d.png); p.set("corners", editCorners.flat().map(v => v.toFixed(5)).join(","));
+      tab = "pdf";
+      work(fetch("/api/reprocess?" + p, { method: "POST" }), "Rebuilding the PDF");
+    };
+  } else if (tab === "text") {
+    el.innerHTML = blocks.length ? `<table><tr><th>id</th><th>text</th><th>confidence</th></tr>${blocks.map(b =>
+      `<tr><td>${b.id}</td><td>${esc(b.text)}</td><td>${f(b.confidence)}</td></tr>`).join("")}</table>`
+      : '<div class="empty">No recognised text</div>';
+  } else {
+    el.innerHTML = `<pre>${esc(JSON.stringify(d, null, 2))}</pre>`;
+  }
+}
+
+$("btnPreview").onclick = () => cameraOpen ? closeCamera() : openCamera();
+$("btnScan").onclick = scan;
+$("camera").onchange = () => { if (cameraOpen) openCamera(); };
+$("choose").onclick = (e) => { e.preventDefault(); $("file").click(); };
+$("file").onchange = (e) => upload(e.target.files[0]);
+const zone = $("drop");
+zone.ondragover = (e) => { e.preventDefault(); zone.classList.add("over"); };
+zone.ondragleave = () => zone.classList.remove("over");
+zone.ondrop = (e) => { e.preventDefault(); zone.classList.remove("over"); upload(e.dataTransfer.files[0]); };
+loadCameras();
+</script>
+</body>
+</html>

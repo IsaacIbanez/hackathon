@@ -5,7 +5,7 @@
 - **Tarea actual:** Subproyecto B / scanner: PNG a PDF buscable (`scanner/pdf/`)
 - **Rama:** feature/B-contexto-scanner
 - **Estado:** entregado, en revisión (PR a `main`); documento de entrega en `scanner/ENTREGA.md`
-- **Último cambio:** 2026-11-21 22:30
+- **Último cambio:** 2026-11-21 23:30
 
 ## Hecho
 - `scanner/AGENTS.md` (y copia `AGENTS_B.md`): reglas y contexto del subproyecto scanner.
@@ -57,18 +57,21 @@
   fuera, OCR psm 3/6 en paralelo y modelo en paralelo con el OCR (escaneo 10,5 → 8 s; con digital 24,6 → 17,5 s),
   código de salida "parcial" 2 → 5 (chocaba con "cámara no encontrada"). Tests: 77 + 23.
 
+- Código traducido al inglés (regla «Idioma»): paquete `escaner_pdf` → `scanner_pdf` (`convert`, `Options`,
+  `Result`, `document()`), `escanear.py` → `scan.py` (`scan`, `scan_live`, `send_to_app`, `--send`),
+  `app_prueba/` → `demo_app/` (interfaz en inglés), `instalar.*` → `install.*`, `muestras/` → `samples/`, salida
+  en `pdf/output/`. Variables de modelo como `backend/llm` (`LLM_CHEAP_MODEL`, `LLM_EXPENSIVE_MODEL`). Datos de
+  ejemplo en español. Actualizados `ENTREGA.md`, `pdf/README.md` y la sección del scanner de
+  `docs/INTEGRACION_SCANNER.md`. Tests 77 + 23; prueba real con la carta: 15,3 s, Haiku, concordancia 0,992, 0,0018 $.
+
 ## Pendiente
-- Traducir a inglés el código de `scanner/pdf`, `escanear.py` y `app_prueba` (PR aparte, regla «Idioma»).
-- Probar con documentos en papel reales (A4, formulario) con la MX Brio y calibrar los umbrales de calidad (nitidez, brillo, reflejos).
-- Acordar con el rol A cómo se llama al escáner desde la app (Go/WebSocket).
-- OpenRouter opcional para casos dudosos (no empezado).
+- Probar con más documentos en papel reales (formularios) con la MX Brio y calibrar los umbrales de calidad (nitidez, brillo, reflejos).
+- Acordar con el rol A qué dispara el escaneo en la demo (botón, tecla, gesto o automático).
 
 ## Bloqueos y preguntas para humanos
-- **Puerto 8765 triplicado:** lo usan la app Wails (WebSocket, decisión de Isaac) y `capturar.py --servidor`
-  (Pau) por defecto. Si el servidor de Pau está abierto, la app Wails se va a otro puerto y el scanner no la
-  encuentra. Propuesta: que `capturar.py --servidor` use otro puerto (p. ej. 8766). La app de prueba ya usa 8780.
-- **Envío a la app:** Isaac propone que el scanner mande `document` a `ws://127.0.0.1:8765/ws`.
-  `Resultado.documento()` ya da ese payload; falta acordarlo para implementarlo en `escanear.py`.
+- Puertos resueltos: app Go 8765, `capturar.py --servidor` 8766, app de prueba 8780. Envío a la app hecho
+  (`POST /message`, `scan.send_to_app`).
+- `capturar.py` (Pau) sigue en español: si lo traduce, actualizar las llamadas de `scan.py` y `demo_app/server.py`.
 - Vista previa de la app de prueba: lee `CamaraViva.recientes` (interno). Pedir a Pau un método público
   (`ultimo_frame()`) si se quiere usar fuera de la app provisional.
 - Cámara: MX Brio (confirmada). Su campo de visión es configurable (65/78/90°); si no es 78°, ajustar `fov_diagonal`.

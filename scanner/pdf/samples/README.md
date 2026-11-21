@@ -1,4 +1,4 @@
-# muestras/
+# samples/
 
 Imágenes de prueba para medir la calidad del PDF y del OCR.
 
