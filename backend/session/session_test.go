@@ -267,3 +267,40 @@ func TestThroughWebSocket(t *testing.T) {
 		t.Fatalf("stats: %+v %v", st, err)
 	}
 }
+
+func TestPointerWithoutBlockIdIsHitTested(t *testing.T) {
+	m := &fakeModel{cheap: goodAnswer}
+	s := New(m, DefaultConfig())
+	c := newCollector()
+	ctx := context.Background()
+	s.Handle(ctx, envelope(t, "document", "doc-1", fixtureDocument(t)), c.send)
+	c.next(t)
+	c.next(t)
+
+	// b3 "Fecha del siniestro" is at x 0.08–0.58, y 0.25–0.29.
+	s.Handle(ctx, envelope(t, "pointer", "p-1", gen.PointerPayload{X: 0.3, Y: 0.27}), c.send)
+	sp := c.next(t).(gen.SpeakMessage)
+	if sp.Payload.HighlightBlockIds[0] != "b3" {
+		t.Fatalf("expected b3, got %v", sp.Payload.HighlightBlockIds)
+	}
+	// Moving inside the same block, or to empty space, says nothing.
+	s.Handle(ctx, envelope(t, "pointer", "p-2", gen.PointerPayload{X: 0.4, Y: 0.26}), c.send)
+	s.Handle(ctx, envelope(t, "pointer", "p-3", gen.PointerPayload{X: 0.9, Y: 0.6}), c.send)
+	c.none(t)
+}
+
+func TestBlockAtPrefersSmallestBox(t *testing.T) {
+	doc := &gen.DocumentPayload{Blocks: []gen.TextBlock{
+		{Id: "section", Box: gen.Box{X: 0, Y: 0, W: 1, H: 0.5}},
+		{Id: "field", Box: gen.Box{X: 0.2, Y: 0.2, W: 0.3, H: 0.05}},
+	}}
+	if got := blockAt(doc, 0.3, 0.22); got != "field" {
+		t.Fatalf("got %q", got)
+	}
+	if got := blockAt(doc, 0.9, 0.4); got != "section" {
+		t.Fatalf("got %q", got)
+	}
+	if got := blockAt(doc, 0.5, 0.9); got != "" {
+		t.Fatalf("got %q", got)
+	}
+}
