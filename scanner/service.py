@@ -14,6 +14,9 @@ POST /scan   body: the photo (PNG or JPEG; the type is sniffed from the bytes, C
        says why when it can (too_far, blurry, dark...), so the app can tell the person how to hold the paper.
   400  {"error": "input_*", "message"}: not a PNG/JPEG, unreadable, too small...
   413  photo larger than MAX_BODY.  503  {"error": "ocr_unavailable"}: Tesseract is missing.  500: internal.
+POST /document?name=file.pdf   body: a file from the computer (PDF with or without text, PNG, JPEG)
+  200  DocumentPayload: its lines in reading order, pages stacked top to bottom (documents.py; overlay option
+       "Read a file", docs/OVERLAY.md).  400 input_*  503 ocr_unavailable (a scanned page without Tesseract)
 GET  /health  {"ok": true, "tesseract": "5.x", "busy": false}
 
 Only listens on 127.0.0.1. One scan at a time (the OCR already uses the CPU in parallel); others wait.
@@ -44,6 +47,8 @@ import numpy as np  # noqa: E402
 from scanner_pdf import Options, Result, convert, geometry, image, ocr  # noqa: E402
 from scanner_pdf.errors import ScannerError  # noqa: E402
 from scanner_pdf.input_image import load_png  # noqa: E402
+
+import documents  # noqa: E402
 
 log = logging.getLogger("scan-service")
 
@@ -123,6 +128,16 @@ class ScanService:
         status, body = respond(result)
         return status, body, result
 
+    def document(self, data: bytes, query: dict | None = None) -> tuple[int, dict]:
+        """A file from the computer -> its lines (documents.py)."""
+        query = query or {}
+        try:
+            body = documents.read_document(data, self.output_dir, to_png, query.get("languages", "spa+cat+eng"),
+                                           ocr_lock=self.lock)
+        except ScannerError as e:
+            return (503 if e.code == "ocr_unavailable" else 400), {"error": e.code, "message": e.message}
+        return 200, body
+
 
 def make_handler(service: ScanService):
     class Handler(BaseHTTPRequestHandler):
@@ -148,7 +163,7 @@ def make_handler(service: ScanService):
 
         def do_POST(self):
             u = urlparse(self.path)
-            if u.path != "/scan":
+            if u.path not in ("/scan", "/document"):
                 return self._json(404, {"error": "not_found"})
             length = int(self.headers.get("Content-Length") or 0)
             if length <= 0:
@@ -158,6 +173,16 @@ def make_handler(service: ScanService):
             data = self.rfile.read(length)
             query = {k: v[0] for k, v in parse_qs(u.query).items()}
             t0 = time.perf_counter()
+            if u.path == "/document":
+                try:
+                    status, body = service.document(data, query)
+                except Exception as e:  # never leave Go without an answer
+                    log.exception("Unexpected failure")
+                    return self._json(500, {"error": "internal", "message": f"{type(e).__name__}: {e}"})
+                ms = round((time.perf_counter() - t0) * 1000)
+                log.info("POST /document %s -> %s in %d ms (%s lines)", query.get("name", ""), status, ms,
+                         len(body.get("blocks", [])))
+                return self._json(status, body, {"X-Scan-Ms": str(ms)})
             try:
                 status, body, result = service.scan(data, query)
             except Exception as e:  # never leave Go without an answer
@@ -191,7 +216,7 @@ def main(argv: list[str] | None = None) -> int:
     except ScannerError as e:
         log.error("%s: scans will answer 503 until it is installed", e.message)
     server = ThreadingHTTPServer(("127.0.0.1", a.port), make_handler(ScanService(a.output)))
-    log.info("Reading service at http://127.0.0.1:%d (POST /scan, GET /health); Ctrl+C to quit", a.port)
+    log.info("Reading service at http://127.0.0.1:%d (POST /scan, POST /document, GET /health); Ctrl+C to quit", a.port)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

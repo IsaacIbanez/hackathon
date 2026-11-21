@@ -28,7 +28,9 @@ except ScannerError:
     TESSERACT = False
 
 
-class TestScanService(unittest.TestCase):
+class ServiceServer(unittest.TestCase):
+    """A real reading service on a free port (shared by the test classes)."""
+
     @classmethod
     def setUpClass(cls):
         cls.tmp = tempfile.TemporaryDirectory()
@@ -52,6 +54,8 @@ class TestScanService(unittest.TestCase):
         except urllib.error.HTTPError as e:
             return e.code, json.load(e), dict(e.headers)
 
+
+class TestScanService(ServiceServer):
     @unittest.skipUnless(TESSERACT, "needs Tesseract")
     def test_png_gives_document_with_page_corners(self):
         status, body, headers = self.post(synthetic.png(self.photo))
@@ -97,3 +101,65 @@ class TestScanService(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _pdf(pages: list[list[str]], text: bool = True) -> bytes:
+    """A small A4 PDF: one list of lines per page. text=False draws the page as an image (a scan)."""
+    import io
+
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.utils import ImageReader
+    from reportlab.pdfgen import canvas
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    for lines in pages:
+        if text:
+            c.setFont("Helvetica", 14)
+            for i, line in enumerate(lines):
+                c.drawString(72, A4[1] - 100 - i * 24, line)
+        else:
+            img = np.full((1754, 1240, 3), 255, np.uint8)
+            for i, line in enumerate(lines):
+                cv2.putText(img, line, (120, 250 + i * 90), cv2.FONT_HERSHEY_SIMPLEX, 2.0, (0, 0, 0), 4, cv2.LINE_AA)
+            ok, png = cv2.imencode(".png", img)
+            c.drawImage(ImageReader(io.BytesIO(png.tobytes())), 0, 0, *A4)
+        c.showPage()
+    c.save()
+    return buf.getvalue()
+
+
+class TestDocumentEndpoint(ServiceServer):
+    """POST /document: files from the computer (overlay option "Read a file")."""
+
+    def test_pdf_with_text_gives_its_lines_page_by_page(self):
+        pdf = _pdf([["Renewal of your home policy", "Deadline: 15 December 2026"], ["Second page line"]])
+        status, body, headers = self.post(pdf, "/document?name=letter.pdf", "application/pdf")
+        self.assertEqual(status, 200, body)
+        self.assertEqual(body["source"], "pdf_text")
+        texts = [b["text"] for b in sorted(body["blocks"], key=lambda b: b["box"]["y"])]
+        self.assertEqual(texts, ["Renewal of your home policy", "Deadline: 15 December 2026", "Second page line"])
+        self.assertEqual(body["blocks"][-1]["id"], "p2-l1")
+        for b in body["blocks"]:
+            self.assertTrue(all(0 <= b["box"][k] <= 1 for k in "xywh"), b)
+        self.assertGreaterEqual(body["blocks"][-1]["box"]["y"], 0.5)     # page 2 is in the lower half
+
+    def test_print_sample_letter(self):
+        pdf = (Path(__file__).resolve().parent / "pdf" / "samples" / "print" / "01-carta-renovacion.pdf").read_bytes()
+        status, body, _ = self.post(pdf, "/document?name=carta.pdf", "application/pdf")
+        self.assertEqual(status, 200, body)
+        joined = " ".join(b["text"] for b in body["blocks"])
+        self.assertIn("284,60 euros", joined)
+        self.assertGreater(len(body["blocks"]), 15)
+
+    @unittest.skipUnless(TESSERACT, "needs Tesseract")
+    def test_scanned_pdf_goes_through_ocr(self):
+        pdf = _pdf([["DECLARACION DE SINIESTRO", "Numero de poliza"]], text=False)
+        status, body, _ = self.post(pdf, "/document?name=scan.pdf", "application/pdf")
+        self.assertEqual(status, 200, body)
+        self.assertEqual(body["source"], "pdf_scanned")
+        self.assertIn("SINIESTRO", " ".join(b["text"] for b in body["blocks"]).upper())
+
+    def test_not_a_document(self):
+        status, body, _ = self.post(b"hello, not a pdf", "/document?name=x.bin", "application/octet-stream")
+        self.assertEqual(status, 400, body)
