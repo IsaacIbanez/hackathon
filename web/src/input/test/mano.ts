@@ -77,3 +77,18 @@ export const FORMAS = {
   pulgar_abajo: { pulgar: "abajo" },
   pinza: { pinza: true, corazon: true, anular: true, menique: true },
 } satisfies Record<string, FormaMano>;
+
+/** Gira toda la mano alrededor de la muñeca (grados; positivo = sentido horario en la imagen). */
+export function rotar(m: Mano, grados: number): Mano {
+  const a = (grados * Math.PI) / 180;
+  const [c, s] = [Math.cos(a), Math.sin(a)];
+  const o = m.puntos[0];
+  return {
+    ...m,
+    puntos: m.puntos.map((q) => ({
+      x: o.x + (q.x - o.x) * c - (q.y - o.y) * s,
+      y: o.y + (q.x - o.x) * s + (q.y - o.y) * c,
+      z: q.z,
+    })),
+  };
+}

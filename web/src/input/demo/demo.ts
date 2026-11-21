@@ -157,8 +157,8 @@ function pintarChuleta() {
     ["☝️ señalar", "mover el puntero", false],
     ["☝️ señalar quieto ~1 s", m.seleccion, false],
     ["👎 pulgar abajo", m.pulgar_abajo, true],
-    ["🤏 junta pulgar e índice (OK), luego sepáralos", `${m.pinza ?? "—"}: 0 % juntos, 100 % separados; cierra la mano para fijarlo`, true],
-    ["✌️ victoria → menú", "después, gesto rápido del dedo hacia una opción", true],
+    ["🤏 junta las puntas de pulgar e índice, luego sepáralas", `${m.pinza ?? "—"}: 0 % juntas, 100 % separadas; cierra el puño para fijarlo`, true],
+    ["✌️ victoria → menú", "después ☝️ señala hacia una opción y mantén ~0,5 s", true],
     ...(Object.entries(MENU_RADIAL) as [SectorMenu, string][]).map(
       ([s, a]) => [`   menú ${FLECHA[s]} ${s}`, a, true] as [string, string, boolean],
     ),
@@ -213,58 +213,59 @@ function texto(s: string, x: number, y: number, tam = 28, color = "#fff") {
   ctx.restore();
 }
 
-function dibujarMenu(w: number, h: number) {
-  const abierto = interaccion.menuAbierto;
-  const elegido = menuElegido && performance.now() - menuElegido.t < 700 ? menuElegido : null;
-  if (!abierto && !elegido) return;
-  const centro = abierto?.centro ?? elegido!.centro;
-  const cx = centro.x * w;
-  const cy = centro.y * h;
-  const r = 0.16 * h;
-  ctx.fillStyle = "#000a";
-  ctx.beginPath();
-  ctx.arc(cx, cy, r * 1.6, 0, Math.PI * 2);
-  ctx.fill();
-  // En la imagen sin espejo, la derecha del usuario está a la izquierda.
-  const pos: Record<SectorMenu, [number, number]> = {
-    arriba: [cx, cy - r],
-    abajo: [cx, cy + r],
-    derecha: [cx - r, cy],
-    izquierda: [cx + r, cy],
-  };
-  for (const [s, [x, y]] of Object.entries(pos) as [SectorMenu, [number, number]][]) {
-    const activo = elegido?.sector === s;
-    texto(`${FLECHA[s]} ${bonito(MENU_RADIAL[s])}`, x, y, activo ? 36 : 26, activo ? "#ffd400" : "#fff");
+/** Menú como capa HTML: muestra el lado señalado y el progreso hasta elegirlo. */
+function pintarMenu() {
+  const t = performance.now();
+  const abierto = interaccion.menuAbierto(t);
+  const elegido = menuElegido && t - menuElegido.t < 700 ? menuElegido : null;
+  $("menu").hidden = !abierto && !elegido;
+  for (const op of document.querySelectorAll<HTMLElement>("#menu .op")) {
+    const s = op.dataset.s as SectorMenu;
+    op.textContent = `${FLECHA[s]} ${bonito(MENU_RADIAL[s])}`;
+    const activa = abierto?.sector === s;
+    op.classList.toggle("activa", activa);
+    op.classList.toggle("elegida", elegido?.sector === s);
+    op.style.setProperty("--p", activa ? String(abierto!.progreso) : "0");
   }
-  if (abierto) texto("gesto rápido con el dedo", cx, cy, 20, "#aaa");
 }
 
-/** Línea entre pulgar e índice con el nivel, mientras se usa la pinza. */
-function dibujarNivel(w: number, h: number) {
+/** Línea entre pulgar e índice: fina siempre (para ver qué mide la app), gruesa con la pinza activa. */
+function dibujarPinza(w: number, h: number) {
+  const d = interaccion.diagnostico;
+  if (!d) return;
   const n = interaccion.nivelActivo;
-  if (!n) return;
-  const [ax, ay, bx, by] = [n.pulgar.x * w, n.pulgar.y * h, n.indice.x * w, n.indice.y * h];
-  ctx.strokeStyle = `hsl(${Math.round(120 * n.valor)}, 90%, 55%)`;
-  ctx.lineWidth = 8;
+  const [ax, ay, bx, by] = [d.pulgar.x * w, d.pulgar.y * h, d.indice.x * w, d.indice.y * h];
+  const op = interaccion.opciones;
+  const juntos = d.separacion < op.umbrales.pinza && d.alcance >= op.umbrales.indiceFuera;
+  ctx.strokeStyle = n ? `hsl(${Math.round(120 * n.valor)}, 90%, 55%)` : juntos ? "#00e0ff" : "#ffffff99";
+  ctx.lineWidth = n ? 8 : 3;
   ctx.lineCap = "round";
+  ctx.setLineDash(n ? [] : [10, 8]);
   ctx.beginPath();
   ctx.moveTo(ax, ay);
   ctx.lineTo(bx, by);
   ctx.stroke();
+  ctx.setLineDash([]);
   for (const [x, y] of [[ax, ay], [bx, by]]) {
-    ctx.fillStyle = "#fff";
+    ctx.fillStyle = n ? "#fff" : "#ffffffaa";
     ctx.beginPath();
-    ctx.arc(x, y, 9, 0, Math.PI * 2);
+    ctx.arc(x, y, n ? 9 : 5, 0, Math.PI * 2);
     ctx.fill();
   }
-  texto(`🔊 ${Math.round(n.valor * 100)} %`, (ax + bx) / 2, Math.min(ay, by) - 40, 34, "#ffd400");
-  // Barra de nivel en el borde derecho de la imagen (a la izquierda del usuario, que ve en espejo).
-  const altoBarra = h * 0.6;
-  const y0 = (h - altoBarra) / 2;
-  ctx.fillStyle = "#0009";
-  ctx.fillRect(w - 50, y0, 30, altoBarra);
-  ctx.fillStyle = ctx.strokeStyle;
-  ctx.fillRect(w - 50, y0 + altoBarra * (1 - n.valor), 30, altoBarra * n.valor);
+  const mx = (ax + bx) / 2;
+  const my = Math.min(ay, by) - 30;
+  if (n) {
+    texto(`🔊 ${Math.round(n.valor * 100)} %`, mx, my - 10, 34, "#ffd400");
+    // Barra de nivel en el borde derecho de la imagen (a la izquierda del usuario, que ve en espejo).
+    const altoBarra = h * 0.6;
+    const y0 = (h - altoBarra) / 2;
+    ctx.fillStyle = "#0009";
+    ctx.fillRect(w - 50, y0, 30, altoBarra);
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.fillRect(w - 50, y0 + altoBarra * (1 - n.valor), 30, altoBarra * n.valor);
+  } else if (juntos) {
+    texto("🤏 pinza: sepáralos para ajustar", mx, my, 22, "#00e0ff");
+  }
 }
 
 function dibujar() {
@@ -325,8 +326,11 @@ function dibujar() {
     ctx.fill();
   }
 
-  dibujarNivel(w, h);
-  dibujarMenu(w, h);
+  dibujarPinza(w, h);
+  pintarMenu();
+  const d = interaccion.diagnostico;
+  $("separacion").textContent = d ? `${d.separacion.toFixed(2)} (0 % ≤ ${interaccion.opciones.nivelMin} · 100 % ≥ ${interaccion.opciones.nivelMax})` : "—";
+  $("apunta").textContent = d?.direccionIndice ?? "—";
 
   if (performance.now() - tAccion > 1500) $("accion").textContent = "";
   $("pose").textContent = interaccion.pose;

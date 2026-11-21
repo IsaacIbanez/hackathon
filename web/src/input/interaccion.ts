@@ -5,8 +5,8 @@
 
 import { DetectorCabeza, type OpcionesCabeza } from "./cabeza.ts";
 import { FiltroOneEuro } from "./filtro.ts";
-import { aplicarHomografia, distancia, distancia2D, homografiaDocumento, media } from "./geometria.ts";
-import { clasificarPose, estadoDedos, puntosParaForma, tamanoMano, UMBRALES_POR_DEFECTO, type Umbrales } from "./poses.ts";
+import { aplicarHomografia, distancia2D, homografiaDocumento, media } from "./geometria.ts";
+import { alcanceIndice, clasificarPose, puntosParaForma, separacionPinza, UMBRALES_POR_DEFECTO, type Umbrales } from "./poses.ts";
 import {
   P,
   type Esquinas,
@@ -54,11 +54,13 @@ export interface OpcionesInteraccion {
   nivelMin: number;
   /** Separación pulgar–índice que corresponde al nivel 1. */
   nivelMax: number;
-  /** Recorrido mínimo de la punta del índice para elegir en el menú (alto de imagen). */
-  gestoMenu: number;
-  /** Tiempo máximo de ese recorrido: tiene que ser un gesto rápido. */
-  ventanaMenuMs: number;
-  /** Tras abrir el menú, se ignoran movimientos durante este tiempo (la mano aún se coloca). */
+  /** Tiempo que hay que mantener la pinza para empezar a controlar el nivel. */
+  inicioNivelMs: number;
+  /** Alcance del índice por debajo del cual se considera la mano cerrada (fin del nivel). */
+  indiceCerrado: number;
+  /** Tiempo señalando hacia un lado del menú para elegir esa opción. */
+  elegirMenuMs: number;
+  /** Tras abrir el menú, se ignora la mano durante este tiempo (aún se está colocando). */
   esperaMenuMs: number;
   /** El menú se cierra solo tras este tiempo. */
   caducidadMenuMs: number;
@@ -84,8 +86,9 @@ export const OPCIONES_POR_DEFECTO: OpcionesInteraccion = {
   dormirMs: 10000,
   nivelMin: 0.25,
   nivelMax: 1.1,
-  gestoMenu: 0.07,
-  ventanaMenuMs: 300,
+  inicioNivelMs: 150,
+  indiceCerrado: 1.05,
+  elegirMenuMs: 500,
   esperaMenuMs: 300,
   caducidadMenuMs: 5000,
   cabeza: {},
@@ -100,8 +103,7 @@ export const PERFIL_MOVILIDAD_REDUCIDA: Partial<OpcionesInteraccion> = {
   distanciaDeslizar: 0.15,
   ventanaDeslizarMs: 700,
   despertarMs: 1500,
-  ventanaMenuMs: 500,
-  gestoMenu: 0.06,
+  elegirMenuMs: 900,
   caducidadMenuMs: 8000,
 };
 
@@ -110,8 +112,22 @@ type Oyente = (e: EventoManos) => void;
 interface EstadoMenu {
   centro: Punto; // imagen, sin aspecto (para dibujar)
   tApertura: number;
-  /** Posiciones recientes de la punta del índice (x corregida por aspecto). */
-  historial: { t: number; x: number; y: number }[];
+  /** Lado hacia el que apunta ahora el índice, y desde cuándo. */
+  sector: SectorMenu | null;
+  tSector: number;
+}
+
+/** Datos crudos del último frame, para mostrarlos en pantalla y calibrar. */
+export interface Diagnostico {
+  /** Separación pulgar–índice relativa al tamaño de la mano. */
+  separacion: number;
+  /** Alcance del índice (muñeca→punta / muñeca→nudillo). */
+  alcance: number;
+  /** Puntas de pulgar e índice en la imagen. */
+  pulgar: Punto;
+  indice: Punto;
+  /** Hacia dónde apunta el índice (desde el punto de vista del usuario), si apunta claramente. */
+  direccionIndice: SectorMenu | null;
 }
 
 interface EstadoNivel {
@@ -163,6 +179,8 @@ export class InteraccionManos {
   private tInicioDespertar: number | null = null;
   private posDespertar: Punto = { x: 0, y: 0 };
   private menu: EstadoMenu | null = null;
+  private diag: Diagnostico | null = null;
+  private tPinzaInicio: number | null = null;
   private nivel: EstadoNivel | null = null;
   private fNivel = new FiltroOneEuro({ minCorte: 1.5, beta: 0.5, corteDerivada: 1.0 });
   private cabeza: DetectorCabeza;
@@ -218,8 +236,17 @@ export class InteraccionManos {
     return Math.min(1, (t - this.tInicioDespertar) / this.op.despertarMs);
   }
 
-  get menuAbierto(): { centro: Punto } | null {
-    return this.menu ? { centro: this.menu.centro } : null;
+  /** Menú abierto: lado señalado ahora y progreso [0,1] hasta elegirlo. */
+  menuAbierto(t: number): { centro: Punto; sector: SectorMenu | null; progreso: number } | null {
+    const m = this.menu;
+    if (!m) return null;
+    const progreso = m.sector ? Math.min(1, (t - m.tSector) / this.op.elegirMenuMs) : 0;
+    return { centro: m.centro, sector: m.sector, progreso };
+  }
+
+  /** Medidas crudas del último frame con mano (null si no hay mano). */
+  get diagnostico(): Diagnostico | null {
+    return this.diag;
   }
 
   /** Control de nivel activo: valor y puntas de pulgar e índice (imagen) para dibujar la línea. */
@@ -241,6 +268,7 @@ export class InteraccionManos {
     const mano = elegirMano(frame.manos);
     if (!mano) {
       this.poseActual = "ninguno";
+      this.diag = null;
       if (this.presente && t - this.tUltimaMano > this.op.perdidaManoMs) {
         this.presente = false;
         this.terminarNivel(t);
@@ -264,16 +292,24 @@ export class InteraccionManos {
     const pose = clasificarPose(mano, aspecto, this.op.umbrales);
     this.poseActual = pose;
     const centro = centroPalma(mano, aspecto);
+    const pts = puntosParaForma(mano, aspecto);
+    this.diag = {
+      separacion: separacionPinza(pts),
+      alcance: alcanceIndice(pts),
+      pulgar: { x: mano.puntos[P.PULGAR_PUNTA].x, y: mano.puntos[P.PULGAR_PUNTA].y },
+      indice: { x: mano.puntos[P.INDICE_PUNTA].x, y: mano.puntos[P.INDICE_PUNTA].y },
+      direccionIndice: direccionIndice(mano, aspecto, this.op.espejo),
+    };
 
     if (!this.despierto) {
       this.intentarDespertar(t, pose, centro);
       return;
     }
     if (this.menu) {
-      this.actualizarMenu(t, pose, centro, mano, aspecto);
+      this.actualizarMenu(t, pose, centro);
       return;
     }
-    if (this.actualizarNivel(t, pose, centro, mano, aspecto)) return;
+    if (this.actualizarNivel(t, pose, centro)) return;
 
     const deslizo = this.detectarDeslizar(t, centro, pose, aspecto);
     if (!deslizo) this.estabilizarGesto(t, pose, centro, mano, aspecto);
@@ -429,31 +465,32 @@ export class InteraccionManos {
   // ---------- Experimental: nivel con la pinza ----------
 
   /**
-   * Se empieza con la pinza ("OK": pulgar e índice juntos y los otros dedos estirados). Mientras
-   * los otros dedos sigan estirados, el nivel es la separación pulgar–índice. Cerrar la mano o
-   * bajarla lo termina. Devuelve true si el frame lo ha consumido el control de nivel.
+   * Se empieza juntando las puntas de pulgar e índice (pinza) ~0,15 s. Después, el nivel es la
+   * separación entre ambas puntas, de 0 (juntas) a 1 (muy separadas). Se termina cerrando la mano
+   * (puño) o sacándola de la cámara. Devuelve true si el frame lo ha consumido el control de nivel.
    */
-  private actualizarNivel(t: number, pose: Gesto, centro: Punto, mano: Mano, aspecto: number): boolean {
-    const pts = puntosParaForma(mano, aspecto);
-    const d = estadoDedos(pts, this.op.umbrales);
-    const otrosEstirados = [d.corazon, d.anular, d.menique].filter(Boolean).length >= 2;
-
+  private actualizarNivel(t: number, pose: Gesto, centro: Punto): boolean {
+    const diag = this.diag!;
     if (!this.nivel) {
-      if (pose !== "pinza") return false;
+      if (pose !== "pinza") {
+        this.tPinzaInicio = null;
+        return false;
+      }
+      this.tPinzaInicio ??= t;
+      if (t - this.tPinzaInicio < this.op.inicioNivelMs) return false;
+      this.tPinzaInicio = null;
       this.fNivel.reiniciar();
-    } else if (!otrosEstirados) {
-      // Toleramos fallos breves de la clasificación.
+    } else if (diag.alcance < this.op.indiceCerrado) {
+      // Mano cerrada. Toleramos fallos breves de la detección.
       if (t - this.nivel.tUltimoValido <= 200) return true;
       this.terminarNivel(t);
       this.reiniciarCandidato(t, pose, centro);
       return false;
     }
 
-    const separacion = distancia(pts[P.PULGAR_PUNTA], pts[P.INDICE_PUNTA]) / tamanoMano(pts);
-    const crudo = (separacion - this.op.nivelMin) / (this.op.nivelMax - this.op.nivelMin);
+    const crudo = (diag.separacion - this.op.nivelMin) / (this.op.nivelMax - this.op.nivelMin);
     const valor = Math.min(1, Math.max(0, this.fNivel.filtrar(Math.min(1, Math.max(0, crudo)), t)));
-    const pulgar = { x: mano.puntos[P.PULGAR_PUNTA].x, y: mano.puntos[P.PULGAR_PUNTA].y };
-    const indice = { x: mano.puntos[P.INDICE_PUNTA].x, y: mano.puntos[P.INDICE_PUNTA].y };
+    const { pulgar, indice } = diag;
     this.ultimoPuntero = null;
 
     if (!this.nivel) {
@@ -489,13 +526,16 @@ export class InteraccionManos {
   private abrirMenu(t: number, mano: Mano, aspecto: number): void {
     const c = centroPalma(mano, aspecto);
     const centro = { x: c.x / aspecto, y: c.y };
-    this.menu = { centro, tApertura: t, historial: [] };
+    this.menu = { centro, tApertura: t, sector: null, tSector: t };
     this.ultimoPuntero = null;
     this.emitir({ tipo: "menu", fase: "abrir", sector: null, centro, t });
   }
 
-  /** Con el menú abierto, un movimiento rápido de la punta del índice elige la dirección. */
-  private actualizarMenu(t: number, pose: Gesto, centro: Punto, mano: Mano, aspecto: number): void {
+  /**
+   * Con el menú abierto se elige señalando con el índice (☝️) hacia un lado: se lee la dirección
+   * del dedo (de su nudillo a su punta), no la posición de la mano. Hay que mantenerlo ~0,5 s.
+   */
+  private actualizarMenu(t: number, pose: Gesto, centro: Punto): void {
     const m = this.menu!;
     if (t - m.tApertura > this.op.caducidadMenuMs) {
       this.cerrarMenu(t);
@@ -503,27 +543,22 @@ export class InteraccionManos {
     }
     if (t - m.tApertura < this.op.esperaMenuMs) return;
 
-    const punta = mano.puntos[P.INDICE_PUNTA];
-    m.historial.push({ t, x: punta.x * aspecto, y: punta.y });
-    while (m.historial.length && t - m.historial[0].t > this.op.ventanaMenuMs) m.historial.shift();
-    if (m.historial.length < 2) return;
-
-    const primero = m.historial[0];
-    const dxImagen = punta.x * aspecto - primero.x;
-    const dx = this.op.espejo ? -dxImagen : dxImagen;
-    const dy = punta.y - primero.y;
-    // Rápido (dentro de la ventana), largo y claramente en un eje.
-    const largo = Math.hypot(dx, dy) >= this.op.gestoMenu;
-    const claro = Math.max(Math.abs(dx), Math.abs(dy)) > 1.5 * Math.min(Math.abs(dx), Math.abs(dy));
-    if (!largo || !claro) return;
-
-    const sector: SectorMenu =
-      Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "derecha" : "izquierda") : dy > 0 ? "abajo" : "arriba";
-    this.menu = null;
-    this.emitir({ tipo: "menu", fase: "elegir", sector, centro: m.centro, t });
-    // Hay que cambiar de pose antes de volver a abrir el menú.
-    this.gestoEstable = pose;
-    this.reiniciarCandidato(t, pose, centro);
+    // Solo cuenta señalar con un dedo: con ✌️ (con el que se abre) no se elige nada.
+    const sector = pose === "senalar" ? (this.diag?.direccionIndice ?? null) : null;
+    if (sector !== m.sector) {
+      m.sector = sector;
+      m.tSector = t;
+      this.emitir({ tipo: "menu", fase: "resaltar", sector, centro: m.centro, t });
+      return;
+    }
+    if (sector && t - m.tSector >= this.op.elegirMenuMs) {
+      this.menu = null;
+      this.emitir({ tipo: "menu", fase: "elegir", sector, centro: m.centro, t });
+      // Hay que cambiar de pose antes de que "señalar" haga otra cosa.
+      this.gestoEstable = pose;
+      this.reiniciarCandidato(t, pose, centro);
+      this.tUltimoSenalar = -Infinity;
+    }
   }
 
   private cerrarMenu(t: number): void {
@@ -574,6 +609,25 @@ function elegirMano(manos: Mano[]): Mano | null {
     if (!mejor || (m.confianza ?? 0) > (mejor.confianza ?? 0)) mejor = m;
   }
   return mejor;
+}
+
+/**
+ * Hacia dónde apunta el índice (de su nudillo a su punta), desde el punto de vista del usuario.
+ * null si el dedo apunta en diagonal o hacia la cámara (la dirección no está clara).
+ */
+export function direccionIndice(mano: Mano, aspecto: number, espejo: boolean): SectorMenu | null {
+  const base = mano.puntos[P.INDICE_MCP];
+  const punta = mano.puntos[P.INDICE_PUNTA];
+  const dxImagen = (punta.x - base.x) * aspecto;
+  const dx = espejo ? -dxImagen : dxImagen;
+  const dy = punta.y - base.y;
+  const largo = Math.hypot(dx, dy);
+  // Si el dedo apunta hacia la cámara, en la imagen se ve muy corto.
+  const palma = distancia2D(mano.puntos[P.MUNECA], mano.puntos[P.INDICE_MCP], aspecto) || 1;
+  if (largo < 0.35 * palma) return null;
+  if (Math.abs(dx) > 1.3 * Math.abs(dy)) return dx > 0 ? "derecha" : "izquierda";
+  if (Math.abs(dy) > 1.3 * Math.abs(dx)) return dy > 0 ? "abajo" : "arriba";
+  return null;
 }
 
 /** Centro de la palma en la imagen, con x corregida por aspecto (unidades de alto). */

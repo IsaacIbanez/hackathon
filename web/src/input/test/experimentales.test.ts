@@ -4,7 +4,7 @@ import { InteraccionManos } from "../interaccion.ts";
 import { accionDe } from "../acciones.ts";
 import { DetectorCabeza } from "../cabeza.ts";
 import type { Cara, EventoManos, FrameManos, Mano } from "../tipos.ts";
-import { FORMAS, mano } from "./mano.ts";
+import { FORMAS, mano, rotar } from "./mano.ts";
 
 const PASO = 33;
 const repetir = <T>(x: T, n: number): T[] => Array.from({ length: n }, () => x);
@@ -72,52 +72,59 @@ test("pinza: la separación pulgar–índice controla un nivel de 0 a 1 (volumen
 
 test("pinza: con el control activo no se disparan otros gestos", () => {
   const ctl = new InteraccionManos();
-  const ev = simular(ctl, [...repetir(mano(FORMAS.pinza), 5), ...repetir(pinzaAbierta(0.2), 30)]);
+  const ev = simular(ctl, [...repetir(mano(FORMAS.pinza), 8), ...repetir(pinzaAbierta(0.2), 30)]);
+  assert.ok(ev.some((e) => e.tipo === "nivel"));
   assert.ok(!ev.some((e) => e.tipo === "gesto" || e.tipo === "deslizar"));
 });
 
-/** Abre el menú con ✌️ y luego mueve rápido la mano (y el índice) dx, dy en 3 frames. */
-function gestoMenu(dx: number, dy: number): Mano[] {
-  return [
-    ...repetir(mano(FORMAS.victoria), 25), // abre el menú (~0,3 s) y espera
-    ...[1, 2, 3].map((k) => mano({ ...FORMAS.victoria, dx: (dx * k) / 3, dy: (dy * k) / 3 })),
-    ...repetir(mano({ ...FORMAS.victoria, dx, dy }), 5),
-  ];
-}
-
-test("menú radial: ✌️ lo abre y un gesto rápido hacia arriba elige 'repetir'", () => {
-  const ev = simular(new InteraccionManos(), gestoMenu(0, -0.1)).filter((e) => e.tipo === "menu");
-  assert.deepEqual(
-    ev.map((e) => e.tipo === "menu" && `${e.fase}:${e.sector}`),
-    ["abrir:null", "elegir:arriba"],
-  );
-  assert.equal(accionDe(ev[1]), "repetir");
+test("pinza: también funciona con los otros tres dedos doblados", () => {
+  const conOtrosDoblados = (sep: number) => {
+    const m = mano({ pinza: true });
+    m.puntos[4] = { x: m.puntos[8].x, y: m.puntos[8].y + sep, z: 0 };
+    return m;
+  };
+  const ev = simular(new InteraccionManos(), [
+    ...repetir(conOtrosDoblados(0.005), 8),
+    ...repetir(conOtrosDoblados(0.2), 15),
+  ]).filter((e) => e.tipo === "nivel");
+  assert.ok(ev.length > 0 && ev[ev.length - 1].tipo === "nivel");
+  const ultimo = ev[ev.length - 1];
+  assert.ok(ultimo.tipo === "nivel" && ultimo.valor > 0.7, JSON.stringify(ultimo));
 });
 
-test("menú radial: las 4 direcciones, desde el punto de vista del usuario", () => {
-  const casos: [number, number, string][] = [
-    [0, 0.1, "abajo"],
-    [-0.1, 0, "derecha"], // en la imagen sin espejo, la derecha del usuario es x decreciente
-    [0.1, 0, "izquierda"],
+/** Abre el menú con ✌️ y luego señala con el índice girado `grados` (0 = arriba). */
+function senalarEnMenu(grados: number): Mano[] {
+  return [...repetir(mano(FORMAS.victoria), 15), ...repetir(rotar(mano(FORMAS.senalar), grados), 30)];
+}
+
+test("menú: ✌️ lo abre y señalar hacia arriba ~0,5 s elige 'repetir'", () => {
+  const ev = simular(new InteraccionManos(), senalarEnMenu(0)).filter((e) => e.tipo === "menu");
+  const fases = ev.map((e) => e.tipo === "menu" && `${e.fase}:${e.sector}`);
+  assert.deepEqual(fases, ["abrir:null", "resaltar:arriba", "elegir:arriba"]);
+  assert.equal(accionDe(ev[2]), "repetir");
+});
+
+test("menú: se lee la dirección del dedo, desde el punto de vista del usuario", () => {
+  // En la imagen sin espejo, la derecha del usuario es x decreciente.
+  const casos: [number, string][] = [
+    [-90, "derecha"],
+    [90, "izquierda"],
+    [180, "abajo"],
   ];
-  for (const [dx, dy, esperado] of casos) {
-    const e = simular(new InteraccionManos(), gestoMenu(dx, dy)).find((e) => e.tipo === "menu" && e.fase === "elegir");
-    assert.ok(e && e.tipo === "menu" && e.sector === esperado, `${dx},${dy} → ${e && e.tipo === "menu" && e.sector}`);
+  for (const [grados, esperado] of casos) {
+    const e = simular(new InteraccionManos(), senalarEnMenu(grados)).find((e) => e.tipo === "menu" && e.fase === "elegir");
+    assert.ok(e && e.tipo === "menu" && e.sector === esperado, `${grados}° → ${e && e.tipo === "menu" && e.sector}`);
   }
 });
 
-test("menú radial: un movimiento lento no elige nada", () => {
-  const frames = [
-    ...repetir(mano(FORMAS.victoria), 25),
-    ...Array.from({ length: 40 }, (_, i) => mano({ ...FORMAS.victoria, dy: -0.004 * i })),
-  ];
-  const ev = simular(new InteraccionManos(), frames);
+test("menú: señalar en diagonal no elige nada", () => {
+  const ev = simular(new InteraccionManos(), senalarEnMenu(45));
   assert.ok(!ev.some((e) => e.tipo === "menu" && e.fase === "elegir"));
 });
 
-test("menú radial: se cierra solo si no se elige nada", () => {
-  const ctl = new InteraccionManos({ caducidadMenuMs: 500 });
-  const ev = simular(ctl, repetir(mano(FORMAS.victoria), 40)).filter((e) => e.tipo === "menu");
+test("menú: mantener ✌️ no elige nada y se cierra solo", () => {
+  const ctl = new InteraccionManos({ caducidadMenuMs: 800 });
+  const ev = simular(ctl, repetir(mano(FORMAS.victoria), 50)).filter((e) => e.tipo === "menu");
   assert.deepEqual(
     ev.map((e) => e.tipo === "menu" && e.fase),
     ["abrir", "cerrar"],

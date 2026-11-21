@@ -75,14 +75,14 @@ export type EventoManos =
   /** Modo dormido/despierto (solo si `requiereDespertar`). */
   | { tipo: "modo"; despierto: boolean; t: number }
   /**
-   * Control de nivel con la pinza: se empieza juntando pulgar e índice (gesto "OK") y el nivel
-   * es la separación entre ambos, de 0 (juntos) a 1 (muy separados). Termina al cerrar la mano.
+   * Control de nivel con la pinza: se empieza juntando las puntas de pulgar e índice y el nivel
+   * es la separación entre ambas, de 0 (juntas) a 1 (muy separadas). Termina al cerrar el puño.
    */
   | { tipo: "nivel"; fase: "inicio" | "mover" | "fin"; valor: number; t: number }
-  /** Menú radial abierto con ✌️; se elige con un movimiento rápido del índice hacia un sector. */
+  /** Menú radial abierto con ✌️; se elige señalando con el índice hacia un lado y manteniendo. */
   | {
       tipo: "menu";
-      fase: "abrir" | "elegir" | "cerrar";
+      fase: "abrir" | "resaltar" | "elegir" | "cerrar";
       sector: SectorMenu | null;
       /** Centro del menú en coordenadas de imagen (para dibujarlo). */
       centro: Punto;

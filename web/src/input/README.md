@@ -16,8 +16,8 @@ definido en `acciones.ts` (`MAPAS`). Los marcados como EXP son experimentales.
 | ☝️ señalar | puntero | puntero | puntero |
 | ☝️ señalar quieto ~0,9 s | explicar aquí | dictar campo | clic |
 | 👎 pulgar abajo (EXP) | deshacer | borrar campo | deshacer |
-| 🤏 juntar pulgar e índice ("OK") y separarlos (EXP) | volumen | volumen | volumen |
-| ✌️ victoria → menú radial, y gesto rápido del índice (EXP) | ↑ repetir · → copiar texto · ↓ dictar · ← pedir ayuda | igual | igual |
+| 🤏 juntar las puntas de pulgar e índice y separarlas; puño para fijar (EXP) | volumen | volumen | volumen |
+| ✌️ victoria → menú; ☝️ señalar hacia un lado ~0,5 s (EXP) | ↑ repetir · → copiar texto · ↓ dictar · ← pedir ayuda | igual | igual |
 | 🙂 asentir (EXP, cabeza) | leer | confirmar campo | Intro |
 | 🙂 negar (EXP, cabeza) | pausar | borrar campo | Escape |
 
@@ -25,12 +25,14 @@ Opciones experimentales (en `OpcionesInteraccion`):
 - `requiereDespertar`: modo dormido/despierto. Se ignoran los gestos hasta mantener ✋ ~1 s (o asentir);
   vuelve a dormirse tras `dormirMs` sin actividad. Evita gestos accidentales.
 - `PERFIL_MOVILIDAD_REDUCIDA`: tiempos más largos y radios más amplios para temblor o movilidad reducida.
-- Pinza de nivel: el evento `nivel` da un valor de 0 (dedos juntos) a 1 (muy separados), según
-  `nivelMin` y `nivelMax` (separación relativa al tamaño de la mano). Mientras los otros tres dedos
-  sigan estirados el control sigue activo; al cerrar la mano se fija el valor. En la demo ajusta de
-  verdad el volumen de la voz.
-- Menú radial: tras abrirlo con ✌️, un movimiento rápido de la punta del índice (≥`gestoMenu` en
-  ≤`ventanaMenuMs`) elige la dirección. Un movimiento lento no elige nada; se cierra solo a los 5 s.
+- Pinza de nivel: se activa al juntar las puntas de pulgar e índice ~0,15 s con el índice por delante
+  (no metido en un puño; da igual cómo estén los otros dedos). El evento `nivel` da un valor de 0
+  (juntas) a 1 (muy separadas), según `nivelMin` y `nivelMax` (separación relativa al tamaño de la
+  mano). Cerrar el puño o sacar la mano fija el valor. En la demo ajusta de verdad el volumen de la voz,
+  y la línea pulgar–índice se ve siempre, con la medida en el panel, para calibrar.
+- Menú radial: tras abrirlo con ✌️, se elige señalando con ☝️ hacia un lado: se lee la dirección del
+  dedo (nudillo → punta), no la posición de la mano. Hay que mantenerla `elegirMenuMs` (~0,5 s). En
+  diagonal o con ✌️ no elige nada; se cierra solo a los 5 s.
 - Cabeza: `crearRastreador(..., { cara: true })` o `rastreador.activarCara(true)` (otro modelo, ~4 MB;
   se analiza 1 de cada 2 frames).
 - Señalar + voz: solo en la demo, con el reconocimiento de voz del navegador (Chrome/Edge; Firefox no lo tiene).

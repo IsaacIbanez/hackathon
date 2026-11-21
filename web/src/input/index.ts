@@ -10,6 +10,8 @@ export {
   InteraccionManos,
   OPCIONES_POR_DEFECTO,
   PERFIL_MOVILIDAD_REDUCIDA,
+  direccionIndice,
+  type Diagnostico,
   type OpcionesInteraccion,
 } from "./interaccion.ts";
 export { accionDe, MAPAS, MENU_RADIAL, type Accion, type Contexto } from "./acciones.ts";

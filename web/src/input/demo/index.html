@@ -19,6 +19,16 @@
       #modo.despierto { color: var(--ok); } #modo.dormido { color: var(--mal); }
       #accion { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); font-size: 34px; font-weight: 800; color: var(--acento); background: #000c; padding: 4px 16px; border-radius: 8px; white-space: nowrap; }
       #accion:empty { display: none; }
+      /* Menú: capa HTML fija sobre el vídeo (no se dibuja en el lienzo, así no se solapa). */
+      #menu { position: absolute; inset: 0; display: grid; place-items: center; background: #0007; border-radius: 8px;
+        grid-template: ". arriba ." 1fr "izquierda centro derecha" 1fr ". abajo ." 1fr / 1fr 1fr 1fr; padding: 12px; gap: 8px; }
+      #menu[hidden] { display: none; }
+      #menu .op { --p: 0; width: 100%; max-width: 230px; text-align: center; padding: 14px 10px; border-radius: 12px;
+        font-size: clamp(16px, 2.2vw, 26px); font-weight: 800; background: #000d; border: 3px solid #fff4;
+        background-image: linear-gradient(90deg, #ffd40066 calc(var(--p) * 100%), transparent 0); }
+      #menu .op.activa { border-color: var(--acento); color: var(--acento); }
+      #menu .op.elegida { background: var(--acento); color: #000; }
+      #menu .centro { grid-area: centro; text-align: center; color: #ddd; font-size: clamp(13px, 1.6vw, 18px); }
       h1 { font-size: 22px; margin: 0 0 8px; }
       h2 { font-size: 16px; margin: 16px 0 6px; color: var(--suave); text-transform: uppercase; letter-spacing: .05em; }
       section > div { background: var(--panel); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
@@ -40,6 +50,13 @@
         <canvas id="lienzo"></canvas>
         <div id="modo" hidden></div>
         <div id="accion" aria-live="assertive"></div>
+        <div id="menu" hidden>
+          <div class="op" data-s="arriba" style="grid-area: arriba"></div>
+          <div class="op" data-s="izquierda" style="grid-area: izquierda"></div>
+          <div class="centro">☝️ señala hacia una opción<br />y mantén ~0,5 s</div>
+          <div class="op" data-s="derecha" style="grid-area: derecha"></div>
+          <div class="op" data-s="abajo" style="grid-area: abajo"></div>
+        </div>
       </div>
       <section>
         <h1>Gestos de mano</h1>
@@ -51,6 +68,8 @@
             <dt>Gesto estable</dt><dd id="gesto">—</dd>
             <dt>Puntero en doc.</dt><dd id="doc">—</dd>
             <dt>Volumen voz</dt><dd id="volumen">100 %</dd>
+            <dt>Pulgar–índice</dt><dd id="separacion">—</dd>
+            <dt>Índice apunta</dt><dd id="apunta">—</dd>
             <dt>FPS</dt><dd id="fps">—</dd>
           </dl>
         </div>

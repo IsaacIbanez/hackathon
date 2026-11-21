@@ -20,12 +20,18 @@ export interface Umbrales {
   pulgarEstirado: number;
   /** Distancia pulgar–índice (relativa al tamaño de la mano) para la pinza. */
   pinza: number;
+  /**
+   * Alcance mínimo del índice (muñeca→punta / muñeca→nudillo) para la pinza. En un puño la punta
+   * del índice queda a la altura del nudillo (~0,8–1); en una pinza va por delante (≥1,2).
+   */
+  indiceFuera: number;
 }
 
 export const UMBRALES_POR_DEFECTO: Umbrales = {
   estirado: 0.9,
   pulgarEstirado: 0.88,
-  pinza: 0.35,
+  pinza: 0.4,
+  indiceFuera: 1.15,
 };
 
 const CADENAS = {
@@ -77,6 +83,16 @@ export function tamanoMano(pts: Punto3D[]): number {
   return distancia(pts[P.MUNECA], pts[P.CORAZON_MCP]) || 1;
 }
 
+/** Separación entre las puntas de pulgar e índice, relativa al tamaño de la mano. */
+export function separacionPinza(pts: Punto3D[]): number {
+  return distancia(pts[P.PULGAR_PUNTA], pts[P.INDICE_PUNTA]) / tamanoMano(pts);
+}
+
+/** Muñeca→punta del índice dividido por muñeca→nudillo del índice: <1 si está metido en el puño. */
+export function alcanceIndice(pts: Punto3D[]): number {
+  return distancia(pts[P.MUNECA], pts[P.INDICE_PUNTA]) / (distancia(pts[P.MUNECA], pts[P.INDICE_MCP]) || 1);
+}
+
 /**
  * Pose de la mano. `imagen` son los puntos de imagen (para saber qué es "arriba").
  */
@@ -86,13 +102,10 @@ export function clasificarPose(mano: Mano, aspecto = 1, u: Umbrales = UMBRALES_P
   const d = estadoDedos(pts, u);
   const otrosTres = [d.corazon, d.anular, d.menique];
   const nOtros = otrosTres.filter(Boolean).length;
-  const tam = tamanoMano(pts);
 
-  // Pinza ("OK"): puntas de pulgar e índice juntas y al menos dos de los otros dedos estirados.
-  // Con los otros dedos doblados es un puño, donde el pulgar también queda cerca del índice.
-  if (distancia(pts[P.PULGAR_PUNTA], pts[P.INDICE_PUNTA]) < u.pinza * tam && !d.indice && nOtros >= 2) {
-    return "pinza";
-  }
+  // Pinza: puntas de pulgar e índice juntas, con el índice por delante (no metido en un puño).
+  // Da igual cómo estén los otros tres dedos.
+  if (separacionPinza(pts) < u.pinza && alcanceIndice(pts) >= u.indiceFuera) return "pinza";
   if (d.indice && d.corazon && d.anular && d.menique) return "palma";
   if (d.indice && d.corazon && !d.anular && !d.menique) return "victoria";
   if (d.indice && nOtros === 0) return "senalar";
