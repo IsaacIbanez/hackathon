@@ -8,7 +8,7 @@ import { captionsBaseUrl, CaptionsConnection } from './client.ts'
 import { addLocalLine, applyEvent, clock, emptyState, transcriptFileName, transcriptText, type CaptionsEvent, type CaptionsState } from './transcript.ts'
 
 const SPOKEN = [
-  ['auto', 'Detect automatically'],
+  ['auto', 'Detect (languages can be mixed)'],
   ['es', 'Spanish'],
   ['en', 'English'],
   ['fr', 'French'],
@@ -30,6 +30,16 @@ const TARGETS = [
   ['zh', 'Chinese'],
   ['ja', 'Japanese'],
   ['ar', 'Arabic'],
+] as const
+
+const PEOPLE = [
+  [0, "Don't know"],
+  [1, '1'],
+  [2, '2'],
+  [3, '3'],
+  [4, '4'],
+  [5, '5'],
+  [6, '6'],
 ] as const
 
 /** Client-side retries when Go itself is not reachable (Go retries the speech service). */
@@ -64,6 +74,7 @@ export function LiveCaptions({ onClose }: LiveCaptionsProps) {
   const [micId, setMicId] = useState<string>('')
   const [lang, setLang] = useState(() => load('lang', 'auto'))
   const [target, setTarget] = useState(() => load('target', 'none'))
+  const [people, setPeople] = useState(() => Number(load('people', '0')) || 0)
   const [fontPx, setFontPx] = useState(() => Number(load('font', '36')) || 36)
   const [phase, setPhase] = useState<Phase>('idle')
   const [captions, setCaptions] = useState<CaptionsState>(emptyState)
@@ -88,10 +99,12 @@ export function LiveCaptions({ onClose }: LiveCaptionsProps) {
   const atBottomRef = useRef(true)
   const langRef = useRef(lang)
   const targetRef = useRef(target)
+  const peopleRef = useRef(people)
   useEffect(() => {
     langRef.current = lang
     targetRef.current = target
-  }, [lang, target])
+    peopleRef.current = people
+  }, [lang, target, people])
 
   const refreshMics = useCallback(async () => {
     const list = await listMicrophones()
@@ -166,7 +179,7 @@ export function LiveCaptions({ onClose }: LiveCaptionsProps) {
     const base = await captionsBaseUrl()
     connIndex.current += 1
     connOffset.current = (Date.now() - startedAt.current.getTime()) / 1000
-    conn.current = new CaptionsConnection(base, langRef.current, targetRef.current, {
+    conn.current = new CaptionsConnection(base, langRef.current, targetRef.current, peopleRef.current, {
       onOpen: () => {
         goRetries.current = 0
       },
@@ -373,6 +386,24 @@ export function LiveCaptions({ onClose }: LiveCaptionsProps) {
             ))}
           </select>
         </label>
+        <label className="flex flex-col text-sm" title="Telling how many people talk helps to know who says what">
+          People speaking
+          <select
+            className={select}
+            value={people}
+            disabled={busy}
+            onChange={(e) => {
+              setPeople(Number(e.target.value))
+              keep('people', e.target.value)
+            }}
+          >
+            {PEOPLE.map(([v, l]) => (
+              <option key={v} value={v}>
+                {l}
+              </option>
+            ))}
+          </select>
+        </label>
         <label className="flex flex-col text-sm">
           Translate to
           <select className={select} value={target} disabled={phase === 'local' || phase === 'finishing'} onChange={(e) => changeTarget(e.target.value)}>
@@ -443,9 +474,12 @@ export function LiveCaptions({ onClose }: LiveCaptionsProps) {
               <li key={l.id}>
                 <div className="text-white/60" style={{ fontSize: Math.max(16, fontPx * 0.45) }}>
                   {clock(l.start)}
+                  {l.lang && <span className="ml-3 rounded border border-white/40 px-1 uppercase">{l.lang}</span>}
                   {l.speaker && <span className="ml-3 font-bold text-cyan-300">{l.speaker}</span>}
                 </div>
-                <p className="font-semibold">{l.text}</p>
+                <p className="font-semibold" lang={l.lang}>
+                  {l.text}
+                </p>
                 {Object.entries(l.translations).map(([tl, tx]) => (
                   <p key={tl} className="text-yellow-300" lang={tl}>
                     <span className="sr-only">{`Translation (${tl}): `}</span>

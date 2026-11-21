@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
-	"strings"
 	"sync"
 	"time"
 
@@ -170,7 +169,9 @@ func cmp(a, b string) string {
 }
 
 // diarize transcribes a WAV with speaker labels; turn times are relative to the WAV start.
-func (t *together) diarize(ctx context.Context, wavData []byte, lang string) ([]turn, error) {
+// speakers > 0 tells the service how many people talk: at most that many (exact = false, for
+// short live windows where some may be silent) or exactly that many (the final pass).
+func (t *together) diarize(ctx context.Context, wavData []byte, lang string, speakers int, exact bool) ([]turn, error) {
 	var body bytes.Buffer
 	mw := multipart.NewWriter(&body)
 	// Together asks for the model before the file in the multipart body.
@@ -178,6 +179,12 @@ func (t *together) diarize(ctx context.Context, wavData []byte, lang string) ([]
 	_ = mw.WriteField("response_format", "verbose_json")
 	_ = mw.WriteField("timestamp_granularities", "word")
 	_ = mw.WriteField("diarize", "true")
+	if speakers > 0 {
+		_ = mw.WriteField("max_speakers", fmt.Sprint(speakers))
+		if exact {
+			_ = mw.WriteField("min_speakers", fmt.Sprint(speakers))
+		}
+	}
 	if lang != "" && lang != "auto" {
 		_ = mw.WriteField("language", lang)
 	}
@@ -225,68 +232,7 @@ func (t *together) diarize(ctx context.Context, wavData []byte, lang string) ([]
 	return turns, nil
 }
 
-// languageNames are used in the translation prompt (other codes are passed as they are).
-var languageNames = map[string]string{
-	"en": "English", "es": "Spanish", "ca": "Catalan", "fr": "French", "de": "German",
-	"it": "Italian", "pt": "Portuguese", "nl": "Dutch", "pl": "Polish", "ro": "Romanian",
-	"uk": "Ukrainian", "ru": "Russian", "zh": "Chinese", "ja": "Japanese", "ar": "Arabic",
-}
-
-func languageName(code string) string {
-	if n, ok := languageNames[strings.ToLower(code)]; ok {
-		return n
-	}
-	return code
-}
-
 var thinkBlock = regexp.MustCompile(`(?s)<think>.*?</think>`)
-
-// translate returns the translation of one caption and the tokens it used.
-func (t *together) translate(ctx context.Context, text, target string) (string, int, int, error) {
-	lang := languageName(target)
-	reqBody := map[string]any{
-		"model": t.cfg.TranslateModel,
-		"messages": []map[string]string{
-			{"role": "system", "content": "You translate live captions of a meeting. Translate the user's text into " + lang +
-				". Reply with the translation only: no quotes, notes or explanations. If the text is already in " + lang + ", repeat it unchanged."},
-			{"role": "user", "content": text},
-		},
-		"temperature": 0,
-		"max_tokens":  400,
-		// Qwen3.5 thinks by default: it spent all 400 tokens reasoning and answered nothing
-		// (2.3 s). Without reasoning it answers in ~0.2 s with ~10 tokens.
-		"reasoning": map[string]bool{"enabled": false},
-	}
-	data, _ := json.Marshal(reqBody)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, t.cfg.APIURL+"/chat/completions", bytes.NewReader(data))
-	if err != nil {
-		return "", 0, 0, err
-	}
-	req.Header.Set("Authorization", "Bearer "+t.cfg.APIKey)
-	req.Header.Set("Content-Type", "application/json")
-	var out struct {
-		Choices []struct {
-			Message struct {
-				Content string `json:"content"`
-			} `json:"message"`
-		} `json:"choices"`
-		Usage struct {
-			Prompt     int `json:"prompt_tokens"`
-			Completion int `json:"completion_tokens"`
-		} `json:"usage"`
-	}
-	if err := t.do(req, &out); err != nil {
-		return "", 0, 0, fmt.Errorf("translation: %w", err)
-	}
-	if len(out.Choices) == 0 {
-		return "", out.Usage.Prompt, out.Usage.Completion, errors.New("translation: empty answer")
-	}
-	tr := strings.Trim(strings.TrimSpace(thinkBlock.ReplaceAllString(out.Choices[0].Message.Content, "")), `"`)
-	if tr == "" {
-		return "", out.Usage.Prompt, out.Usage.Completion, errors.New("translation: empty answer")
-	}
-	return tr, out.Usage.Prompt, out.Usage.Completion, nil
-}
 
 func (t *together) do(req *http.Request, out any) error {
 	resp, err := t.http.Do(req)

@@ -19,10 +19,14 @@ import (
 
 // Defaults (prices in USD, from Together's serverless price list, 2026-11).
 const (
-	DefaultRealtimeURL    = "wss://api.together.ai/v1/realtime"
-	DefaultAPIURL         = "https://api.together.ai/v1"
-	DefaultASRModel       = "nvidia/nemotron-3.5-asr-streaming-0.6b"
-	DefaultDiarizeModel   = "openai/whisper-large-v3"
+	DefaultRealtimeURL = "wss://api.together.ai/v1/realtime"
+	DefaultAPIURL      = "https://api.together.ai/v1"
+	// Parakeet v3: 25 European languages detected on its own, so people can mix languages
+	// (Nemotron 3.5 split words and invented text when Spanish and English were mixed).
+	DefaultASRModel = "nvidia/parakeet-tdt-0.6b-v3"
+	// Batch diarization: Parakeet transcribes every language in the audio; Whisper keeps only
+	// one, and Together labels speakers word by word, so the other language lost its speakers.
+	DefaultDiarizeModel   = "nvidia/parakeet-tdt-0.6b-v3"
 	DefaultTranslateModel = "Qwen/Qwen3.5-9B"
 	DefaultLimitUSD       = 1.0
 )
@@ -54,6 +58,7 @@ type Config struct {
 	DiarizeOverlap      time.Duration // overlap between live windows, default 10 s
 	FinalWindow         time.Duration // final pass window (upload limit is 80 MB), default 20 min
 	SaveEvery           time.Duration // wall time between transcript saves, default 1 min
+	PolishWait          time.Duration // how long a final waits for the language model, default 1.5 s
 	RetryDelays         []time.Duration
 	Now                 func() time.Time
 }
@@ -119,10 +124,13 @@ func (c Config) withDefaults() Config {
 		c.DiarizeEvery = 15 * time.Second
 	}
 	if c.DiarizeOverlap <= 0 {
-		c.DiarizeOverlap = 10 * time.Second
+		c.DiarizeOverlap = 30 * time.Second // 45 s windows: more shared speech to recognise voices
 	}
 	if c.FinalWindow <= 0 {
 		c.FinalWindow = 20 * time.Minute
+	}
+	if c.PolishWait <= 0 {
+		c.PolishWait = 1500 * time.Millisecond
 	}
 	if c.SaveEvery <= 0 {
 		c.SaveEvery = time.Minute

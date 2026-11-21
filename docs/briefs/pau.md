@@ -1,5 +1,5 @@
 # Brief de Pau (P4)
-Confirmado por Pau el 2026-11-21 23:12. Última revisión: 2026-11-21 23:12.
+Confirmado por Pau el 2026-11-21 23:12. Última revisión: 2026-11-22 00:35 (idiomas mezclados, barbarismos y mejor diarización, pedidos por Pau).
 
 ## Objetivo
 Subtítulos en directo de lo que se oye en una conferencia o una reunión (el micrófono y, si se quiere, el audio de una llamada), con quién habla y traducción automática al idioma elegido, y la transcripción guardada en un documento de texto. Para quien no oye bien, no entiende el idioma o necesita la letra muy grande. Es una utilidad base de la app.
@@ -12,14 +12,22 @@ Subtítulos en directo de lo que se oye en una conferencia o una reunión (el mi
 
 ## Alcance
 - **Go, en un paquete nuevo `backend/captions`:** un WebSocket `GET /captions` en el 8765 que recibe audio PCM del navegador y lo pasa al modo en directo de Together (`wss://api.together.ai/v1/realtime`).
-  - Modelo `nvidia/nemotron-3.5-asr-streaming-0.6b`, que se cambia con `CAPTIONS_ASR_MODEL`.
+  - Modelo `nvidia/parakeet-tdt-0.6b-v3`, que se cambia con `CAPTIONS_ASR_MODEL`. Detecta solo 25 idiomas europeos y entiende frases con dos idiomas mezclados.
   - Clave en `TOGETHER_API_KEY`, en `.env` y nunca en el repo.
   - El navegador nunca ve la clave.
 - **Parciales y frases finales:** el texto parcial se actualiza mientras se habla, y la frase queda fija con la pausa (VAD de Together).
-- **Traducción:** solo de las frases finales, con `Qwen/Qwen3.5-9B` en Together (`CAPTIONS_TRANSLATE_MODEL`). Las frases repetidas salen de una caché. El idioma de destino se elige y se puede cambiar en directo, o se deja en «no traducir».
-- **Idioma hablado:** se detecta solo o se elige. Lo que importa es el español y el inglés; el catalán no es prioritario.
+- **Idioma, barbarismos y traducción:** una sola llamada por frase final a `Qwen/Qwen3.5-9B` en Together (`CAPTIONS_TRANSLATE_MODEL`, sin razonamiento), con las frases anteriores y el idioma habitual de quien habla como contexto. Hace tres cosas:
+  - da el idioma principal de la frase;
+  - pone entre comillas las palabras de otro idioma (`el "meeting"`; `Okay, "hasta luego"` dicho por quien habla inglés);
+  - la traduce al idioma de destino, que se elige y se cambia en directo (o «no traducir»).
+  - Go comprueba que el modelo solo ha añadido comillas; si ha cambiado alguna palabra, se queda el texto original.
+  - Cuando se sabe quién la dijo y esa persona suele hablar otro idioma, la frase se revisa otra vez. El cambio solo se acepta si el idioma cambia y el modelo marca palabras extranjeras.
+- **Idioma hablado:** se detecta solo, y cada persona puede hablar uno distinto, o se fuerza uno. Lo que importa es el español y el inglés; el catalán no es prioritario.
 - **Diarización (quién habla):**
-  - En directo, aproximada: cada 15 s, con tramos de 25 s solapados 10 s, Go manda el audio a `openai/whisper-large-v3` por lotes con `diarize=true` y etiqueta por la hora las frases ya mostradas. Las voces de un tramo y del siguiente se emparejan con el texto que comparten.
+  - Selector «People speaking» (no sé, 1–6): se pasa a la diarización (`max_speakers` en directo; `min_speakers = max_speakers` en la pasada final).
+  - En directo, aproximada: cada 15 s, con tramos de 45 s solapados 30 s, Go manda el audio a `nvidia/parakeet-tdt-0.6b-v3` por lotes con `diarize=true`. Etiqueta por la hora las frases ya mostradas, y empareja las voces de un tramo y del siguiente por lo que dicen en el solape.
+  - El idioma también sirve de pista: con 2 personas o más y tantos idiomas como personas (cada una habla el suyo), cada idioma es de una persona. Las frases de 4 palabras o más siguen al idioma; las cortas de una persona conocida siguen a la voz, porque ahí están los barbarismos. Si no se dice cuántas personas hay, no se parte en dos a una persona bilingüe.
+  - La pasada final conserva la numeración que ya se veía en pantalla.
   - Al parar, exacta: una pasada con diarización sobre toda la grabación, para el documento guardado.
 - **Página propia (`web/src/captions/`):**
   - el micrófono que se elija (la MX Brio si está) y, opcionalmente, el audio de una pestaña o de una llamada (`getDisplayMedia`), mezclados y convertidos a 16 kHz mono de 16 bits;
@@ -98,13 +106,13 @@ Ejemplo concreto: digo «¿Cuándo vence el plazo del seguro?» y otra persona r
 ## Modelos y coste
 | Para qué | Modelo | Coste |
 |---|---|---|
-| Subtítulos en directo | Nemotron 3.5 (o Parakeet si Nemotron no entiende español) | 0,0045 $/min (Parakeet, 0,0035) ≈ 0,27 $/h |
-| Diarización en directo | `whisper-large-v3` por lotes, tramos de 25 s cada 15 s | ≈ 0,0015 $/min × 1,67 ≈ 0,15 $/h |
-| Diarización final | `whisper-large-v3` por lotes, una sola pasada | ≈ 0,09 $/h |
-| Traducción | `Qwen/Qwen3.5-9B` (0,17 $ / 0,25 $ por millón de tokens), solo frases finales y con caché | < 0,01 $/h |
+| Subtítulos en directo | Parakeet v3 | 0,0035 $/min ≈ 0,21 $/h |
+| Diarización en directo | Parakeet v3 por lotes, tramos de 45 s cada 15 s | ≈ 0,0015 $/min × 3 ≈ 0,27 $/h |
+| Diarización final | Parakeet v3 por lotes, una sola pasada | ≈ 0,09 $/h |
+| Idioma, barbarismos y traducción | `Qwen/Qwen3.5-9B` (0,17 $ / 0,25 $ por millón de tokens), una llamada de ~650 tokens por frase final | ≈ 0,06 $/h |
 | Respaldo | Whisper local | 0 $ |
 
-Total: unos 0,5 $/h. El tope por sesión es de 1 $ (`CAPTIONS_LIMIT_USD`).
+Total: unos 0,6 $/h; medido: 0,0041 $ por 28 s de diálogo bilingüe. El tope por sesión es de 1 $ (`CAPTIONS_LIMIT_USD`).
 
 ## Si falla
 - **Sin clave:** error `no_key`. La página dice «Live captions need TOGETHER_API_KEY in .env» y ofrece Whisper local.
@@ -119,7 +127,9 @@ Total: unos 0,5 $/h. El tope por sesión es de 1 $ (`CAPTIONS_LIMIT_USD`).
 - **Nil:** su `WhisperListener` es el respaldo local. Si cambia su interfaz, hay que avisar.
 
 ## Riesgos
-- **Idiomas de Nemotron:** no está documentado que Nemotron 3.5 entienda español en directo. Es lo primero que se prueba. Si no, por defecto `nvidia/parakeet-tdt-0.6b-v3`, que entiende 25 idiomas europeos, español incluido, y los detecta solo.
+- **La diarización de Together con dos idiomas que se turnan:** mezcla las voces. Con Whisper se pierden además las frases del otro idioma, porque solo transcribe uno. Mitigado con Parakeet y con el idioma como pista. Con un solo idioma funciona bien (5/5 y 18/18).
+- **Frases cortas con una voz mal asignada** (por ejemplo «Perfecto. Gracias.»): siguen a la voz y pueden salir con la persona equivocada.
+- **Errores de oído en los barbarismos:** «hasta luego» dicho con acento inglés sale como «Asta Luego». Se marca entre comillas, pero no se corrige la ortografía, porque el modelo no puede cambiar palabras.
 - **Autenticación de Together:** su documentación da dos formas distintas para el modo en directo. Se usa la de la referencia (cabecera `Authorization: Bearer`) y se prueba con la clave real.
 - **Etiquetas en directo:** las de quién habla pueden cambiar entre tramos. Son aproximadas por diseño; las buenas son las del `.txt` final.
 - **Audio de la llamada en Wails:** WebView2 puede no permitirlo. La demo de esa parte se puede hacer en Chrome.
@@ -127,10 +137,16 @@ Total: unos 0,5 $/h. El tope por sesión es de 1 $ (`CAPTIONS_LIMIT_USD`).
 - **La clave:** se pegó en el chat de la sesión. Hay que regenerarla en Together después de la hackathon.
 
 ## Preguntas abiertas
-- Qué modelo de subtítulos se queda por defecto (Nemotron o Parakeet): se decide tras la primera prueba en español.
+- Probar la diarización con voces humanas reales: las pruebas son con voces sintéticas de Windows, que el servicio separa peor.
 - Dónde exactamente registra Isaac la ruta, si prefiere otro sitio que `mux.go`.
 
 ## Cambios del brief
+- 2026-11-22 00:35 — A petición de Pau: mejor diarización, una persona en cada idioma y barbarismos entre comillas.
+  - Parakeet v3 pasa a ser el modelo de subtítulos y de diarización. Con idiomas mezclados, Nemotron partía palabras y se inventaba texto; Whisper solo transcribe uno de los idiomas.
+  - Una llamada a Qwen por frase final para el idioma, las comillas y la traducción.
+  - Selector «People speaking», el idioma como pista para saber quién habla, tramos en directo de 45 s y numeración estable.
+  - Contrato 0.8: `speakers`, `revise` y `lang` en `final`.
+  - Medido con voces sintéticas, diálogo español/inglés de 28 s: idioma, comillas y traducción bien en 8/8 frases; quién habla, 7/8 (antes, 2/8 y 3 frases sin persona). El diálogo solo en español sigue en 5/5.
 - 2026-11-21 23:50 — Probado con Together de verdad (diálogo sintético de 2 voces, 17 y 52 s):
   - Nemotron 3.5 entiende el español y se queda como modelo por defecto: primer parcial ~0,7 s después de empezar a hablar; la frase se cierra ~0,3 s tras la pausa.
   - Traducción con el razonamiento de Qwen desactivado: 0,1–0,4 s por frase.

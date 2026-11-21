@@ -12,8 +12,14 @@ navegador (AudioWorklet, 16 kHz PCM16) --WebSocket /captions--> Go (backend/capt
                                                                         chat: traducción (Qwen3.5-9B)
 ```
 - **Subtítulos:** el texto parcial se va actualizando mientras se habla y la frase queda fija con la pausa.
-- **Quién habla:** cada 15 s de audio, Go diariza los últimos 25 s; los 10 s de solape sirven para reconocer a las mismas personas. Al pulsar *Stop* repite la diarización sobre toda la grabación, para que el `.txt` tenga las etiquetas bien.
-- **Traducción:** solo de las frases terminadas, con caché. El idioma se cambia en directo.
+- **Quién habla:**
+  - Cada 15 s de audio, Go diariza los últimos 45 s; los 30 s de solape sirven para reconocer a las mismas personas.
+  - Con *People speaking* (2, 3…) se le dice cuántas personas hay, y es lo que más ayuda.
+  - Si cada persona habla su idioma, el idioma decide quién habla en las frases largas.
+  - Al pulsar *Stop* repite la diarización sobre toda la grabación, para que el `.txt` tenga las etiquetas bien, y conserva la numeración que ya se veía.
+- **Idiomas y barbarismos:** cada persona puede hablar un idioma distinto. Cada frase sale con su idioma (`ES`, `EN`) y con las palabras de otro idioma entre comillas: `el "meeting"`.
+- **Traducción:** de las frases terminadas, en la misma llamada que el idioma. El idioma de destino se cambia en directo.
+- **Comprobar con el servicio real** (cuesta menos de un céntimo): `go test -tags live -run Live -v ./backend/captions`.
 - **Coste:** se ve en pantalla. Al llegar al tope por sesión (`CAPTIONS_LIMIT_USD`, 1 $ por defecto), la sesión se para.
 - **Documento:** se guarda en `Documentos/LauzHack/captions-AAAA-MM-DD-HHMM.txt`, fuera del repo, cada minuto y al parar. El botón *Download transcript* descarga lo mismo desde la página.
 - **Si falla:**
@@ -33,8 +39,8 @@ Tests: `go test ./backend/captions`, con un Together falso que cubre el flujo, l
 | Variable | Por defecto |
 |---|---|
 | `TOGETHER_API_KEY` | — (sin ella, la página dice que falta y ofrece Whisper local) |
-| `CAPTIONS_ASR_MODEL` | `nvidia/nemotron-3.5-asr-streaming-0.6b` (alternativa: `nvidia/parakeet-tdt-0.6b-v3`) |
-| `CAPTIONS_DIARIZE_MODEL` | `openai/whisper-large-v3` |
+| `CAPTIONS_ASR_MODEL` | `nvidia/parakeet-tdt-0.6b-v3` (con un solo idioma también vale `nvidia/nemotron-3.5-asr-streaming-0.6b`) |
+| `CAPTIONS_DIARIZE_MODEL` | `nvidia/parakeet-tdt-0.6b-v3` |
 | `CAPTIONS_TRANSLATE_MODEL` | `Qwen/Qwen3.5-9B` |
 | `CAPTIONS_LIMIT_USD` | `1` |
 | `CAPTIONS_DIR` | `~/Documents/LauzHack` |

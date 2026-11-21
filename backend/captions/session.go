@@ -9,6 +9,7 @@ import (
 	"math"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -52,35 +53,37 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	conn.SetReadLimit(1 << 20)
 	q := r.URL.Query()
+	speakers, _ := strconv.Atoi(q.Get("speakers"))
 	s := &session{
-		cfg:       h.cfg,
-		api:       newTogether(h.cfg),
-		conn:      conn,
-		lang:      cleanLang(q.Get("lang"), "auto"),
-		target:    cleanLang(q.Get("target"), "none"),
-		started:   h.cfg.Now(),
-		audio:     make(chan chunk, 64),
-		translate: make(chan *sentence, 256),
-		flushReq:  make(chan chan struct{}),
-		stop:      make(chan struct{}),
-		cache:     map[string]string{},
+		cfg:      h.cfg,
+		api:      newTogether(h.cfg),
+		conn:     conn,
+		lang:     cleanLang(q.Get("lang"), "auto"),
+		target:   cleanLang(q.Get("target"), "none"),
+		speakers: min(max(speakers, 0), 10),
+		started:  h.cfg.Now(),
+		audio:    make(chan chunk, 64),
+		jobs:     make(chan *sentence, 256),
+		flushReq: make(chan chan struct{}),
+		stop:     make(chan struct{}),
 	}
 	s.run(r.Context())
 }
 
 type session struct {
-	cfg     Config
-	api     *together
-	conn    *websocket.Conn
-	lang    string
-	started time.Time
-	path    string
+	cfg      Config
+	api      *together
+	conn     *websocket.Conn
+	lang     string
+	speakers int // how many people talk, 0 = unknown
+	started  time.Time
+	path     string
 
-	audio     chan chunk         // client audio for the speech service
-	translate chan *sentence     // final sentences to translate
-	flushReq  chan chan struct{} // ask the speech service to finish the current sentence
-	stop      chan struct{}      // closed when the session must end (client stop or cost limit)
-	stopOnce  sync.Once
+	audio    chan chunk         // client audio for the speech service
+	jobs     chan *sentence     // final sentences for the language model (in order)
+	flushReq chan chan struct{} // ask the speech service to finish the current sentence
+	stop     chan struct{}      // closed when the session must end (client stop or cost limit)
+	stopOnce sync.Once
 
 	mu         sync.Mutex
 	target     string
@@ -92,8 +95,8 @@ type session struct {
 	flushed    chan struct{} // closed by the next final sentence while flushing
 	live       speakerMap
 	diarBusy   bool
-	langs      []string // translation languages, in order of first use
-	cache      map[string]string
+	langs      []string    // translation languages, in order of first use
+	pending    []*sentence // sentences to check again now that we know who said them
 	asrBytes   int
 	diarSec    float64
 	tokIn      int
@@ -115,6 +118,7 @@ func (s *session) emit(ev gen.CaptionsEvent) {
 func ptr[T any](v T) *T { return &v }
 
 func (s *session) emitError(code gen.CaptionsEventCode, msg string, retryable bool) {
+	log.Printf("captions: %s: %s", code, msg)
 	s.emit(gen.CaptionsEvent{Type: gen.CaptionsEventTypeError, Code: &code, Message: &msg, Retryable: &retryable})
 }
 
@@ -134,10 +138,10 @@ func (s *session) run(reqCtx context.Context) {
 	liveCtx, stopLive := context.WithCancel(base)
 	defer stopLive()
 
-	asrDone, saverDone, translateDone := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	asrDone, saverDone, sentencesDone := make(chan struct{}), make(chan struct{}), make(chan struct{})
 	go func() { defer close(asrDone); s.runASR(liveCtx) }()
 	go func() { defer close(saverDone); s.runSaver(liveCtx) }()
-	go func() { defer close(translateDone); s.runTranslations(base) }()
+	go func() { defer close(sentencesDone); s.runSentences(base) }()
 
 	clientGone := make(chan struct{})
 	go func() {
@@ -152,16 +156,17 @@ func (s *session) run(reqCtx context.Context) {
 
 	s.flushASR(liveCtx)
 	stopLive()
-	<-asrDone // nothing sends to s.translate after this
-	close(s.translate)
+	<-asrDone // nothing sends to s.jobs after this
+	close(s.jobs)
 	select {
-	case <-translateDone:
-	case <-time.After(2 * flushWait):
+	case <-sentencesDone:
+	case <-time.After(4 * flushWait):
 	}
 	s.mu.Lock()
 	s.finalizing = true // late live diarization results must not overwrite the final labels
 	s.mu.Unlock()
 	s.finalDiarization(base)
+	s.repolishPending(base, 30)
 	s.save()
 	<-saverDone
 	_ = s.conn.Close(websocket.StatusNormalClosure, "")
@@ -345,14 +350,34 @@ func (s *session) onASR(ev asrEvent) {
 	if sent == nil {
 		return
 	}
-	ev2 := gen.CaptionsEvent{Type: gen.CaptionsEventTypeFinal, Id: &sent.ID, Start: ptr(round2(sent.Start)), Text: &sent.Text}
-	s.emit(ev2)
-	if sent.Speaker != "" {
-		s.emit(gen.CaptionsEvent{Type: gen.CaptionsEventTypeSpeaker, Id: &sent.ID, Speaker: &sent.Speaker})
-	}
 	select {
-	case s.translate <- sent:
-	default:
+	case s.jobs <- sent:
+	default: // hundreds of sentences waiting: show it as it is
+		s.emitFinal(sent)
+	}
+}
+
+// emitFinal shows a sentence (once), with its speaker if known. A partial of the next sentence
+// may have arrived meanwhile: it is sent again, because a final clears the partial on screen.
+func (s *session) emitFinal(sent *sentence) {
+	s.mu.Lock()
+	if sent.shown {
+		s.mu.Unlock()
+		return
+	}
+	sent.shown = true
+	ev := gen.CaptionsEvent{Type: gen.CaptionsEventTypeFinal, Id: ptr(sent.ID), Start: ptr(round2(sent.Start)), Text: ptr(sent.Text)}
+	if sent.Lang != "" {
+		ev.Lang = ptr(sent.Lang)
+	}
+	speaker, partial := sent.Speaker, s.partial
+	s.mu.Unlock()
+	s.emit(ev)
+	if speaker != "" {
+		s.emit(gen.CaptionsEvent{Type: gen.CaptionsEventTypeSpeaker, Id: ptr(sent.ID), Speaker: &speaker})
+	}
+	if partial != "" {
+		s.emit(gen.CaptionsEvent{Type: gen.CaptionsEventTypePartial, Text: &partial})
 	}
 }
 
@@ -425,45 +450,190 @@ func (s *session) flushASR(ctx context.Context) {
 	}
 }
 
-// --- translation ---
+// --- language, barbarisms and translation ---
 
-func (s *session) runTranslations(ctx context.Context) {
-	for sent := range s.translate {
-		target := s.currentTarget()
-		if target == "none" || ctx.Err() != nil {
-			continue
-		}
-		s.mu.Lock()
-		cached, ok := s.cache[target+"\x00"+sent.Text]
-		limit := s.limitHit
-		s.mu.Unlock()
-		if limit {
-			continue
-		}
-		text := cached
-		if !ok {
-			tctx, cancel := context.WithTimeout(ctx, 15*time.Second)
-			tr, in, out, err := s.api.translate(tctx, sent.Text, target)
-			cancel()
-			s.mu.Lock()
-			s.tokIn += in
-			s.tokOut += out
-			s.mu.Unlock()
-			if err != nil {
-				s.emitError(gen.CaptionsEventCodeTranslation, "Translation unavailable: "+err.Error(), true)
-				continue
+// runSentences sends each final sentence, in order, to the language model, and in between
+// re-checks the sentences whose speaker turned out to usually speak another language.
+func (s *session) runSentences(ctx context.Context) {
+	tick := time.NewTicker(500 * time.Millisecond)
+	defer tick.Stop()
+	for {
+		select {
+		case sent, ok := <-s.jobs:
+			if !ok {
+				return
 			}
-			text = tr
+			s.process(ctx, sent)
+		case <-tick.C:
+			s.repolishPending(ctx, 3)
 		}
+	}
+}
+
+// contextLines is how many previous sentences the model sees.
+const contextLines = 6
+
+// polishInputFor builds the model's input for sent and remembers which speaker it assumed.
+func (s *session) polishInputFor(sent *sentence) (polishInput, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.limitHit {
+		return polishInput{}, false
+	}
+	in := polishInput{Speaker: "unknown", SpeakerLang: "unknown", Target: s.target, Sentence: sent.Text}
+	i := len(s.sentences)
+	for j, x := range s.sentences {
+		if x == sent {
+			i = j
+		}
+	}
+	for _, x := range s.sentences[max(0, i-contextLines):i] {
+		in.Conversation = append(in.Conversation, contextLine{Speaker: x.Speaker, Lang: x.Lang, Text: x.Text})
+	}
+	if sent.Speaker != "" {
+		in.Speaker = sent.Speaker
+		if l := usualLanguage(s.sentences, sent.Speaker, sent); l != "" {
+			in.SpeakerLang = l
+		}
+	}
+	sent.polishedFor = sent.Speaker
+	return in, true
+}
+
+// process checks one new sentence. It is shown as soon as the model answers, or after
+// PolishWait with the raw text (the improved one follows as `revise`).
+func (s *session) process(ctx context.Context, sent *sentence) {
+	in, ok := s.polishInputFor(sent)
+	if !ok {
+		s.emitFinal(sent)
+		return
+	}
+	type answer struct {
+		res polishResult
+		err error
+	}
+	ch := make(chan answer, 1)
+	go func() {
+		pctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+		res, a, b, err := s.api.polish(pctx, in)
 		s.mu.Lock()
-		s.cache[target+"\x00"+sent.Text] = text
-		sent.Translations[target] = text
-		if !contains(s.langs, target) {
-			s.langs = append(s.langs, target)
-		}
-		s.dirty = true
+		s.tokIn += a
+		s.tokOut += b
 		s.mu.Unlock()
-		s.emit(gen.CaptionsEvent{Type: gen.CaptionsEventTypeTranslation, Id: &sent.ID, Lang: &target, Text: &text})
+		ch <- answer{res, err}
+	}()
+	var ans answer
+	select {
+	case ans = <-ch:
+	case <-time.After(s.cfg.PolishWait):
+		s.emitFinal(sent)
+		ans = <-ch
+	}
+	s.applyPolish(sent, in.Target, ans.res, ans.err, false)
+	s.checkCost(true)
+}
+
+// applyPolish keeps the model's language and quotes (only if it did not change any word) and
+// its translation, and tells the client what changed. A second look (again, once the speaker
+// is known) only counts if it changes the language and marks foreign words: a second answer
+// that merely drops or moves quotes, or relabels a sentence without quoting anything, is noise.
+func (s *session) applyPolish(sent *sentence, target string, res polishResult, err error, again bool) {
+	if err != nil {
+		s.emitError(gen.CaptionsEventCodeTranslation, "Language check and translation unavailable: "+err.Error(), true)
+		s.emitFinal(sent)
+		return
+	}
+	if again && (res.Lang == "" || res.Lang == sent.Lang || !strings.ContainsAny(res.Text, quoteMarks)) {
+		return
+	}
+	s.mu.Lock()
+	changed := false
+	if res.Lang != "" && res.Lang != sent.Lang {
+		sent.Lang, changed = res.Lang, true
+	}
+	if res.Text != "" && res.Text != sent.Text && sameWords(sent.Text, res.Text) {
+		sent.Text, changed = res.Text, true
+	}
+	tr, newTr := "", false
+	if target != "none" {
+		tr = res.Translation
+		if sent.Lang == target || (tr == "" && sent.Lang == "") {
+			tr = sent.Text // already in the target language
+		}
+		if tr != "" && tr != sent.Translations[target] {
+			sent.Translations[target] = tr
+			newTr = true
+			if !contains(s.langs, target) {
+				s.langs = append(s.langs, target)
+			}
+		}
+	}
+	if changed || newTr {
+		s.dirty = true
+	}
+	shown := sent.shown
+	id, text, lang := sent.ID, sent.Text, sent.Lang
+	s.mu.Unlock()
+	switch {
+	case !shown:
+		s.emitFinal(sent)
+	case changed:
+		s.emit(gen.CaptionsEvent{Type: gen.CaptionsEventTypeRevise, Id: &id, Text: &text, Lang: &lang})
+	}
+	if newTr {
+		s.emit(gen.CaptionsEvent{Type: gen.CaptionsEventTypeTranslation, Id: &id, Lang: &target, Text: &tr})
+	} else if target != "none" && tr == "" {
+		s.emitError(gen.CaptionsEventCodeTranslation, "Translation unavailable for one sentence", true)
+	}
+}
+
+// queueRepolish marks for a second look the sentences whose speaker usually speaks another
+// language than the one the model chose without knowing who said it ("Okay, hasta luego"
+// from an English speaker is English with a Spanish phrase). Call with s.mu held.
+func (s *session) queueRepolish(changed []*sentence) {
+	for _, sent := range changed {
+		if sent.Lang == "" || sent.Speaker == "" || sent.polishedFor == sent.Speaker || contains2(s.pending, sent) {
+			continue
+		}
+		if usual := usualLanguage(s.sentences, sent.Speaker, sent); usual != "" && usual != sent.Lang {
+			s.pending = append(s.pending, sent)
+		}
+	}
+}
+
+func contains2(list []*sentence, v *sentence) bool {
+	for _, x := range list {
+		if x == v {
+			return true
+		}
+	}
+	return false
+}
+
+// repolishPending checks again up to n queued sentences, with their speaker as context.
+func (s *session) repolishPending(ctx context.Context, n int) {
+	for range n {
+		s.mu.Lock()
+		if len(s.pending) == 0 {
+			s.mu.Unlock()
+			return
+		}
+		sent := s.pending[0]
+		s.pending = s.pending[1:]
+		s.mu.Unlock()
+		in, ok := s.polishInputFor(sent)
+		if !ok {
+			return
+		}
+		pctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+		res, a, b, err := s.api.polish(pctx, in)
+		cancel()
+		s.mu.Lock()
+		s.tokIn += a
+		s.tokOut += b
+		s.mu.Unlock()
+		s.applyPolish(sent, in.Target, res, err, true)
 		s.checkCost(true)
 	}
 }
@@ -501,7 +671,7 @@ func (s *session) maybeDiarize(ctx context.Context) {
 		}()
 		dctx, cancel := context.WithTimeout(ctx, time.Minute)
 		defer cancel()
-		turns, err := s.api.diarize(dctx, wav(pcm), s.lang)
+		turns, err := s.api.diarize(dctx, wav(pcm), s.lang, s.speakers, false)
 		to := from + secondsOf(len(pcm))
 		s.mu.Lock()
 		s.diarSec += to - from
@@ -519,7 +689,8 @@ func (s *session) maybeDiarize(ctx context.Context) {
 			return
 		}
 		s.live.add(from, to, shift(turns, from))
-		changed := s.relabel(&s.live, span{from, to})
+		changed := append(s.relabel(&s.live, span{from, to}), refineByLanguage(s.sentences, s.speakers)...)
+		s.queueRepolish(changed)
 		s.mu.Unlock()
 		s.emitSpeakers(changed)
 	}()
@@ -585,7 +756,7 @@ func (s *session) finalDiarization(ctx context.Context) {
 		pcm := append([]byte(nil), s.recording[byteAt(from):byteAt(to)]...)
 		s.mu.Unlock()
 		dctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
-		turns, err := s.api.diarize(dctx, wav(pcm), s.lang)
+		turns, err := s.api.diarize(dctx, wav(pcm), s.lang, s.speakers, true)
 		cancel()
 		s.mu.Lock()
 		s.diarSec += to - from
@@ -602,7 +773,9 @@ func (s *session) finalDiarization(ctx context.Context) {
 		from = to - finalOverlapSec
 	}
 	s.mu.Lock()
-	changed := s.relabel(&final, span{0, total})
+	final.alignTo(s.sentences)
+	changed := append(s.relabel(&final, span{0, total}), refineByLanguage(s.sentences, s.speakers)...)
+	s.queueRepolish(s.sentences)
 	s.mu.Unlock()
 	s.emitSpeakers(changed)
 	s.checkCost(true)

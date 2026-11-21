@@ -89,3 +89,31 @@ test('local Whisper lines and clock', () => {
   assert.equal(clock(3725.9), '01:02:05')
   assert.ok(transcriptText(s, new Date(2026, 0, 2, 3, 4), 'auto').includes('translated to: none\n== Original ==\n[00:01:05] hola\n'))
 })
+
+test('revise replaces text and language; the transcript shows the language like Go', () => {
+  let s = emptyState()
+  for (const ev of [
+    { type: 'final', id: 's1', start: 0, text: 'Mañana tenemos el meeting.', lang: 'es' },
+    { type: 'final', id: 's2', start: 5, text: 'Okay, hasta luego.' },
+    { type: 'speaker', id: 's2', speaker: 'Speaker 2' },
+    { type: 'revise', id: 's2', text: 'Okay, "hasta luego".', lang: 'en' },
+    { type: 'revise', id: 's1', text: 'Mañana tenemos el "meeting".', lang: 'es' },
+    { type: 'translation', id: 's1', lang: 'en', text: 'Tomorrow we have the meeting.' },
+    { type: 'translation', id: 's2', lang: 'en', text: 'Okay, "hasta luego".' },
+  ] as CaptionsEvent[])
+    s = applyEvent(s, ev)
+  assert.deepEqual(s.lines.map((l) => [l.text, l.lang]), [
+    ['Mañana tenemos el "meeting".', 'es'],
+    ['Okay, "hasta luego".', 'en'],
+  ])
+  assert.equal(
+    transcriptText(s, new Date(2026, 10, 22, 0, 30), 'auto'),
+    'Live captions — 2026-11-22 00:30 — spoken: auto — translated to: en\n' +
+      '== Original ==\n' +
+      '[00:00:00] (es): Mañana tenemos el "meeting".\n' +
+      '[00:00:05] Speaker 2 (en): Okay, "hasta luego".\n' +
+      '\n== Translation (en) ==\n' +
+      '[00:00:00] Tomorrow we have the meeting.\n' +
+      '[00:00:05] Speaker 2: Okay, "hasta luego".\n',
+  )
+})

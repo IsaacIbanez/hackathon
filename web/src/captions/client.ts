@@ -33,8 +33,10 @@ export class CaptionsConnection {
   private readonly ws: WebSocket
   private opened = false
 
-  constructor(baseUrl: string, lang: string, target: string, h: ConnectionHandlers) {
+  /** speakers: how many people talk (0 = unknown); it helps telling them apart. */
+  constructor(baseUrl: string, lang: string, target: string, speakers: number, h: ConnectionHandlers) {
     const q = new URLSearchParams({ lang, target })
+    if (speakers > 0) q.set('speakers', String(speakers))
     this.ws = new WebSocket(`${baseUrl}?${q}`)
     this.ws.binaryType = 'arraybuffer'
     this.ws.onopen = () => {

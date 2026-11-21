@@ -214,7 +214,8 @@ Relación con lo anterior:
   - Qué hacen: subtítulos del micrófono y del audio de una llamada, con quién habla, traducción y la transcripción guardada en un `.txt`.
   - Cómo:
     - el navegador manda el audio a Go por `GET /captions` (WebSocket);
-    - Go lo pasa a Together AI (subtítulos en directo; diarización con Whisper por lotes; traducción con un modelo pequeño).
+    - Go lo pasa a Together AI: subtítulos en directo y diarización por lotes con Parakeet v3; idioma, barbarismos entre comillas y traducción con un modelo pequeño.
+  - Cada persona puede hablar un idioma distinto. Contrato 0.8 (solo añade): `speakers`, `revise` y `lang` en `final`.
   - Carpetas nuevas de Pau: `backend/captions/` (acordado con Isaac; de su código solo se toca el registro de la ruta) y `web/src/captions/`.
   - Clave `TOGETHER_API_KEY`: solo en `.env`, nunca en el repo ni en el navegador.
   - Coste visible, con un tope por sesión (`CAPTIONS_LIMIT_USD`, 1 $). Si Together falla, se ofrece el Whisper local de Nil.

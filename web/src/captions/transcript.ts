@@ -11,6 +11,8 @@ export interface CaptionLine {
   start: number
   text: string
   speaker?: string
+  /** Main language (ISO 639-1), once known. Words from another language come in quotes. */
+  lang?: string
   /** Target language -> translation. */
   translations: Record<string, string>
 }
@@ -56,9 +58,11 @@ export function applyEvent(state: CaptionsState, ev: CaptionsEvent): CaptionsSta
     case 'final': {
       if (!ev.id || !ev.text) return { ...state, partial: '' }
       if (state.lines.some((l) => l.id === ev.id)) return state
-      const line: CaptionLine = { id: ev.id, start: ev.start ?? 0, text: ev.text, translations: {} }
+      const line: CaptionLine = { id: ev.id, start: ev.start ?? 0, text: ev.text, ...(ev.lang ? { lang: ev.lang } : {}), translations: {} }
       return { ...state, partial: '', lines: [...state.lines, line] }
     }
+    case 'revise':
+      return ev.id ? updateLine(state, ev.id, (l) => ({ ...l, text: ev.text ?? l.text, lang: ev.lang ?? l.lang })) : state
     case 'speaker':
       return ev.id ? updateLine(state, ev.id, (l) => ({ ...l, speaker: ev.speaker })) : state
     case 'translation': {
@@ -109,13 +113,16 @@ export function transcriptFileName(d: Date): string {
  * the original first and then, for each language it was translated to, the translation.
  */
 export function transcriptText(state: CaptionsState, started: Date, lang: string): string {
-  const line = (l: CaptionLine, text: string) => `[${clock(l.start)}] ${l.speaker ? `${l.speaker}: ` : ''}${text}\n`
+  const line = (l: CaptionLine, text: string, withLang: boolean) => {
+    const who = [l.speaker, withLang && l.lang ? `(${l.lang})` : ''].filter(Boolean).join(' ')
+    return `[${clock(l.start)}] ${who ? `${who}: ` : ''}${text}\n`
+  }
   let out = `Live captions — ${stamp(started)} — spoken: ${lang} — translated to: ${state.langs.length ? state.langs.join(', ') : 'none'}\n`
   out += '== Original ==\n'
-  for (const l of state.lines) out += line(l, l.text)
+  for (const l of state.lines) out += line(l, l.text, true)
   for (const lang of state.langs) {
     out += `\n== Translation (${lang}) ==\n`
-    for (const l of state.lines) if (lang in l.translations) out += line(l, l.translations[lang])
+    for (const l of state.lines) if (lang in l.translations) out += line(l, l.translations[lang], false)
   }
   return out
 }

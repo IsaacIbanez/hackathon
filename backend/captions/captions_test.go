@@ -37,6 +37,17 @@ type fakeTogether struct {
 	diarizeReq atomic.Int32
 	mu         sync.Mutex
 	query      string
+	lm         func(polishInput) polishResult // the fake language model (default spanishLM)
+	polished   []polishInput
+}
+
+// spanishLM says every sentence is Spanish and "translates" it by prefixing "EN: ".
+func spanishLM(in polishInput) polishResult {
+	r := polishResult{Lang: "es", Text: in.Sentence}
+	if in.Target != "none" {
+		r.Translation = "EN: " + in.Sentence
+	}
+	return r
 }
 
 func (f *fakeTogether) server() *httptest.Server {
@@ -135,9 +146,20 @@ func (f *fakeTogether) server() *httptest.Server {
 		if req.Reasoning == nil || req.Reasoning.Enabled {
 			f.t.Errorf("translation must disable reasoning (Qwen3.5 spends every token thinking)")
 		}
-		text := req.Messages[len(req.Messages)-1].Content
+		var in polishInput
+		if err := json.Unmarshal([]byte(req.Messages[len(req.Messages)-1].Content), &in); err != nil {
+			f.t.Errorf("language model input is not JSON: %v", err)
+		}
+		f.mu.Lock()
+		f.polished = append(f.polished, in)
+		f.mu.Unlock()
+		lm := f.lm
+		if lm == nil {
+			lm = spanishLM
+		}
+		answer, _ := json.Marshal(lm(in))
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"choices": []any{map[string]any{"message": map[string]string{"content": "<think>hm</think>EN: " + text}}},
+			"choices": []any{map[string]any{"message": map[string]string{"content": "<think>hm</think>" + string(answer)}}},
 			"usage":   map[string]int{"prompt_tokens": 50, "completion_tokens": 10},
 		})
 	})
@@ -353,8 +375,8 @@ func TestCaptionsFlow(t *testing.T) {
 	}
 	want := "Live captions — 2026-11-21 23:30 — spoken: es — translated to: en\n" +
 		"== Original ==\n" +
-		"[00:00:00] Speaker 1: Primera frase.\n" +
-		"[00:00:02] Speaker 2: Segunda frase.\n" +
+		"[00:00:00] Speaker 1 (es): Primera frase.\n" +
+		"[00:00:02] Speaker 2 (es): Segunda frase.\n" +
 		"\n== Translation (en) ==\n" +
 		"[00:00:00] Speaker 1: EN: Primera frase.\n" +
 		"[00:00:02] Speaker 2: EN: Segunda frase.\n"
@@ -543,5 +565,212 @@ func TestStreamClockFollowsGapsInTheRecording(t *testing.T) {
 		if got := c.toSession(stream); math.Abs(got-want) > 1e-9 {
 			t.Errorf("toSession(%v) = %v, want %v", stream, got, want)
 		}
+	}
+}
+
+func TestSameWordsOnlyAllowsQuotes(t *testing.T) {
+	orig := "Mañana tenemos el meeting a las 10, no te olvides del deadline."
+	if !sameWords(orig, `Mañana tenemos el "meeting" a las 10, no te olvides del "deadline".`) {
+		t.Error("adding quotes must be accepted")
+	}
+	if !sameWords("Okay, hasta luego.", "Okay, «hasta luego».") {
+		t.Error("other quote marks must be accepted")
+	}
+	for _, bad := range []string{
+		`Mañana tenemos la "reunión" a las 10, no te olvides del "deadline".`, // a word changed
+		`Mañana tenemos el "meeting" a las diez, no te olvides del "deadline".`,
+		`Mañana tenemos el "meeting" a las 10 no te olvides del "deadline".`, // punctuation removed
+	} {
+		if sameWords(orig, bad) {
+			t.Errorf("must be rejected: %s", bad)
+		}
+	}
+}
+
+func TestUsualLanguageNeedsTwoSentences(t *testing.T) {
+	mk := func(sp, lang string) *sentence { return &sentence{Speaker: sp, Lang: lang} }
+	list := []*sentence{mk("Speaker 1", "es"), mk("Speaker 2", "en"), mk("Speaker 1", "es"), mk("Speaker 2", "es"), mk("Speaker 1", "en")}
+	if got := usualLanguage(list, "Speaker 1", nil); got != "es" {
+		t.Errorf("Speaker 1 = %q, want es (2 of 3)", got)
+	}
+	if got := usualLanguage(list, "Speaker 2", nil); got != "" {
+		t.Errorf("Speaker 2 = %q, want unknown (1 en, 1 es)", got)
+	}
+	if got := usualLanguage(list, "Speaker 1", list[0]); got != "" {
+		t.Errorf("skipping one leaves a tie: %q", got)
+	}
+}
+
+func TestFinalPassKeepsTheLiveNumbering(t *testing.T) {
+	sents := []*sentence{
+		{span: span{0, 2}, Speaker: "Speaker 1"},
+		{span: span{3, 5}, Speaker: "Speaker 2"},
+		{span: span{6, 8}, Speaker: "Speaker 1"},
+	}
+	var m speakerMap
+	// The final pass numbers the voices the other way round and finds a third one.
+	m.add(0, 12, []turn{{span{0, 2}, "SPEAKER_00"}, {span{3, 5}, "SPEAKER_01"}, {span{6, 8}, "SPEAKER_00"}, {span{9, 11}, "SPEAKER_02"}})
+	m.turns[0].Speaker, m.turns[2].Speaker = "Speaker 2", "Speaker 2"
+	m.turns[1].Speaker = "Speaker 1"
+	m.alignTo(sents)
+	for _, c := range []struct {
+		s    span
+		want string
+	}{{span{0, 2}, "Speaker 1"}, {span{3, 5}, "Speaker 2"}, {span{6, 8}, "Speaker 1"}, {span{9, 11}, "Speaker 3"}} {
+		if got := m.speakerOf(c.s); got != c.want {
+			t.Errorf("speakerOf(%v) = %q, want %q", c.s, got, c.want)
+		}
+	}
+}
+
+// Two languages in one meeting: the model marks barbarisms in quotes, and a short phrase is
+// checked again once we know its speaker usually speaks English.
+func TestBilingualMeetingWithBarbarisms(t *testing.T) {
+	f := &fakeTogether{t: t,
+		cues: []cue{
+			{at: 1.5, final: true, text: "Mañana tenemos el meeting a las 10."},
+			{at: 3.5, final: true, text: "Sure, I will send the report."},
+			{at: 5.5, final: true, text: "I will check it tonight."},
+			{at: 7.5, final: true, text: "Okay, hasta luego."},
+		},
+		// Voice A: 0-1 s. Voice B: the rest.
+		turns: func(dur float64) []turn {
+			ts := []turn{{span{0, 1.2}, "SPEAKER_00"}}
+			for st := 2.0; st+1 <= dur; st += 2 {
+				ts = append(ts, turn{span{st, st + 1.2}, "SPEAKER_01"})
+			}
+			return ts
+		},
+		lm: func(in polishInput) polishResult {
+			switch {
+			case strings.HasPrefix(in.Sentence, "Mañana"):
+				return polishResult{Lang: "es", Text: `Mañana tenemos el "meeting" a las 10.`, Translation: "Tomorrow we have the meeting at 10."}
+			case strings.HasPrefix(in.Sentence, "Okay"):
+				// Without context the model hesitates; with the speaker's language it is sure.
+				if in.SpeakerLang == "en" {
+					return polishResult{Lang: "en", Text: `Okay, "hasta luego".`}
+				}
+				return polishResult{Lang: "es", Text: in.Sentence, Translation: "Okay, see you later."}
+			default:
+				return polishResult{Lang: "en", Text: in.Sentence}
+			}
+		},
+	}
+	srv := f.server()
+	defer srv.Close()
+	cfg := f.config(srv, t.TempDir())
+	cfg.DiarizeEvery = 8 * time.Second // one live window covering everything
+	cl := dial(t, New(cfg, nil), "lang=auto&target=en&speakers=2")
+	for range 4 {
+		cl.send(speech(1, true))
+		cl.send(speech(1, false))
+	}
+	evs := cl.until(func(e gen.CaptionsEvent) bool { return e.Type == "revise" })
+	cl.text(`{"type":"stop"}`)
+	evs = append(evs, cl.until(nil)...)
+
+	texts, langs, tr := map[string]string{}, map[string]string{}, map[string]string{}
+	var saved string
+	for _, e := range evs {
+		switch e.Type {
+		case "final", "revise":
+			texts[val(e.Id)], langs[val(e.Id)] = val(e.Text), val(e.Lang)
+		case "translation":
+			tr[val(e.Id)] = val(e.Text)
+		case "saved":
+			saved = val(e.Path)
+		}
+	}
+	if texts["s1"] != `Mañana tenemos el "meeting" a las 10.` || langs["s1"] != "es" || tr["s1"] != "Tomorrow we have the meeting at 10." {
+		t.Errorf("s1: %q (%s) -> %q", texts["s1"], langs["s1"], tr["s1"])
+	}
+	// English sentences are not sent for translation to English: the text is the translation.
+	if langs["s2"] != "en" || tr["s2"] != "Sure, I will send the report." {
+		t.Errorf("s2: %s -> %q", langs["s2"], tr["s2"])
+	}
+	if texts["s4"] != `Okay, "hasta luego".` || langs["s4"] != "en" || tr["s4"] != `Okay, "hasta luego".` {
+		t.Errorf("s4 after knowing the speaker: %q (%s) -> %q\n%s", texts["s4"], langs["s4"], tr["s4"], describe(evs))
+	}
+	if strings.Contains(f.query, "language=") {
+		t.Errorf("auto must not force a language: %q", f.query)
+	}
+	data, _ := os.ReadFile(saved)
+	if !strings.Contains(string(data), "Speaker 2 (en): Okay, \"hasta luego\".") {
+		t.Errorf("transcript:\n%s", data)
+	}
+}
+
+// The labels Together's diarization gave the real bilingual dialogue (Spanish voice A, English
+// voice B, taking turns): it mixed the two voices. The language fixes it.
+func TestRefineByLanguageFixesMixedUpVoices(t *testing.T) {
+	mk := func(sp, lang, text string) *sentence { return &sentence{Speaker: sp, Lang: lang, Text: text} }
+	sents := []*sentence{
+		mk("Speaker 1", "es", `Mañana tenemos el "meeting" a las 10, no te olvides del "deadline".`), // A
+		mk("Speaker 1", "en", "Sure, I will send you the report before the meeting."),                // B
+		mk("Speaker 2", "es", "Perfecto. Gracias."),                                                  // A
+		mk("Speaker 2", "es", `Puedes revisar también el "budget" del proyecto.`),                    // A
+		mk("", "en", "Yes, no problem."),                                                             // B, no label
+		mk("Speaker 1", "en", "I will check it tonight."),                                            // B
+		mk("Speaker 1", "es", "Vale, entonces hablamos mañana."),                                     // A
+		mk("Speaker 1", "en", `Okay, "hasta luego".`),                                                // B
+	}
+	refineByLanguage(sents, 2)
+	want := []string{"Speaker 2", "Speaker 1", "Speaker 2", "Speaker 2", "Speaker 1", "Speaker 1", "Speaker 2", "Speaker 1"}
+	for i, s := range sents {
+		if s.Speaker != want[i] {
+			t.Errorf("sentence %d %q: %s, want %s", i+1, s.Text, s.Speaker, want[i])
+		}
+	}
+}
+
+func TestRefineByLanguageSplitsOneLabelWhenTwoPeopleTalk(t *testing.T) {
+	mk := func(lang, text string) *sentence { return &sentence{Speaker: "Speaker 1", Lang: lang, Text: text} }
+	sents := []*sentence{mk("es", "Hola, ¿qué tal estás hoy?"), mk("en", "I am fine, thank you."), mk("es", "Me alegro mucho de verte."), mk("en", "Nice to see you too.")}
+	refineByLanguage(sents, 2)
+	if sents[0].Speaker == sents[1].Speaker || sents[0].Speaker != sents[2].Speaker || sents[1].Speaker != sents[3].Speaker {
+		t.Errorf("not split by language: %s %s %s %s", sents[0].Speaker, sents[1].Speaker, sents[2].Speaker, sents[3].Speaker)
+	}
+	// Unknown number of people and one voice: a bilingual person is not split.
+	one := []*sentence{mk("es", "Hola, ¿qué tal estás hoy?"), mk("en", "I am fine, thank you."), mk("es", "Me alegro mucho de verte."), mk("en", "Nice to see you too.")}
+	refineByLanguage(one, 0)
+	for _, s := range one {
+		if s.Speaker != "Speaker 1" {
+			t.Errorf("a single bilingual speaker was split: %s", s.Speaker)
+		}
+	}
+}
+
+// The exact labels of the real run (00:26): Together put 7 of 8 sentences under one voice.
+func TestOneLanguagePerPersonWithTheRealLabels(t *testing.T) {
+	mk := func(sp, lang, text string) *sentence { return &sentence{Speaker: sp, Lang: lang, Text: text} }
+	sents := []*sentence{
+		mk("Speaker 1", "es", `Mañana tenemos el "meeting" a las 10, no te olvides del "deadline".`),
+		mk("Speaker 1", "en", "Sure, I will send you the report before the meeting."),
+		mk("Speaker 1", "es", "Perfecto. Gracias."),
+		mk("Speaker 2", "es", `Puedes revisar también el "budget" del proyecto.`),
+		mk("Speaker 1", "en", "Yes, no problem."),
+		mk("Speaker 1", "en", "I will check it tonight."),
+		mk("Speaker 1", "es", "Vale, entonces hablamos mañana."),
+		mk("Speaker 1", "en", `Okay, "Asta Luego".`),
+	}
+	refineByLanguage(sents, 2)
+	for i, s := range sents {
+		want := "Speaker 1" // the English voice keeps the label that holds most of its sentences
+		if s.Lang == "es" {
+			want = "Speaker 2"
+		}
+		if i == 2 {
+			// "Perfecto. Gracias.": a short phrase from a known person follows the voice
+			// (here the voice was wrong; with real voices it is usually right).
+			want = "Speaker 1"
+		}
+		if s.Speaker != want {
+			t.Errorf("sentence %d (%s) %q: %s, want %s", i+1, s.Lang, s.Text, s.Speaker, want)
+		}
+	}
+	// Same voices, but only one language: the voices decide, nothing moves.
+	same := []*sentence{mk("Speaker 1", "es", "Hola, ¿qué tal estás?"), mk("Speaker 2", "es", "Muy bien, gracias a ti."), mk("Speaker 1", "es", "Me alegro mucho, de verdad.")}
+	if ch := refineByLanguage(same, 2); len(ch) != 0 {
+		t.Errorf("one language, %d sentences moved", len(ch))
 	}
 }
