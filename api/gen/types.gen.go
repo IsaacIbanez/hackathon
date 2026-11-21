@@ -142,7 +142,7 @@ func (e UtteranceMessageType) Valid() bool {
 	}
 }
 
-// Box Caja normalizada a [0, 1] (origen arriba a la izquierda)
+// Box Box normalized to [0, 1] (origin at the top left)
 type Box struct {
 	H float32 `json:"h"`
 	W float32 `json:"w"`
@@ -150,7 +150,7 @@ type Box struct {
 	Y float32 `json:"y"`
 }
 
-// ClientMessage Lo que envía el navegador a Go
+// ClientMessage What the client (browser or local process) sends to Go
 type ClientMessage struct {
 	union json.RawMessage
 }
@@ -170,27 +170,27 @@ type DocumentMessageType string
 type DocumentPayload struct {
 	Blocks []TextBlock `json:"blocks"`
 
-	// ImageHeight Alto en píxeles de la imagen recortada (opcional)
+	// ImageHeight Height in pixels of the cropped image (optional)
 	ImageHeight *int `json:"imageHeight,omitempty"`
 
-	// ImageWidth Ancho en píxeles de la imagen recortada (opcional)
+	// ImageWidth Width in pixels of the cropped image (optional)
 	ImageWidth *int `json:"imageWidth,omitempty"`
 
-	// Lang Idioma detectado (BCP-47), si se conoce
+	// Lang Detected language (BCP-47), if known
 	//
 	// Example: es
 	Lang *string `json:"lang,omitempty"`
 
-	// Quality Calidad del encuadre del documento
+	// Quality Quality of the document framing
 	Quality FrameQuality `json:"quality"`
 }
 
-// Envelope Sobre genérico. Sirve para leer `type` antes de decodificar `payload`.
+// Envelope Generic envelope. Used to read `type` before decoding `payload`.
 type Envelope struct {
 	Id      string          `json:"id"`
 	Payload json.RawMessage `json:"payload"`
 
-	// Ts Milisegundos desde epoch
+	// Ts Milliseconds since epoch
 	Ts   int64       `json:"ts"`
 	Type MessageType `json:"type"`
 }
@@ -198,11 +198,11 @@ type Envelope struct {
 // FrameIssue defines model for FrameIssue.
 type FrameIssue string
 
-// FrameQuality Calidad del encuadre del documento
+// FrameQuality Quality of the document framing
 type FrameQuality struct {
 	Issues []FrameIssue `json:"issues"`
 
-	// Score 1 = perfecto
+	// Score 1 = perfect
 	Score float32 `json:"score"`
 }
 
@@ -228,13 +228,13 @@ type PointerMessageType string
 
 // PointerPayload defines model for PointerPayload.
 type PointerPayload struct {
-	// BlockId Bloque señalado, si el dedo cae dentro de alguno
+	// BlockId Pointed block, if the finger falls inside one
 	BlockId *string `json:"blockId,omitempty"`
 	X       float32 `json:"x"`
 	Y       float32 `json:"y"`
 }
 
-// ServerMessage Lo que envía Go al navegador
+// ServerMessage What Go sends to the client
 type ServerMessage struct {
 	union json.RawMessage
 }
@@ -252,18 +252,18 @@ type SpeakMessageType string
 
 // SpeakPayload defines model for SpeakPayload.
 type SpeakPayload struct {
-	// HighlightBlockIds Ids de TextBlock a resaltar mientras se habla
+	// HighlightBlockIds TextBlock ids to highlight while speaking
 	HighlightBlockIds []string `json:"highlightBlockIds"`
 
-	// Lang Idioma de la voz (BCP-47)
+	// Lang Voice language (BCP-47)
 	//
 	// Example: es-ES
 	Lang string `json:"lang"`
 
-	// ReplyTo id del mensaje al que responde, si aplica
+	// ReplyTo id of the message this answers, if any
 	ReplyTo *string `json:"replyTo,omitempty"`
 
-	// Text Texto a leer en voz alta y mostrar
+	// Text Text to read aloud and display
 	Text string `json:"text"`
 }
 
@@ -271,7 +271,7 @@ type SpeakPayload struct {
 type StatsMessage struct {
 	Id string `json:"id"`
 
-	// Payload Contador de coste y latencia (criterio de frugalidad de AXA)
+	// Payload Cost and latency meter (AXA frugality criterion)
 	Payload StatsPayload     `json:"payload"`
 	Ts      int64            `json:"ts"`
 	Type    StatsMessageType `json:"type"`
@@ -280,37 +280,37 @@ type StatsMessage struct {
 // StatsMessageType defines model for StatsMessage.Type.
 type StatsMessageType string
 
-// StatsPayload Contador de coste y latencia (criterio de frugalidad de AXA)
+// StatsPayload Cost and latency meter (AXA frugality criterion)
 type StatsPayload struct {
-	// Barato Uso acumulado de un nivel de modelo en esta sesión de la app
-	Barato TierStats `json:"barato"`
+	// Cheap Accumulated usage of one model tier since the app started
+	Cheap TierStats `json:"cheap"`
 
-	// Caro Uso acumulado de un nivel de modelo en esta sesión de la app
-	Caro         TierStats `json:"caro"`
+	// Expensive Accumulated usage of one model tier since the app started
+	Expensive    TierStats `json:"expensive"`
 	TotalCostUsd float64   `json:"totalCostUsd"`
 }
 
 // TextBlock defines model for TextBlock.
 type TextBlock struct {
-	// Box Caja normalizada a [0, 1] (origen arriba a la izquierda)
+	// Box Box normalized to [0, 1] (origin at the top left)
 	Box Box `json:"box"`
 
-	// Confidence Confianza del OCR local
+	// Confidence Local OCR confidence
 	Confidence float32 `json:"confidence"`
 
-	// Id Estable dentro del documento; lo usan pointer y speak
+	// Id Stable within the document; used by pointer and speak
 	Id   string `json:"id"`
 	Text string `json:"text"`
 }
 
-// TierStats Uso acumulado de un nivel de modelo en esta sesión de la app
+// TierStats Accumulated usage of one model tier since the app started
 type TierStats struct {
 	AvgLatencyMs int64 `json:"avgLatencyMs"`
 
-	// CacheHits Respuestas servidas desde la caché (coste 0)
+	// CacheHits Answers served from the cache (cost 0)
 	CacheHits int `json:"cacheHits"`
 
-	// Calls Llamadas reales al modelo
+	// Calls Real model calls
 	Calls         int     `json:"calls"`
 	CostUsd       float64 `json:"costUsd"`
 	Errors        int     `json:"errors"`
@@ -330,7 +330,7 @@ type UtteranceMessageType string
 
 // UtterancePayload defines model for UtterancePayload.
 type UtterancePayload struct {
-	// IsFinal false para resultados parciales del reconocimiento de voz
+	// IsFinal false for partial speech recognition results
 	IsFinal bool `json:"isFinal"`
 
 	// Lang Example: es-ES

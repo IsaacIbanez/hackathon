@@ -1,4 +1,4 @@
-# Código siempre con LF, también en Windows (gofmt y los linters lo esperan).
+# Code always uses LF, also on Windows (gofmt and the linters expect it).
 *.go    text eol=lf
 *.ts    text eol=lf
 *.tsx   text eol=lf

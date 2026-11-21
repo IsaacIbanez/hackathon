@@ -8,6 +8,6 @@
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",
   "author": {
-    "name": "Equipo LauzHack"
+    "name": "LauzHack team"
   }
 }

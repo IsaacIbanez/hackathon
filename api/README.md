@@ -26,7 +26,7 @@ Coordenadas normalizadas a [0, 1] sobre el documento recortado, origen arriba a 
 | `pointer` | navegador → Go | `x`, `y`, opcional `blockId` |
 | `utterance` | navegador → Go | `text`, `isFinal`, opcional `lang` |
 | `speak` | Go → navegador | `text`, `highlightBlockIds[]`, `lang`, opcional `replyTo` |
-| `stats` | Go → navegador | coste y latencia acumulados: `barato` y `caro` (`calls`, `cacheHits`, `errors`, `costUsd`, `avgLatencyMs`, `lastLatencyMs`) y `totalCostUsd`. Se envía tras cada llamada a un modelo |
+| `stats` | Go → navegador | coste y latencia acumulados: `cheap` y `expensive` (`calls`, `cacheHits`, `errors`, `costUsd`, `avgLatencyMs`, `lastLatencyMs`) y `totalCostUsd`. Se envía tras cada llamada a un modelo |
 
 ## Servidor mock y app
 La app de escritorio (`task dev` o el ejecutable) sirve lo mismo en `ws://127.0.0.1:8765/ws`, por ahora con las mismas respuestas de ejemplo. Cualquier proceso local puede conectarse (no hace falta un navegador).
