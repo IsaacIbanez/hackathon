@@ -1,0 +1,19 @@
+[
+  {
+    "id": "browser",
+    "name": "Browser",
+    "open": "https://lauzhack.com"
+  },
+  {
+    "id": "files",
+    "name": "File Manager",
+    "open": "."
+  },
+  {
+    "id": "calculator",
+    "name": "Calculator",
+    "windows": ["calc.exe"],
+    "linux": ["gnome-calculator"],
+    "mac": ["open", "-a", "Calculator"]
+  }
+]

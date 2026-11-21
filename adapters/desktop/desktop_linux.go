@@ -134,6 +134,36 @@ func (d *linuxDesktop) Click() error {
 	return fmt.Errorf("%w: install xdotool (X11) or ydotool (Wayland)", ErrUnsupported)
 }
 
+func (d *linuxDesktop) MouseDown() error {
+	if !d.wayland && has("xdotool") {
+		return run("xdotool", "mousedown", "1")
+	}
+	if has("ydotool") {
+		return run("ydotool", "click", "0x40")
+	}
+	return fmt.Errorf("%w: install xdotool (X11) or ydotool (Wayland)", ErrUnsupported)
+}
+
+func (d *linuxDesktop) MouseUp() error {
+	if !d.wayland && has("xdotool") {
+		return run("xdotool", "mouseup", "1")
+	}
+	if has("ydotool") {
+		return run("ydotool", "click", "0x80")
+	}
+	return fmt.Errorf("%w: install xdotool (X11) or ydotool (Wayland)", ErrUnsupported)
+}
+
+func (d *linuxDesktop) RightClick() error {
+	if !d.wayland && has("xdotool") {
+		return run("xdotool", "click", "3")
+	}
+	if has("ydotool") {
+		return run("ydotool", "click", "0xC1")
+	}
+	return fmt.Errorf("%w: install xdotool (X11) or ydotool (Wayland)", ErrUnsupported)
+}
+
 func (d *linuxDesktop) SetVolume(v float64) error {
 	pct := fmt.Sprintf("%d%%", int(v*100+0.5))
 	switch {
@@ -145,6 +175,96 @@ func (d *linuxDesktop) SetVolume(v float64) error {
 		return run("amixer", "-q", "sset", "Master", pct)
 	}
 	return fmt.Errorf("%w: install wpctl, pactl or amixer", ErrUnsupported)
+}
+
+func (d *linuxDesktop) SetBrightness(v float64) error {
+	pct := int(v*100 + 0.5)
+	switch {
+	case has("brightnessctl"):
+		return run("brightnessctl", "set", fmt.Sprintf("%d%%", pct))
+	case has("light"):
+		return run("light", "-S", fmt.Sprintf("%d", pct))
+	case !d.wayland && has("xrandr"):
+		out, err := exec.Command("xrandr", "--current").Output()
+		if err == nil {
+			lines := strings.Split(string(out), "\n")
+			var targetOutput string
+			for _, line := range lines {
+				if strings.Contains(line, " connected") {
+					parts := strings.Fields(line)
+					if len(parts) > 0 {
+						if targetOutput == "" || strings.Contains(line, "primary") {
+							targetOutput = parts[0]
+							if strings.Contains(line, "primary") {
+								break
+							}
+						}
+					}
+				}
+			}
+			if targetOutput != "" {
+				return run("xrandr", "--output", targetOutput, "--brightness", fmt.Sprintf("%.2f", v))
+			}
+		}
+	}
+	return fmt.Errorf("%w: install brightnessctl, light or xrandr", ErrUnsupported)
+}
+
+func (d *linuxDesktop) ToggleMicMute() (string, error) {
+	switch {
+	case has("wpctl"):
+		if err := run("wpctl", "set-mute", "@DEFAULT_AUDIO_SOURCE@", "toggle"); err != nil {
+			return "", err
+		}
+		out, err := exec.Command("wpctl", "get-volume", "@DEFAULT_AUDIO_SOURCE@").Output()
+		if err == nil && strings.Contains(string(out), "[MUTED]") {
+			return "muted", nil
+		}
+		return "unmuted", nil
+	case has("pactl"):
+		if err := run("pactl", "set-source-mute", "@DEFAULT_SOURCE@", "toggle"); err != nil {
+			return "", err
+		}
+		out, err := exec.Command("pactl", "get-source-mute", "@DEFAULT_SOURCE@").Output()
+		if err == nil {
+			if strings.Contains(strings.ToLower(string(out)), "yes") {
+				return "muted", nil
+			}
+			return "unmuted", nil
+		}
+		return "toggled", nil
+	case has("amixer"):
+		out, err := exec.Command("amixer", "sset", "Capture", "toggle").CombinedOutput()
+		if err != nil {
+			return "", fmt.Errorf("amixer: %v: %s", err, strings.TrimSpace(string(out)))
+		}
+		s := string(out)
+		if strings.Contains(s, "[off]") {
+			return "muted", nil
+		}
+		if strings.Contains(s, "[on]") {
+			return "unmuted", nil
+		}
+		return "toggled", nil
+	}
+	return "", fmt.Errorf("%w: install wpctl, pactl or amixer", ErrUnsupported)
+}
+
+func (d *linuxDesktop) Power(kind string) error {
+	switch kind {
+	case "suspend":
+		return run("systemctl", "suspend")
+	case "restart":
+		return run("systemctl", "reboot")
+	case "shutdown":
+		return run("systemctl", "poweroff")
+	default:
+		return fmt.Errorf("unknown power action %q", kind)
+	}
+}
+
+func (d *linuxDesktop) OpenApp(argv []string) error {
+	return openProcess(argv)
 }
 
 func (d *linuxDesktop) FocusWindow(app CallApp) error {

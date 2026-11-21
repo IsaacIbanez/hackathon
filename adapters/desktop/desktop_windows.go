@@ -3,9 +3,13 @@
 package main
 
 import (
+	"encoding/base64"
+	"fmt"
+	"os/exec"
 	"strings"
 	"syscall"
 	"time"
+	"unicode/utf16"
 	"unsafe"
 )
 
@@ -32,6 +36,8 @@ const (
 	keyeventfKeyUp = 0x0002
 	mouseLeftDown  = 0x0002
 	mouseLeftUp    = 0x0004
+	mouseRightDown = 0x0008
+	mouseRightUp   = 0x0010
 	vkVolumeDown   = 0xAE
 	vkVolumeUp     = 0xAF
 	vkMenu         = 0x12 // Alt
@@ -87,6 +93,22 @@ func (windowsDesktop) Click() error {
 	return nil
 }
 
+func (windowsDesktop) MouseDown() error {
+	procMouseEvent.Call(mouseLeftDown, 0, 0, 0, 0)
+	return nil
+}
+
+func (windowsDesktop) MouseUp() error {
+	procMouseEvent.Call(mouseLeftUp, 0, 0, 0, 0)
+	return nil
+}
+
+func (windowsDesktop) RightClick() error {
+	procMouseEvent.Call(mouseRightDown, 0, 0, 0, 0)
+	procMouseEvent.Call(mouseRightUp, 0, 0, 0, 0)
+	return nil
+}
+
 // SetVolume has no simple absolute API without COM, so it presses "volume down" 50 times
 // (to 0 %) and then "volume up" once per 2 %.
 func (windowsDesktop) SetVolume(v float64) error {
@@ -99,6 +121,109 @@ func (windowsDesktop) SetVolume(v float64) error {
 		key(vkVolumeUp, true)
 	}
 	return nil
+}
+
+func runPowerShell(script string) (string, error) {
+	utf16Runes := utf16.Encode([]rune(script))
+	b := make([]byte, len(utf16Runes)*2)
+	for i, v := range utf16Runes {
+		b[i*2] = byte(v)
+		b[i*2+1] = byte(v >> 8)
+	}
+	encoded := base64.StdEncoding.EncodeToString(b)
+	cmd := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("powershell: %v: %s", err, strings.TrimSpace(string(out)))
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+func (windowsDesktop) SetBrightness(v float64) error {
+	pct := int(v*100 + 0.5)
+	ps := fmt.Sprintf("(Get-WmiObject -Namespace root/WMI -Class WmiMonitorBrightnessMethods).WmiSetBrightness(1, %d)", pct)
+	_, err := runPowerShell(ps)
+	if err != nil {
+		return fmt.Errorf("brightness control failed (only internal laptop screens are supported): %w", err)
+	}
+	return nil
+}
+
+func (windowsDesktop) ToggleMicMute() (string, error) {
+	const ps = `
+$csharp = @'
+using System;
+using System.Runtime.InteropServices;
+
+[Guid("5CDF2C82-841E-4546-9722-0CF74078229A"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IAudioEndpointVolume {
+    int f1(); int f2(); int f3(); int f4(); int f5(); int f6(); int f7(); int f8(); int f9(); int f10(); int f11();
+    int SetMute([MarshalAs(UnmanagedType.Bool)] bool bMute, ref Guid pguidEventContext);
+    int GetMute(out bool pbMute);
+}
+
+[Guid("D666063F-1587-4E43-81F1-B948E807363F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IMMDevice {
+    int Activate(ref Guid id, int clsCtx, IntPtr activationParams, out IAudioEndpointVolume ppInterface);
+}
+
+[Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IMMDeviceEnumerator {
+    int GetDefaultAudioEndpoint(int dataFlow, int role, out IMMDevice ppDevice);
+}
+
+[ComImport, Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")]
+class MMDeviceEnumerator {}
+
+public class AudioCapture {
+    public static string ToggleMute() {
+        var enumerator = (IMMDeviceEnumerator)(new MMDeviceEnumerator());
+        IMMDevice dev;
+        enumerator.GetDefaultAudioEndpoint(1, 1, out dev);
+        var IID_IAudioEndpointVolume = typeof(IAudioEndpointVolume).GUID;
+        IAudioEndpointVolume ep;
+        dev.Activate(ref IID_IAudioEndpointVolume, 23, IntPtr.Zero, out ep);
+        bool muted;
+        ep.GetMute(out muted);
+        Guid empty = Guid.Empty;
+        ep.SetMute(!muted, ref empty);
+        return (!muted) ? "muted" : "unmuted";
+    }
+}
+'@
+Add-Type -TypeDefinition $csharp -ErrorAction Stop
+[AudioCapture]::ToggleMute()
+`
+	out, err := runPowerShell(ps)
+	if err != nil {
+		return "", fmt.Errorf("microphone toggle failed: %w", err)
+	}
+	if strings.Contains(out, "muted") && !strings.Contains(out, "unmuted") {
+		return "muted", nil
+	}
+	if strings.Contains(out, "unmuted") {
+		return "unmuted", nil
+	}
+	return "toggled", nil
+}
+
+func (windowsDesktop) Power(kind string) error {
+	switch kind {
+	case "shutdown":
+		return exec.Command("shutdown", "/s", "/t", "0").Run()
+	case "restart":
+		return exec.Command("shutdown", "/r", "/t", "0").Run()
+	case "suspend":
+		ps := "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.Application]::SetSuspendState('Suspend', $false, $false)"
+		_, err := runPowerShell(ps)
+		return err
+	default:
+		return fmt.Errorf("unknown power action %q", kind)
+	}
+}
+
+func (windowsDesktop) OpenApp(argv []string) error {
+	return openProcess(argv)
 }
 
 func windowTitle(hwnd uintptr) string {

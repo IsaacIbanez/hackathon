@@ -16,10 +16,11 @@ const tokenPlaceholder = "__GESTURE_TOKEN__"
 
 // Status is what GET /api/status returns to the page.
 type Status struct {
-	Platform string    `json:"platform"`
-	Desktop  string    `json:"desktop"`
-	DryRun   bool      `json:"dryRun"`
-	Apps     []CallApp `json:"apps"`
+	Platform  string         `json:"platform"`
+	Desktop   string         `json:"desktop"`
+	DryRun    bool           `json:"dryRun"`
+	Apps      []CallApp      `json:"apps"`
+	Launchers []LauncherInfo `json:"launchers"`
 }
 
 // Server serves the gesture page and the local API that acts on the computer.
@@ -38,6 +39,7 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/status", s.guard(s.status))
 	mux.HandleFunc("POST /api/action", s.guard(s.action))
+	mux.HandleFunc("POST /api/mouse", s.guard(s.mouse))
 	mux.HandleFunc("POST /api/pointer", s.guard(s.pointer))
 	mux.HandleFunc("GET /", s.page)
 	return s.localHostOnly(mux)
@@ -102,8 +104,10 @@ func (s *Server) action(w http.ResponseWriter, r *http.Request) {
 	did, err := s.Exec.Do(req)
 	s.mu.Unlock()
 	switch {
-	case errors.Is(err, ErrUnknownAction):
+	case errors.Is(err, ErrUnknownAction), errors.Is(err, ErrUnknownLauncher):
 		writeError(w, http.StatusUnprocessableEntity, err.Error())
+	case errors.Is(err, ErrNeedsConfirm):
+		writeError(w, http.StatusPreconditionRequired, err.Error())
 	case errors.Is(err, ErrUnsupported):
 		writeError(w, http.StatusNotImplemented, err.Error())
 	case err != nil:
@@ -112,6 +116,32 @@ func (s *Server) action(w http.ResponseWriter, r *http.Request) {
 	default:
 		log.Printf("did: %s", did)
 		writeJSON(w, http.StatusOK, map[string]string{"did": did})
+	}
+}
+
+func (s *Server) mouse(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Action string `json:"action"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON")
+		return
+	}
+	if req.Action != "down" && req.Action != "up" && req.Action != "click" && req.Action != "right_click" {
+		writeError(w, http.StatusUnprocessableEntity, "unknown mouse action")
+		return
+	}
+	s.mu.Lock()
+	err := s.Exec.Mouse(req.Action)
+	s.mu.Unlock()
+	switch {
+	case errors.Is(err, ErrUnsupported):
+		writeError(w, http.StatusNotImplemented, err.Error())
+	case err != nil:
+		log.Printf("mouse %q: %v", req.Action, err)
+		writeError(w, http.StatusInternalServerError, err.Error())
+	default:
+		w.WriteHeader(http.StatusNoContent)
 	}
 }
 
