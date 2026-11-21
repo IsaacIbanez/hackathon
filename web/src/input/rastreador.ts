@@ -55,6 +55,8 @@ const POR_DEFECTO: OpcionesRastreador = {
 
 export interface Rastreador {
   detener(): void;
+  /** Recrea el detector (p. ej. tras cambiar de cámara). */
+  reiniciar(): Promise<void>;
   /** Frames analizados por segundo (media reciente). */
   readonly fps: number;
 }
@@ -79,50 +81,77 @@ export async function crearRastreador(
       minHandPresenceConfidence: 0.5,
       minTrackingConfidence: 0.5,
     });
-  let detector: HandLandmarkerMP;
-  try {
-    detector = await crear(o.delegado);
-  } catch (e) {
-    if (o.delegado === "CPU") throw e;
-    console.warn("MediaPipe: GPU no disponible, se usa CPU", e);
-    detector = await crear("CPU");
-  }
+  const crearConRespaldo = async (): Promise<HandLandmarkerMP> => {
+    try {
+      return await crear(o.delegado);
+    } catch (e) {
+      if (o.delegado === "CPU") throw e;
+      console.warn("MediaPipe: GPU no disponible, se usa CPU", e);
+      return await crear("CPU");
+    }
+  };
+  let detector: HandLandmarkerMP | null = await crearConRespaldo();
 
   let activo = true;
   let tUltimo = -Infinity;
   let fps = 0;
+  let dimensiones = "";
   const intervalo = 1000 / o.fpsMax;
 
+  // Si la resolución del vídeo cambia (p. ej. al apagar y encender la cámara), MediaPipe
+  // conserva el seguimiento de la imagen anterior y los puntos salen desplazados: se recrea.
+  let recreando: Promise<void> | null = null;
+  const recrear = (): Promise<void> => {
+    // Si ya se está recreando, no abrimos un segundo detector.
+    recreando ??= (async () => {
+      const viejo = detector;
+      detector = null;
+      viejo?.close();
+      try {
+        detector = await crearConRespaldo();
+      } finally {
+        recreando = null;
+      }
+    })();
+    return recreando;
+  };
+
+  // requestAnimationFrame en vez de requestVideoFrameCallback: sigue funcionando aunque se
+  // cambie el stream del <video> o la cámara se corte un rato.
   const paso = () => {
     if (!activo) return;
+    requestAnimationFrame(paso);
     const t = performance.now();
-    if (video.readyState >= 2 && video.videoWidth > 0 && t - tUltimo >= intervalo) {
-      if (tUltimo > 0) {
-        const instantaneo = 1000 / (t - tUltimo);
-        fps = fps === 0 ? instantaneo : 0.9 * fps + 0.1 * instantaneo;
+    if (!detector || video.readyState < 2 || video.videoWidth === 0 || t - tUltimo < intervalo) return;
+
+    const dims = `${video.videoWidth}x${video.videoHeight}`;
+    if (dims !== dimensiones) {
+      const primera = dimensiones === "";
+      dimensiones = dims;
+      if (!primera) {
+        console.info(`Cámara: nueva resolución ${dims}, se reinicia MediaPipe`);
+        void recrear();
+        return;
       }
-      tUltimo = t;
-      const r = detector.detectForVideo(video, t);
-      alFrame(convertir(r, t, video.videoWidth / video.videoHeight));
     }
-    programar();
-  };
-  const programar = () => {
-    if ("requestVideoFrameCallback" in video) {
-      (video as HTMLVideoElement & { requestVideoFrameCallback(cb: () => void): number }).requestVideoFrameCallback(
-        paso,
-      );
-    } else {
-      requestAnimationFrame(paso);
+
+    if (tUltimo > 0) {
+      const instantaneo = 1000 / (t - tUltimo);
+      fps = fps === 0 ? instantaneo : 0.9 * fps + 0.1 * instantaneo;
     }
+    tUltimo = t;
+    const r = detector.detectForVideo(video, t);
+    alFrame(convertir(r, t, video.videoWidth / video.videoHeight));
   };
-  programar();
+  requestAnimationFrame(paso);
 
   return {
     detener() {
       activo = false;
-      detector.close();
+      detector?.close();
+      detector = null;
     },
+    reiniciar: recrear,
     get fps() {
       return fps;
     },

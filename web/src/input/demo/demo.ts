@@ -1,5 +1,5 @@
 // Página de prueba del módulo de manos. Arrancar con:  npx vite web/src/input  → /demo/
-import { accionDe, CONEXIONES, crearRastreador, InteraccionManos, type Esquinas, type FrameManos, type Punto } from "../index.ts";
+import { accionDe, CONEXIONES, crearRastreador, InteraccionManos, type Esquinas, type FrameManos, type Punto, type Rastreador } from "../index.ts";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const video = $<HTMLVideoElement>("video");
@@ -56,6 +56,7 @@ function dibujar() {
   const w = (lienzo.width = video.videoWidth || 640);
   const h = (lienzo.height = video.videoHeight || 480);
   ctx.clearRect(0, 0, w, h);
+  if (video.readyState >= 2) ctx.drawImage(video, 0, 0, w, h);
   const quad = esquinas ?? marcando;
   if (quad?.length) {
     ctx.strokeStyle = "#00e0ff";
@@ -88,13 +89,42 @@ function dibujar() {
   requestAnimationFrame(dibujar);
 }
 
+let rastreador: Rastreador | null = null;
+
+/** Abre la cámara y vigila si se corta, para reconectar sola. */
+async function abrirCamara(): Promise<void> {
+  (video.srcObject as MediaStream | null)?.getTracks().forEach((t) => t.stop());
+  const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 }, audio: false });
+  video.srcObject = stream;
+  await video.play();
+  stream.getVideoTracks()[0]?.addEventListener("ended", () => {
+    $("estado").textContent = "La cámara se ha cortado. Reconectando…";
+    void reconectar();
+  });
+}
+
+async function reconectar(intentos = 20): Promise<void> {
+  for (let i = 0; i < intentos; i++) {
+    try {
+      await abrirCamara();
+      await rastreador?.reiniciar();
+      $("estado").textContent = "Cámara reconectada.";
+      return;
+    } catch {
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+  }
+  $("estado").textContent = "No se pudo reconectar la cámara. Pulsa «Reiniciar cámara».";
+}
+
+$("reiniciar").addEventListener("click", () => void reconectar(1));
+
 async function iniciar() {
   try {
-    video.srcObject = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 }, audio: false });
-    await video.play();
+    await abrirCamara();
     // ?mp=<url> permite servir MediaPipe desde otra ruta (p. ej. sin acceso a jsDelivr).
     const baseMediapipe = new URLSearchParams(location.search).get("mp") ?? undefined;
-    const rastreador = await crearRastreador(
+    rastreador = await crearRastreador(
       video,
       (f) => {
         ultimoFrame = f;
@@ -102,7 +132,7 @@ async function iniciar() {
       },
       baseMediapipe ? { baseMediapipe } : {},
     );
-    setInterval(() => ($("fps").textContent = rastreador.fps.toFixed(0)), 500);
+    setInterval(() => ($("fps").textContent = rastreador!.fps.toFixed(0)), 500);
     $("estado").textContent = "Listo. Pon la mano delante de la cámara.";
     requestAnimationFrame(dibujar);
   } catch (e) {
