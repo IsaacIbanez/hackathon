@@ -10,9 +10,14 @@ export interface VadOptions {
   startMs: number;
   /** Silence this long ends the phrase. */
   endMs: number;
+  /**
+   * The first frames only measure the background noise (the user starts after the beep), so a
+   * noisy room isn't mistaken for speech that never ends.
+   */
+  calibrateMs: number;
 }
 
-export const VAD_DEFAULTS: VadOptions = { ratio: 3, minLevel: 0.01, startMs: 120, endMs: 900 };
+export const VAD_DEFAULTS: VadOptions = { ratio: 2.5, minLevel: 0.01, startMs: 150, endMs: 900, calibrateMs: 300 };
 
 export type VadEvent = "start" | "end" | null;
 
@@ -28,6 +33,8 @@ export class EnergyVad {
   private speaking = false;
   private loudMs = 0;
   private quietMs = 0;
+  private calibratedMs = 0;
+  private calibrationSum = 0;
 
   constructor(options: Partial<VadOptions> = {}) {
     this.options = { ...VAD_DEFAULTS, ...options };
@@ -40,6 +47,12 @@ export class EnergyVad {
   /** Feeds one audio frame lasting `ms` milliseconds. Returns "start", "end" or null. */
   feed(samples: Float32Array, ms: number): VadEvent {
     const level = rms(samples);
+    if (this.calibratedMs < this.options.calibrateMs) {
+      this.calibrationSum += level * ms;
+      this.calibratedMs += ms;
+      if (this.calibratedMs >= this.options.calibrateMs) this.noise = this.calibrationSum / this.calibratedMs;
+      return null;
+    }
     const threshold = Math.max(this.options.minLevel, this.noise * this.options.ratio);
     const loud = level > threshold;
     if (!this.speaking) {
@@ -76,4 +89,27 @@ export function resampleTo16k(input: Float32Array, fromRate: number): Float32Arr
     out[i] = input[i0] * (1 - f) + input[i1] * f;
   }
   return out;
+}
+
+/**
+ * Resampling to 16 kHz with the browser's audio engine (it filters before downsampling, so it
+ * doesn't add the aliasing the linear version does). Falls back to the linear one without it.
+ */
+export async function resampleTo16kHQ(input: Float32Array, fromRate: number): Promise<Float32Array> {
+  if (fromRate === 16000 || input.length === 0) return input;
+  if (typeof OfflineAudioContext === "undefined") return resampleTo16k(input, fromRate);
+  try {
+    const length = Math.ceil((input.length * 16000) / fromRate);
+    const offline = new OfflineAudioContext(1, length, 16000);
+    const buffer = offline.createBuffer(1, input.length, fromRate);
+    buffer.copyToChannel(Float32Array.from(input), 0);
+    const source = offline.createBufferSource();
+    source.buffer = buffer;
+    source.connect(offline.destination);
+    source.start();
+    const out = await offline.startRendering();
+    return out.getChannelData(0).slice();
+  } catch {
+    return resampleTo16k(input, fromRate);
+  }
 }

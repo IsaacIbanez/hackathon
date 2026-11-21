@@ -71,6 +71,22 @@ test("pointing emits a rate-limited pointer and a dwell selection", () => {
   assert.ok(p.type === "pointer" && p.image.y < 0.48);
 });
 
+test("dwellProgress fills up while pointing still and resets after the selection", () => {
+  const ctl = new HandInteraction();
+  const hand = makeHand(SHAPES.point);
+  const progress: number[] = [];
+  for (let i = 0; i < 40; i++) {
+    const t = i * STEP;
+    ctl.process({ t, hands: [hand] });
+    progress.push(ctl.dwellProgress(t));
+  }
+  const peak = Math.max(...progress);
+  assert.ok(peak > 0.9, `peak ${peak}`);
+  assert.ok(progress[10] > 0 && progress[10] < progress[20], "it grows while holding still");
+  assert.equal(progress.at(-1), 0, "after selecting it goes back to 0");
+  assert.equal(ctl.dwellProgress(40 * STEP + 1000), 0, "and stays 0 when no longer pointing");
+});
+
 test("the pointer is mapped to document coordinates", () => {
   const ctl = new HandInteraction({ pointerLead: 0 });
   // Document spanning x 0.34–0.54 and y 0.38–0.58: the tip (0.44, 0.48) falls in its centre.

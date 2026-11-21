@@ -2,9 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { splitSentences, normalizeSpeech } from "../voice/text.ts";
 import { parseCommand } from "../voice/commands.ts";
-import { EnergyVad, resampleTo16k } from "../voice/vad.ts";
+import { EnergyVad, resampleTo16k, resampleTo16kHQ } from "../voice/vad.ts";
 import { Speaker, chooseVoice, type SynthLike, type UtteranceLike, type VoiceLike } from "../voice/speaker.ts";
-import { AutoListener, ListenError, type Listener, type ListenOptions } from "../voice/listener.ts";
+import { AutoListener, chooseWhisperSize, ListenError, type Listener, type ListenOptions } from "../voice/listener.ts";
 import { VoiceInput } from "../voice/voiceInput.ts";
 import type { ClientMessage } from "../../api/index.ts";
 
@@ -56,6 +56,23 @@ test("the VAD starts after sustained speech and ends after a silence", () => {
   feed(0.2, 10); // speech
   assert.deepEqual(events, ["start"]);
   feed(0.002, 25); // silence > 900 ms
+  assert.deepEqual(events, ["start", "end"]);
+});
+
+test("the VAD learns a noisy room first, so the noise alone never counts as speech", () => {
+  const vad = new EnergyVad();
+  const events: string[] = [];
+  const feed = (amp: number, frames: number) => {
+    for (let i = 0; i < frames; i++) {
+      const e = vad.feed(tone(amp), 50);
+      if (e) events.push(e);
+    }
+  };
+  feed(0.04, 40); // loud background chatter from the very first frame
+  assert.deepEqual(events, []);
+  feed(0.3, 6); // the user talks close to the microphone
+  assert.deepEqual(events, ["start"]);
+  feed(0.04, 25); // back to the chatter: the phrase ends
   assert.deepEqual(events, ["start", "end"]);
 });
 
@@ -151,6 +168,7 @@ class FakeListener implements Listener {
     o.onPartial?.("…");
     return this.reply();
   }
+  finish() {}
   cancel() {}
 }
 
@@ -161,7 +179,7 @@ test("AutoListener switches to the local recognizer for good when the browser on
     throw new ListenError("network");
   });
   const local = new FakeListener("local", async () => "hola");
-  const auto = new AutoListener(web, local, { preferLocal: false });
+  const auto = new AutoListener(web, local, { preferLocal: false, localFirst: false });
   assert.equal(await auto.listen({ lang: "es-ES" }), "hola");
   assert.equal(await auto.listen({ lang: "es-ES" }), "hola");
   assert.equal(webCalls, 1);
@@ -172,7 +190,7 @@ test("AutoListener also falls back on other errors (e.g. not-allowed in WebView2
   const web = new FakeListener("web", async () => {
     throw new ListenError("not-allowed");
   });
-  const auto = new AutoListener(web, new FakeListener("local", async () => "x"), { preferLocal: false });
+  const auto = new AutoListener(web, new FakeListener("local", async () => "x"), { preferLocal: false, localFirst: false });
   assert.equal(await auto.listen({ lang: "en" }), "x");
 });
 
@@ -183,7 +201,7 @@ test("AutoListener: if both fail, the browser's error is reported", async () => 
   const local = new FakeListener("local", async () => {
     throw new Error("Permission denied");
   });
-  const auto = new AutoListener(web, local, { preferLocal: false });
+  const auto = new AutoListener(web, local, { preferLocal: false, localFirst: false });
   await assert.rejects(auto.listen({ lang: "en" }), /not-allowed/);
 });
 
@@ -195,6 +213,7 @@ test("AutoListener: an instant empty result means the browser recognizer doesn't
   });
   const auto = new AutoListener(web, new FakeListener("local", async () => "hola"), {
     preferLocal: false,
+    localFirst: false,
     now: () => t,
   });
   assert.equal(await auto.listen({ lang: "es" }), "hola");
@@ -212,7 +231,7 @@ test("AutoListener: a normal silence (no speech after waiting) is not a failure"
     localCalls++;
     return "x";
   });
-  const auto = new AutoListener(web, local, { preferLocal: false, now: () => t });
+  const auto = new AutoListener(web, local, { preferLocal: false, localFirst: false, now: () => t });
   assert.equal(await auto.listen({ lang: "es" }), "");
   assert.equal(localCalls, 0);
 });
@@ -279,4 +298,54 @@ test("if listening fails, reading resumes and an error beep sounds", async () =>
   assert.equal(r, null);
   assert.equal(speaker.isSpeaking, true);
   assert.deepEqual(beeps, ["start", "error"]);
+});
+
+// ---- Local Whisper first (T17) ----
+
+/** A listener whose model may still be downloading. */
+function localWhisper(reply: () => Promise<string>, ready: boolean): Listener {
+  return { name: "local", ready, available: () => true, listen: reply, finish() {}, cancel() {} };
+}
+
+test("AutoListener uses local Whisper first once its model is ready", async () => {
+  let webCalls = 0;
+  const web = new FakeListener("web", async () => (webCalls++, "web"));
+  const auto = new AutoListener(web, localWhisper(async () => "local", true), { preferLocal: false });
+  assert.equal(await auto.listen({ lang: "es-ES" }), "local");
+  assert.equal(webCalls, 0);
+  assert.equal(auto.name, "local");
+});
+
+test("while the local model downloads, the browser recognizer answers (nobody waits)", async () => {
+  const web = new FakeListener("web", async () => "web");
+  const auto = new AutoListener(web, localWhisper(async () => "local", false), { preferLocal: false });
+  assert.equal(await auto.listen({ lang: "es-ES" }), "web");
+});
+
+test("if local Whisper fails (no network for the model), the browser recognizer is used", async () => {
+  const web = new FakeListener("web", async () => "web");
+  const broken = localWhisper(async () => {
+    throw new Error("model download failed");
+  }, true);
+  const auto = new AutoListener(web, broken, { preferLocal: false });
+  assert.equal(await auto.listen({ lang: "es-ES" }), "web");
+});
+
+test("without a browser recognizer, local Whisper is used even while it downloads", async () => {
+  const web = new FakeListener("web", async () => "web", false);
+  const auto = new AutoListener(web, localWhisper(async () => "local", false), { preferLocal: false });
+  assert.equal(await auto.listen({ lang: "es-ES" }), "local");
+});
+
+test("whisper-small by default; tiny on slow computers or if chosen", () => {
+  assert.equal(chooseWhisperSize({ deviceMemory: 8, cores: 8 }), "small");
+  assert.equal(chooseWhisperSize({}), "small");
+  assert.equal(chooseWhisperSize({ deviceMemory: 2, cores: 8 }), "tiny");
+  assert.equal(chooseWhisperSize({ deviceMemory: 8, cores: 2 }), "tiny");
+  assert.equal(chooseWhisperSize({ deviceMemory: 2, override: "small" }), "small");
+  assert.equal(chooseWhisperSize({ override: "tiny" }), "tiny");
+});
+
+test("resampleTo16kHQ keeps the duration (linear fallback outside the browser)", async () => {
+  assert.equal((await resampleTo16kHQ(new Float32Array(48000), 48000)).length, 16000);
 });

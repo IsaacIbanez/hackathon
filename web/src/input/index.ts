@@ -21,4 +21,5 @@ export {
 export { actionFor, MAPS, QUICK_MENU, menuFor, type Action, type Context } from "./actions.ts";
 export { classifyPose, fingerState } from "./poses.ts";
 export { HeadGestureDetector } from "./head.ts";
+export { drawHandOverlay, GESTURE_LABELS, ACTION_LABELS, type OverlayOptions } from "./overlay.ts";
 export { createTracker, type Tracker, type TrackerOptions } from "./tracker.ts";
