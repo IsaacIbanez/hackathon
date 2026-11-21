@@ -1,0 +1,8 @@
+# oapi-codegen configuration: types only (the HTTP/WS server is hand-written).
+package: gen
+output: api/gen/types.gen.go
+generate:
+  models: true
+output-options:
+  # WebSocket messages are not referenced by any path: without this they would be pruned.
+  skip-prune: true

@@ -1,0 +1,280 @@
+openapi: 3.0.3
+info:
+  title: LauzHack project — backend <-> frontend contract
+  version: 0.2.0
+  description: |
+    The only interface between modules. HTTP for health and WebSocket (`/ws`) for everything else.
+
+    Every WebSocket message travels in a common envelope `{type, id, ts, payload}`:
+    - `type`: message type (`document`, `pointer`, `utterance`, `speak`, `stats`).
+    - `id`: unique message id (a UUID or any string unique within the session).
+    - `ts`: timestamp in milliseconds since epoch (`Date.now()` in the browser).
+    - `payload`: the content; its schema depends on `type`.
+
+    Direction: the client (browser or a local process such as the scanner) sends `document`,
+    `pointer` and `utterance` (ClientMessage); Go answers with `speak` and, after each model
+    call, sends `stats` (ServerMessage).
+
+    Coordinates: always normalized to [0, 1] relative to the cropped document image,
+    origin at the top left.
+
+    Record any change here in the Decisions section of AGENTS.md.
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      summary: Server liveness check
+      responses:
+        "200":
+          description: The server is alive
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+  /ws:
+    get:
+      operationId: openWebSocket
+      summary: Opens the session WebSocket
+      description: |
+        Upgrade to WebSocket. Each text frame is a JSON envelope:
+        the client sends `ClientMessage` and the server answers with `ServerMessage`.
+      responses:
+        "101":
+          description: Switching protocols to WebSocket
+components:
+  schemas:
+    Health:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          example: ok
+
+    MessageType:
+      type: string
+      enum: [document, pointer, utterance, speak, stats]
+
+    Envelope:
+      description: Generic envelope. Used to read `type` before decoding `payload`.
+      type: object
+      required: [type, id, ts, payload]
+      properties:
+        type:
+          $ref: "#/components/schemas/MessageType"
+        id:
+          type: string
+        ts:
+          type: integer
+          format: int64
+          description: Milliseconds since epoch
+        payload:
+          type: object
+          # The generated code already imports encoding/json (because of the unions).
+          x-go-type: json.RawMessage
+
+    # ---------- Payloads ----------
+
+    Box:
+      description: Box normalized to [0, 1] (origin at the top left)
+      type: object
+      required: [x, y, w, h]
+      properties:
+        x: { type: number, format: float, minimum: 0, maximum: 1 }
+        y: { type: number, format: float, minimum: 0, maximum: 1 }
+        w: { type: number, format: float, minimum: 0, maximum: 1 }
+        h: { type: number, format: float, minimum: 0, maximum: 1 }
+
+    TextBlock:
+      type: object
+      required: [id, text, box, confidence]
+      properties:
+        id:
+          type: string
+          description: Stable within the document; used by pointer and speak
+        text:
+          type: string
+        box:
+          $ref: "#/components/schemas/Box"
+        confidence:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: Local OCR confidence
+
+    FrameIssue:
+      type: string
+      enum: [blurry, dark, glare, cropped, tilted, too_far]
+
+    FrameQuality:
+      description: Quality of the document framing
+      type: object
+      required: [score, issues]
+      properties:
+        score:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: 1 = perfect
+        issues:
+          type: array
+          items:
+            $ref: "#/components/schemas/FrameIssue"
+
+    DocumentPayload:
+      type: object
+      required: [blocks, quality]
+      properties:
+        blocks:
+          type: array
+          items:
+            $ref: "#/components/schemas/TextBlock"
+        quality:
+          $ref: "#/components/schemas/FrameQuality"
+        imageWidth:
+          type: integer
+          description: Width in pixels of the cropped image (optional)
+        imageHeight:
+          type: integer
+          description: Height in pixels of the cropped image (optional)
+        lang:
+          type: string
+          description: Detected language (BCP-47), if known
+          example: es
+
+    PointerPayload:
+      type: object
+      required: [x, y]
+      properties:
+        x: { type: number, format: float, minimum: 0, maximum: 1 }
+        y: { type: number, format: float, minimum: 0, maximum: 1 }
+        blockId:
+          type: string
+          description: Pointed block, if the finger falls inside one
+
+    UtterancePayload:
+      type: object
+      required: [text, isFinal]
+      properties:
+        text:
+          type: string
+        isFinal:
+          type: boolean
+          description: false for partial speech recognition results
+        lang:
+          type: string
+          example: es-ES
+
+    SpeakPayload:
+      type: object
+      required: [text, highlightBlockIds, lang]
+      properties:
+        text:
+          type: string
+          description: Text to read aloud and display
+        highlightBlockIds:
+          type: array
+          items:
+            type: string
+          description: TextBlock ids to highlight while speaking
+        lang:
+          type: string
+          description: Voice language (BCP-47)
+          example: es-ES
+        replyTo:
+          type: string
+          description: id of the message this answers, if any
+
+    TierStats:
+      description: Accumulated usage of one model tier since the app started
+      type: object
+      required: [calls, cacheHits, errors, costUsd, avgLatencyMs, lastLatencyMs]
+      properties:
+        calls: { type: integer, description: Real model calls }
+        cacheHits: { type: integer, description: Answers served from the cache (cost 0) }
+        errors: { type: integer }
+        costUsd: { type: number, format: double }
+        avgLatencyMs: { type: integer, format: int64 }
+        lastLatencyMs: { type: integer, format: int64 }
+
+    StatsPayload:
+      description: Cost and latency meter (AXA frugality criterion)
+      type: object
+      required: [cheap, expensive, totalCostUsd]
+      properties:
+        cheap: { $ref: "#/components/schemas/TierStats" }
+        expensive: { $ref: "#/components/schemas/TierStats" }
+        totalCostUsd: { type: number, format: double }
+
+    # ---------- Typed messages (envelope + payload) ----------
+
+    DocumentMessage:
+      type: object
+      required: [type, id, ts, payload]
+      properties:
+        type: { type: string, enum: [document] }
+        id: { type: string }
+        ts: { type: integer, format: int64 }
+        payload: { $ref: "#/components/schemas/DocumentPayload" }
+
+    PointerMessage:
+      type: object
+      required: [type, id, ts, payload]
+      properties:
+        type: { type: string, enum: [pointer] }
+        id: { type: string }
+        ts: { type: integer, format: int64 }
+        payload: { $ref: "#/components/schemas/PointerPayload" }
+
+    UtteranceMessage:
+      type: object
+      required: [type, id, ts, payload]
+      properties:
+        type: { type: string, enum: [utterance] }
+        id: { type: string }
+        ts: { type: integer, format: int64 }
+        payload: { $ref: "#/components/schemas/UtterancePayload" }
+
+    SpeakMessage:
+      type: object
+      required: [type, id, ts, payload]
+      properties:
+        type: { type: string, enum: [speak] }
+        id: { type: string }
+        ts: { type: integer, format: int64 }
+        payload: { $ref: "#/components/schemas/SpeakPayload" }
+
+    StatsMessage:
+      type: object
+      required: [type, id, ts, payload]
+      properties:
+        type: { type: string, enum: [stats] }
+        id: { type: string }
+        ts: { type: integer, format: int64 }
+        payload: { $ref: "#/components/schemas/StatsPayload" }
+
+    ClientMessage:
+      description: What the client (browser or local process) sends to Go
+      oneOf:
+        - $ref: "#/components/schemas/DocumentMessage"
+        - $ref: "#/components/schemas/PointerMessage"
+        - $ref: "#/components/schemas/UtteranceMessage"
+      discriminator:
+        propertyName: type
+        mapping:
+          document: "#/components/schemas/DocumentMessage"
+          pointer: "#/components/schemas/PointerMessage"
+          utterance: "#/components/schemas/UtteranceMessage"
+
+    ServerMessage:
+      description: What Go sends to the client
+      oneOf:
+        - $ref: "#/components/schemas/SpeakMessage"
+        - $ref: "#/components/schemas/StatsMessage"
+      discriminator:
+        propertyName: type
+        mapping:
+          speak: "#/components/schemas/SpeakMessage"
+          stats: "#/components/schemas/StatsMessage"

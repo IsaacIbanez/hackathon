@@ -1,0 +1,53 @@
+# Project tasks. Install task once:
+#   go install github.com/go-task/task/v3/cmd/task@latest
+# Usage: task gen | task mock | task dev | task fmt | task check
+version: "3"
+
+vars:
+  # On Linux, Wails uses WebKitGTK 4.1 (Ubuntu 24.04+ / Debian 13): this build tag is required.
+  GOTAGS: '{{if eq OS "linux"}}-tags webkit2_41{{end}}'
+
+tasks:
+  gen:
+    desc: Generates Go (api/gen) and TypeScript (web/src/api/types.ts) types from api/openapi.yaml
+    sources:
+      - api/openapi.yaml
+      - api/oapi-codegen.yaml
+    generates:
+      - api/gen/types.gen.go
+      - web/src/api/types.ts
+    cmds:
+      - go tool oapi-codegen -config api/oapi-codegen.yaml api/openapi.yaml
+      - npx --yes openapi-typescript@7.13.0 api/openapi.yaml -o web/src/api/types.ts
+
+  mock:
+    desc: Starts the mock server (without Wails) on localhost:8080
+    cmds:
+      - go run ./backend/cmd/mock {{.CLI_ARGS}}
+
+  dev:
+    desc: Starts the desktop app with hot reload (wails dev)
+    cmds:
+      - wails dev {{.GOTAGS}}
+
+  fmt:
+    desc: Formats the Go code (gofmt)
+    cmds:
+      - gofmt -w main.go app.go api backend
+
+  check:
+    desc: frontend lint, tests and build, then go vet and go test
+    cmds:
+      # Frontend first: main.go embeds web/dist and Go does not compile without it.
+      - task: web-build
+      - go vet {{.GOTAGS}} ./...
+      - go test {{.GOTAGS}} ./...
+
+  web-build:
+    internal: true
+    dir: web
+    cmds:
+      - npm ci
+      - npm run lint
+      - npm test
+      - npm run build

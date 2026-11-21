@@ -1,0 +1,11 @@
+{
+  "type": "speak",
+  "id": "spk-0001",
+  "ts": 1795262401000,
+  "payload": {
+    "text": "Es una declaración de siniestro de AXA. Tiene tres cosas que rellenar: tu nombre, la fecha del siniestro y tu firma.",
+    "highlightBlockIds": ["b1", "b2", "b3", "b4"],
+    "lang": "es-ES",
+    "replyTo": "doc-0001"
+  }
+}

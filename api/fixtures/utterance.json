@@ -1,0 +1,6 @@
+{
+  "type": "utterance",
+  "id": "utt-0001",
+  "ts": 1795262404000,
+  "payload": { "text": "¿Qué tengo que poner aquí?", "isFinal": true, "lang": "es-ES" }
+}

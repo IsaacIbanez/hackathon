@@ -1,4 +1,4 @@
-# Credenciales y ficheros locales
+# Credentials and local files
 .env
 *.key
 *.pem
@@ -6,3 +6,11 @@ credentials*
 .claude/settings.local.json
 node_modules/
 __pycache__/
+
+# task cache
+.task/
+
+# Wails and Vite: binaries and generated files
+/build/
+web/dist/
+web/package.json.md5

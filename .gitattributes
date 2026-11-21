@@ -1,0 +1,10 @@
+# Code always uses LF, also on Windows (gofmt and the linters expect it).
+*.go    text eol=lf
+*.ts    text eol=lf
+*.tsx   text eol=lf
+*.js    text eol=lf
+*.json  text eol=lf
+*.yaml  text eol=lf
+*.yml   text eol=lf
+*.sh    text eol=lf
+go.sum  text eol=lf

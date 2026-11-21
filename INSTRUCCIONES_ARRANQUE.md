@@ -19,7 +19,7 @@
 ### Claude Code (agentes -C)
 ```
 Lee AGENTS.md, TAREAS.md y estado/<AGENTE>.md. Eres el agente <AGENTE> y tu tarea es <ID-TAREA>.
-Trabaja solo en esa tarea, en la rama que ya está creada. Actualiza estado/<AGENTE>.md
+Trabaja solo en esa tarea, en la rama que ya está creada, y lee solo api/ y la carpeta de tu rol (ver "Estructura de carpetas" en AGENTS.md). Actualiza estado/<AGENTE>.md
 al avanzar. No edites TAREAS.md. Si necesitas algo de otra tarea o tienes dudas,
 anótalo en estado/<AGENTE>.md en "Bloqueos y preguntas para humanos" y pregunta.
 Al terminar: haz commit, deja la rama lista y propón el texto del Pull Request.
@@ -28,7 +28,7 @@ Al terminar: haz commit, deja la rama lista y propón el texto del Pull Request.
 ### Gemini CLI (agentes -G)
 ```
 Lee AGENTS.md, TAREAS.md y estado/<AGENTE>.md. Eres el agente <AGENTE> y tu tarea es <ID-TAREA>.
-Trabaja solo en esa tarea, en la rama que ya está creada. Actualiza estado/<AGENTE>.md
+Trabaja solo en esa tarea, en la rama que ya está creada, y lee solo api/ y la carpeta de tu rol (ver "Estructura de carpetas" en AGENTS.md). Actualiza estado/<AGENTE>.md
 al avanzar. No edites TAREAS.md. Si necesitas algo de otra tarea o tienes dudas,
 anótalo en estado/<AGENTE>.md en "Bloqueos y preguntas para humanos" y pregunta.
 Al terminar: haz commit, deja la rama lista y propón el texto del Pull Request.

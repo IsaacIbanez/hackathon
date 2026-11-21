@@ -1,0 +1,11 @@
+{
+  "type": "speak",
+  "id": "spk-0002",
+  "ts": 1795262405000,
+  "payload": {
+    "text": "Aquí va tu nombre y tus dos apellidos. Dímelos y los escribo por ti.",
+    "highlightBlockIds": ["b2"],
+    "lang": "es-ES",
+    "replyTo": "utt-0001"
+  }
+}

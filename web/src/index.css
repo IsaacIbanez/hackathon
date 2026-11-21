@@ -1,0 +1,12 @@
+@import "tailwindcss";
+
+/* Accessible base: large text and a clearly visible focus. */
+@layer base {
+  html {
+    font-size: 125%;
+  }
+  :focus-visible {
+    outline: 4px solid #facc15;
+    outline-offset: 2px;
+  }
+}
