@@ -54,6 +54,9 @@ export type Direccion = "izquierda" | "derecha";
 /** Sectores del menú radial, desde el punto de vista del usuario. */
 export type SectorMenu = "arriba" | "derecha" | "abajo" | "izquierda";
 
+/** Mano del usuario (su derecha o su izquierda de verdad, no la de la imagen). */
+export type LadoMano = "derecha" | "izquierda";
+
 export type GestoCabeza = "asentir" | "negar";
 
 /** Esquinas del documento en coordenadas de imagen: sup-izq, sup-der, inf-der, inf-izq. */
@@ -86,6 +89,8 @@ export type EventoManos =
       sector: SectorMenu | null;
       /** Centro del menú en coordenadas de imagen (para dibujarlo). */
       centro: Punto;
+      /** Mano con la que se usa el menú: su lado se quita (señalar hacia fuera con esa mano cuesta). */
+      mano: LadoMano | null;
       t: number;
     }
   | { tipo: "cabeza"; gesto: GestoCabeza; t: number };

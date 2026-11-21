@@ -4,7 +4,7 @@
 // Pocos gestos, muchas acciones: el mismo gesto significa cosas distintas según el contexto
 // (leyendo un documento, rellenando un formulario o usando el PC).
 
-import type { EventoManos, GestoCabeza, SectorMenu } from "./tipos.ts";
+import type { EventoManos, GestoCabeza, LadoMano, SectorMenu } from "./tipos.ts";
 
 export type Contexto = "documento" | "formulario" | "pc";
 
@@ -83,13 +83,23 @@ export const MAPAS: Record<Contexto, MapaContexto> = {
   },
 };
 
-/** Opciones del menú radial (✌️), iguales en todos los contextos. */
+/** Opciones del menú radial (✌️) cuando no se sabe qué mano se usa, iguales en todos los contextos. */
 export const MENU_RADIAL: Record<SectorMenu, Accion> = {
   arriba: "repetir",
   derecha: "copiar_texto",
   abajo: "dictar",
   izquierda: "pedir_ayuda",
 };
+
+/**
+ * Menú según la mano: se quita el lado de esa mano (señalar hacia fuera cuesta) y "pedir ayuda"
+ * queda siempre en el lado cómodo, para que nunca se pierda. "Copiar texto" sale del menú.
+ */
+export function menuPara(mano: LadoMano | null): Partial<Record<SectorMenu, Accion>> {
+  if (!mano) return MENU_RADIAL;
+  const otroLado: SectorMenu = mano === "derecha" ? "izquierda" : "derecha";
+  return { arriba: MENU_RADIAL.arriba, abajo: MENU_RADIAL.abajo, [otroLado]: "pedir_ayuda" };
+}
 
 /**
  * Acción que corresponde a un evento en un contexto, o null si el evento no es una acción
@@ -111,7 +121,7 @@ export function accionDe(evento: EventoManos, contexto: Contexto = "documento"):
     case "nivel":
       return evento.fase === "inicio" ? null : m.pinza;
     case "menu":
-      return evento.fase === "elegir" && evento.sector ? MENU_RADIAL[evento.sector] : null;
+      return evento.fase === "elegir" && evento.sector ? (menuPara(evento.mano)[evento.sector] ?? null) : null;
     case "cabeza":
       return m.cabeza[evento.gesto];
     case "modo":

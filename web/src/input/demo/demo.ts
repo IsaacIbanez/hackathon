@@ -5,7 +5,7 @@ import {
   crearRastreador,
   InteraccionManos,
   MAPAS,
-  MENU_RADIAL,
+  menuPara,
   OPCIONES_POR_DEFECTO,
   PERFIL_MOVILIDAD_REDUCIDA,
   type Contexto,
@@ -13,6 +13,7 @@ import {
   type EventoManos,
   type FrameManos,
   type Punto,
+  type LadoMano,
   type Rastreador,
   type SectorMenu,
 } from "../index.ts";
@@ -31,7 +32,8 @@ let marcando: Punto[] | null = null;
 let contexto: Contexto = "documento";
 let tAccion = 0;
 let volumen = 1;
-let menuElegido: { sector: SectorMenu; centro: Punto; t: number } | null = null;
+let menuElegido: { sector: SectorMenu; centro: Punto; mano: LadoMano | null; t: number } | null = null;
+let manoMostrada: LadoMano | null | undefined;
 
 const bonito = (s: string) => s.replaceAll("_", " ");
 
@@ -51,7 +53,7 @@ interaccion.on((e) => {
   const accion = accionDe(e, contexto);
   anotar(e, accion);
   if (e.tipo === "gesto") $("gesto").textContent = e.gesto;
-  if (e.tipo === "menu" && e.fase === "elegir" && e.sector) menuElegido = { sector: e.sector, centro: e.centro, t: performance.now() };
+  if (e.tipo === "menu" && e.fase === "elegir" && e.sector) menuElegido = { sector: e.sector, centro: e.centro, mano: e.mano, t: performance.now() };
   if (e.tipo === "modo") pintarModo();
   if (accion === "volumen" && e.tipo === "nivel") mostrarAccion(accion, `volumen ${Math.round(e.valor * 100)} %`);
   else if (accion) mostrarAccion(accion);
@@ -159,7 +161,7 @@ function pintarChuleta() {
     ["👎 pulgar abajo", m.pulgar_abajo, true],
     ["🤏 junta las puntas de pulgar e índice, luego sepáralas", `${m.pinza ?? "—"} en pasos de 10 %: 0 % juntas, 100 % abiertas del todo; quieto ~1 s (o puño) para fijarlo`, true],
     ["✌️ victoria → menú", "después ☝️ señala hacia una opción y mantén ~0,5 s", true],
-    ...(Object.entries(MENU_RADIAL) as [SectorMenu, string][]).map(
+    ...(Object.entries(menuPara(interaccion.manoUsada)) as [SectorMenu, string][]).map(
       ([s, a]) => [`   menú ${FLECHA[s]} ${s}`, a, true] as [string, string, boolean],
     ),
     ["🙂 asentir", m.cabeza.asentir, true],
@@ -219,9 +221,13 @@ function pintarMenu() {
   const abierto = interaccion.menuAbierto(t);
   const elegido = menuElegido && t - menuElegido.t < 700 ? menuElegido : null;
   $("menu").hidden = !abierto && !elegido;
+  const opciones = menuPara(abierto?.mano ?? elegido?.mano ?? null);
   for (const op of document.querySelectorAll<HTMLElement>("#menu .op")) {
     const s = op.dataset.s as SectorMenu;
-    op.textContent = `${FLECHA[s]} ${bonito(MENU_RADIAL[s])}`;
+    const accion = opciones[s];
+    // El lado de la mano que se usa no tiene opción (señalar hacia fuera cuesta).
+    op.style.visibility = accion ? "visible" : "hidden";
+    op.textContent = accion ? `${FLECHA[s]} ${bonito(accion)}` : "";
     const activa = abierto?.sector === s;
     op.classList.toggle("activa", activa);
     op.classList.toggle("elegida", elegido?.sector === s);
@@ -346,6 +352,11 @@ function dibujar() {
   const cal = interaccion.calibracionNivel;
   $("separacion").textContent = d ? `${d.separacion.toFixed(2)} (escala: 0 % = ${cal.min.toFixed(2)} · 100 % = ${cal.max.toFixed(2)})` : "—";
   $("apunta").textContent = d?.direccionIndice ?? "—";
+  if (interaccion.manoUsada !== manoMostrada) {
+    manoMostrada = interaccion.manoUsada;
+    $("manoUsada").textContent = manoMostrada ?? "detectando…";
+    pintarChuleta(); // el menú cambia según la mano
+  }
 
   if (performance.now() - tAccion > 1500) $("accion").textContent = "";
   $("pose").textContent = interaccion.pose;
@@ -381,6 +392,11 @@ async function reconectar(intentos = 20): Promise<void> {
 }
 
 $("reiniciar").addEventListener("click", () => void reconectar(1));
+casilla("invertirMano").addEventListener("change", (ev) => {
+  // Por defecto se invierte la etiqueta de MediaPipe; la casilla deshace esa inversión.
+  interaccion.configurar({ invertirLateralidad: !(ev.target as HTMLInputElement).checked });
+});
+
 $("recalibrar").addEventListener("click", () => {
   interaccion.reiniciarCalibracionNivel();
   $("estado").textContent = "Escala de volumen reiniciada: junta los dedos y ábrelos del todo una vez.";

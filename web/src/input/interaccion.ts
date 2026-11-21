@@ -13,6 +13,7 @@ import {
   type EventoManos,
   type FrameManos,
   type Gesto,
+  type LadoMano,
   type Mano,
   type Punto,
   type SectorMenu,
@@ -41,6 +42,11 @@ export interface OpcionesInteraccion {
   adelantoPuntero: number;
   /** true si la cámara mira al usuario (las direcciones se dan desde su punto de vista). */
   espejo: boolean;
+  /**
+   * MediaPipe etiqueta la mano suponiendo una imagen en espejo (cámara frontal). Como le pasamos
+   * la imagen sin espejo, su "Left" es la mano derecha del usuario: por eso se invierte.
+   */
+  invertirLateralidad: boolean;
   umbrales: Umbrales;
 
   // ---- Experimentales ----
@@ -89,6 +95,7 @@ export const OPCIONES_POR_DEFECTO: OpcionesInteraccion = {
   intervaloPunteroMs: 66,
   adelantoPuntero: 0.5,
   espejo: true,
+  invertirLateralidad: true,
   umbrales: UMBRALES_POR_DEFECTO,
   requiereDespertar: false,
   despertarMs: 1000,
@@ -123,6 +130,8 @@ type Oyente = (e: EventoManos) => void;
 
 interface EstadoMenu {
   centro: Punto; // imagen, sin aspecto (para dibujar)
+  /** Mano con la que se abrió: el lado de esa mano no se puede elegir. */
+  mano: LadoMano | null;
   tApertura: number;
   /** Lado hacia el que apunta ahora el índice, y desde cuándo. */
   sector: SectorMenu | null;
@@ -140,6 +149,8 @@ export interface Diagnostico {
   indice: Punto;
   /** Hacia dónde apunta el índice (desde el punto de vista del usuario), si apunta claramente. */
   direccionIndice: SectorMenu | null;
+  /** Mano detectada (estabilizada), o null si aún no está clara. */
+  mano: LadoMano | null;
 }
 
 interface EstadoNivel {
@@ -198,6 +209,9 @@ export class InteraccionManos {
   private posDespertar: Punto = { x: 0, y: 0 };
   private menu: EstadoMenu | null = null;
   private diag: Diagnostico | null = null;
+  /** Votación suavizada de la mano: >0 derecha, <0 izquierda. */
+  private votoMano = 0;
+  private manoEstable: LadoMano | null = null;
   private tPinzaInicio: number | null = null;
   private nivel: EstadoNivel | null = null;
   private fSeparacion = new FiltroOneEuro({ minCorte: 1.0, beta: 0.3, corteDerivada: 1.0 });
@@ -224,8 +238,13 @@ export class InteraccionManos {
   /** Cambia opciones en caliente (p. ej. activar el perfil de movilidad reducida). */
   configurar(op: Partial<OpcionesInteraccion>): void {
     const antes = this.op.requiereDespertar;
+    const antesInvertir = this.op.invertirLateralidad;
     this.op = { ...this.op, ...op };
     if (op.cabeza) this.cabeza = new DetectorCabeza(this.op.cabeza);
+    if (op.invertirLateralidad !== undefined && op.invertirLateralidad !== antesInvertir) {
+      this.votoMano = -this.votoMano;
+      this.manoEstable = this.manoEstable && (this.manoEstable === "derecha" ? "izquierda" : "derecha");
+    }
     if (antes !== this.op.requiereDespertar) this.despierto = !this.op.requiereDespertar;
   }
 
@@ -262,11 +281,22 @@ export class InteraccionManos {
   }
 
   /** Menú abierto: lado señalado ahora y progreso [0,1] hasta elegirlo. */
-  menuAbierto(t: number): { centro: Punto; sector: SectorMenu | null; progreso: number } | null {
+  menuAbierto(t: number): { centro: Punto; sector: SectorMenu | null; progreso: number; mano: LadoMano | null } | null {
     const m = this.menu;
     if (!m) return null;
     const progreso = m.sector ? Math.min(1, (t - m.tSector) / this.op.elegirMenuMs) : 0;
-    return { centro: m.centro, sector: m.sector, progreso };
+    return { centro: m.centro, sector: m.sector, progreso, mano: m.mano };
+  }
+
+  /** Mano que está usando el usuario (estabilizada en varios frames), o null si no está clara. */
+  get manoUsada(): LadoMano | null {
+    return this.manoEstable;
+  }
+
+  /** Lados del menú que se pueden elegir con la mano actual (se quita el de la mano). */
+  sectoresMenu(mano: LadoMano | null = this.menu?.mano ?? this.manoEstable): SectorMenu[] {
+    const todos: SectorMenu[] = ["arriba", "derecha", "abajo", "izquierda"];
+    return todos.filter((s) => s !== mano);
   }
 
   /** Medidas crudas del último frame con mano (null si no hay mano). */
@@ -339,12 +369,14 @@ export class InteraccionManos {
     this.poseActual = pose;
     const centro = centroPalma(mano, aspecto);
     const pts = puntosParaForma(mano, aspecto);
+    this.actualizarLateralidad(mano);
     this.diag = {
       separacion: separacionPinza(pts),
       alcance: alcanceIndice(pts),
       pulgar: { x: mano.puntos[P.PULGAR_PUNTA].x, y: mano.puntos[P.PULGAR_PUNTA].y },
       indice: { x: mano.puntos[P.INDICE_PUNTA].x, y: mano.puntos[P.INDICE_PUNTA].y },
       direccionIndice: direccionIndice(mano, aspecto, this.op.espejo),
+      mano: this.manoEstable,
     };
 
     if (!this.despierto) {
@@ -603,9 +635,10 @@ export class InteraccionManos {
   private abrirMenu(t: number, mano: Mano, aspecto: number): void {
     const c = centroPalma(mano, aspecto);
     const centro = { x: c.x / aspecto, y: c.y };
-    this.menu = { centro, tApertura: t, sector: null, tSector: t };
+    const manoMenu = this.manoEstable;
+    this.menu = { centro, mano: manoMenu, tApertura: t, sector: null, tSector: t };
     this.ultimoPuntero = null;
-    this.emitir({ tipo: "menu", fase: "abrir", sector: null, centro, t });
+    this.emitir({ tipo: "menu", fase: "abrir", sector: null, centro, mano: manoMenu, t });
   }
 
   /**
@@ -621,16 +654,18 @@ export class InteraccionManos {
     if (t - m.tApertura < this.op.esperaMenuMs) return;
 
     // Solo cuenta señalar con un dedo: con ✌️ (con el que se abre) no se elige nada.
-    const sector = pose === "senalar" ? (this.diag?.direccionIndice ?? null) : null;
+    let sector = pose === "senalar" ? (this.diag?.direccionIndice ?? null) : null;
+    // El lado de la mano que se usa no existe en el menú.
+    if (sector && sector === m.mano) sector = null;
     if (sector !== m.sector) {
       m.sector = sector;
       m.tSector = t;
-      this.emitir({ tipo: "menu", fase: "resaltar", sector, centro: m.centro, t });
+      this.emitir({ tipo: "menu", fase: "resaltar", sector, centro: m.centro, mano: m.mano, t });
       return;
     }
     if (sector && t - m.tSector >= this.op.elegirMenuMs) {
       this.menu = null;
-      this.emitir({ tipo: "menu", fase: "elegir", sector, centro: m.centro, t });
+      this.emitir({ tipo: "menu", fase: "elegir", sector, centro: m.centro, mano: m.mano, t });
       // Hay que cambiar de pose antes de que "señalar" haga otra cosa.
       this.gestoEstable = pose;
       this.reiniciarCandidato(t, pose, centro);
@@ -640,9 +675,9 @@ export class InteraccionManos {
 
   private cerrarMenu(t: number): void {
     if (!this.menu) return;
-    const { centro } = this.menu;
+    const { centro, mano } = this.menu;
     this.menu = null;
-    this.emitir({ tipo: "menu", fase: "cerrar", sector: null, centro, t });
+    this.emitir({ tipo: "menu", fase: "cerrar", sector: null, centro, mano, t });
   }
 
   // ---------- Experimental: cabeza ----------
@@ -657,6 +692,19 @@ export class InteraccionManos {
       return;
     }
     this.emitir({ tipo: "cabeza", gesto: g, t });
+  }
+
+  // ---------- Mano usada ----------
+
+  /** Votación suavizada: un frame mal etiquetado no cambia la mano. */
+  private actualizarLateralidad(mano: Mano): void {
+    const etiqueta = mano.lateralidad;
+    if (etiqueta !== "Left" && etiqueta !== "Right") return;
+    const esDerecha = (etiqueta === "Right") !== this.op.invertirLateralidad;
+    const peso = mano.confianza ?? 0.5;
+    this.votoMano = 0.9 * this.votoMano + 0.1 * (esDerecha ? peso : -peso);
+    if (this.votoMano > 0.3) this.manoEstable = "derecha";
+    else if (this.votoMano < -0.3) this.manoEstable = "izquierda";
   }
 
   // ---------- Utilidades ----------

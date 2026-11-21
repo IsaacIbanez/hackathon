@@ -14,7 +14,7 @@ export {
   type Diagnostico,
   type OpcionesInteraccion,
 } from "./interaccion.ts";
-export { accionDe, MAPAS, MENU_RADIAL, type Accion, type Contexto } from "./acciones.ts";
+export { accionDe, MAPAS, MENU_RADIAL, menuPara, type Accion, type Contexto } from "./acciones.ts";
 export { clasificarPose, estadoDedos } from "./poses.ts";
 export { DetectorCabeza } from "./cabeza.ts";
 export { crearRastreador, type Rastreador, type OpcionesRastreador } from "./rastreador.ts";

@@ -177,6 +177,55 @@ test("menú: mantener ✌️ no elige nada y se cierra solo", () => {
   );
 });
 
+// ---- Mano usada ----
+
+/** Le pone a la mano la etiqueta cruda de MediaPipe (que va al revés con la imagen sin espejo). */
+const conEtiqueta = (m: Mano, etiqueta: "Left" | "Right"): Mano => ({ ...m, lateralidad: etiqueta, confianza: 0.95 });
+
+test("mano usada: la etiqueta de MediaPipe se invierte y se estabiliza", () => {
+  const ctl = new InteraccionManos();
+  simular(ctl, repetir(conEtiqueta(mano(FORMAS.palma), "Left"), 20));
+  assert.equal(ctl.manoUsada, "derecha");
+  // Un par de frames mal etiquetados no la cambian.
+  simular(ctl, repetir(conEtiqueta(mano(FORMAS.palma), "Right"), 2), 20 * 33);
+  assert.equal(ctl.manoUsada, "derecha");
+  ctl.configurar({ invertirLateralidad: false });
+  assert.equal(ctl.manoUsada, "izquierda");
+});
+
+test("menú con la mano derecha: no hay opción a la derecha y 'pedir ayuda' queda a la izquierda", () => {
+  const derecha = (m: Mano) => conEtiqueta(m, "Left");
+  const ctl = new InteraccionManos();
+  assert.deepEqual(ctl.sectoresMenu("derecha"), ["arriba", "abajo", "izquierda"]);
+
+  const haciaDerecha = [
+    ...repetir(derecha(mano(FORMAS.victoria)), 20),
+    ...repetir(derecha(rotar(mano(FORMAS.senalar), -90)), 30),
+  ];
+  const ev1 = simular(ctl, haciaDerecha);
+  assert.ok(!ev1.some((e) => e.tipo === "menu" && e.fase === "elegir"), "señalar a la derecha no elige");
+
+  const ctl2 = new InteraccionManos();
+  const haciaIzquierda = [
+    ...repetir(derecha(mano(FORMAS.victoria)), 20),
+    ...repetir(derecha(rotar(mano(FORMAS.senalar), 90)), 30),
+  ];
+  const elegir = simular(ctl2, haciaIzquierda).find((e) => e.tipo === "menu" && e.fase === "elegir")!;
+  assert.ok(elegir.tipo === "menu" && elegir.sector === "izquierda" && elegir.mano === "derecha");
+  assert.equal(accionDe(elegir), "pedir_ayuda");
+});
+
+test("menú con la mano izquierda: 'pedir ayuda' queda a la derecha", () => {
+  const izquierda = (m: Mano) => conEtiqueta(m, "Right");
+  const frames = [
+    ...repetir(izquierda(mano(FORMAS.victoria)), 20),
+    ...repetir(izquierda(rotar(mano(FORMAS.senalar), -90)), 30),
+  ];
+  const elegir = simular(new InteraccionManos(), frames).find((e) => e.tipo === "menu" && e.fase === "elegir")!;
+  assert.ok(elegir.tipo === "menu" && elegir.sector === "derecha");
+  assert.equal(accionDe(elegir), "pedir_ayuda");
+});
+
 // ---- Cabeza ----
 
 /** Cara sintética: solo rellenamos los puntos que usa el detector. */

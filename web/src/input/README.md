@@ -17,7 +17,7 @@ definido en `acciones.ts` (`MAPAS`). Los marcados como EXP son experimentales.
 | ☝️ señalar quieto ~0,9 s | explicar aquí | dictar campo | clic |
 | 👎 pulgar abajo (EXP) | deshacer | borrar campo | deshacer |
 | 🤏 juntar las puntas de pulgar e índice y separarlas; quieto ~1 s o puño para fijar (EXP) | volumen | volumen | volumen |
-| ✌️ victoria → menú; ☝️ señalar hacia un lado ~0,5 s (EXP) | ↑ repetir · → copiar texto · ↓ dictar · ← pedir ayuda | igual | igual |
+| ✌️ victoria → menú; ☝️ señalar hacia un lado ~0,5 s (EXP) | ↑ repetir · ↓ dictar · pedir ayuda en el lado contrario a la mano (sin mano detectada: → copiar texto, ← pedir ayuda) | igual | igual |
 | 🙂 asentir (EXP, cabeza) | leer | confirmar campo | Intro |
 | 🙂 negar (EXP, cabeza) | pausar | borrar campo | Escape |
 
@@ -35,6 +35,10 @@ Opciones experimentales (en `OpcionesInteraccion`):
 - Menú radial: tras abrirlo con ✌️, se elige señalando con ☝️ hacia un lado: se lee la dirección del
   dedo (nudillo → punta), no la posición de la mano. Hay que mantenerla `elegirMenuMs` (~0,5 s). En
   diagonal o con ✌️ no elige nada; se cierra solo a los 5 s.
+- Mano usada: se detecta qué mano usa el usuario (`manoUsada`, votación suavizada de la etiqueta de
+  MediaPipe, invertida porque la imagen no va en espejo: `invertirLateralidad`). En el menú se quita
+  el lado de esa mano, porque señalar hacia fuera con ella cuesta (`sectoresMenu`, `menuPara`):
+  quedan ↑ repetir, ↓ dictar y, en el lado cómodo, pedir ayuda. Si no se sabe la mano, salen las 4.
 - Cabeza: `crearRastreador(..., { cara: true })` o `rastreador.activarCara(true)` (otro modelo, ~4 MB;
   se analiza 1 de cada 2 frames).
 - Señalar + voz: solo en la demo, con el reconocimiento de voz del navegador (Chrome/Edge; Firefox no lo tiene).
