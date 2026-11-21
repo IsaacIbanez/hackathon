@@ -22,5 +22,7 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  // Los tests (node --test) y las demos de cada módulo no forman parte de la app.
+  "exclude": ["src/**/test/**", "src/**/demo/**"]
 }
