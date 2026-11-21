@@ -56,7 +56,7 @@ Todo va en `web/src/document/`.
   - las líneas dudosas;
   - el final del documento;
   - la interrupción por otra voz.
-- [ ] En la página de prueba, la carta (unas 36 líneas) se lee de principio a fin sin cortes.
+- [ ] En la página de prueba, la carta (20 líneas) se lee de principio a fin sin cortes.
 - [ ] Cada tecla cambia de línea en menos de 300 ms.
 - [ ] Todo se puede usar solo con teclado, y el lector de pantalla anuncia la línea actual.
 - [ ] Leer el documento entero hace 0 llamadas a modelos y cuesta 0 $.
