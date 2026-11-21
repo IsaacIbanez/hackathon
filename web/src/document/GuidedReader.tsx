@@ -39,8 +39,11 @@ export function GuidedReader({
   doc,
   voice,
   keyboard = true,
+  autoPlay = false,
 }: {
   doc: DocumentPayload | null
+  /** Starts reading as soon as a document arrives (the overlay's options do). */
+  autoPlay?: boolean
   /** Text-to-speech engine; the system voice by default. */
   voice?: ReaderVoice
   /** Global keyboard shortcuts (on by default). */
@@ -52,7 +55,10 @@ export function GuidedReader({
   const currentRef = useRef<HTMLLIElement | null>(null)
 
   useEffect(() => reader.onChange(setState), [reader])
-  useEffect(() => reader.load(doc), [reader, doc])
+  useEffect(() => {
+    reader.load(doc)
+    if (autoPlay && doc) reader.play()
+  }, [reader, doc, autoPlay])
   useEffect(() => () => reader.stop(), [reader])
 
   // Keep the line being read in the middle of the screen.

@@ -14,6 +14,7 @@ import { GuidedReader } from '../document'
 ```
 - `doc`: el `DocumentPayload` actual. Al llegar uno nuevo, el lector vuelve a la primera línea y no habla hasta que se le pide.
 - `voice`: opcional. Si no se pasa, usa la voz del sistema; sin síntesis de voz, solo mueve el resaltado.
+- `autoPlay`: empieza a leer en cuanto llega el documento (lo usan las opciones del overlay). Desactivado por defecto.
 - `keyboard`: atajos globales. Están activos por defecto y se ignoran mientras se escribe en un campo.
 
 | Acción | Teclas | Botón |
