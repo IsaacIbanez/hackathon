@@ -93,3 +93,12 @@ export function rotate(h: Hand, degrees: number): Hand {
     })),
   };
 }
+
+/** Scales the whole hand around the wrist: larger looks nearer the camera. */
+export function scale(h: Hand, k: number, dx = 0): Hand {
+  const o = h.points[0];
+  return {
+    ...h,
+    points: h.points.map((q) => ({ x: o.x + (q.x - o.x) * k + dx, y: o.y + (q.y - o.y) * k, z: q.z })),
+  };
+}

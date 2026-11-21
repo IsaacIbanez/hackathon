@@ -90,9 +90,10 @@ export function drawHandOverlay(
     }
   }
 
-  // Hands: the one in use (highest score, same rule as HandInteraction) is bright, others dimmed.
+  // Hands: the one being followed (the nearest, see HandInteraction.activeHand) is bright, others dimmed.
   const hands = frame?.hands ?? [];
-  const best = hands.reduce((b, hd, i) => ((hd.score ?? 0) > (hands[b]?.score ?? -1) ? i : b), 0);
+  const followed = interaction.activeHand ? hands.indexOf(interaction.activeHand) : -1;
+  const best = followed >= 0 ? followed : hands.reduce((b, hd, i) => ((hd.score ?? 0) > (hands[b]?.score ?? -1) ? i : b), 0);
   for (const [k, hand] of hands.entries()) {
     const active = k === best;
     ctx.strokeStyle = active ? "#ffffffcc" : "#ffffff55";

@@ -14,6 +14,7 @@ export {
   screenSector,
   screenSeparation,
   palmFacesCamera,
+  handExtent,
   type Diagnostics,
   type InteractionOptions,
 } from "./interaction.ts";

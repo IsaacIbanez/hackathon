@@ -48,7 +48,10 @@ export interface TrackerOptions {
   handModel: string;
   faceModel: string;
   loadVision?: () => Promise<VisionModuleMP>;
+  /** Hands detected per frame; the interaction follows the one nearest the camera. */
   numHands: number;
+  /** Faces detected per frame; the nearest one (largest in the image) is used. */
+  numFaces: number;
   /** Maximum frames per second analysed (saves CPU and battery). */
   maxFps: number;
   delegate: "GPU" | "CPU";
@@ -62,7 +65,8 @@ const DEFAULTS: TrackerOptions = {
   mediapipeBase: MEDIAPIPE_BASE,
   handModel: HAND_MODEL,
   faceModel: FACE_MODEL,
-  numHands: 1,
+  numHands: 2,
+  numFaces: 2,
   maxFps: 30,
   delegate: "GPU",
   face: false,
@@ -117,7 +121,7 @@ export async function createTracker(
       },
       o.handModel,
     );
-  const createFace = () => withFallback(vision.FaceLandmarker, { numFaces: 1 }, o.faceModel);
+  const createFace = () => withFallback(vision.FaceLandmarker, { numFaces: o.numFaces }, o.faceModel);
 
   let hands: DetectorMP<HandResultMP> | null = await createHands();
   let face: DetectorMP<FaceResultMP> | null = o.face ? await createFace() : null;
@@ -153,12 +157,22 @@ export async function createTracker(
   };
 
   // requestAnimationFrame instead of requestVideoFrameCallback: it keeps working even if the
-  // <video> stream changes or the camera drops for a while.
-  const step = () => {
-    if (!running) return;
-    requestAnimationFrame(step);
+  // <video> stream changes or the camera drops for a while. When the page is hidden (e.g. the
+  // gesture window sits behind a video call) browsers pause requestAnimationFrame, so a timer
+  // takes over. `loop` invalidates the old chain whenever visibility changes.
+  let loop = 0;
+  const schedule = (id: number) => {
+    if (typeof document !== "undefined" && document.hidden) setTimeout(() => step(id), interval);
+    else requestAnimationFrame(() => step(id));
+  };
+  const onVisibility = () => schedule(++loop);
+  if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVisibility);
+
+  const step = (id: number) => {
+    if (!running || id !== loop) return;
+    schedule(id);
     const t = performance.now();
-    if (!hands || video.readyState < 2 || video.videoWidth === 0 || t - tLast < interval) return;
+    if (!hands || video.readyState < 2 || video.videoWidth === 0 || t - tLast < interval * 0.9) return;
 
     const dims = `${video.videoWidth}x${video.videoHeight}`;
     if (dims !== dimensions) {
@@ -184,11 +198,12 @@ export async function createTracker(
     }
     onFrame(frame);
   };
-  requestAnimationFrame(step);
+  schedule(loop);
 
   return {
     stop() {
       running = false;
+      if (typeof document !== "undefined") document.removeEventListener("visibilitychange", onVisibility);
       hands?.close();
       face?.close();
       hands = null;
@@ -220,8 +235,18 @@ function toHandFrame(r: HandResultMP, t: number, aspect: number): HandFrame {
   return { t, hands, aspect };
 }
 
+/** Picks the face nearest the camera: the widest one in the image (cheek to cheek). */
 function toFace(r: FaceResultMP): Face | null {
-  const points = r.faceLandmarks[0];
+  let points: LandmarkMP[] | undefined;
+  let widest = -1;
+  for (const f of r.faceLandmarks) {
+    if (f.length < 455) continue;
+    const width = Math.hypot(f[234].x - f[454].x, f[234].y - f[454].y);
+    if (width > widest) {
+      widest = width;
+      points = f;
+    }
+  }
   if (!points) return null;
   return { points: points.map(({ x, y, z }) => ({ x, y, z })) };
 }

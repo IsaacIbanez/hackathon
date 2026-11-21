@@ -1,35 +1,35 @@
-# Status — P3-C
+# Estado — P3-C
 
-- **Person:** Nil
-- **Tool:** Claude Code
-- **Current task:** T6 (role C), hand gestures part. Voice comes later.
-- **Branch:** `claude/kind-cray-863b6t` (the one assigned by the cloud session; it can be renamed to `feature/T6-hand-gestures` when opening the PR)
-- **State:** in review (isolated prototype, waiting for the T2 contract)
-- **Last change:** 2026-11-21
+- **Persona:** Nil
+- **Herramienta:** Claude Code
+- **Tarea actual:** T6 (rol C): voz (hablar y escuchar) y gestos que actúan sobre el ordenador real (Gesture Control).
+- **Ramas:** `feature/T6-voice` y `feature/T6-gesture-control` (cada una con su PR).
+- **Estado:** en revisión.
+- **Último cambio:** 2026-11-21
 
-## Done
-- `web/src/input/` module with no npm dependencies (MediaPipe is loaded from jsDelivr at runtime). All code, identifiers, event values and comments are in English.
-- Poses: point, palm, fist, thumbs up, thumbs down, victory, pinch.
-- Stable gestures (held ~0.3 s with the hand still), swipe left/right, smoothed pointer (One Euro) and dwell selection (~0.9 s pointing still).
-- Mapping to actions per context (`document`, `form`, `pc`): `read`, `pause`, `next`, `previous`, `explain_here`, etc.
-- Pointer in document coordinates through a homography from the paper's 4 corners.
-- Tests with synthetic hands (43, run by `npm test` in `web/`); the module builds with the app (`npm run build`) and passes `oxlint`.
-- Experimental: sleep/wake mode, palm only counts when facing the camera, fist disabled, 👎 thumbs down, 🤏 volume with the pinch, only from the menu (simple measure: on-screen thumb–index line ÷ hand size; fixed 0–100 % scale in 10 % steps; confirmed by holding still ~1 s), ✌️ quick menu chosen by holding the pointer on an option (without the option on the side of the hand in use, which is detected automatically), head gestures (nod and shake; blinking was removed at the team's request), reduced mobility profile and point + ask (demo only).
-- Demo in `web/src/input/demo/` ("Gesture Lab"): centred camera, English UI, toggles for each experimental feature, pinch tuning sliders and a per-context gesture guide. Tested in headless Chromium with a fake camera: the model loads and analyses frames. Still needs testing with a real hand.
+## Hecho
+- Módulo de manos en `web/src/input/` (fusionado en #9): poses, gestos estables, deslizar, puntero suavizado con selección por permanencia, puntero en coordenadas del documento, acciones por contexto y demo «Gesture Lab». Código en inglés.
+- **Voz** (`feature/T6-voice`, carpeta `web/src/input/voice/`):
+  - `Speaker` lee frase a frase: pausar y reanudar siguen donde se quedó, «repite» dice la última frase, elige la mejor voz del idioma y no corta los textos largos. Sustituye a `app/voice.ts` con la misma interfaz.
+  - `VoiceInput` escucha solo cuando se pide (señalar y mantener, o menú → dictar), con pitidos y subtítulos. Las órdenes cortas («para», «sigue», «repite», «más alto»…) se resuelven en local, sin modelo; el resto va a Go como `utterance`; si no se dice nada, se envía la pregunta por defecto.
+  - Reconocimiento: el del navegador y, si no funciona (por ejemplo dentro de Wails), Whisper local en la página (transformers.js); el audio no sale del ordenador.
+  - Conectado en `app/App.tsx` y `app/Gestures.tsx` (archivos del rol A, cambio pequeño para que lo revise Isaac).
+- **Gesture Control** (`feature/T6-gesture-control`): programa local en Go (`adapters/desktop/`) y su página (`web/src/input/desktop/`). Hace atajos de teclado, ratón, volumen del sistema y controles de videollamada (Meet, Zoom, Teams: silenciar, cámara, levantar la mano, salir) en Windows, Linux y macOS. Solo escucha en 127.0.0.1:8767 y pide un token que cambia en cada arranque.
+  - Contexto nuevo `call`: ✋ levantar la mano, 👍 silenciar, 👎 cámara, ✌️ menú ↓ salir.
+  - Varias manos y caras: sigue la más cercana a la cámara y no salta a otra salvo que esté claramente más cerca.
+  - El seguimiento sigue funcionando con la ventana en segundo plano.
 
-## To do
-- Decide which experimental features stay after testing them with the camera.
-- Test with the webcam and a real hand; tune thresholds (`DEFAULT_OPTIONS`, `DEFAULT_THRESHOLDS`).
-- Connect to the WebSocket now that T2 has published the contract (`api/openapi.yaml`).
-- Add `@mediapipe/tasks-vision@0.10.21` to `web/package.json` and pass `loadVision: () => import("@mediapipe/tasks-vision")`; serve the model locally so the demo doesn't depend on the network.
-- Voice (microphone → `utterance`), the other half of T6.
+## Pendiente
+- Probar voz y Gesture Control en un ordenador real (micrófono, altavoces, llamada de verdad). Whisper local no se ha podido probar desde mi entorno (Hugging Face está bloqueado).
+- Probar con la webcam y una mano real; ajustar umbrales (`DEFAULT_OPTIONS`, `DEFAULT_THRESHOLDS`).
+- Añadir `@mediapipe/tasks-vision@0.10.21` a `web/package.json` y servir el modelo en local, para no depender de la red en la demo.
+- Pasar a español `web/src/input/README.md` (sigue en inglés desde #9).
 
-## Blockers and questions for humans
-- **Controlling the computer** (real Enter, tabs, click, scroll) would have to be done by Go with an OS automation library: discuss with Isaac (T2). For now only the actions are emitted.
-- **Contract proposal (T2, Isaac):** `pointer` message = `{ "type": "pointer", "x": 0.42, "y": 0.31, "space": "document" | "image", "select": false, "t": 1234 }`, with `select: true` for the dwell selection. Plus a message for gesture actions, e.g. `{ "type": "action", "action": "read" | "pause" | "next" | "previous" | "repeat" | "explain_here", "source": "gesture" }`. My module emits local events; adapting them to that shape is trivial.
-- **For B1:** I need the 4 document corners in normalized image coordinates (top-left, top-right, bottom-right, bottom-left) to map the pointer to document coordinates.
-- **Language of the docs:** the new rule in `AGENTS.md` (#8) keeps documentation (`*.md`, `estado/`) in Spanish, but Nil asked for everything in English, so `web/src/input/README.md` and this file are in English. Confirm which one the team prefers.
+## Bloqueos y preguntas para humanos
+- **Carpeta nueva `adapters/desktop/`** (programa en Go del rol C): sigue la decisión de que los adaptadores viven en `adapters/` y hablan con la app en local. Es un programa aparte y no toca la app Wails. Confirmadlo y añadidlo a «Decisiones» en `AGENTS.md`.
+- **Puerto 8767** para Gesture Control: el 8766 lo usa el scanner (`scanner/capturar.py --servidor`).
+- **Cámara compartida:** la videollamada y la ventana de gestos usan la misma webcam; en Linux puede estar ocupada (ver `adapters/desktop/README.md`).
 
-## Files touched
-- `web/src/input/**`
-- `estado/P3-C.md`
+## Archivos tocados
+- `web/src/input/**`, `adapters/desktop/**`, `estado/P3-C.md`
+- `web/src/app/App.tsx` y `web/src/app/Gestures.tsx` (solo en `feature/T6-voice`)
