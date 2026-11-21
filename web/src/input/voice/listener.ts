@@ -26,6 +26,8 @@ export interface Listener {
   available(): boolean;
   /** Listens to one phrase and resolves with its text ("" if nothing was said). */
   listen(options: ListenOptions): Promise<string>;
+  /** Stops listening now and keeps what was said so far (the user says they're done). */
+  finish(): void;
   cancel(): void;
 }
 
@@ -92,7 +94,10 @@ export class WebSpeechListener implements Listener {
       r.continuous = false;
       r.maxAlternatives = 1;
       let final = "";
+      let interim = "";
       let settled = false;
+      // In a noisy room the recognizer may never mark a result as final: keep the interim one.
+      const heard = () => (final || interim).trim();
       const done = (fn: () => void) => {
         if (settled) return;
         settled = true;
@@ -102,7 +107,7 @@ export class WebSpeechListener implements Listener {
       };
       const timer = setTimeout(() => r.stop(), o.maxMs ?? 12000);
       r.onresult = (e) => {
-        let interim = "";
+        interim = "";
         for (let i = e.resultIndex; i < e.results.length; i++) {
           const res = e.results[i];
           if (res.isFinal) final += res[0].transcript;
@@ -111,16 +116,20 @@ export class WebSpeechListener implements Listener {
         o.onPartial?.((final + interim).trim());
       };
       r.onerror = (e) => {
-        if (e.error === "no-speech" || e.error === "aborted") done(() => resolve(final.trim()));
+        if (e.error === "no-speech" || e.error === "aborted") done(() => resolve(heard()));
         else done(() => reject(new ListenError(e.error)));
       };
-      r.onend = () => done(() => resolve(final.trim()));
+      r.onend = () => done(() => resolve(heard()));
       try {
         r.start();
       } catch (err) {
         done(() => reject(new ListenError("unsupported", String(err))));
       }
     });
+  }
+
+  finish(): void {
+    this.current?.stop();
   }
 
   cancel(): void {
@@ -153,6 +162,7 @@ export class WhisperListener implements Listener {
   private o: WhisperOptions;
   private model: Promise<AsrPipeline> | null = null;
   private stopNow: (() => void) | null = null;
+  private finishNow: (() => void) | null = null;
 
   constructor(options: Partial<WhisperOptions> = {}) {
     this.o = { model: WHISPER_MODEL, transformersUrl: TRANSFORMERS_URL, ...options };
@@ -212,6 +222,7 @@ export class WhisperListener implements Listener {
           clearTimeout(startTimer);
           clearTimeout(maxTimer);
           this.stopNow = null;
+          this.finishNow = null;
           if (!ok || chunks.length === 0) return resolve(null);
           const all = new Float32Array(chunks.reduce((n, c) => n + c.length, 0));
           let at = 0;
@@ -224,6 +235,7 @@ export class WhisperListener implements Listener {
         const startTimer = setTimeout(() => !started && finish(false), o.startTimeoutMs ?? 6000);
         const maxTimer = setTimeout(() => finish(started), o.maxMs ?? 12000);
         this.stopNow = () => finish(false);
+        this.finishNow = () => finish(started);
         proc.onaudioprocess = (e) => {
           const frame = new Float32Array(e.inputBuffer.getChannelData(0));
           const ev = vad.feed(frame, frameMs);
@@ -250,6 +262,10 @@ export class WhisperListener implements Listener {
       stream.getTracks().forEach((t) => t.stop());
       void ctx.close();
     }
+  }
+
+  finish(): void {
+    this.finishNow?.();
   }
 
   cancel(): void {
@@ -325,6 +341,10 @@ export class AutoListener implements Listener {
     }
     this.active = this.local;
     return this.local.listen(o);
+  }
+
+  finish(): void {
+    this.active?.finish();
   }
 
   cancel(): void {

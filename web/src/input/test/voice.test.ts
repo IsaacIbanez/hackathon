@@ -59,6 +59,23 @@ test("the VAD starts after sustained speech and ends after a silence", () => {
   assert.deepEqual(events, ["start", "end"]);
 });
 
+test("the VAD learns a noisy room first, so the noise alone never counts as speech", () => {
+  const vad = new EnergyVad();
+  const events: string[] = [];
+  const feed = (amp: number, frames: number) => {
+    for (let i = 0; i < frames; i++) {
+      const e = vad.feed(tone(amp), 50);
+      if (e) events.push(e);
+    }
+  };
+  feed(0.04, 40); // loud background chatter from the very first frame
+  assert.deepEqual(events, []);
+  feed(0.3, 6); // the user talks close to the microphone
+  assert.deepEqual(events, ["start"]);
+  feed(0.04, 25); // back to the chatter: the phrase ends
+  assert.deepEqual(events, ["start", "end"]);
+});
+
 test("resampleTo16k keeps the duration", () => {
   assert.equal(resampleTo16k(new Float32Array(48000), 48000).length, 16000);
   const same = new Float32Array(10);
@@ -151,6 +168,7 @@ class FakeListener implements Listener {
     o.onPartial?.("…");
     return this.reply();
   }
+  finish() {}
   cancel() {}
 }
 
