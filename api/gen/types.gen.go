@@ -338,6 +338,9 @@ type UtterancePayload struct {
 	Text string  `json:"text"`
 }
 
+// PostMessageJSONRequestBody defines body for PostMessage for application/json ContentType.
+type PostMessageJSONRequestBody = ClientMessage
+
 // AsDocumentMessage returns the union data inside the ClientMessage as a DocumentMessage
 func (t ClientMessage) AsDocumentMessage() (DocumentMessage, error) {
 	var body DocumentMessage

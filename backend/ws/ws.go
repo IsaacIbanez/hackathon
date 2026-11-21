@@ -25,10 +25,11 @@ const MaxMessageBytes = 4 << 20
 // It is stateless: use Session when state per connection is needed.
 type Handler func(ctx context.Context, msg gen.Envelope) []any
 
-// Session handles the messages of one connection and keeps its state.
-// Handle is called for each message, in order, from a single goroutine. send can be
-// called at any time, from any goroutine, until ctx is done (the connection closed);
-// it serializes v to JSON.
+// Session handles messages and keeps their state. Served by Server, there is one Session
+// per connection and Handle is called from a single goroutine; shared by a Hub, Handle may
+// be called concurrently from several clients, so implementations must be goroutine-safe.
+// send can be called at any time, from any goroutine, until ctx is done; it serializes v
+// to JSON.
 type Session interface {
 	Handle(ctx context.Context, msg gen.Envelope, send func(v any))
 }

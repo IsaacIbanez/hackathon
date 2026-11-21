@@ -106,6 +106,7 @@ Didac y Pau se reparten B1 y B2 entre ellos (por decidir). La asignación comple
 
 
 ## Decisiones
+- 2026-11-21 — Una sola sesión compartida por toda la app (`ws.Hub`): los mensajes de cualquier cliente (interfaz por WebSocket, scanner por `POST /message`) actualizan el mismo estado y cada `speak`/`stats` se envía a todos los clientes WebSocket — es una app de escritorio para una persona; sin esto, la explicación del documento del scanner volvía al scanner y no a la pantalla.
 - 2026-11-21 — Código, comentarios, commits y títulos de PR en inglés; conversación y documentación en español (sección «Idioma») — lo pide el equipo. Los commits ya en `main` no se reescriben. En el contrato, los niveles de `stats` pasan de `barato`/`caro` a `cheap`/`expensive` (aún no los usaba nadie más).
 - 2026-11-21 — El scanner de B (Python, `scanner/`) se conecta a Go enviando mensajes `document` a `ws://127.0.0.1:8765/ws` (los bloques con caja y confianza salen de Tesseract) y recibe `speak` y `stats` — el contrato no cambia y B sigue aislado en su carpeta. Acordado por Isaac, Didac y Pau.
 - 2026-11-21 — Presupuesto de IA: 10 € para todo el equipo. Mientras se desarrolla, `LLM_PROFILE=dev` (modelos gratuitos con visión primero y Haiku como último recurso); el perfil por defecto (Haiku + Sonnet) es para la demo. Clave en `.env` (ignorado por git) o en el entorno — que no se acabe el presupuesto antes de la demo.

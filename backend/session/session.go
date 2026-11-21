@@ -1,5 +1,5 @@
-// Package session is the real logic behind the /ws WebSocket: one Session per connection
-// keeps the last document and turns contract messages into spoken answers.
+// Package session is the real logic behind the app's API: one shared Session keeps the
+// last document and turns contract messages into spoken answers.
 //
 // Frugality (AXA): framing problems, pointed blocks and "no document yet" are answered
 // locally at no cost; only explanations and questions go to the model, cheap tier first.
@@ -18,7 +18,6 @@ import (
 
 	"github.com/IsaacIbanez/hackathon/api/gen"
 	"github.com/IsaacIbanez/hackathon/backend/llm"
-	"github.com/IsaacIbanez/hackathon/backend/ws"
 )
 
 // Model is what the session needs from backend/llm (an interface so tests can fake it).
@@ -46,7 +45,8 @@ func DefaultConfig() Config {
 	return Config{MinQuality: 0.5, Doubt: DefaultDoubt, ModelTimeout: 45 * time.Second, MaxTokens: 1500}
 }
 
-// Session holds the state of one connection. It implements ws.Session.
+// Session holds the conversation state (last document, pointed block). It implements
+// ws.Session and is goroutine-safe: the app shares one Session among all its clients.
 type Session struct {
 	model Model
 	cfg   Config
@@ -61,14 +61,6 @@ type Session struct {
 // New creates a session.
 func New(model Model, cfg Config) *Session {
 	return &Session{model: model, cfg: cfg}
-}
-
-// NewServer returns the /ws handler backed by one real Session per connection.
-func NewServer(model Model, cfg Config, originPatterns []string) *ws.Server {
-	return &ws.Server{
-		NewSession:     func() ws.Session { return New(model, cfg) },
-		OriginPatterns: originPatterns,
-	}
 }
 
 // Handle implements ws.Session.

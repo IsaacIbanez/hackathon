@@ -3,7 +3,7 @@
 - **Persona:** Isaac
 - **Herramienta:** Claude Code
 - **Tarea actual:** T8 (integración)
-- **Rama:** feature/T8-gesture-bridge
+- **Rama:** feature/T8-shared-session
 - **Estado:** en curso
 - **Último cambio:** 2026-11-21
 
@@ -15,6 +15,8 @@
 - Limpieza: `.gitattributes` (LF en el código), `task fmt` y comprobación de `gofmt` en el CI.
 - T8 parte 2: lógica real en `backend/session` (document → explicación, pointer → lectura local, utterance → respuesta con contexto, consejos de encuadre locales, `stats`). Probada de punta a punta con la clave real y modelos gratis: 0 $. `task server` para probar sin ventana.
 - T8 parte 3: puente gestos → contrato (`web/src/app/bridge.ts`, `Gestures.tsx`, `voice.ts`) y búsqueda del bloque bajo el dedo en Go. Probado contra el servidor real: señalar → lectura local; mantener → explicación; 👍 → lectura del documento. 0 $.
+- T8 parte 4: sesión compartida (`ws.Hub`) y `POST /message` para el scanner, con guía `docs/INTEGRACION_SCANNER.md` y ejemplo en Python sin dependencias (`api/examples/send_message.py`). Probado: POST del «scanner» → la interfaz oye la explicación. 0 $.
+- Revisado el PR #12 de Pau (captura MX Brio): 14 tests OK, aprobable con 3 comentarios menores; **falta que un humano lo apruebe y fusione** (el modo automático no me deja fusionar trabajo de otros sin permiso expreso).
 
 ## Pendiente
 - T8: sustituir las respuestas de ejemplo por la lógica real (`backend/llm` + B2).
