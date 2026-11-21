@@ -21,19 +21,19 @@ Cuatro personas, cada una con una cuenta de Claude Pro y una de Gemini Plus (ver
 
 ## Roles
 - **Humanos:** dan directrices, priorizan, revisan y aprueban merges.
-- **Agentes:** ejecutan la tarea asignada en `TAREAS.md`, documentan su estado en `estado/` y abren un PR.
+- **Agentes:** ejecutan lo que les asigne un humano (el reparto se redefinirá; tablero único en `TAREAS.md`) y abren un PR. El estado por agente anterior está en `docs/historial/estado/`.
 
 ## Idioma
 - **Código en inglés:** identificadores, comentarios, mensajes de log y de error, nombres de tests, textos de la interfaz, variables de entorno, descripciones del contrato (`api/openapi.yaml`), mensajes de commit y títulos de PR.
-- **En español:** la conversación con el equipo, la documentación (`*.md`, `estado/`, `TAREAS.md`) y los datos de ejemplo que imitan documentos reales en español (fixtures, textos de prueba).
+- **En español:** la conversación con el equipo, la documentación (`*.md`, `docs/`, `TAREAS.md`) y los datos de ejemplo que imitan documentos reales en español (fixtures, textos de prueba).
 - El código que ya existe se pasa a inglés por partes: cada dueño traduce sus carpetas cuando le venga bien, sin mezclarlo con otros cambios. Rol A ya lo ha hecho (#8).
 
 ## Reglas de trabajo para los agentes
-1. Al empezar: `git pull`, lee `AGENTS.md`, `TAREAS.md` y tu archivo en `estado/`.
-2. Trabaja solo en la tarea asignada a tu slot. Si necesitas algo de otra tarea, anótalo en tu estado y pregunta a un humano.
+1. Al empezar: `git pull`, lee `AGENTS.md`, `TAREAS.md` (tablero único) y `docs/ESTADO_PROYECTO.md`.
+2. Trabaja solo en lo que te haya asignado un humano (el reparto se está redefiniendo). Si necesitas algo de otra parte, pregunta a un humano.
 3. Rama: `feature/<id-tarea>-<nombre-corto>`. Usa `scripts/nueva-tarea.sh` para crear la rama y tu carpeta de trabajo.
 4. Commits pequeños, con mensaje claro en inglés.
-5. Solo escribes en tu archivo de `estado/` y en tus carpetas de rol. **No edites `TAREAS.md`**: lo actualiza un humano al fusionar (así se evitan conflictos).
+5. Solo escribes en tus carpetas de rol. **No edites `TAREAS.md`**: lo actualiza un humano al fusionar (así se evitan conflictos). Los archivos de estado por agente ya no se usan (historial en `docs/historial/estado/`).
 6. Si cambias una interfaz o un contrato entre módulos, anótalo en "Decisiones".
 7. No mergees a `main` salvo que una persona del equipo te lo pida expresamente. Abre un PR pequeño con: qué hiciste, qué falta, decisiones tomadas y cómo probarlo.
 8. Nunca escribas claves, contraseñas ni datos de cuentas en el repositorio.
@@ -42,7 +42,7 @@ Cuatro personas, cada una con una cuenta de Claude Pro y una de Gemini Plus (ver
 1. El agente termina, hace commit, empuja su rama y abre el PR (pequeño: una tarea o parte de ella).
 2. Revisa otra persona, no el autor, en pocos minutos: CI en verde, solo toca carpetas de su rol y la app arranca (probar la rama, o leer el diff si es corto). Gemini puede hacer una primera revisión.
 3. Se pulsa **Merge** (preferible *squash and merge*) y se borra la rama.
-4. Esa misma persona marca la tarea en `TAREAS.md` (`hecha`) y enlaza el PR.
+4. Esa misma persona actualiza el tablero único de `TAREAS.md` y enlaza el PR.
 5. Los demás hacen `git pull` en `main` y rebasan sus ramas. Si hay conflicto, lo resuelve el agente de la rama atrasada.
 6. Objetivo: fusionar a menudo (cada 30–60 minutos), PRs pequeños y revisiones rápidas.
 7. `task check` (go vet, go test y build del front) debe pasar antes de abrir el PR. Usamos [Task](https://taskfile.dev) (`Taskfile.yml`) en vez de `make` porque en Windows no hay `make`; se instala con `go install github.com/go-task/task/v3/cmd/task@latest`.
@@ -53,7 +53,7 @@ Cuatro personas, cada una con una cuenta de Claude Pro y una de Gemini Plus (ver
 
 ## Cómo ahorrar contexto (tokens)
 - Mantén este archivo corto. Si crece, mueve el detalle a `docs/` y deja solo el enlace.
-- Lee solo lo necesario: `api/` (contrato), tu carpeta de rol y tu archivo de `estado/`. No explores el resto del repo.
+- Lee solo lo necesario: `api/` (contrato), tu carpeta de rol y `docs/ESTADO_PROYECTO.md`. No explores el resto del repo.
 - Trabaja en tareas pequeñas y empieza una sesión nueva por tarea, en vez de arrastrar una conversación larga.
 - Para saber qué hace otro módulo, usa el contrato y el servidor mock, no su código.
 - Cada carpeta tiene un `README.md` (en `api/`, `backend/` y `web/`) con su dueño y qué contiene.
@@ -77,7 +77,9 @@ web/src/camera             cámara, recorte y OCR local (B1)
 web/src/document           vista del documento (B2)
 web/src/input              gestos y voz (C)
 scanner/                   captura MX Brio y OCR a PDF en Python (B; reglas en scanner/AGENTS.md)
-docs/                      documentación: PITCH.md, INTEGRACION_SCANNER.md, PROBAR_GESTOS.md, VOZ.md, IDEAS.md, ARQUITECTURA.md
+docs/                      documentación: ESTADO_PROYECTO.md (estado real), PITCH.md, INTEGRACION_SCANNER.md, PROBAR_GESTOS.md, VOZ.md, ARQUITECTURA.md
+docs/ideas/                lluvia de ideas (IDEAS.md) y agrupación de duplicados
+docs/historial/            estado, tareas y plan por agente anteriores (solo consulta)
 adapters/desktop/          Gesture Control: gestos → teclas reales del sistema, puerto 8767 (C)
 ```
 ## Cómo probar
@@ -112,7 +114,7 @@ Detalle en `docs/ARQUITECTURA.md`. Resumen:
 - **Frugalidad** (criterio de AXA): lo caro solo se llama si lo barato duda, y se muestra el coste.
 
 ## Roles y carpetas
-Cada persona es dueña de sus carpetas; no se edita código de otro rol sin avisar.
+Cada persona es dueña de sus carpetas; no se edita código de otro rol sin avisar. *El reparto de esta tabla se redefinirá (ver «Reparto» más abajo).*
 
 | Rol | Persona | Carpetas | Responsabilidad |
 |-----|---------|----------|-----------------|
@@ -142,59 +144,11 @@ Decidido por Isaac el 2026-11-21. La app abre **una sola cámara** (la que haya;
 
 Puertos: 8765 app · 8766 captura de Pau (pruebas) · 8767 Gesture Control (Nil) · 8770 servicio de lectura (Didac) · 8780 app de prueba de Didac · 8080 mock.
 
-### Siguiente tarea de cada uno (actualizado 2026-11-21, 20:30)
-| Quién | Ya hecho | Ahora | Para probar sin los demás |
-|---|---|---|---|
-| **Didac (B2)** | Pipeline foto → PDF + `document`; envío a la app (`scan.py --send`); cámara disponible sin Brio; OCR en paralelo; código en inglés; `scanner/ENTREGA.md` (todo en `feature/B-contexto-scanner`) | ~~Abrir el PR~~ (fusionado, #26). **Ahora** T13: servicio `POST /scan` en 8770 que reciba la foto (su pipeline ya admite `--png`) y devuelva `document()` + `pageCorners`. Después, 2–3 documentos reales anonimizados en `api/fixtures/real/` | `curl --data-binary @foto.png http://127.0.0.1:8770/scan` |
-| **Pau (B1)** | Captura de la MX Brio (#12); **cámara en la app** (`openCamera`, `captureStill`, #31); ideas (#32); **T19 hecha** en `feature/T19-encuadre` (`startFramingGuide`, ver abajo; probada con la cámara del portátil) | **1)** Probar T19 con la **MX Brio** y una hoja real y ajustar los umbrales si hace falta. **2)** Traducir `capturar.py` al inglés **avisando a Didac** (`scan.py` y `demo_app` usan sus nombres) | su página de prueba (`npx vite web/src/camera` → `/demo/`, botón «Start framing guide») |
-| **Nil (C)** | Gestos (#9), voz con Whisper local (#19), arreglo del puntero (#23, de Isaac) | **1)** Arreglar #20 (cabecera `Host`). **2)** T17: **mejorar el reconocimiento de voz** (ver abajo). **3)** T15: acción `scan_document` (frase «lee el documento» y gesto) y puntero con `pageCorners` en `Gestures.tsx`. **4)** MediaPipe y modelos servidos en local para la demo | `docs/PROBAR_GESTOS.md`; las esquinas de un ejemplo de `api/fixtures/real/` |
-| **Isaac (A)** | Contrato, servidor, sesión, modelos, pantalla, puente de gestos, empaquetado, pitch | ~~Fusionar el PR de Didac~~ (#26). ~~T11: contrato 0.5 y `POST /scan`~~ (hecho). ~~T18: `POST /transcribe`~~ (hecho). **Ahora** T14: botón «Read document» y unión en la app | servicios falsos en los tests de Go |
-| **Todos** | — | T16: lluvia de ideas en `docs/IDEAS.md` (3 ideas cada uno como mínimo) | — |
-
-### Guía de encuadre y disparo automático (T19, Pau)
-Para quien no ve, el problema no es leer: es saber si el papel está bien puesto. En local y sin IA, en `web/src/camera`:
-
-```ts
-// Mira el vídeo mientras dura la orden «lee el documento» y va dando avisos hasta que la foto es buena.
-startFramingGuide(video: HTMLVideoElement, opts: {
-  lang: string                                  // "es-ES": textos de los avisos en el idioma del usuario
-  onHint: (hint: FramingHint, text: string) => void   // la app lo dice en voz alta (sin repetir el mismo aviso seguido)
-  onCapture: (still: Blob) => void              // disparo automático: papel quieto + nítido + con luz
-  timeoutMs?: number                            // si no se consigue, se dispara igualmente con la mejor foto (por defecto 8 s)
-}): { stop(): void }
-
-type FramingHint = 'dark' | 'blurry' | 'moving' | 'hold_still' | 'ready'
-```
-- **Quieto:** comparar fotogramas seguidos (diferencia media pequeña durante ~0,7 s). **Nítido** y **con luz:** `frameMetrics` (ya existe).
-- Al disparar: un pitido corto (como los de la voz de Nil) y `onCapture` con la mejor foto (`captureStill`).
-- Lo que depende de la hoja (`cropped`, `too_far`, inclinada) lo dice Go con el `document` que devuelve el escáner; no hace falta detectarla en el navegador.
-- **Lo une Isaac** en la app (T14): la orden «lee el documento» → `startFramingGuide` → `POST /scan` con la foto.
-
-**Estado (2026-11-21, 22:30): hecha** en `feature/T19-encuadre`, con la interfaz de arriba. Además, `onCapture` recibe un segundo argumento `info` (`reason: 'ready' | 'timeout'`, tamaño, nitidez, `elapsedMs`) y hay `onError` y `onFrame` opcionales.
-- Avisos en es, ca y en. Un aviso tiene que durar 0,3 s antes de decirse, no se repite mientras sigue igual y se repite a los 5 s.
-- Dispara cuando el papel lleva 0,7 s quieto, con luz y con la nitidez estable (el autoenfoque ha terminado): el fotograma más nítido de ese momento, a resolución completa, con pitido y «Foto hecha». A los 8 s, la mejor foto vista.
-- Umbral de movimiento medido con la MX Brio (escena quieta: 1,4 de media, 2,8 en el p95 → 4,5). Detalle en `web/src/camera/README.md`.
-- Probado: tests (91 en `web`), y en el navegador con la cámara del portátil (1280x720, disparo `ready` a los 2,8 s).
-- **Falta:** probarlo con la MX Brio (4K) y una hoja sujeta a mano, comprobar que el `motion` de una mano quieta queda por debajo de 4,5 y ajustar si no; y la unión en la app (Isaac, T14).
-
-### Voz: reconocimiento mejor que el actual (T17 Nil, T18 Isaac)
-Hoy el dictado usa `whisper-tiny` en la CPU y se equivoca mucho. Medido el 2026-11-21 con la misma frase en español («¿Qué tengo que poner aquí, en la fecha del siniestro? ¿Y dónde firmo?»), detalle en `docs/VOZ.md`:
-
-| Opción | Resultado | Tiempo | Coste |
-|---|---|---|---|
-| `whisper-tiny` local (lo de hoy) | falla («firma» en vez de «firmo») ya con audio limpio | 0,4 s | 0 $ |
-| **`whisper-small` local** (q8) | **exacta** | **1,1 s** (descarga ~250 MB la primera vez) | 0 $ |
-| **`google/gemini-2.5-flash-lite`** (OpenRouter, audio) | **correcta** (solo puntuación) | **2,3 s** | **0,00006 $** |
-| nemotron omni (gratis) / qwen omni | correctas | ~7 s | 0 $ / 0,00006 $ |
-| voxtral-small | cambia palabras | 7,5 s | 0,00056 $ |
-
-**Plan (frugal):** primero en local, y la nube solo si falla.
-- **Nil (T17):** pasar a `whisper-small` (WebGPU si está, si no WASM q8), forzar el idioma, **precargar el modelo al abrir la app** para que la primera pregunta no espere, y dejar `whisper-tiny` para equipos lentos. Si el resultado local sale vacío o con error, usar el respaldo de Isaac.
-- **Isaac (T18):** `POST /transcribe` en Go (audio → texto) con `google/gemini-2.5-flash-lite` y respaldo gratuito; el coste aparece en `stats`.
-
-Sincronización corta cada hora: qué he fusionado y qué necesito del contrato.
+### Reparto
+El reparto por persona y las tareas T1–T19 se cerraron con la integración del 2026-11-21 (rama `integration/proyecto-unificado`). **El reparto se redefinirá** después de la lluvia de ideas (`docs/ideas/`). El plan por persona anterior está íntegro en `docs/historial/plan_por_agente.md` y el estado real de cada pieza, en `docs/ESTADO_PROYECTO.md`.
 
 ## Decisiones
+- 2026-11-21 — **Proyecto unificado:** todas las ramas integradas en `integration/proyecto-unificado` (merges normales, ver `docs/ESTADO_PROYECTO.md`); las tareas por agente se disuelven: `TAREAS.md` pasa a ser un tablero único sin responsables y el estado y el plan por agente se guardan en `docs/historial/`. El reparto se redefinirá tras la lluvia de ideas (`docs/ideas/`).
 - 2026-11-21 — **API local protegida** (`ws.Guard`): solo responde a `Host` 127.0.0.1 o localhost (sin DNS rebinding) y a los orígenes de la app (Vite, Wails), con CORS para ellos; `POST /message` solo acepta JSON. Los procesos locales (el scanner) no mandan `Origin` y siguen funcionando. Sin esto, cualquier web abierta podía enviarnos documentos o preguntas y gastar IA.
 - 2026-11-21 — **Respaldo de voz hecho (T18):** `POST /transcribe` (WAV → texto, contrato 0.6) con Gemini 2.5 Flash Lite y un respaldo gratuito; `transcribeRemote()` en `web/src/app/transcribe.ts` para el rol C.
 - 2026-11-21 — **Contrato 0.5:** `document.pageCorners` (esquinas de la hoja en la foto: arriba-izq, arriba-der, abajo-der, abajo-izq de la hoja tal como se lee) y `POST /scan` (la app envía la foto; Go la pasa al servicio de lectura en `SCANNER_URL`, por defecto `127.0.0.1:8770/scan`, y dice en voz alta lo que pasa). `SCANNER_URL=fixture` permite probarlo todo sin el servicio.
