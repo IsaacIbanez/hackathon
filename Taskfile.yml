@@ -1,6 +1,6 @@
 # Tareas del proyecto. Instala task una vez:
 #   go install github.com/go-task/task/v3/cmd/task@latest
-# Uso: task gen | task mock | task dev | task check
+# Uso: task gen | task mock | task dev | task fmt | task check
 version: "3"
 
 vars:
@@ -29,6 +29,11 @@ tasks:
     desc: Arranca la app de escritorio con recarga en caliente (wails dev)
     cmds:
       - wails dev {{.GOTAGS}}
+
+  fmt:
+    desc: Formatea el código Go (gofmt)
+    cmds:
+      - gofmt -w main.go app.go api backend
 
   check:
     desc: build y lint del frontend, go vet y go test

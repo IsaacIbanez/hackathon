@@ -1,4 +1,4 @@
-package main
+package mock
 
 import (
 	"context"
@@ -18,7 +18,7 @@ import (
 )
 
 func TestHealth(t *testing.T) {
-	h, err := newMux()
+	h, err := NewMux()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,7 +30,7 @@ func TestHealth(t *testing.T) {
 }
 
 func TestDocumentYUtteranceRespondenConSpeak(t *testing.T) {
-	h, err := newMux()
+	h, err := NewMux()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +70,7 @@ func TestDocumentYUtteranceRespondenConSpeak(t *testing.T) {
 
 // Un document de página entera supera los 32 KB por defecto de la librería.
 func TestDocumentGrandeNoCierraLaConexion(t *testing.T) {
-	h, err := newMux()
+	h, err := NewMux()
 	if err != nil {
 		t.Fatal(err)
 	}
