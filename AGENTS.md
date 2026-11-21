@@ -115,13 +115,42 @@ Cada persona es dueña de sus carpetas; no se edita código de otro rol sin avis
 
 | Rol | Persona | Carpetas | Responsabilidad |
 |-----|---------|----------|-----------------|
-| A. Núcleo e integración | Isaac (P1) | `backend/cmd`, `backend/{ws,session,llm}`, `api/`, CI, empaquetado Wails | Contrato, servidor Go, cliente de modelos frugal, contador, integración y pitch |
-| B1. Captura y visión | Didac (P2) o Pau (P4) | `web/src/camera` | Flujo de cámara, detección y recorte del papel, calidad de imagen, OCR local |
-| B2. Comprensión de documentos | Pau (P4) o Didac (P2) | `backend/ocr`, `web/src/document` | Texto a campos y significado, decidir cuándo escalar al modelo caro, vista del documento |
-| C. Interacción | Nil (P3) | `web/src/input` | Gestos de mano y voz |
+| A. Núcleo e integración | Isaac (P1) | `api/`, `backend/`, `web/src/app/` (salvo `Gestures.tsx`), `main.go`, `app.go`, CI, `docs/` | Contrato, servidor Go y orquestación, lógica de respuestas, modelos frugales, pantalla, empaquetado, revisión de PRs y pitch |
+| B1. Cámara en la app | Pau (P4) | `web/src/camera/`, `scanner/capturar.py` | Abrir la cámara (la Logitech si está), sacar la foto más nítida, avisos de calidad en directo |
+| B2. Lectura de documentos | Didac (P2) | `scanner/` (pipeline y servicio), `web/src/document/` | Foto → hoja, orientación, OCR, `document` con esquinas; servicio local para la app |
+| C. Interacción | Nil (P3) | `web/src/input/`, `web/src/app/Gestures.tsx`, `adapters/desktop/` | Gestos, voz (dictado y lectura), orden «lee el documento», puntero sobre el papel real |
 
-B1 y B2 acuerdan en la primera hora el mensaje `document` (bloques de texto con caja en la imagen y confianza).
-Didac y Pau se reparten B1 y B2 entre ellos (por decidir). La asignación completa está en `ROSTER.md`.
+Si necesitas algo de otro carril, pídelo mediante el **contrato** (`api/openapi.yaml`): lo cambia el rol A primero, en un PR pequeño, y luego cada uno lo implementa en lo suyo.
+
+## Plan actual: una cámara que hace gestos y, con una orden, lee documentos
+Decidido por Isaac el 2026-11-21. La app abre **una sola cámara** (la que haya; la Logitech si está) y la deja en **modo gestos**. Con la orden **«lee el documento»** (botón, frase o gesto):
+1. La app avisa «sujeta el papel quieto» y saca la **foto más nítida** de esa misma cámara (B1).
+2. La envía a Go con `POST /scan` (A).
+3. Go la pasa al **servicio de lectura** de Didac, `POST http://127.0.0.1:8770/scan` (B2), que devuelve el `document` con las **esquinas de la hoja** en esa foto.
+4. Go lo guarda, lo envía a la pantalla y lo explica en voz alta (A).
+5. El puntero usa esas esquinas: señalar con el dedo apunta a los campos del **papel real** (C).
+
+### Interfaces entre carriles (así se trabaja en paralelo, cada uno con un falso de los demás)
+| Interfaz | Forma | La implementa | La usa |
+|---|---|---|---|
+| `document.pageCorners` (contrato 0.5, opcional) | 4 puntos normalizados [0, 1] sobre la foto: arriba-izq, arriba-der, abajo-der, abajo-izq | B2 | C (puntero), A (pantalla) |
+| `POST /scan` en Go (8765) | cuerpo: la foto (`image/jpeg` o `image/png`) → `202`; el resultado llega por WebSocket (`document` + `speak` + `stats`) | A | la app |
+| `POST /scan` del servicio de lectura (8770) | cuerpo: la foto → `200` con un `DocumentPayload` (con `pageCorners`) o `422 {"error": "..."}` si no hay hoja | B2 | Go (A) |
+| `web/src/camera`: `openCamera(): Promise<MediaStream>` y `captureStill(video): Promise<Blob>` | la Logitech por nombre si está; la foto más nítida de ~0,5 s | B1 | la app (A), gestos (C) |
+| Acción `scan_document` | la emite el módulo de gestos y voz (frase «lee el documento» y un gesto u opción del menú) | C | la app (A) |
+
+Puertos: 8765 app · 8766 captura de Pau (pruebas) · 8767 Gesture Control (Nil) · 8770 servicio de lectura (Didac) · 8780 app de prueba de Didac · 8080 mock.
+
+### Siguiente tarea de cada uno
+| Quién | Tarea | Para probar sin los demás |
+|---|---|---|
+| **Isaac (A)** | T11: contrato 0.5 (`pageCorners`) y `POST /scan` en Go → servicio de lectura. Después, T14: botón «Read document» y unión en la app; ajustar las explicaciones al texto real del OCR | un servicio de lectura falso en los tests |
+| **Pau (B1)** | T12: `web/src/camera` (`openCamera` prefiriendo la Logitech; `captureStill` con la nitidez del laplaciano, como en `capturar.py`). Además, que `capturar.py` use la cámara disponible si no hay Brio | una página de prueba propia |
+| **Didac (B2)** | T13: servicio `POST /scan` en 8770 con su pipeline, que devuelva `documento()` + `pageCorners`. Exportar 2–3 escaneos reales sin datos personales a `api/fixtures/real/` (PR revisado por A) | `curl --data-binary @foto.png` |
+| **Nil (C)** | T15: arreglar #20 (`Host`); acción `scan_document` (frase y gesto); puntero y recuadros con `pageCorners` en `Gestures.tsx` | las esquinas de un ejemplo de `api/fixtures/real/` |
+| **Todos** | T16: lluvia de ideas en `docs/IDEAS.md` (cada uno, 3 ideas como mínimo); se eligen en el siguiente punto de sincronización | — |
+
+Sincronización corta cada hora: qué he fusionado y qué necesito del contrato.
 
 
 ## Decisiones
