@@ -1,18 +1,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { clasificarPose } from "../poses.ts";
-import { FORMAS, mano } from "./mano.ts";
+import { classifyPose } from "../poses.ts";
+import { makeHand, SHAPES } from "./hand.ts";
 
-for (const [nombre, forma] of Object.entries(FORMAS)) {
-  test(`pose ${nombre}`, () => {
-    assert.equal(clasificarPose(mano(forma)), nombre);
+for (const [name, shape] of Object.entries(SHAPES)) {
+  test(`pose ${name}`, () => {
+    assert.equal(classifyPose(makeHand(shape)), name);
   });
 }
 
-test("la pose no cambia al mover la mano por la imagen", () => {
-  assert.equal(clasificarPose(mano({ ...FORMAS.senalar, dx: -0.3, dy: 0.1 })), "senalar");
+test("the pose doesn't change when the hand moves across the image", () => {
+  assert.equal(classifyPose(makeHand({ ...SHAPES.point, dx: -0.3, dy: 0.1 })), "point");
 });
 
-test("tres dedos estirados no es ningún gesto conocido", () => {
-  assert.equal(clasificarPose(mano({ indice: true, corazon: true, anular: true })), "ninguno");
+test("three extended fingers is not a known gesture", () => {
+  assert.equal(classifyPose(makeHand({ index: true, middle: true, ring: true })), "none");
 });

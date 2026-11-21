@@ -1,250 +1,258 @@
-// Página de prueba del módulo de manos. Arrancar con:  npx vite web/src/input  → /demo/
+// Test page for the hand module. Start it with:  npx vite web/src/input  → /demo/
 import {
-  accionDe,
-  CONEXIONES,
-  crearRastreador,
-  InteraccionManos,
-  MAPAS,
-  menuPara,
-  OPCIONES_POR_DEFECTO,
-  PERFIL_MOVILIDAD_REDUCIDA,
-  type Contexto,
-  type Esquinas,
-  type EventoManos,
-  type FrameManos,
-  type Punto,
-  type LadoMano,
-  type Rastreador,
-  type SectorMenu,
+  actionFor,
+  CONNECTIONS,
+  createTracker,
+  DEFAULT_OPTIONS,
+  HandInteraction,
+  MAPS,
+  menuFor,
+  REDUCED_MOBILITY_PROFILE,
+  type Context,
+  type Corners,
+  type HandEvent,
+  type HandFrame,
+  type HandSide,
+  type MenuSector,
+  type Point,
+  type Tracker,
 } from "../index.ts";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const video = $<HTMLVideoElement>("video");
-const lienzo = $<HTMLCanvasElement>("lienzo");
-const ctx = lienzo.getContext("2d")!;
-const casilla = (id: string) => $<HTMLInputElement>(id);
+const canvas = $<HTMLCanvasElement>("canvas");
+const ctx = canvas.getContext("2d")!;
+const checkbox = (id: string) => $<HTMLInputElement>(id);
 
-const interaccion = new InteraccionManos();
-let rastreador: Rastreador | null = null;
-let ultimoFrame: FrameManos | null = null;
-let esquinas: Punto[] | null = null;
-let marcando: Punto[] | null = null;
-let contexto: Contexto = "documento";
-let tAccion = 0;
-let volumen = 1;
-let menuElegido: { sector: SectorMenu; centro: Punto; mano: LadoMano | null; t: number } | null = null;
-let manoMostrada: LadoMano | null | undefined;
+const interaction = new HandInteraction();
+let tracker: Tracker | null = null;
+let lastFrame: HandFrame | null = null;
+let corners: Point[] | null = null;
+let marking: Point[] | null = null;
+let context: Context = "document";
+let tAction = 0;
+let volume = 1;
+let chosenMenu: { sector: MenuSector; center: Point; hand: HandSide | null; t: number } | null = null;
+let shownHand: HandSide | null | undefined;
 
-// ---------- Textos de la interfaz (en inglés) ----------
+// ---------- UI labels ----------
 
-const ACCIONES_EN: Record<string, string> = {
-  leer: "Read", pausar: "Pause", siguiente: "Next", anterior: "Previous", explicar_aqui: "Explain this",
-  confirmar_campo: "Confirm field", campo_siguiente: "Next field", campo_anterior: "Previous field",
-  dictar_campo: "Dictate field", borrar_campo: "Clear field", intro: "Enter", escape: "Escape",
-  pestana_siguiente: "Next tab", pestana_anterior: "Previous tab", clic: "Click", deshacer: "Undo",
-  volumen: "Volume", despertar: "Awake", dormir: "Asleep", ajustar_volumen: "Adjust volume",
-  repetir: "Repeat", copiar_texto: "Copy text", dictar: "Dictate", pedir_ayuda: "Ask for help",
+const ACTION_LABELS: Record<string, string> = {
+  read: "Read", pause: "Pause", next: "Next", previous: "Previous", explain_here: "Explain this",
+  confirm_field: "Confirm field", next_field: "Next field", previous_field: "Previous field",
+  dictate_field: "Dictate field", clear_field: "Clear field", enter: "Enter", escape: "Escape",
+  next_tab: "Next tab", previous_tab: "Previous tab", click: "Click", undo: "Undo",
+  volume: "Volume", wake: "Awake", sleep: "Asleep", adjust_volume: "Adjust volume",
+  repeat: "Repeat", copy_text: "Copy text", dictate: "Dictate", ask_for_help: "Ask for help",
 };
-const GESTOS_EN: Record<string, string> = {
-  ninguno: "—", senalar: "Pointing", palma: "Open palm", puno: "Fist", pulgar_arriba: "Thumbs up",
-  pulgar_abajo: "Thumbs down", victoria: "Victory", pinza: "Pinch",
+const GESTURE_LABELS: Record<string, string> = {
+  none: "—", point: "Pointing", palm: "Open palm", fist: "Fist", thumbs_up: "Thumbs up",
+  thumbs_down: "Thumbs down", victory: "Victory", pinch: "Pinch",
 };
-const SECTORES_EN: Record<SectorMenu, string> = { arriba: "up", derecha: "right", abajo: "down", izquierda: "left" };
-const CONTEXTOS_EN: Record<Contexto, string> = { documento: "Reading", formulario: "Form", pc: "Computer" };
-const MANO_EN: Record<LadoMano, string> = { derecha: "Right", izquierda: "Left" };
+const CONTEXT_LABELS: Record<Context, string> = { document: "Reading", form: "Form", pc: "Computer" };
+const HAND_LABELS: Record<HandSide, string> = { right: "Right", left: "Left" };
+const PHASE_LABELS: Record<string, string> = {
+  open: "open", highlight: "highlight", choose: "chosen", close: "closed",
+  armed: "armed", start: "start", move: "move", end: "set", cancel: "cancelled",
+};
+const EVENT_LABELS: Record<string, string> = {
+  gesture: "Gesture", swipe: "Swipe", menu: "Menu", level: "Volume", head: "Head", mode: "Mode",
+  hand: "Hand", select: "Select", pointer: "Pointer",
+};
+const ARROWS: Record<MenuSector, string> = { up: "↑", right: "→", down: "↓", left: "←" };
 
-/** Texto en inglés de una acción (o de cualquier texto ya escrito). */
-const bonito = (s: string) => ACCIONES_EN[s] ?? s.replaceAll("_", " ");
-const gestoEn = (g: string) => GESTOS_EN[g] ?? g;
+/** Human-readable label for an action (or any other text). */
+const label = (s: string) => ACTION_LABELS[s] ?? s.replaceAll("_", " ");
+const gestureLabel = (g: string) => GESTURE_LABELS[g] ?? g;
 
-// ---------- Eventos ----------
+// ---------- Events ----------
 
-interaccion.on((e) => {
-  if (e.tipo === "puntero") {
-    $("doc").textContent = e.documento ? `${e.documento.x.toFixed(2)}, ${e.documento.y.toFixed(2)}` : "outside";
+interaction.on((e) => {
+  if (e.type === "pointer") {
+    $("docPointer").textContent = e.document ? `${e.document.x.toFixed(2)}, ${e.document.y.toFixed(2)}` : "outside";
     return;
   }
-  if (e.tipo === "nivel" && (e.fase === "inicio" || e.fase === "mover" || e.fase === "fin")) {
-    // La pinza fija el volumen de la voz de la demo (efecto real, no solo un evento).
-    volumen = e.valor;
-    $("volumen").textContent = `${Math.round(volumen * 100)} %`;
-    $("medidorVolumen").style.width = `${Math.round(volumen * 100)}%`;
-    if (e.fase !== "fin") return; // no llenamos el registro con cada movimiento
+  if (e.type === "level" && (e.phase === "start" || e.phase === "move" || e.phase === "end")) {
+    // The pinch sets the demo's voice volume (a real effect, not just an event).
+    volume = e.value;
+    $("volume").textContent = `${Math.round(volume * 100)} %`;
+    $("volumeMeter").style.width = `${Math.round(volume * 100)}%`;
+    if (e.phase !== "end") return; // don't flood the log with every movement
   }
-  const accion = accionDe(e, contexto);
-  anotar(e, accion);
-  if (e.tipo === "gesto") $("gesto").textContent = gestoEn(e.gesto);
-  if (e.tipo === "menu" && e.fase === "elegir" && e.sector) menuElegido = { sector: e.sector, centro: e.centro, mano: e.mano, t: performance.now() };
-  if (e.tipo === "modo") pintarModo();
-  if (accion === "volumen" && e.tipo === "nivel") mostrarAccion(accion, `Volume ${Math.round(e.valor * 100)} %`);
-  else if (accion) mostrarAccion(accion);
-  // Elegir "ajustar volumen" en el menú arma el control: después hay que juntar los dedos.
-  if (accion === "ajustar_volumen") interaccion.iniciarNivel();
-  if (e.tipo === "nivel" && e.fase === "cancelar") mostrarAccion("Volume cancelled");
-  if (e.tipo === "seleccion" && casilla("vozSel").checked) escucharPregunta(e.documento ?? e.imagen);
+  const action = actionFor(e, context);
+  logEvent(e, action);
+  if (e.type === "gesture") $("gesture").textContent = gestureLabel(e.gesture);
+  if (e.type === "menu" && e.phase === "choose" && e.sector) {
+    chosenMenu = { sector: e.sector, center: e.center, hand: e.hand, t: performance.now() };
+  }
+  if (e.type === "mode") paintMode();
+  if (action === "volume" && e.type === "level") showAction(action, `Volume ${Math.round(e.value * 100)} %`);
+  else if (action) showAction(action);
+  // Choosing "adjust volume" in the menu arms the control: then the user pinches.
+  if (action === "adjust_volume") interaction.startLevel();
+  if (e.type === "level" && e.phase === "cancel") showAction("Volume cancelled");
+  if (e.type === "select" && checkbox("pointAsk").checked) listenForQuestion(e.document ?? e.image);
 });
 
-const FASES_EN: Record<string, string> = {
-  abrir: "open", resaltar: "highlight", elegir: "chosen", cerrar: "closed",
-  esperar: "armed", inicio: "start", mover: "move", fin: "set", cancelar: "cancelled",
-};
-const TIPOS_EN: Record<string, string> = {
-  gesto: "Gesture", deslizar: "Swipe", menu: "Menu", nivel: "Volume", cabeza: "Head", modo: "Mode",
-  mano: "Hand", seleccion: "Select", puntero: "Pointer",
-};
-
-function anotar(e: EventoManos, accion: string | null) {
-  const detalle =
-    e.tipo === "gesto" ? gestoEn(e.gesto)
-    : e.tipo === "deslizar" ? (e.direccion === "derecha" ? "right" : "left")
-    : e.tipo === "menu" ? `${FASES_EN[e.fase]}${e.sector ? ` ${SECTORES_EN[e.sector]}` : ""}`
-    : e.tipo === "nivel" ? `${FASES_EN[e.fase]} ${Math.round(e.valor * 100)} %`
-    : e.tipo === "cabeza" ? (e.gesto === "asentir" ? "nod" : "shake")
-    : e.tipo === "modo" ? (e.despierto ? "awake" : "asleep")
-    : e.tipo === "mano" ? (e.presente ? "appears" : "lost")
+function logEvent(e: HandEvent, action: string | null) {
+  const detail =
+    e.type === "gesture" ? gestureLabel(e.gesture)
+    : e.type === "swipe" ? e.direction
+    : e.type === "menu" ? `${PHASE_LABELS[e.phase]}${e.sector ? ` ${e.sector}` : ""}`
+    : e.type === "level" ? `${PHASE_LABELS[e.phase]} ${Math.round(e.value * 100)} %`
+    : e.type === "head" ? e.gesture
+    : e.type === "mode" ? (e.awake ? "awake" : "asleep")
+    : e.type === "hand" ? (e.present ? "appears" : "lost")
     : "";
   const li = document.createElement("li");
-  li.textContent = `${(e.t / 1000).toFixed(1)} s · ${TIPOS_EN[e.tipo] ?? e.tipo} ${detalle}${accion ? ` → ${bonito(accion)}` : ""}`;
-  $("registro").prepend(li);
-  while ($("registro").childElementCount > 80) $("registro").lastElementChild!.remove();
+  li.textContent = `${(e.t / 1000).toFixed(1)} s · ${EVENT_LABELS[e.type] ?? e.type} ${detail}${action ? ` → ${label(action)}` : ""}`;
+  $("log").prepend(li);
+  while ($("log").childElementCount > 80) $("log").lastElementChild!.remove();
 }
 
-function mostrarAccion(accion: string, dicho = bonito(accion)) {
-  $("accion").textContent = dicho;
-  tAccion = performance.now();
-  if (casilla("voz").checked) {
+function showAction(action: string, spoken = label(action)) {
+  $("action").textContent = spoken;
+  tAction = performance.now();
+  if (checkbox("speak").checked) {
     speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(dicho);
+    const u = new SpeechSynthesisUtterance(spoken);
     u.lang = "en-US";
-    u.volume = volumen;
+    u.volume = volume;
     speechSynthesis.speak(u);
   }
 }
 
-function pintarModo() {
-  const m = $("modo");
-  m.hidden = !interaccion.opciones.requiereDespertar;
-  m.className = interaccion.estaDespierto ? "despierto" : "dormido";
-  m.textContent = interaccion.estaDespierto ? "● Awake" : "● Asleep — hold an open palm";
+function paintMode() {
+  const m = $("mode");
+  m.hidden = !interaction.options.requireWake;
+  m.className = `chip ${interaction.isAwake ? "awake" : "asleep"}`;
+  m.textContent = interaction.isAwake ? "● Awake" : "● Asleep — hold an open palm";
 }
 
-// ---------- Controles ----------
+// ---------- Controls ----------
 
-for (const b of document.querySelectorAll<HTMLButtonElement>("#contexto button")) {
+for (const b of document.querySelectorAll<HTMLButtonElement>("#context button")) {
   b.addEventListener("click", () => {
-    contexto = b.dataset.c as Contexto;
-    for (const o of document.querySelectorAll<HTMLButtonElement>("#contexto button")) {
+    context = b.dataset.c as Context;
+    for (const o of document.querySelectorAll<HTMLButtonElement>("#context button")) {
       o.setAttribute("aria-pressed", String(o === b));
     }
-    pintarChuleta();
+    paintGuide();
   });
 }
 
-casilla("despertar").addEventListener("change", (ev) => {
-  interaccion.configurar({ requiereDespertar: (ev.target as HTMLInputElement).checked });
-  pintarModo();
+checkbox("wake").addEventListener("change", (ev) => {
+  interaction.configure({ requireWake: (ev.target as HTMLInputElement).checked });
+  paintMode();
 });
 
-casilla("movilidad").addEventListener("change", (ev) => {
-  const activo = (ev.target as HTMLInputElement).checked;
-  const base: Record<string, unknown> = {};
-  for (const k of Object.keys(PERFIL_MOVILIDAD_REDUCIDA)) base[k] = OPCIONES_POR_DEFECTO[k as keyof typeof OPCIONES_POR_DEFECTO];
-  interaccion.configurar(activo ? PERFIL_MOVILIDAD_REDUCIDA : base);
+checkbox("mobility").addEventListener("change", (ev) => {
+  const on = (ev.target as HTMLInputElement).checked;
+  const defaults: Record<string, unknown> = {};
+  for (const k of Object.keys(REDUCED_MOBILITY_PROFILE)) {
+    defaults[k] = DEFAULT_OPTIONS[k as keyof typeof DEFAULT_OPTIONS];
+  }
+  interaction.configure(on ? REDUCED_MOBILITY_PROFILE : defaults);
 });
 
-casilla("cabeza").addEventListener("change", async (ev) => {
-  const activo = (ev.target as HTMLInputElement).checked;
-  $("estado").textContent = activo ? "Loading the face model…" : "Head gestures off.";
-  await rastreador?.activarCara(activo);
-  if (activo) $("estado").textContent = "Head gestures on: nod or shake your head.";
+checkbox("head").addEventListener("change", async (ev) => {
+  const on = (ev.target as HTMLInputElement).checked;
+  $("status").textContent = on ? "Loading the face model…" : "Head gestures off.";
+  await tracker?.enableFace(on);
+  if (on) $("status").textContent = "Head gestures on: nod or shake your head.";
 });
 
-// Señalar + voz: reconocimiento de voz del navegador (Chrome y Edge; Firefox no lo tiene).
-type Reconocedor = { lang: string; interimResults: boolean; onresult: (e: any) => void; onerror: (e: any) => void; onend: () => void; start(): void };
-const ClaseReconocedor: (new () => Reconocedor) | undefined =
+// Point + ask: the browser's speech recognition (Chrome and Edge; Firefox doesn't have it).
+type Recognizer = {
+  lang: string;
+  interimResults: boolean;
+  onresult: (e: any) => void;
+  onerror: (e: any) => void;
+  onend: () => void;
+  start(): void;
+};
+const RecognizerClass: (new () => Recognizer) | undefined =
   (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
-if (!ClaseReconocedor) {
-  casilla("vozSel").disabled = true;
-  $("vozInfo").textContent = "Not available in this browser (try Chrome or Edge)";
+if (!RecognizerClass) {
+  checkbox("pointAsk").disabled = true;
+  $("pointAskInfo").textContent = "Not available in this browser (try Chrome or Edge)";
 }
 
-function escucharPregunta(donde: Punto) {
-  if (!ClaseReconocedor) return;
-  const r = new ClaseReconocedor();
+function listenForQuestion(where: Point) {
+  if (!RecognizerClass) return;
+  const r = new RecognizerClass();
   r.lang = "en-US";
   r.interimResults = false;
-  $("estado").textContent = "🎤 Listening to your question…";
+  $("status").textContent = "🎤 Listening to your question…";
   r.onresult = (e) => {
-    const texto = e.results[0][0].transcript;
+    const text = e.results[0][0].transcript;
     const li = document.createElement("li");
-    li.textContent = `🎤 “${texto}” at (${donde.x.toFixed(2)}, ${donde.y.toFixed(2)})`;
-    $("registro").prepend(li);
-    mostrarAccion(`Question: ${texto}`);
+    li.textContent = `🎤 “${text}” at (${where.x.toFixed(2)}, ${where.y.toFixed(2)})`;
+    $("log").prepend(li);
+    showAction(`Question: ${text}`);
   };
-  r.onerror = (e) => ($("estado").textContent = `Voice: ${e.error}`);
-  r.onend = () => ($("estado").textContent = "Ready.");
+  r.onerror = (e) => ($("status").textContent = `Voice: ${e.error}`);
+  r.onend = () => ($("status").textContent = "Ready.");
   r.start();
 }
 
-const FLECHA: Record<SectorMenu, string> = { arriba: "↑", derecha: "→", abajo: "↓", izquierda: "←" };
-
-function pintarChuleta() {
-  const m = MAPAS[contexto];
-  $("contextoNombre").textContent = CONTEXTOS_EN[contexto];
-  const filas: [string, string, boolean][] = [
-    ["👍 Thumbs up (hold)", m.pulgar_arriba, false],
-    ["✋ Open palm facing the camera (hold still)", m.palma, false],
-    ["✋→ Swipe to your right", m.deslizar_derecha, false],
-    ["✋← Swipe to your left", m.deslizar_izquierda, false],
+function paintGuide() {
+  const m = MAPS[context];
+  $("contextName").textContent = CONTEXT_LABELS[context];
+  const rows: [string, string, boolean][] = [
+    ["👍 Thumbs up (hold)", m.thumbs_up, false],
+    ["✋ Open palm facing the camera (hold still)", m.palm, false],
+    ["✋→ Swipe to your right", m.swipe_right, false],
+    ["✋← Swipe to your left", m.swipe_left, false],
     ["☝️ Point", "Move the pointer", false],
-    ["☝️ Point and hold still ~1 s", m.seleccion, false],
-    ["👎 Thumbs down", m.pulgar_abajo, true],
+    ["☝️ Point and hold still ~1 s", m.select, false],
+    ["👎 Thumbs down", m.thumbs_down, true],
     ["✌️ Victory", "Open the quick menu, then move the pointer onto an option and hold ~0.5 s", true],
-    ...(Object.entries(menuPara(interaccion.manoUsada)) as [SectorMenu, string][]).map(
-      ([s, a]) => [`      Menu ${FLECHA[s]} ${SECTORES_EN[s]}`, a, true] as [string, string, boolean],
+    ...(Object.entries(menuFor(interaction.handInUse)) as [MenuSector, string][]).map(
+      ([s, a]) => [`      Menu ${ARROWS[s]} ${s}`, a, true] as [string, string, boolean],
     ),
     ["🤏 After “Adjust volume”: pinch, then open", "Volume in 10 % steps; hold still ~1 s to set it", true],
-    ["🙂 Nod", m.cabeza.asentir, true],
-    ["🙂 Shake your head", m.cabeza.negar, true],
+    ["🙂 Nod", m.head.nod, true],
+    ["🙂 Shake your head", m.head.shake, true],
   ];
-  $("chuleta").innerHTML = filas
-    .map(([g, a, exp]) => `<tr><td>${g}${exp ? '<i class="badge">BETA</i>' : ""}</td><td>${bonito(a)}</td></tr>`)
+  $("guide").innerHTML = rows
+    .map(([g, a, beta]) => `<tr><td>${g}${beta ? '<i class="badge">BETA</i>' : ""}</td><td>${label(a)}</td></tr>`)
     .join("");
 }
-pintarChuleta();
+paintGuide();
 
-// ---------- Marcar documento ----------
+// ---------- Mark document ----------
 
-$("marcar").addEventListener("click", () => {
-  marcando = [];
-  esquinas = null;
-  interaccion.fijarDocumento(null);
-  $("estado").textContent = "Click the document corners: top-left, top-right, bottom-right, bottom-left (as you see them).";
+$("markDocument").addEventListener("click", () => {
+  marking = [];
+  corners = null;
+  interaction.setDocument(null);
+  $("status").textContent = "Click the document corners: top-left, top-right, bottom-right, bottom-left (as you see them).";
 });
 
-lienzo.addEventListener("click", (ev) => {
-  if (!marcando) return;
-  const r = lienzo.getBoundingClientRect();
-  // El lienzo se ve en espejo: deshacemos el espejo para pasar a coordenadas de imagen.
-  marcando.push({ x: 1 - (ev.clientX - r.left) / r.width, y: (ev.clientY - r.top) / r.height });
-  if (marcando.length === 4) {
-    // El usuario marca sobre la vista en espejo: su sup-izq es la sup-der de la imagen.
-    const [a, b, c, d] = marcando;
-    esquinas = [b, a, d, c];
-    interaccion.fijarDocumento(esquinas as Esquinas);
-    marcando = null;
-    $("estado").textContent = "Document marked. Point inside it.";
+canvas.addEventListener("click", (ev) => {
+  if (!marking) return;
+  const r = canvas.getBoundingClientRect();
+  // The canvas is shown mirrored: undo the mirror to get image coordinates.
+  marking.push({ x: 1 - (ev.clientX - r.left) / r.width, y: (ev.clientY - r.top) / r.height });
+  if (marking.length === 4) {
+    // The user clicks on the mirrored view: their top-left is the image's top-right.
+    const [a, b, c, d] = marking;
+    corners = [b, a, d, c];
+    interaction.setDocument(corners as Corners);
+    marking = null;
+    $("status").textContent = "Document marked. Point inside it.";
   }
 });
 
-// ---------- Dibujo ----------
+// ---------- Drawing ----------
 
-/** Texto legible sobre el lienzo en espejo. */
-function texto(s: string, x: number, y: number, tam = 28, color = "#fff") {
+/** Readable text on the mirrored canvas. */
+function text(s: string, x: number, y: number, size = 28, color = "#fff") {
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(-1, 1);
-  ctx.font = `700 ${tam}px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
+  ctx.font = `700 ${size}px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.lineWidth = 6;
@@ -255,37 +263,36 @@ function texto(s: string, x: number, y: number, tam = 28, color = "#fff") {
   ctx.restore();
 }
 
-/** Menú como capa HTML: muestra el lado señalado y el progreso hasta elegirlo. */
-function pintarMenu() {
+/** Menu as an HTML layer: shows the option under the pointer and the progress until it's chosen. */
+function paintMenu() {
   const t = performance.now();
-  const abierto = interaccion.menuAbierto(t);
-  const elegido = menuElegido && t - menuElegido.t < 700 ? menuElegido : null;
-  $("menu").hidden = !abierto && !elegido;
-  const opciones = menuPara(abierto?.mano ?? elegido?.mano ?? null);
+  const open = interaction.menuOpen(t);
+  const chosen = chosenMenu && t - chosenMenu.t < 700 ? chosenMenu : null;
+  $("menu").hidden = !open && !chosen;
+  const options = menuFor(open?.hand ?? chosen?.hand ?? null);
   for (const op of document.querySelectorAll<HTMLElement>("#menu .op")) {
-    const s = op.dataset.s as SectorMenu;
-    const accion = opciones[s];
-    // El lado de la mano que se usa no tiene opción (señalar hacia fuera cuesta).
-    op.style.visibility = accion ? "visible" : "hidden";
-    op.textContent = accion ? `${FLECHA[s]} ${bonito(accion)}` : "";
-    const activa = abierto?.sector === s;
-    op.classList.toggle("activa", activa);
-    op.classList.toggle("elegida", elegido?.sector === s);
-    op.style.setProperty("--p", activa ? String(abierto!.progreso) : "0");
+    const s = op.dataset.s as MenuSector;
+    const action = options[s];
+    // The side of the hand in use has no option (pointing outwards is awkward).
+    op.style.visibility = action ? "visible" : "hidden";
+    op.textContent = action ? `${ARROWS[s]} ${label(action)}` : "";
+    const active = open?.sector === s;
+    op.classList.toggle("active", active);
+    op.classList.toggle("chosen", chosen?.sector === s);
+    op.style.setProperty("--p", active ? String(open!.progress) : "0");
   }
 }
 
-/** Línea entre pulgar e índice: fina siempre (para ver qué mide la app), gruesa con la pinza activa. */
-function dibujarPinza(w: number, h: number) {
-  const d = interaccion.diagnostico;
+/** Line between thumb and index: always thin (to see what the app measures), thick while adjusting. */
+function drawPinch(w: number, h: number) {
+  const d = interaction.diagnostics;
   if (!d) return;
-  const n = interaccion.nivelActivo(performance.now());
-  const [ax, ay, bx, by] = [d.pulgar.x * w, d.pulgar.y * h, d.indice.x * w, d.indice.y * h];
-  const op = interaccion.opciones;
-  // Solo se avisa de la pinza cuando el volumen está armado desde el menú; si no, no hace nada.
-  const juntos =
-    interaccion.nivelEsperando && d.separacion <= op.nivelCero && d.alcance >= op.umbrales.indiceFuera;
-  ctx.strokeStyle = n ? `hsl(${Math.round(120 * n.valor)}, 90%, 55%)` : juntos ? "#4cc9f0" : "#ffffff99";
+  const n = interaction.levelActive(performance.now());
+  const [ax, ay, bx, by] = [d.thumb.x * w, d.thumb.y * h, d.index.x * w, d.index.y * h];
+  const o = interaction.options;
+  // The pinch hint only shows when the volume is armed from the menu; otherwise it does nothing.
+  const together = interaction.levelArmed && d.separation <= o.levelZero && d.reach >= o.thresholds.indexOut;
+  ctx.strokeStyle = n ? `hsl(${Math.round(120 * n.value)}, 90%, 55%)` : together ? "#4cc9f0" : "#ffffff99";
   ctx.lineWidth = n ? 8 : 3;
   ctx.lineCap = "round";
   ctx.setLineDash(n ? [] : [10, 8]);
@@ -302,93 +309,95 @@ function dibujarPinza(w: number, h: number) {
   }
   const mx = (ax + bx) / 2;
   const my = Math.min(ay, by) - 30;
-  // La medida de la línea, siempre visible junto a ella.
-  texto(d.separacion.toFixed(2), mx + 40, (ay + by) / 2, 20, "#fff");
+  // The line's measure, always visible next to it.
+  text(d.separation.toFixed(2), mx + 40, (ay + by) / 2, 20, "#fff");
   if (n) {
-    texto(`🔊 ${Math.round(n.valor * 100)} %`, mx, my - 10, 40, "#ffd23f");
-    // Anillo de confirmación: se llena si te quedas quieto en el mismo valor.
-    if (n.progresoConfirmar > 0) {
+    text(`🔊 ${Math.round(n.value * 100)} %`, mx, my - 10, 40, "#ffd23f");
+    // Confirmation ring: fills up while you hold still on the same value.
+    if (n.confirmProgress > 0) {
       ctx.strokeStyle = "#3ddc97";
       ctx.lineWidth = 6;
       ctx.beginPath();
-      ctx.arc(mx, my + 30, 18, -Math.PI / 2, -Math.PI / 2 + n.progresoConfirmar * Math.PI * 2);
+      ctx.arc(mx, my + 30, 18, -Math.PI / 2, -Math.PI / 2 + n.confirmProgress * Math.PI * 2);
       ctx.stroke();
     }
-    // Barra en escalones de 10 % en el borde derecho de la imagen (a la izquierda del usuario).
-    const altoBarra = h * 0.7;
-    const y0 = (h - altoBarra) / 2;
+    // 10 % step bar on the image's right edge (the user's left, since they see a mirror).
+    const barHeight = h * 0.7;
+    const y0 = (h - barHeight) / 2;
     const xb = w - 70;
-    const alto10 = altoBarra / 10;
+    const step = barHeight / 10;
     for (let i = 0; i < 10; i++) {
-      const lleno = (i + 1) / 10 <= n.valor + 1e-6;
-      ctx.fillStyle = lleno ? `hsl(${Math.round(12 * (i + 1))}, 90%, 55%)` : "#000a";
-      ctx.fillRect(xb, y0 + altoBarra - (i + 1) * alto10 + 2, 44, alto10 - 4);
+      const filled = (i + 1) / 10 <= n.value + 1e-6;
+      ctx.fillStyle = filled ? `hsl(${Math.round(12 * (i + 1))}, 90%, 55%)` : "#000a";
+      ctx.fillRect(xb, y0 + barHeight - (i + 1) * step + 2, 44, step - 4);
     }
-    // Marca fina con la posición real de los dedos (sin redondear).
+    // Thin mark with the fingers' real (unrounded) position.
     ctx.fillStyle = "#fff";
-    ctx.fillRect(xb - 10, y0 + altoBarra * (1 - n.continuo) - 2, 64, 4);
-  } else if (juntos) {
-    texto("🤏 Pinched — now open your fingers", mx, my, 22, "#4cc9f0");
+    ctx.fillRect(xb - 10, y0 + barHeight * (1 - n.continuous) - 2, 64, 4);
+  } else if (together) {
+    text("🤏 Pinched — now open your fingers", mx, my, 22, "#4cc9f0");
   }
 }
 
-function dibujar() {
-  const w = (lienzo.width = video.videoWidth || 640);
-  const h = (lienzo.height = video.videoHeight || 480);
+function draw() {
+  const w = (canvas.width = video.videoWidth || 640);
+  const h = (canvas.height = video.videoHeight || 480);
   ctx.clearRect(0, 0, w, h);
   if (video.readyState >= 2) ctx.drawImage(video, 0, 0, w, h);
-  if (!interaccion.estaDespierto) {
+  if (!interaction.isAwake) {
     ctx.fillStyle = "#0008";
     ctx.fillRect(0, 0, w, h);
   }
 
-  const quad = esquinas ?? marcando;
+  const quad = corners ?? marking;
   if (quad?.length) {
     ctx.strokeStyle = "#4cc9f0";
     ctx.lineWidth = 3;
     ctx.beginPath();
     quad.forEach((p, i) => (i ? ctx.lineTo(p.x * w, p.y * h) : ctx.moveTo(p.x * w, p.y * h)));
-    if (esquinas) ctx.closePath();
+    if (corners) ctx.closePath();
     ctx.stroke();
   }
 
-  for (const m of ultimoFrame?.manos ?? []) {
+  for (const hand of lastFrame?.hands ?? []) {
     ctx.strokeStyle = "#ffffffb3";
     ctx.lineWidth = 4;
     ctx.lineCap = "round";
-    for (const [a, b] of CONEXIONES) {
+    for (const [a, b] of CONNECTIONS) {
       ctx.beginPath();
-      ctx.moveTo(m.puntos[a].x * w, m.puntos[a].y * h);
-      ctx.lineTo(m.puntos[b].x * w, m.puntos[b].y * h);
+      ctx.moveTo(hand.points[a].x * w, hand.points[a].y * h);
+      ctx.lineTo(hand.points[b].x * w, hand.points[b].y * h);
       ctx.stroke();
     }
-    for (const [i, p] of m.puntos.entries()) {
-      const punta = i === 4 || i === 8 || i === 12 || i === 16 || i === 20;
-      ctx.fillStyle = punta ? "#ffd23f" : "#ffffff";
+    for (const [i, p] of hand.points.entries()) {
+      const tip = i === 4 || i === 8 || i === 12 || i === 16 || i === 20;
+      ctx.fillStyle = tip ? "#ffd23f" : "#ffffff";
       ctx.beginPath();
-      ctx.arc(p.x * w, p.y * h, punta ? 7 : 4.5, 0, Math.PI * 2);
+      ctx.arc(p.x * w, p.y * h, tip ? 7 : 4.5, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    // Barra de progreso para despertar, sobre la muñeca.
-    const prog = interaccion.progresoDespertar(performance.now());
-    if (prog > 0) {
-      const mu = m.puntos[0];
+    // Wake progress ring, around the wrist.
+    const progress = interaction.wakeProgress(performance.now());
+    if (progress > 0) {
+      const wrist = hand.points[0];
       ctx.strokeStyle = "#3ddc97";
       ctx.lineWidth = 10;
       ctx.beginPath();
-      ctx.arc(mu.x * w, mu.y * h, 40, -Math.PI / 2, -Math.PI / 2 + prog * Math.PI * 2);
+      ctx.arc(wrist.x * w, wrist.y * h, 40, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2);
       ctx.stroke();
     }
   }
 
-  const c = ultimoFrame?.cara;
-  if (c) {
+  const face = lastFrame?.face;
+  if (face) {
     ctx.fillStyle = "#4cc9f088";
-    for (let i = 0; i < c.puntos.length; i += 6) ctx.fillRect(c.puntos[i].x * w - 1, c.puntos[i].y * h - 1, 2, 2);
+    for (let i = 0; i < face.points.length; i += 6) {
+      ctx.fillRect(face.points[i].x * w - 1, face.points[i].y * h - 1, 2, 2);
+    }
   }
 
-  const p = interaccion.puntero;
+  const p = interaction.pointer;
   if (p) {
     ctx.fillStyle = "#ff5d5d";
     ctx.beginPath();
@@ -396,146 +405,148 @@ function dibujar() {
     ctx.fill();
   }
 
-  dibujarPinza(w, h);
-  if (interaccion.nivelEsperando) texto("🤏 Pinch your thumb and index finger to start", w / 2, h * 0.14, 34, "#4cc9f0");
-  pintarMenu();
-  const d = interaccion.diagnostico;
-  const esc = interaccion.escalaNivel;
-  $("separacion").textContent = d
-    ? `${d.separacion.toFixed(2)}  (0 % ≤ ${esc.cero.toFixed(2)} · 100 % ≥ ${esc.lleno.toFixed(2)})`
+  drawPinch(w, h);
+  if (interaction.levelArmed) text("🤏 Pinch your thumb and index finger to start", w / 2, h * 0.14, 34, "#4cc9f0");
+  paintMenu();
+  const d = interaction.diagnostics;
+  const scale = interaction.levelScale;
+  $("separation").textContent = d
+    ? `${d.separation.toFixed(2)}  (0 % ≤ ${scale.zero.toFixed(2)} · 100 % ≥ ${scale.full.toFixed(2)})`
     : "—";
-  $("alcance").textContent = d ? `${d.alcance.toFixed(2)}  (start ≥ ${interaccion.opciones.umbrales.indiceFuera.toFixed(2)})` : "—";
-  // Puntero por encima del menú (la capa del menú tapa el lienzo). El lienzo va en espejo.
-  const cur = $("cursor");
-  cur.hidden = !(interaccion.menuAbierto(performance.now()) && p);
-  if (!cur.hidden && p) {
-    cur.style.left = `${(1 - p.x) * 100}%`;
-    cur.style.top = `${p.y * 100}%`;
+  $("reach").textContent = d ? `${d.reach.toFixed(2)}  (start ≥ ${interaction.options.thresholds.indexOut.toFixed(2)})` : "—";
+  // Pointer on top of the menu (the menu layer covers the canvas). The canvas is mirrored.
+  const cursor = $("cursor");
+  cursor.hidden = !(interaction.menuOpen(performance.now()) && p);
+  if (!cursor.hidden && p) {
+    cursor.style.left = `${(1 - p.x) * 100}%`;
+    cursor.style.top = `${p.y * 100}%`;
   }
-  if (interaccion.manoUsada !== manoMostrada) {
-    manoMostrada = interaccion.manoUsada;
-    $("manoUsada").textContent = manoMostrada ? MANO_EN[manoMostrada] : "detecting…";
-    $("chipMano").textContent = `Hand: ${manoMostrada ? MANO_EN[manoMostrada] : "detecting…"}`;
-    pintarChuleta(); // el menú cambia según la mano
+  if (interaction.handInUse !== shownHand) {
+    shownHand = interaction.handInUse;
+    const name = shownHand ? HAND_LABELS[shownHand] : "detecting…";
+    $("handInUse").textContent = name;
+    $("handChip").textContent = `Hand: ${name}`;
+    paintGuide(); // the menu depends on the hand
   }
 
-  if (performance.now() - tAccion > 1500) $("accion").textContent = "";
-  $("pose").textContent = gestoEn(interaccion.pose);
-  requestAnimationFrame(dibujar);
+  if (performance.now() - tAction > 1500) $("action").textContent = "";
+  $("pose").textContent = gestureLabel(interaction.pose);
+  requestAnimationFrame(draw);
 }
 
-// ---------- Cámara ----------
+// ---------- Camera ----------
 
-/** Abre la cámara y vigila si se corta, para reconectar sola. */
-async function abrirCamara(): Promise<void> {
+/** Opens the camera and watches for it dropping, to reconnect automatically. */
+async function openCamera(): Promise<void> {
   (video.srcObject as MediaStream | null)?.getTracks().forEach((t) => t.stop());
   const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 }, audio: false });
   video.srcObject = stream;
   await video.play();
   stream.getVideoTracks()[0]?.addEventListener("ended", () => {
-    $("estado").textContent = "The camera stopped. Reconnecting…";
-    void reconectar();
+    $("status").textContent = "The camera stopped. Reconnecting…";
+    void reconnect();
   });
 }
 
-async function reconectar(intentos = 20): Promise<void> {
-  for (let i = 0; i < intentos; i++) {
+async function reconnect(attempts = 20): Promise<void> {
+  for (let i = 0; i < attempts; i++) {
     try {
-      await abrirCamara();
-      await rastreador?.reiniciar();
-      $("estado").textContent = "Camera reconnected.";
+      await openCamera();
+      await tracker?.restart();
+      $("status").textContent = "Camera reconnected.";
       return;
     } catch {
       await new Promise((r) => setTimeout(r, 1500));
     }
   }
-  $("estado").textContent = "Couldn’t reconnect the camera. Press “Restart camera”.";
+  $("status").textContent = "Couldn’t reconnect the camera. Press “Restart camera”.";
 }
 
-$("reiniciar").addEventListener("click", () => void reconectar(1));
-// ---------- Ajustes de la pinza (deslizadores) ----------
+$("restartCamera").addEventListener("click", () => void reconnect(1));
 
-type ClaveAjuste = "nivelCero" | "nivelLleno" | "indiceFuera";
-function valorAjuste(k: ClaveAjuste): number {
-  const o = interaccion.opciones;
-  return k === "indiceFuera" ? o.umbrales.indiceFuera : o[k];
+// ---------- Pinch tuning (sliders) ----------
+
+type TuningKey = "levelZero" | "levelFull" | "indexOut";
+function tuningValue(k: TuningKey): number {
+  const o = interaction.options;
+  return k === "indexOut" ? o.thresholds.indexOut : o[k];
 }
-function aplicarAjuste(k: ClaveAjuste, v: number) {
-  const o = interaccion.opciones;
-  if (k === "indiceFuera") interaccion.configurar({ umbrales: { ...o.umbrales, indiceFuera: v } });
-  else interaccion.configurar({ [k]: v });
+function applyTuning(k: TuningKey, v: number) {
+  const o = interaction.options;
+  if (k === "indexOut") interaction.configure({ thresholds: { ...o.thresholds, indexOut: v } });
+  else interaction.configure({ [k]: v });
 }
-function pintarAjustes() {
-  for (const input of document.querySelectorAll<HTMLInputElement>("#ajustes input")) {
-    const k = input.dataset.k as ClaveAjuste;
-    input.value = String(valorAjuste(k));
-    document.querySelector(`#ajustes [data-v="${k}"]`)!.textContent = valorAjuste(k).toFixed(2);
+function paintTuning() {
+  for (const input of document.querySelectorAll<HTMLInputElement>("#tuning input")) {
+    const k = input.dataset.k as TuningKey;
+    input.value = String(tuningValue(k));
+    document.querySelector(`#tuning [data-v="${k}"]`)!.textContent = tuningValue(k).toFixed(2);
   }
 }
-for (const input of document.querySelectorAll<HTMLInputElement>("#ajustes input")) {
+for (const input of document.querySelectorAll<HTMLInputElement>("#tuning input")) {
   input.addEventListener("input", () => {
-    aplicarAjuste(input.dataset.k as ClaveAjuste, Number(input.value));
-    pintarAjustes();
+    applyTuning(input.dataset.k as TuningKey, Number(input.value));
+    paintTuning();
   });
 }
-pintarAjustes();
+paintTuning();
 
-casilla("invertirMano").addEventListener("change", (ev) => {
-  interaccion.configurar({ invertirLateralidad: (ev.target as HTMLInputElement).checked });
+checkbox("swapHand").addEventListener("change", (ev) => {
+  interaction.configure({ invertHandedness: (ev.target as HTMLInputElement).checked });
 });
 
-/** Mediana de la separación pulgar–índice durante `ms`, mostrando una cuenta atrás. */
-async function medirSeparacion(instruccion: string, ms: number): Promise<number | null> {
-  const muestras: number[] = [];
+/** Median thumb–index distance over `ms`, showing a countdown. */
+async function measureSeparation(instruction: string, ms: number): Promise<number | null> {
+  const samples: number[] = [];
   const t0 = performance.now();
   while (performance.now() - t0 < ms) {
-    const faltan = Math.ceil((ms - (performance.now() - t0)) / 1000);
-    $("estado").textContent = `${instruccion} (${faltan})`;
-    $("accion").textContent = instruccion;
-    tAccion = performance.now();
-    const d = interaccion.diagnostico;
-    // Solo el último segundo: el primero es para colocar la mano.
-    if (d && performance.now() - t0 > ms - 1000) muestras.push(d.separacion);
+    const remaining = Math.ceil((ms - (performance.now() - t0)) / 1000);
+    $("status").textContent = `${instruction} (${remaining})`;
+    $("action").textContent = instruction;
+    tAction = performance.now();
+    const d = interaction.diagnostics;
+    // Only the last second: the first one is for placing the hand.
+    if (d && performance.now() - t0 > ms - 1000) samples.push(d.separation);
     await new Promise((r) => setTimeout(r, 50));
   }
-  if (muestras.length < 5) return null;
-  muestras.sort((a, b) => a - b);
-  return muestras[Math.floor(muestras.length / 2)];
+  if (samples.length < 5) return null;
+  samples.sort((a, b) => a - b);
+  return samples[Math.floor(samples.length / 2)];
 }
 
-$("recalibrar").addEventListener("click", async () => {
-  const juntos = await medirSeparacion("🤏 Touch your thumb and index fingertips", 2500);
-  const abiertos = juntos === null ? null : await medirSeparacion("🖐️ Now open them wide", 2500);
-  if (juntos === null || abiertos === null || abiertos - juntos < 0.15) {
-    $("estado").textContent = "Calibration failed: the hand wasn’t clearly visible. Try again.";
+$("calibrate").addEventListener("click", async () => {
+  const together = await measureSeparation("🤏 Touch your thumb and index fingertips", 2500);
+  const open = together === null ? null : await measureSeparation("🖐️ Now open them wide", 2500);
+  if (together === null || open === null || open - together < 0.15) {
+    $("status").textContent = "Calibration failed: the hand wasn’t clearly visible. Try again.";
     return;
   }
-  interaccion.fijarEscalaNivel(juntos, abiertos);
-  pintarAjustes();
-  $("estado").textContent = `Volume calibrated: together ${juntos.toFixed(2)}, open ${abiertos.toFixed(2)}.`;
-  mostrarAccion("Calibrated");
+  interaction.setLevelScale(together, open);
+  paintTuning();
+  $("status").textContent = `Volume calibrated: together ${together.toFixed(2)}, open ${open.toFixed(2)}.`;
+  showAction("Calibrated");
 });
 
-async function iniciar() {
+async function start() {
   try {
-    await abrirCamara();
-    // ?mp=<url> permite servir MediaPipe desde otra ruta (p. ej. sin acceso a jsDelivr).
-    const baseMediapipe = new URLSearchParams(location.search).get("mp") ?? undefined;
-    rastreador = await crearRastreador(
+    await openCamera();
+    // ?mp=<url> lets MediaPipe be served from another path (e.g. without access to jsDelivr).
+    const mediapipeBase = new URLSearchParams(location.search).get("mp") ?? undefined;
+    tracker = await createTracker(
       video,
       (f) => {
-        ultimoFrame = f;
-        interaccion.procesar(f);
+        lastFrame = f;
+        interaction.process(f);
       },
-      baseMediapipe ? { baseMediapipe } : {},
+      mediapipeBase ? { mediapipeBase } : {},
     );
-    setInterval(() => ($("fps").textContent = rastreador!.fps.toFixed(0)), 500);
-    $("estado").textContent = "Ready — show your hand to the camera.";
-    requestAnimationFrame(dibujar);
+    setInterval(() => ($("fps").textContent = tracker!.fps.toFixed(0)), 500);
+    $("status").textContent = "Ready — show your hand to the camera.";
+    requestAnimationFrame(draw);
   } catch (e) {
     console.error(e);
-    $("estado").textContent = `Error: ${(e as Error).message}`;
+    $("status").textContent = `Error: ${(e as Error).message}`;
   }
 }
 
-iniciar();
+start();

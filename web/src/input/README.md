@@ -1,93 +1,96 @@
-# Módulo de manos (rol C — T6, parte de gestos)
+# Hand module (role C — T6, gestures)
 
-Convierte los landmarks de la mano (MediaPipe HandLandmarker, en el navegador) en eventos y acciones
-de la app. Sin dependencias de npm: MediaPipe se carga en tiempo de ejecución desde jsDelivr
-(`@mediapipe/tasks-vision@0.10.21`) y el modelo desde Google Storage.
+Turns hand landmarks (MediaPipe HandLandmarker, in the browser) into app events and actions.
+No npm dependencies: MediaPipe is loaded at runtime from jsDelivr
+(`@mediapipe/tasks-vision@0.10.21`) and the model from Google Storage.
 
-## Gestos
-Pocos gestos, muchas acciones: el significado depende del **contexto** (`documento`, `formulario`, `pc`),
-definido en `acciones.ts` (`MAPAS`). Los marcados como EXP son experimentales.
+## Gestures
+Few gestures, many actions: the meaning depends on the **context** (`document`, `form`, `pc`),
+defined in `actions.ts` (`MAPS`). Items marked BETA are experimental.
 
-| Gesto | Documento | Formulario | PC |
+| Gesture | Document | Form | Computer |
 |---|---|---|---|
-| 👍 pulgar arriba (mantener ~0,3 s) | leer | confirmar campo | Intro |
-| ✋ palma quieta, mirando a la cámara | pausar | pausar | Escape |
-| ✋↔ deslizar a la derecha / izquierda del usuario | siguiente / anterior | campo siguiente / anterior | pestaña siguiente / anterior |
-| ☝️ señalar | puntero | puntero | puntero |
-| ☝️ señalar quieto ~0,9 s | explicar aquí | dictar campo | clic |
-| 👎 pulgar abajo (EXP) | deshacer | borrar campo | deshacer |
-| ✌️ menú → ajustar volumen, y 🤏 juntar y separar pulgar e índice; quieto ~1 s para fijar (EXP) | volumen | volumen | volumen |
-| ✌️ victoria → menú; ☝️ puntero encima de una opción ~0,5 s (EXP) | ↑ ajustar volumen · ↓ repetir · pedir ayuda en el lado contrario a la mano (sin mano detectada: → dictar, ← pedir ayuda) | igual | igual |
-| 🙂 asentir (EXP, cabeza) | leer | confirmar campo | Intro |
-| 🙂 negar (EXP, cabeza) | pausar | borrar campo | Escape |
+| 👍 thumbs up (hold ~0.3 s) | read | confirm field | Enter |
+| ✋ open palm facing the camera, held still | pause | pause | Escape |
+| ✋↔ swipe to the user's right / left | next / previous | next / previous field | next / previous tab |
+| ☝️ point | pointer | pointer | pointer |
+| ☝️ point and hold still ~0.9 s | explain here | dictate field | click |
+| 👎 thumbs down (BETA) | undo | clear field | undo |
+| ✌️ victory → quick menu; ☝️ hold the pointer on an option ~0.5 s (BETA) | ↑ adjust volume · ↓ repeat · ask for help on the side opposite the hand (no hand detected: → dictate, ← ask for help) | same | same |
+| ✌️ menu → adjust volume, then 🤏 pinch and open; hold still ~1 s to set it (BETA) | volume | volume | volume |
+| 🙂 nod (BETA, head) | read | confirm field | Enter |
+| 🙂 shake (BETA, head) | pause | clear field | Escape |
 
-Opciones experimentales (en `OpcionesInteraccion`):
-- `requiereDespertar`: modo dormido/despierto. Se ignoran los gestos hasta mantener ✋ ~1 s (o asentir);
-  vuelve a dormirse tras `dormirMs` sin actividad. Evita gestos accidentales.
-- `PERFIL_MOVILIDAD_REDUCIDA`: tiempos más largos y radios más amplios para temblor o movilidad reducida.
-- Volumen con la pinza (evento `nivel`), deliberadamente simple. **Solo se activa desde el menú**
-  (opción «ajustar volumen», que llama a `iniciarNivel()`), para que no se dispare sin querer; si no se
-  juntan los dedos en `esperaNivelMs` (8 s), se cancela:
-  - Medida = distancia en pantalla entre las puntas de pulgar e índice ÷ tamaño de la mano en
-    pantalla (muñeca → nudillo del corazón), `separacionEnPantalla`. Es la línea que se dibuja; dividir
-    por el tamaño de la mano hace que no dependa de la distancia a la cámara.
-  - Medida ≤ `nivelCero` (0,25) = 0 %; ≥ `nivelLleno` (1,0) = 100 %; en medio, lineal, redondeado a
-    escalones de 10 % (`pasoNivel`) con un poco de histéresis (`histeresisNivel`).
-  - Para empezar se juntan los dedos por debajo de `nivelCero` ~0,15 s (con el índice no metido en un
-    puño). Se confirma quedándose quieto ~1 s (`confirmarNivelMs`).
-  - Calibración guiada: `fijarEscalaNivel(juntos, abiertos)`; en la demo, botón «Calibrar volumen» y
-    deslizadores para los umbrales. En la demo ajusta de verdad el volumen de la voz.
-- Palma: solo cuenta si la palma (no el dorso) mira a la cámara (`palmaHaciaCamara`), según la mano
-  detectada y el orden de los nudillos en la imagen.
-- Puño: desactivado por defecto (`usarPuno: false`): no se emite ni termina el ajuste de volumen.
-- Menú: tras abrirlo con ✌️, se pone ☝️ y se lleva el puntero (la punta del índice) encima de una
-  opción, manteniéndolo `elegirMenuMs` (~0,5 s). Las opciones ocupan zonas fijas de la pantalla en
-  cruz (tercios, `sectorEnPantalla`); con ✌️ o en el centro no se elige nada; se cierra solo a los 5 s.
-- Mano usada: se detecta qué mano usa el usuario (`manoUsada`, votación suavizada de la etiqueta de
-  MediaPipe; `invertirLateralidad` por si sale al revés). En el menú se quita el lado de esa mano
-  (`sectoresMenu`, `menuPara`): quedan ↑ ajustar volumen, ↓ repetir y, en el lado contrario, pedir ayuda.
-  Si no se sabe la mano, salen las 4 (→ dictar).
-- Cabeza: `crearRastreador(..., { cara: true })` o `rastreador.activarCara(true)` (otro modelo, ~4 MB;
-  se analiza 1 de cada 2 frames).
-- Señalar + voz: solo en la demo, con el reconocimiento de voz del navegador (Chrome/Edge; Firefox no lo tiene).
+Experimental options (in `InteractionOptions`):
+- `requireWake`: sleep/wake mode. Gestures are ignored until an open palm is held ~1 s (or the
+  user nods); it goes back to sleep after `sleepMs` without activity. Avoids accidental gestures.
+- `REDUCED_MOBILITY_PROFILE`: longer times and larger radii for tremor or reduced mobility.
+- Volume with the pinch (`level` event), deliberately simple. **Only enabled from the menu**
+  ("adjust volume" option, which calls `startLevel()`) so it can't trigger by accident; if the fingers
+  don't touch within `levelArmMs` (8 s), it is cancelled:
+  - Measure = on-screen distance between the thumb and index fingertips ÷ the hand's on-screen size
+    (wrist → middle knuckle), `screenSeparation`. It is the line that gets drawn; dividing by hand
+    size makes it independent of the distance to the camera.
+  - Measure ≤ `levelZero` (0.25) = 0 %; ≥ `levelFull` (1.0) = 100 %; linear in between, rounded to
+    `levelStep` (10 %) steps with a little hysteresis (`levelHysteresis`).
+  - To start, the fingers are brought below `levelZero` for ~0.15 s (with the index not tucked into a
+    fist). It is confirmed by holding still ~1 s (`levelConfirmMs`).
+  - Guided calibration: `setLevelScale(together, open)`; in the demo, the “Calibrate volume” button
+    and sliders for the thresholds. In the demo it really changes the voice volume.
+- Palm: only counts when the palm (not the back of the hand) faces the camera (`palmMustFaceCamera`),
+  based on the detected hand and the order of the knuckles in the image.
+- Fist: disabled by default (`useFist: false`): it is neither emitted nor ends the volume control.
+- Menu: after opening it with ✌️, the user shows ☝️ and holds the pointer (the index tip) over an
+  option for `menuSelectMs` (~0.5 s). Options fill fixed screen zones in a cross (thirds,
+  `screenSector`); with ✌️ or in the centre nothing is chosen; it closes by itself after 5 s.
+- Hand in use: detects which hand the user is using (`handInUse`, a smoothed vote over MediaPipe's
+  label; `invertHandedness` in case it comes out swapped). The menu removes that hand's side
+  (`menuSectors`, `menuFor`): ↑ adjust volume, ↓ repeat and, on the opposite side, ask for help.
+  If the hand is unknown, all 4 options are shown.
+- Head: `createTracker(..., { face: true })` or `tracker.enableFace(true)` (another model, ~4 MB;
+  only 1 in every 2 frames is analysed).
+- Point + ask: only in the demo, using the browser's speech recognition (Chrome/Edge; Firefox
+  doesn't have it).
 
-Los tiempos y umbrales están en `OPCIONES_POR_DEFECTO` (`interaccion.ts`) y `OPCIONES_CABEZA` (`cabeza.ts`).
+Times and thresholds live in `DEFAULT_OPTIONS` (`interaction.ts`) and `HEAD_DEFAULTS` (`head.ts`).
 
-## Uso
+## Usage
 ```ts
-import { InteraccionManos, crearRastreador, accionDe } from "./input/index.ts";
+import { HandInteraction, createTracker, actionFor } from "./input/index.ts";
 
-const interaccion = new InteraccionManos();      // { espejo: false } si la cámara mira al papel desde arriba
-interaccion.on((e) => {
-  const accion = accionDe(e, "documento");       // "leer" | "pausar" | ... | null
-  // e.tipo === "puntero" / "seleccion": e.documento es {x,y} en [0,1] dentro del documento, o null
+const interaction = new HandInteraction();       // { mirror: false } if the camera looks down at the paper
+interaction.on((e) => {
+  const action = actionFor(e, "document");       // "read" | "pause" | ... | null
+  // e.type === "pointer" / "select": e.document is {x,y} in [0,1] within the document, or null
 });
-await crearRastreador(videoElement, (frame) => interaccion.procesar(frame));
-interaccion.fijarDocumento(esquinas);            // esquinas del papel en la imagen (de B1)
+await createTracker(videoElement, (frame) => interaction.process(frame));
+interaction.setDocument(corners);                // paper corners in the image (from B1)
 ```
 
-Coordenadas: `imagen` es la posición normalizada [0,1] en el frame de la cámara **sin espejo**
-(las mismas que usa B1). `documento` se calcula con una homografía a partir de las 4 esquinas del
-papel (sup-izq, sup-der, inf-der, inf-izq), así encaja con las cajas de texto del mensaje `document`.
+Coordinates: `image` is the normalized [0,1] position in the camera frame **without mirroring**
+(the same ones B1 uses). `document` is computed with a homography from the paper's 4 corners
+(top-left, top-right, bottom-right, bottom-left), so it matches the text boxes of the `document`
+message.
 
-## Probar
+## Testing
 ```bash
 node --test 'web/src/input/test/*.test.ts'
 ```
-Demo con la cámara (necesita Vite; se puede lanzar sin instalar nada en el repo):
+Demo with the camera (needs Vite; it can run without installing anything in the repo):
 ```bash
 npx vite@5.4.11 web/src/input
 ```
-y abrir http://localhost:5173/demo/. Para marcar el documento, pulsa el botón y haz clic en sus 4
-esquinas tal como las ves. Sin acceso a jsDelivr, sirve `@mediapipe/tasks-vision` en local y pasa
-`?mp=<ruta>`.
+then open http://localhost:5173/demo/. To mark the document, press the button and click its 4
+corners as you see them. Without access to jsDelivr, serve `@mediapipe/tasks-vision` locally and
+pass `?mp=<path>`.
 
-## Archivos
-- `tipos.ts`: tipos e índices de los landmarks.
-- `poses.ts`: pose estática (rectitud de cada dedo; no depende de la rotación ni la distancia).
-- `interaccion.ts`: estabilización de gestos, deslizar, puntero filtrado, selección por permanencia y los experimentales (dormir/despertar, nivel con la pinza, menú radial, cabeza).
-- `acciones.ts`: eventos a acciones de la app, por contexto, y opciones del menú radial.
-- `cabeza.ts`: asentir y negar (experimental).
-- `geometria.ts`, `filtro.ts`: homografía y filtro One Euro.
-- `rastreador.ts`: único archivo que depende de MediaPipe y del DOM.
-- `demo/`: página de prueba. `test/`: tests con manos sintéticas.
+## Files
+- `types.ts`: types and landmark indices.
+- `poses.ts`: static pose (each finger's straightness; independent of rotation and distance).
+- `interaction.ts`: gesture stabilisation, swipe, filtered pointer, dwell selection and the
+  experimental features (sleep/wake, pinch level, quick menu, head).
+- `actions.ts`: events to app actions, per context, plus the quick menu options.
+- `head.ts`: nod and shake (experimental).
+- `geometry.ts`, `filter.ts`: homography and One Euro filter.
+- `tracker.ts`: the only file that depends on MediaPipe and the DOM.
+- `demo/`: test page. `test/`: tests with synthetic hands.

@@ -1,131 +1,129 @@
-// Clasificación de la pose estática de una mano a partir de sus 21 puntos.
-// Se usa la "rectitud" de cada dedo (longitud recta / longitud por las falanges),
-// que no depende de la rotación ni de la distancia a la cámara.
+// Static hand pose classification from its 21 landmarks.
+// It uses each finger's "straightness" (straight length / length along the phalanges),
+// which does not depend on rotation or on the distance to the camera.
 
-import { distancia } from "./geometria.ts";
-import { P, type Gesto, type Mano, type Punto3D } from "./tipos.ts";
+import { distance } from "./geometry.ts";
+import { L, type Gesture, type Hand, type Point3D } from "./types.ts";
 
-export interface EstadoDedos {
-  pulgar: boolean;
-  indice: boolean;
-  corazon: boolean;
-  anular: boolean;
-  menique: boolean;
+export interface FingerState {
+  thumb: boolean;
+  index: boolean;
+  middle: boolean;
+  ring: boolean;
+  pinky: boolean;
 }
 
-export interface Umbrales {
-  /** Rectitud a partir de la cual un dedo cuenta como estirado. */
-  estirado: number;
-  /** Rectitud del pulgar a partir de la cual cuenta como estirado. */
-  pulgarEstirado: number;
-  /** Distancia pulgar–índice (relativa al tamaño de la mano) para la pinza. */
-  pinza: number;
+export interface Thresholds {
+  /** Straightness above which a finger counts as extended. */
+  extended: number;
+  /** Straightness above which the thumb counts as extended. */
+  thumbExtended: number;
+  /** Thumb–index distance (relative to hand size) for the pinch pose. */
+  pinch: number;
   /**
-   * Alcance mínimo del índice (muñeca→punta / muñeca→nudillo) para la pinza. En un puño la punta
-   * del índice queda a la altura del nudillo (~0,8–1); en una pinza va por delante (≥1,2).
+   * Minimum index reach (wrist→tip / wrist→knuckle) for the pinch. In a fist the index tip sits
+   * at knuckle height (~0.8–1); in a pinch it is further out (≥1.2).
    */
-  indiceFuera: number;
+  indexOut: number;
 }
 
-export const UMBRALES_POR_DEFECTO: Umbrales = {
-  estirado: 0.9,
-  pulgarEstirado: 0.88,
-  pinza: 0.5,
-  indiceFuera: 1.0,
+export const DEFAULT_THRESHOLDS: Thresholds = {
+  extended: 0.9,
+  thumbExtended: 0.88,
+  pinch: 0.5,
+  indexOut: 1.0,
 };
 
-const CADENAS = {
-  indice: [P.INDICE_MCP, P.INDICE_PIP, P.INDICE_DIP, P.INDICE_PUNTA],
-  corazon: [P.CORAZON_MCP, P.CORAZON_PIP, P.CORAZON_DIP, P.CORAZON_PUNTA],
-  anular: [P.ANULAR_MCP, P.ANULAR_PIP, P.ANULAR_DIP, P.ANULAR_PUNTA],
-  menique: [P.MENIQUE_MCP, P.MENIQUE_PIP, P.MENIQUE_DIP, P.MENIQUE_PUNTA],
+const CHAINS = {
+  index: [L.INDEX_MCP, L.INDEX_PIP, L.INDEX_DIP, L.INDEX_TIP],
+  middle: [L.MIDDLE_MCP, L.MIDDLE_PIP, L.MIDDLE_DIP, L.MIDDLE_TIP],
+  ring: [L.RING_MCP, L.RING_PIP, L.RING_DIP, L.RING_TIP],
+  pinky: [L.PINKY_MCP, L.PINKY_PIP, L.PINKY_DIP, L.PINKY_TIP],
 } as const;
 
-const CADENA_PULGAR = [P.PULGAR_MCP, P.PULGAR_IP, P.PULGAR_PUNTA] as const;
+const THUMB_CHAIN = [L.THUMB_MCP, L.THUMB_IP, L.THUMB_TIP] as const;
 
-/** 1 = dedo totalmente recto; valores bajos = dedo doblado. */
-export function rectitud(pts: Punto3D[], cadena: readonly number[]): number {
-  let porFalanges = 0;
-  for (let i = 1; i < cadena.length; i++) {
-    porFalanges += distancia(pts[cadena[i - 1]], pts[cadena[i]]);
+/** 1 = perfectly straight finger; low values = bent finger. */
+export function straightness(pts: Point3D[], chain: readonly number[]): number {
+  let alongPhalanges = 0;
+  for (let i = 1; i < chain.length; i++) {
+    alongPhalanges += distance(pts[chain[i - 1]], pts[chain[i]]);
   }
-  if (porFalanges === 0) return 0;
-  return distancia(pts[cadena[0]], pts[cadena[cadena.length - 1]]) / porFalanges;
+  if (alongPhalanges === 0) return 0;
+  return distance(pts[chain[0]], pts[chain[chain.length - 1]]) / alongPhalanges;
 }
 
-/** Puntos donde medir la forma: los de mundo si existen; si no, los de imagen corregidos por aspecto. */
-export function puntosParaForma(mano: Mano, aspecto = 1): Punto3D[] {
-  if (mano.puntosMundo && mano.puntosMundo.length === 21) return mano.puntosMundo;
-  return mano.puntos.map((p) => ({ x: p.x * aspecto, y: p.y, z: p.z * aspecto }));
+/** Points used to measure the shape: world points if present; otherwise image points corrected by aspect. */
+export function shapePoints(hand: Hand, aspect = 1): Point3D[] {
+  if (hand.worldPoints && hand.worldPoints.length === 21) return hand.worldPoints;
+  return hand.points.map((p) => ({ x: p.x * aspect, y: p.y, z: p.z * aspect }));
 }
 
-export function estadoDedos(pts: Punto3D[], u: Umbrales = UMBRALES_POR_DEFECTO): EstadoDedos {
-  const tam = tamanoMano(pts);
-  const estirado = (cadena: readonly number[]) =>
-    rectitud(pts, cadena) >= u.estirado &&
-    // La punta debe quedar lejos de la muñeca: descarta dedos rectos pero plegados sobre la palma.
-    distancia(pts[P.MUNECA], pts[cadena[cadena.length - 1]]) > 1.3 * distancia(pts[P.MUNECA], pts[cadena[0]]);
-  // El pulgar se considera estirado si está recto y su punta se separa de la palma.
-  const pulgar =
-    rectitud(pts, CADENA_PULGAR) >= u.pulgarEstirado &&
-    distancia(pts[P.PULGAR_PUNTA], pts[P.INDICE_MCP]) > 0.5 * tam;
+export function fingerState(pts: Point3D[], th: Thresholds = DEFAULT_THRESHOLDS): FingerState {
+  const size = handSize(pts);
+  const extended = (chain: readonly number[]) =>
+    straightness(pts, chain) >= th.extended &&
+    // The tip must be far from the wrist: rules out straight fingers folded over the palm.
+    distance(pts[L.WRIST], pts[chain[chain.length - 1]]) > 1.3 * distance(pts[L.WRIST], pts[chain[0]]);
+  // The thumb counts as extended if it is straight and its tip is away from the palm.
+  const thumb =
+    straightness(pts, THUMB_CHAIN) >= th.thumbExtended &&
+    distance(pts[L.THUMB_TIP], pts[L.INDEX_MCP]) > 0.5 * size;
   return {
-    pulgar,
-    indice: estirado(CADENAS.indice),
-    corazon: estirado(CADENAS.corazon),
-    anular: estirado(CADENAS.anular),
-    menique: estirado(CADENAS.menique),
+    thumb,
+    index: extended(CHAINS.index),
+    middle: extended(CHAINS.middle),
+    ring: extended(CHAINS.ring),
+    pinky: extended(CHAINS.pinky),
   };
 }
 
-/** Tamaño de referencia: muñeca → nudillo del corazón. */
-export function tamanoMano(pts: Punto3D[]): number {
-  return distancia(pts[P.MUNECA], pts[P.CORAZON_MCP]) || 1;
+/** Reference size: wrist → middle-finger knuckle. */
+export function handSize(pts: Point3D[]): number {
+  return distance(pts[L.WRIST], pts[L.MIDDLE_MCP]) || 1;
 }
 
-/** Separación entre las puntas de pulgar e índice, relativa al tamaño de la mano. */
-export function separacionPinza(pts: Punto3D[]): number {
-  return distancia(pts[P.PULGAR_PUNTA], pts[P.INDICE_PUNTA]) / tamanoMano(pts);
+/** Distance between the thumb and index fingertips, relative to hand size. */
+export function pinchSeparation(pts: Point3D[]): number {
+  return distance(pts[L.THUMB_TIP], pts[L.INDEX_TIP]) / handSize(pts);
 }
 
-/** Muñeca→punta del índice dividido por muñeca→nudillo del índice: <1 si está metido en el puño. */
-export function alcanceIndice(pts: Punto3D[]): number {
-  return distancia(pts[P.MUNECA], pts[P.INDICE_PUNTA]) / (distancia(pts[P.MUNECA], pts[P.INDICE_MCP]) || 1);
+/** Wrist→index tip divided by wrist→index knuckle: <1 when the index is tucked into a fist. */
+export function indexReach(pts: Point3D[]): number {
+  return distance(pts[L.WRIST], pts[L.INDEX_TIP]) / (distance(pts[L.WRIST], pts[L.INDEX_MCP]) || 1);
 }
 
-/**
- * Pose de la mano. `imagen` son los puntos de imagen (para saber qué es "arriba").
- */
-export function clasificarPose(mano: Mano, aspecto = 1, u: Umbrales = UMBRALES_POR_DEFECTO): Gesto {
-  const pts = puntosParaForma(mano, aspecto);
-  if (pts.length !== 21) return "ninguno";
-  const d = estadoDedos(pts, u);
-  const otrosTres = [d.corazon, d.anular, d.menique];
-  const nOtros = otrosTres.filter(Boolean).length;
+/** Hand pose. Image points are used to know which way is "up". */
+export function classifyPose(hand: Hand, aspect = 1, th: Thresholds = DEFAULT_THRESHOLDS): Gesture {
+  const pts = shapePoints(hand, aspect);
+  if (pts.length !== 21) return "none";
+  const f = fingerState(pts, th);
+  const otherThree = [f.middle, f.ring, f.pinky];
+  const nOthers = otherThree.filter(Boolean).length;
 
-  // Pinza: puntas de pulgar e índice juntas, con el índice por delante (no metido en un puño).
-  // Da igual cómo estén los otros tres dedos.
-  if (separacionPinza(pts) < u.pinza && alcanceIndice(pts) >= u.indiceFuera) return "pinza";
-  if (d.indice && d.corazon && d.anular && d.menique) return "palma";
-  if (d.indice && d.corazon && !d.anular && !d.menique) return "victoria";
-  if (d.indice && nOtros === 0) return "senalar";
-  if (!d.indice && nOtros === 0) {
-    if (d.pulgar) {
-      const v = direccionPulgar(mano, aspecto);
-      if (v === "arriba") return "pulgar_arriba";
-      if (v === "abajo") return "pulgar_abajo";
+  // Pinch: thumb and index fingertips together, with the index out in front (not tucked into a
+  // fist). The other three fingers don't matter.
+  if (pinchSeparation(pts) < th.pinch && indexReach(pts) >= th.indexOut) return "pinch";
+  if (f.index && f.middle && f.ring && f.pinky) return "palm";
+  if (f.index && f.middle && !f.ring && !f.pinky) return "victory";
+  if (f.index && nOthers === 0) return "point";
+  if (!f.index && nOthers === 0) {
+    if (f.thumb) {
+      const d = thumbDirection(hand, aspect);
+      if (d === "up") return "thumbs_up";
+      if (d === "down") return "thumbs_down";
     }
-    return "puno";
+    return "fist";
   }
-  return "ninguno";
+  return "none";
 }
 
-/** Hacia dónde apunta el pulgar en la imagen: claramente arriba, abajo o ninguno de los dos. */
-export function direccionPulgar(mano: Mano, aspecto = 1): "arriba" | "abajo" | null {
-  const base = mano.puntos[P.PULGAR_MCP];
-  const punta = mano.puntos[P.PULGAR_PUNTA];
-  const dx = (punta.x - base.x) * aspecto;
-  const dy = punta.y - base.y;
+/** Where the thumb points in the image: clearly up, clearly down, or neither. */
+export function thumbDirection(hand: Hand, aspect = 1): "up" | "down" | null {
+  const base = hand.points[L.THUMB_MCP];
+  const tip = hand.points[L.THUMB_TIP];
+  const dx = (tip.x - base.x) * aspect;
+  const dy = tip.y - base.y;
   if (Math.abs(dy) <= 1.2 * Math.abs(dx)) return null;
-  return dy < 0 ? "arriba" : "abajo";
+  return dy < 0 ? "up" : "down";
 }

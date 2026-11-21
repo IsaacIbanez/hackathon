@@ -1,23 +1,23 @@
-// Punto de entrada del módulo de manos (rol C). Uso típico:
+// Entry point of the hand module (role C). Typical use:
 //
-//   const interaccion = new InteraccionManos();
-//   interaccion.on((e) => { const a = accionDe(e, "documento"); if (a) enviar(a, e); });
-//   await crearRastreador(video, (f) => interaccion.procesar(f));
-//   interaccion.fijarDocumento(esquinasDeB1);
+//   const interaction = new HandInteraction();
+//   interaction.on((e) => { const a = actionFor(e, "document"); if (a) send(a, e); });
+//   await createTracker(video, (f) => interaction.process(f));
+//   interaction.setDocument(cornersFromB1);
 
-export * from "./tipos.ts";
+export * from "./types.ts";
 export {
-  InteraccionManos,
-  OPCIONES_POR_DEFECTO,
-  PERFIL_MOVILIDAD_REDUCIDA,
-  direccionIndice,
-  sectorEnPantalla,
-  separacionEnPantalla,
-  palmaHaciaCamara,
-  type Diagnostico,
-  type OpcionesInteraccion,
-} from "./interaccion.ts";
-export { accionDe, MAPAS, MENU_RADIAL, menuPara, type Accion, type Contexto } from "./acciones.ts";
-export { clasificarPose, estadoDedos } from "./poses.ts";
-export { DetectorCabeza } from "./cabeza.ts";
-export { crearRastreador, type Rastreador, type OpcionesRastreador } from "./rastreador.ts";
+  HandInteraction,
+  DEFAULT_OPTIONS,
+  REDUCED_MOBILITY_PROFILE,
+  indexDirection,
+  screenSector,
+  screenSeparation,
+  palmFacesCamera,
+  type Diagnostics,
+  type InteractionOptions,
+} from "./interaction.ts";
+export { actionFor, MAPS, QUICK_MENU, menuFor, type Action, type Context } from "./actions.ts";
+export { classifyPose, fingerState } from "./poses.ts";
+export { HeadGestureDetector } from "./head.ts";
+export { createTracker, type Tracker, type TrackerOptions } from "./tracker.ts";

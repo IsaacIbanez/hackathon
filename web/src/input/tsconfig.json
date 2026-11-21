@@ -1,5 +1,5 @@
 {
-  "//": "Solo para comprobar los tipos de este módulo mientras no exista el tsconfig del frontend (T2).",
+  "//": "Only used to type-check this module until the frontend tsconfig exists (T2).",
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",
