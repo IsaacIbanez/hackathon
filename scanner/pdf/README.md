@@ -44,8 +44,10 @@ scanner\pdf\.venv\Scripts\python scanner\escanear.py                 # MX Brio -
 scanner\pdf\.venv\Scripts\python scanner\escanear.py --camara 0      # otra cámara
 scanner\pdf\.venv\Scripts\python scanner\escanear.py --png foto.png  # sin cámara
 ```
-Desde Python: `escanear.escanear()` devuelve `Escaneo(png, metadatos_captura, resultado)`; los errores
-de cámara vuelven en `error_captura` (mismos códigos que `capturar.py`). Los metadatos de la cámara
+Desde Python: `escanear.escanear()` (captura única: abre, espera al enfoque —1,4 s como mucho— y cierra
+en paralelo con el guardado) o `escanear.escanear_viva(viva)` con una `capturar.CamaraViva` ya abierta
+(captura en ~0,4 s: el frame más nítido tras la orden). Ambas devuelven `Escaneo(png, metadatos_captura, resultado)`;
+los errores de cámara vuelven en `error_captura` (mismos códigos que `capturar.py`). Los metadatos de la cámara
 quedan en `resultado.entrada["metadatos"]` y el PDF se llama igual que la captura.
 Un solo entorno para todo: `scanner/pdf/.venv` (OpenCV *headless* también captura; no instalar a la vez
 `opencv-python`, chocan). Tests sin cámara: `python -m unittest discover -s scanner`.
@@ -70,9 +72,12 @@ Si el nombre ya existe se crea `<nombre>-2`, `-3`…: nunca se sobrescribe un re
    ángulos y tamaño), refina las esquinas a resolución completa (< 1 px de error en pruebas),
    calcula la **proporción real** con el modelo de cámara de Zhang y He y la ajusta a A4/Letter/A5/Legal
    si coincide. Si no está segura, **no recorta** y avisa (`pagina_no_detectada`).
-3. `ocr.py` — orientación 90/180/270 (OSD de Tesseract) y OCR en **un solo pase** que da a la vez
-   la capa de texto invisible (renderizador "sandwich") y las palabras con caja y confianza.
-   Si la página tiene menos de 300 DPI, Tesseract lee una copia ampliada; el PDF guarda la original.
+3. `ocr.py` — orientación 90/180/270 (OSD de Tesseract) y OCR que da a la vez la capa de texto
+   invisible (renderizador "sandwich") y las palabras con caja y confianza. Primer pase con segmentación
+   de página (psm 3, la buena para cartas y formularios); **solo si duda** (< 8 palabras o confianza < 70),
+   un segundo pase de texto disperso (psm 11) y se queda con el que tenga más caracteres fiables.
+   Si la página tiene menos de 300 DPI, Tesseract lee una copia ampliada (tope 8,5 MP); el PDF guarda la original.
+   Las "palabras" sin letras ni números no van a los bloques.
 4. `imagen.py` — iluminación (ganancia por canal limitada a 1,8: quita sombras sin borrar zonas
    oscuras grandes), modos `color` / `gris` / `bn` (este último solo si se pide) y calidad con el
    vocabulario `FrameIssue` del contrato (`blurry`, `dark`, `glare`, `cropped`, `tilted`, `too_far`).
@@ -88,8 +93,19 @@ Si el nombre ya existe se crea `<nombre>-2`, `-3`…: nunca se sobrescribe un re
 - **PNG sin pérdidas por defecto** (PSNR 99 dB entre la página y el PDF). `--jpeg` es opcional.
 - **Sin IA por ahora.** OpenRouter queda como mejora opcional para casos dudosos (no hace falta para el PDF).
 
+## Capturas reales (MX Brio y webcam 720p, documentos sujetos con la mano)
+- Tarjeta y pantalla de móvil sujetas delante de la cámara: con solo psm 3 se leían **0 palabras**;
+  con el segundo pase se lee "DISCORD · SCAN TO JOIN", "Leave the server and rejoin using this QR code…",
+  "CUSTOM HOODIE · FRONT DESIGN".
+- Tarjeta blanca delante de una sudadera blanca y con dedos en los bordes: el borde no se ve y salían
+  recortes absurdos. Ahora se descartan (soporte de borde < 0,4, confianza < 0,65, lados opuestos con
+  razón > 1,75) y se usa el fotograma entero con aviso `pagina_no_detectada`. **Para la demo: fondo oscuro
+  detrás del papel.**
+- Tiempos con la MX Brio (4K): A4 detectado ~2,1 s de PDF + 0,4 s de captura con la cámara abierta.
+  Fotograma sin documento: ~5 s (dos pases de OCR sobre 8 MP).
+
 ## Estado de las pruebas
-`pytest` (49 tests, ~15 s): entrada, geometría con 7 poses de cámara realistas, casos sin hoja
+`pytest` (57 tests, ~15 s): entrada, geometría con 7 poses de cámara realistas, casos sin hoja
 (textura, negro, hoja que llena el encuadre), iluminación, calidad, extremo a extremo con acentos,
 página girada, modos y formatos, fallos (sin Tesseract, entrada inválida, opciones inválidas).
 Las imágenes de prueba son **sintéticas** (`tests/sinteticos.py`).

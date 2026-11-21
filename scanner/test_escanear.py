@@ -3,6 +3,7 @@
 import json
 import sys
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -26,11 +27,14 @@ class TestEscanear(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
+    META = {"camara": {"indice": 1, "nombre": "Logitech MX Brio"}, "resolucion_entregada": {"ancho": 1920, "alto": 1440}}
+
     def _captura_simulada(self):
-        meta = {"camara": {"indice": 1, "nombre": "Logitech MX Brio"}, "resolucion_entregada": {"ancho": 1920, "alto": 1440}}
+        self.cierre = threading.Thread(target=lambda: None)  # capturar() devuelve el hilo que cierra la cámara
+        self.cierre.start()
         return [
             mock.patch.object(capturar, "listar_camaras", return_value=[capturar.Camara(1, "Logitech MX Brio")]),
-            mock.patch.object(capturar, "capturar", return_value=(self.frame, meta)),
+            mock.patch.object(capturar, "capturar", return_value=(self.frame, dict(self.META), self.cierre)),
         ]
 
     def test_captura_y_pdf(self):
@@ -48,6 +52,24 @@ class TestEscanear(unittest.TestCase):
         # Los metadatos de la cámara llegan al resultado.
         self.assertEqual(r.entrada["metadatos"]["camara"]["nombre"], "Logitech MX Brio")
         self.assertEqual(Path(r.pdf).parent.name, esc.png.stem)  # mismo nombre que la captura
+        self.assertFalse(self.cierre.is_alive())                  # se esperó a que la cámara se cerrara
+        self.assertIn("momento", r.entrada["metadatos"])           # el JSON completo de guardar()
+
+    def test_escanear_con_camara_viva(self):
+        viva = mock.Mock()
+        viva.capturar.return_value = (self.frame, dict(self.META, modo="servidor"))
+        esc = escanear.escanear_viva(viva, carpeta_capturas=self.dir / "capturas", carpeta_pdf=self.dir / "pdf",
+                                     opciones=RAPIDO)
+        viva.capturar.assert_called_once()
+        viva.cerrar.assert_not_called()                           # la cierra quien la abrió
+        self.assertTrue(Path(esc.resultado.pdf).is_file())
+        self.assertEqual(esc.resultado.entrada["metadatos"]["modo"], "servidor")
+
+    def test_camara_viva_que_falla(self):
+        viva = mock.Mock()
+        viva.capturar.side_effect = capturar.ErrorCaptura("sin frames", capturar.ERR_SIN_FRAME)
+        esc = escanear.escanear_viva(viva, carpeta_capturas=self.dir, carpeta_pdf=self.dir, opciones=RAPIDO)
+        self.assertEqual(esc.error_captura["codigo"], capturar.ERR_SIN_FRAME)
 
     def test_sin_camara_devuelve_error_de_captura(self):
         with mock.patch.object(capturar, "listar_camaras", return_value=[capturar.Camara(0, "ACER HD")]):

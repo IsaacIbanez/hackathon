@@ -67,3 +67,17 @@ def test_enderezar_respeta_proporcion_y_no_reduce():
     assert abs(ancho / alto - A4) < 0.01
     lado_vertical = max(np.linalg.norm(esquinas[3] - esquinas[0]), np.linalg.norm(esquinas[2] - esquinas[1]))
     assert alto >= 0.99 * lado_vertical
+
+
+def test_descarta_figuras_con_lados_opuestos_muy_distintos():
+    # Caso real (tarjeta de Discord): el panel morado cortado por un dibujo daba lados 178 y 323 px.
+    img = np.full((720, 1280, 3), 230, np.uint8)
+    quad = np.array([[550, 164], [1023, 160], [1039, 483], [552, 342]], np.int32)
+    cv2.fillConvexPoly(img, quad, (120, 40, 60))
+    assert not g.detectar_pagina(img).encontrada
+
+
+def test_hoja_inclinada_45_grados_se_sigue_aceptando():
+    esquinas = s.esquinas_camara(45, 0, focal_px=1100, distancia_mm=400)
+    d = g.detectar_pagina(s.en_mesa(s.pagina(), esquinas))
+    assert d.encontrada and np.abs(d.esquinas - esquinas).max() < 2.0

@@ -9,9 +9,14 @@ import numpy as np
 
 LADO_ANALISIS = 1000       # px: la detección trabaja sobre una copia reducida
 AREA_MINIMA = 0.08         # la hoja debe ocupar al menos el 8 % del encuadre (si es poco, aviso too_far)
-CONFIANZA_MINIMA = 0.55    # por debajo, no se recorta (mejor sin recortar que mal recortado)
+CONFIANZA_MINIMA = 0.65    # por debajo, no se recorta (mejor sin recortar que mal recortado).
+                           # Hojas reales: >= 0,71 en pruebas; candidatos malos en capturas reales: 0,58
+SOPORTE_MINIMO = 0.40      # fracción del perímetro sobre bordes reales. Móvil sujeto con la mano: 0,75;
+                           # cuadriláteros casuales (mano + fondo) en capturas reales: 0,30-0,33
 MARGEN_BORDE = 0.01        # esquina a menos del 1 % del borde = hoja posiblemente cortada
 CONTRASTE_MINIMO = 25.0    # niveles de gris entre la hoja y lo que la rodea
+RAZON_LADOS_MAXIMA = 1.75  # lado opuesto más largo / más corto; una hoja inclinada ~45° da ~1,7.
+                           # Más = una figura cortada (p. ej. un panel tapado por un dibujo o una mano)
 FOV_DIAGONAL_WEBCAM = 78.0 # grados; focal supuesta cuando la perspectiva no permite estimarla
 
 # Tamaños de papel (ancho, alto) en mm, en vertical.
@@ -126,9 +131,16 @@ def _puntuar(quad: np.ndarray, gris: np.ndarray, bordes: np.ndarray) -> float:
     peor = max(cosenos)          # 0 = ángulo recto
     if peor > 0.6:               # algún ángulo fuera de ~53°..127°: no es una hoja plausible
         return 0.0
+    lados = [float(np.linalg.norm(q[(i + 1) % 4] - q[i])) for i in range(4)]
+    if min(lados) < 1 or max(max(lados[0], lados[2]) / min(lados[0], lados[2]),
+                              max(lados[1], lados[3]) / min(lados[1], lados[3])) > RAZON_LADOS_MAXIMA:
+        return 0.0               # lados opuestos demasiado distintos: forma recortada, no una hoja
+    soporte = _soporte_bordes(q, bordes)
+    if soporte < SOPORTE_MINIMO:
+        return 0.0
     angulos = 1.0 - max(0.0, peor - 0.2) / 0.4   # hasta ~78°/102° puntúa entero
     tam = min(1.0, area / 0.25)
-    return float(0.30 * _soporte_bordes(q, bordes) + 0.20 * min(1.0, contraste / 80.0)
+    return float(0.30 * soporte + 0.20 * min(1.0, contraste / 80.0)
                  + 0.30 * angulos + 0.20 * tam)
 
 

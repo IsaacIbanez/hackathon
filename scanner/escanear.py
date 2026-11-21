@@ -7,8 +7,10 @@ Uso:
     python scanner/escanear.py --json                # resultado completo en JSON (para integrar)
 
 Desde Python:
-    from escanear import escanear
-    r = escanear()            # -> Escaneo(png, metadatos_captura, resultado)
+    from escanear import escanear, escanear_viva
+    r = escanear()                    # captura única -> Escaneo(png, metadatos_captura, resultado)
+    viva = capturar.CamaraViva(...)   # o con la cámara siempre abierta (captura en ~0,4 s):
+    r = escanear_viva(viva)
 
 Solo usa la interfaz pública de capturar.py y de escaner_pdf; no toca su código.
 """
@@ -32,6 +34,7 @@ import capturar  # noqa: E402
 from escaner_pdf import Opciones, Resultado, convertir  # noqa: E402
 
 CARPETA_PDF = RAIZ / "pdf" / "salida"
+ESPERA_ENFOQUE = 1.4   # s; máximo que capturar.py espera a que se asiente el autoenfoque
 
 
 @dataclass
@@ -54,17 +57,44 @@ class Escaneo:
         }
 
 
-def escanear(camara: str | None = None, *, ancho: int = 3840, alto: int = 2160, calentamiento: float = 1.5,
-             carpeta_capturas: Path = capturar.CARPETA_POR_DEFECTO, carpeta_pdf: Path = CARPETA_PDF,
-             opciones: Opciones | None = None) -> Escaneo:
-    """Captura un frame y lo convierte en PDF. Los errores de cámara vuelven en `error_captura`."""
+def escanear(camara: str | None = None, *, ancho: int = 3840, alto: int = 2160,
+             espera_enfoque: float = ESPERA_ENFOQUE, carpeta_capturas: Path = capturar.CARPETA_POR_DEFECTO,
+             carpeta_pdf: Path = CARPETA_PDF, opciones: Opciones | None = None) -> Escaneo:
+    """Captura única (abre y cierra la cámara) y la convierte en PDF.
+
+    Los errores de cámara vuelven en `error_captura`, con los códigos de capturar.py.
+    """
     try:
         cam = capturar.elegir_camara(capturar.listar_camaras(), camara)
         momento = datetime.now().astimezone()
-        frame, metadatos = capturar.capturar(cam, ancho, alto, calentamiento)
+        frame, metadatos, cierre = capturar.capturar(cam, ancho, alto, espera_enfoque)
+        try:
+            # La cámara se cierra en un hilo (~0,9 s en DirectShow) mientras se guarda el PNG.
+            png = capturar.guardar(frame, metadatos, Path(carpeta_capturas), momento)
+        finally:
+            cierre.join()
+    except capturar.ErrorCaptura as e:
+        return Escaneo(None, None, None, {"codigo": e.codigo, "mensaje": str(e)})
+    return _convertir_captura(png, carpeta_pdf, opciones)
+
+
+def escanear_viva(viva: "capturar.CamaraViva", *, carpeta_capturas: Path = capturar.CARPETA_POR_DEFECTO,
+                  carpeta_pdf: Path = CARPETA_PDF, opciones: Opciones | None = None) -> Escaneo:
+    """Escanea con una cámara que ya está abierta (capturar.CamaraViva): la captura tarda ~0,4 s.
+
+    Quien crea la CamaraViva es quien la cierra (viva.cerrar()).
+    """
+    try:
+        momento = datetime.now().astimezone()
+        frame, metadatos = viva.capturar()
         png = capturar.guardar(frame, metadatos, Path(carpeta_capturas), momento)
     except capturar.ErrorCaptura as e:
         return Escaneo(None, None, None, {"codigo": e.codigo, "mensaje": str(e)})
+    return _convertir_captura(png, carpeta_pdf, opciones)
+
+
+def _convertir_captura(png: Path, carpeta_pdf: Path, opciones: Opciones | None) -> Escaneo:
+    # guardar() escribe el JSON de la captura con momento, archivo y bytes: se usa ese, completo.
     metadatos = json.loads(png.with_suffix(".json").read_text(encoding="utf-8"))
     return Escaneo(png, metadatos, convertir_png(png, carpeta_pdf, opciones, metadatos))
 
@@ -85,7 +115,8 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="Captura un documento y genera su PDF buscable.")
     p.add_argument("--camara", help='índice ("0") o parte del nombre. Por defecto: "brio"')
     p.add_argument("--png", type=Path, help="no capturar: convertir este PNG")
-    p.add_argument("--calentamiento", type=float, default=1.5)
+    p.add_argument("--calentamiento", type=float, default=ESPERA_ENFOQUE,
+                   help="espera máxima (s) a que se asiente el enfoque (por defecto 1.4)")
     p.add_argument("--idiomas", default="spa+cat+eng")
     p.add_argument("--modo", choices=["color", "gris", "bn"], default="color")
     p.add_argument("--salida", type=Path, default=CARPETA_PDF, help="carpeta de los PDF")
@@ -96,7 +127,7 @@ def main(argv: list[str] | None = None) -> int:
     if a.png:
         esc = Escaneo(a.png, None, convertir_png(a.png, a.salida, op))
     else:
-        esc = escanear(a.camara, calentamiento=a.calentamiento, carpeta_pdf=a.salida, opciones=op)
+        esc = escanear(a.camara, espera_enfoque=a.calentamiento, carpeta_pdf=a.salida, opciones=op)
 
     if a.json:
         print(json.dumps(esc.a_dict(), ensure_ascii=False, indent=2))

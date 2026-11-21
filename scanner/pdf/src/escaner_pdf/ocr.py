@@ -28,6 +28,7 @@ TESSDATA_LOCAL = Path(__file__).resolve().parents[2] / "tessdata"   # scanner/pd
 CONFIANZA_OSD = 2.0     # por debajo, no se gira (Tesseract no está seguro)
 DPI_OCR = 300.0         # resolución a la que Tesseract lee mejor
 FACTOR_MAXIMO = 3.0     # no ampliar más (coste ~ factor² y no inventa detalle)
+MEGAPIXELES_OCR_MAX = 8.5   # tamaño máximo que lee Tesseract: un fotograma 4K entero (8,3 MP) no se amplía
 GIROS = {90: cv2.ROTATE_90_CLOCKWISE, 180: cv2.ROTATE_180, 270: cv2.ROTATE_90_COUNTERCLOCKWISE}
 
 
@@ -46,6 +47,8 @@ class ResultadoOCR:
     palabras: int
     confianza_media: float | None    # 0..1, ponderada por longitud de palabra
     avisos: list[str] = field(default_factory=list)
+    psm: int = 3                     # modo de segmentación usado (3 = página, 11 = texto disperso)
+    pases: int = 1
 
 
 def preparar_tesseract() -> Tesseract:
@@ -92,22 +95,67 @@ def orientar(img: np.ndarray) -> tuple[np.ndarray, int, float | None]:
 
 
 def reconocer(img: np.ndarray, idiomas: str, dpi: float, nivel: str = "linea", timeout: int = 180) -> ResultadoOCR:
-    """Un pase de Tesseract: PDF de texto invisible + TSV de palabras.
+    """OCR con Tesseract: PDF de texto invisible + TSV de palabras.
 
-    Si la página tiene poca resolución, Tesseract lee una copia ampliada hasta ~DPI_OCR (lee mucho
-    mejor a 300 DPI). La capa de texto mide lo mismo en puntos, así que el PDF conserva la imagen
-    original sin ampliar.
+    - Si la página tiene poca resolución, Tesseract lee una copia ampliada hasta ~DPI_OCR (lee mucho
+      mejor a 300 DPI). La capa de texto mide lo mismo en puntos: el PDF conserva la imagen original.
+    - Primer pase con segmentación de página (psm 3), la buena para cartas y formularios. Solo si
+      duda (casi nada leído o confianza baja), un segundo pase de texto disperso (psm 11), que lee
+      carteles, tarjetas y pantallas donde psm 3 no encuentra nada (medido con capturas reales).
+      Se queda con el que tenga más caracteres fiables.
     """
     factor = min(FACTOR_MAXIMO, max(1.0, DPI_OCR / dpi))
+    # Tope de tamaño: sin hoja detectada el DPI es una suposición y ampliar un fotograma 4K entero
+    # solo cuesta tiempo (medido con la MX Brio: 12 MP y dos pases -> 4,5 s de OCR).
+    factor = min(factor, max(1.0, (MEGAPIXELES_OCR_MAX * 1e6 / (img.shape[0] * img.shape[1])) ** 0.5))
     if factor > 1.05:
         img = cv2.resize(img, None, fx=factor, fy=factor, interpolation=cv2.INTER_CUBIC)
         dpi *= factor
+
+    psm = 3
+    pdf, palabras = _pase(img, idiomas, dpi, psm, timeout)
+    pases = 1
+    if _duda(palabras):
+        pdf2, palabras2 = _pase(img, idiomas, dpi, 11, timeout)
+        pases = 2
+        if _fiables(palabras2) > _fiables(palabras):
+            pdf, palabras, psm = pdf2, palabras2, 11
+
+    alto, ancho = img.shape[:2]
+    bloques = _agrupar(palabras, ancho, alto, nivel)
+    total = sum(len(p["text"]) for p in palabras)
+    media = sum(p["conf"] * len(p["text"]) for p in palabras) / total / 100.0 if total else None
+    avisos = [] if palabras else ["ocr_sin_texto"]
+    if psm == 11:
+        avisos.append("ocr_texto_disperso")
+    return ResultadoOCR(pdf, bloques, len(palabras), None if media is None else round(media, 3), avisos,
+                        psm=psm, pases=pases)
+
+
+PALABRAS_MINIMAS = 8        # menos que esto en una página = el primer pase probablemente no ha segmentado bien
+CONFIANZA_DUDOSA = 70.0     # confianza media (0-100) por debajo de la cual se prueba el segundo pase
+CONFIANZA_FIABLE = 60.0
+
+
+def _duda(palabras: list[dict]) -> bool:
+    if len(palabras) < PALABRAS_MINIMAS:
+        return True
+    total = sum(len(p["text"]) for p in palabras)
+    return sum(p["conf"] * len(p["text"]) for p in palabras) / total < CONFIANZA_DUDOSA
+
+
+def _fiables(palabras: list[dict]) -> int:
+    """Caracteres en palabras con confianza alta: lo que de verdad aporta un pase."""
+    return sum(len(p["text"]) for p in palabras if p["conf"] >= CONFIANZA_FIABLE)
+
+
+def _pase(img: np.ndarray, idiomas: str, dpi: float, psm: int, timeout: int) -> tuple[bytes, list[dict]]:
     with tempfile.TemporaryDirectory(prefix="escaner_ocr_") as tmp:
         entrada, base = Path(tmp, "pagina.png"), Path(tmp, "salida")
         if not cv2.imwrite(str(entrada), img):  # PNG sin pérdidas: Tesseract lee exactamente la página
             raise ErrorEscaner("ocr_fallo", "No se pudo preparar la imagen para Tesseract")
         orden = [pytesseract.pytesseract.tesseract_cmd, str(entrada), str(base), "-l", idiomas,
-                 "--dpi", str(int(round(dpi))), "--psm", "3", "-c", "textonly_pdf=1", "pdf", "tsv"]
+                 "--dpi", str(int(round(dpi))), "--psm", str(psm), "-c", "textonly_pdf=1", "pdf", "tsv"]
         try:
             proc = subprocess.run(orden, capture_output=True, timeout=timeout, env=os.environ.copy())
         except subprocess.TimeoutExpired as e:
@@ -118,17 +166,7 @@ def reconocer(img: np.ndarray, idiomas: str, dpi: float, nivel: str = "linea", t
         if proc.returncode != 0 or not pdf_ruta.is_file() or not tsv_ruta.is_file():
             detalle = proc.stderr.decode("utf-8", "replace").strip()[-500:]
             raise ErrorEscaner("ocr_fallo", f"Tesseract falló (código {proc.returncode}): {detalle}")
-        pdf = pdf_ruta.read_bytes()
-        tsv = tsv_ruta.read_text(encoding="utf-8", errors="replace")
-
-    palabras = _leer_tsv(tsv)
-    alto, ancho = img.shape[:2]
-    bloques = _agrupar(palabras, ancho, alto, nivel)
-    total = sum(len(p["text"]) for p in palabras)
-    media = sum(p["conf"] * len(p["text"]) for p in palabras) / total / 100.0 if total else None
-    avisos = [] if palabras else ["ocr_sin_texto"]
-    return ResultadoOCR(pdf, bloques, len(palabras),
-                        None if media is None else round(media, 3), avisos)
+        return pdf_ruta.read_bytes(), _leer_tsv(tsv_ruta.read_text(encoding="utf-8", errors="replace"))
 
 
 def _leer_tsv(tsv: str) -> list[dict]:
@@ -141,6 +179,8 @@ def _leer_tsv(tsv: str) -> list[dict]:
             continue
         if fila.get("level") != "5" or not texto or conf < 0:
             continue
+        if "�" in texto or not any(c.isalnum() for c in texto):
+            continue  # ruido: solo signos o caracteres no decodificables
         palabras.append({
             "clave": (int(fila["block_num"]), int(fila["par_num"]), int(fila["line_num"])),
             "text": texto, "conf": conf,

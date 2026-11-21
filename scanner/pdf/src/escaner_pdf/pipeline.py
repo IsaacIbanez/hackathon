@@ -163,8 +163,8 @@ def convertir(origen: str | Path | bytes, carpeta_salida: str | Path, opciones: 
                     res = ocr.reconocer(corregida, idiomas, float(np.mean(dpi)), op.nivel_bloques)
                 r.avisos += res.avisos
                 bloques = res.bloques
-                r.ocr = {"motor": f"tesseract {tess.version}", "palabras": res.palabras,
-                         "confianza_media": res.confianza_media, "bloques": bloques}
+                r.ocr = {"motor": f"tesseract {tess.version}", "psm": res.psm, "pases": res.pases,
+                         "palabras": res.palabras, "confianza_media": res.confianza_media, "bloques": bloques}
                 with t("capa_texto"):
                     final_pdf = pdf.superponer_texto(base, res.pdf_texto, op.titulo or nombre)
             except ErrorEscaner as e:
