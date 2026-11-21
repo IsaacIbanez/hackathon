@@ -6,7 +6,6 @@ import letter from './carta-renovacion.json'
 
 export function DemoPage() {
   const [unclear, setUnclear] = useState(false)
-  const [asked, setAsked] = useState<string[]>([])
   const doc = useMemo(() => {
     const d = structuredClone(letter) as DocumentPayload
     // Simulates a badly read line, to hear how unclear lines are announced.
@@ -21,17 +20,7 @@ export function DemoPage() {
         <input type="checkbox" checked={unclear} onChange={(e) => setUnclear(e.target.checked)} />
         Simulate an unclear line (line 11)
       </label>
-      {asked.length > 0 && (
-        <div className="mb-4 rounded-xl border border-slate-600 p-4 text-lg">
-          <p className="font-bold">Would send to Go as an utterance (cheap model, cost in stats):</p>
-          <ul className="list-disc pl-6">
-            {asked.map((q, i) => (
-              <li key={i}>{q}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-      <GuidedReader doc={doc} onAsk={(q) => setAsked((a) => [...a, q])} />
+      <GuidedReader doc={doc} />
     </main>
   )
 }

@@ -3,7 +3,6 @@ export { GuidedReader } from './GuidedReader.tsx'
 export {
   LineReader,
   UNCLEAR,
-  askQuestion,
   keyAction,
   readingOrder,
   speechLang,

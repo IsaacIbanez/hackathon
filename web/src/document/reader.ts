@@ -1,7 +1,6 @@
 // Guided reading (role B2): reads the document aloud line by line, on its own, with pause, previous,
 // next and repeat. Pure logic, no DOM: the view (GuidedReader.tsx) shows the state and the voice
-// is injected, so it is tested without a browser. Reading uses no model at all (0 $); only
-// "what does this line mean?" goes to Go, through the caller (askQuestion + onAsk).
+// is injected, so it is tested without a browser. Reading uses no model at all (0 $).
 
 import type { DocumentPayload } from '../api'
 
@@ -35,7 +34,7 @@ export interface ReaderState {
   lang: string
 }
 
-export type ReaderAction = 'toggle' | 'previous' | 'next' | 'repeat' | 'ask'
+export type ReaderAction = 'toggle' | 'previous' | 'next' | 'repeat'
 
 /** Keyboard shortcuts. The numeric keypad keys let a hardware keypad drive the reader later. */
 const KEYS: Record<string, ReaderAction> = {
@@ -47,8 +46,6 @@ const KEYS: Record<string, ReaderAction> = {
   Numpad6: 'next',
   KeyR: 'repeat',
   Numpad8: 'repeat',
-  KeyE: 'ask',
-  Numpad0: 'ask',
 }
 
 /** The action for a KeyboardEvent.code, or null. */
@@ -66,21 +63,18 @@ export function readingOrder(doc: DocumentPayload | null): ReaderLine[] {
 }
 
 /** Spoken phrases, in the document's language (the reading itself is in that language). */
-const PHRASES: Record<string, { unclear: string; end: string; ask: (line: string) => string }> = {
+const PHRASES: Record<string, { unclear: string; end: string }> = {
   es: {
     unclear: 'No se lee bien:',
     end: 'Fin del documento.',
-    ask: (line) => `¿Qué significa esta línea del documento? «${line}». Explícamelo en pocas palabras.`,
   },
   ca: {
     unclear: 'No es llegeix bé:',
     end: 'Final del document.',
-    ask: (line) => `Què vol dir aquesta línia del document? «${line}». Explica-m'ho en poques paraules.`,
   },
   en: {
     unclear: 'Unclear:',
     end: 'End of the document.',
-    ask: (line) => `What does this line of the document mean? "${line}". Explain it in a few words.`,
   },
 }
 
@@ -91,11 +85,6 @@ function phrases(lang: string) {
 /** What is said for a line: unclear lines are announced first. */
 export function spokenText(line: ReaderLine, lang: string): string {
   return line.unclear ? `${phrases(lang).unclear} ${line.text}` : line.text
-}
-
-/** The question sent to the assistant about a line (as an utterance, so the contract is unchanged). */
-export function askQuestion(line: ReaderLine, lang: string): string {
-  return phrases(lang).ask(line.text)
 }
 
 /** Speech language for a document: its `lang` (es, ca, en…) as a BCP 47 tag; Spanish by default. */
@@ -189,14 +178,6 @@ export class LineReader {
     if (i < 0 || i >= this.lines.length) return
     this.index = i
     this.speakCurrent()
-  }
-
-  /** Pauses and returns the question about the current line, for the assistant (null if no line). */
-  ask(): string | null {
-    const line = this.current
-    if (!line) return null
-    this.pause()
-    return askQuestion(line, this.lang)
   }
 
   /** Stops and forgets the position (the document stays loaded). */

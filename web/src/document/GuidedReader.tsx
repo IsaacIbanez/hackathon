@@ -5,8 +5,7 @@ import { defaultVoice, type WebSpeechVoice } from './voice.ts'
 
 // Guided reading view (role B2): the whole document in large text, the line being read highlighted
 // and kept in the middle of the screen, big buttons and one-key shortcuts (arrows, letters and the
-// numeric keypad, so a hardware keypad can drive it later). Reading is local and free; only
-// "What does it mean?" asks the assistant, through onAsk.
+// numeric keypad, so a hardware keypad can drive it later). Reading is local and free: no model.
 
 const STATUS_TEXT: Record<ReaderState['status'], string> = {
   idle: 'Ready',
@@ -20,7 +19,6 @@ const KEY_HINTS: Record<ReaderAction, string> = {
   toggle: 'Space · Num 5',
   next: '→ · Num 6',
   repeat: 'R · Num 8',
-  ask: 'E · Num 0',
 }
 
 const ARIA_KEYS: Record<ReaderAction, string> = {
@@ -28,7 +26,6 @@ const ARIA_KEYS: Record<ReaderAction, string> = {
   toggle: 'Space',
   next: 'ArrowRight',
   repeat: 'R',
-  ask: 'E',
 }
 
 /** Typing in a field must not move the reader. */
@@ -40,13 +37,10 @@ function isTyping(target: EventTarget | null): boolean {
 
 export function GuidedReader({
   doc,
-  onAsk,
   voice,
   keyboard = true,
 }: {
   doc: DocumentPayload | null
-  /** Sends a question about the current line to the assistant (an utterance). Without it, the button is disabled. */
-  onAsk?: (question: string) => void
   /** Text-to-speech engine; the system voice by default. */
   voice?: ReaderVoice
   /** Global keyboard shortcuts (on by default). */
@@ -87,11 +81,6 @@ export function GuidedReader({
         return reader.next()
       case 'repeat':
         return reader.repeat()
-      case 'ask': {
-        if (!onAsk) return
-        const question = reader.ask()
-        if (question) onAsk(question)
-      }
     }
   }
   const runRef = useRef(run)
@@ -122,9 +111,8 @@ export function GuidedReader({
     <button
       type="button"
       onClick={() => run(action)}
-      disabled={action === 'ask' && !onAsk}
       aria-keyshortcuts={ARIA_KEYS[action]}
-      className={`flex min-w-32 flex-col items-center rounded-xl border-2 border-yellow-300 px-4 py-3 text-2xl font-bold disabled:opacity-40 ${extra}`}
+      className={`flex min-w-32 flex-col items-center rounded-xl border-2 border-yellow-300 px-4 py-3 text-2xl font-bold ${extra}`}
     >
       {label}
       <span className="text-sm font-normal opacity-80">{KEY_HINTS[action]}</span>
@@ -138,7 +126,6 @@ export function GuidedReader({
         {button('toggle', status === 'playing' ? '⏸ Pause' : '▶ Read', 'bg-yellow-300 text-slate-900')}
         {button('next', 'Next ⏭')}
         {button('repeat', '↻ Repeat')}
-        {button('ask', '? What does it mean')}
         <p className="ml-2 text-xl text-slate-200">
           {STATUS_TEXT[status]} · {position}
         </p>

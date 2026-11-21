@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { DocumentPayload } from '../../api/index.ts'
-import { LineReader, askQuestion, keyAction, readingOrder, speechLang, spokenText, type ReaderVoice } from '../reader.ts'
+import { LineReader, keyAction, readingOrder, speechLang, spokenText, type ReaderVoice } from '../reader.ts'
 
 /** A voice that records what it was asked to say and lets the test finish or interrupt it. */
 class FakeVoice implements ReaderVoice {
@@ -148,17 +148,6 @@ test('goTo jumps by index or block id', () => {
   assert.equal(voice.said.length, 2)
 })
 
-test('ask pauses and gives a question about the current line', () => {
-  const { voice, reader } = setup()
-  reader.play()
-  voice.end()
-  const q = reader.ask()
-  assert.equal(reader.state.status, 'paused')
-  assert.ok(q && q.includes('Vence el 31 de diciembre de 2026.'))
-  assert.ok(q!.startsWith('¿Qué significa'))
-  assert.equal(setup(null).reader.ask(), null)
-})
-
 test('a new document stops reading and starts again at the top', () => {
   const { voice, reader } = setup()
   reader.play()
@@ -202,8 +191,7 @@ test('keys: arrows, letters and the numeric keypad', () => {
   assert.equal(keyAction('Numpad6'), 'next')
   assert.equal(keyAction('KeyR'), 'repeat')
   assert.equal(keyAction('Numpad8'), 'repeat')
-  assert.equal(keyAction('KeyE'), 'ask')
-  assert.equal(keyAction('Numpad0'), 'ask')
+  assert.equal(keyAction('KeyE'), null)
   assert.equal(keyAction('KeyA'), null)
 })
 
@@ -211,7 +199,7 @@ test('language: phrases and speech tags follow the document', () => {
   const line = { id: 'x', text: 'Total a pagar', unclear: true }
   assert.equal(spokenText(line, 'ca-ES'), 'No es llegeix bé: Total a pagar')
   assert.equal(spokenText({ ...line, unclear: false }, 'ca-ES'), 'Total a pagar')
-  assert.ok(askQuestion(line, 'en-GB').startsWith('What does this line'))
+  assert.equal(spokenText(line, 'en-GB'), 'Unclear: Total a pagar')
   assert.equal(speechLang('ca'), 'ca-ES')
   assert.equal(speechLang(undefined), 'es-ES')
   assert.equal(speechLang('fr-FR'), 'fr-FR')
