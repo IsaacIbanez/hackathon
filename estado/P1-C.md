@@ -2,7 +2,7 @@
 
 - **Persona:** Isaac
 - **Herramienta:** Claude Code
-- **Tarea actual:** T18 (`/transcribe`) y T14 (unión en la app)
+- **Tarea actual:** T14 (unión en la app)
 - **Rama:** feature/T8-desktop-build
 - **Estado:** en curso
 - **Último cambio:** 2026-11-21
@@ -27,6 +27,8 @@
 - Distribución actualizada en AGENTS.md tras lo subido por Didac (envío a la app, inglés, `scanner/ENTREGA.md`) y lo pendiente de Nil (carpeta `adapters/desktop/`, #20). Voz investigada y medida (`docs/VOZ.md`): T17 Nil (`whisper-small` local), T18 Isaac (`POST /transcribe` con Gemini como respaldo).
 
 - T11: contrato 0.5 (`pageCorners`, `POST /scan`), cliente del servicio de lectura (`backend/scanner`), `Session.ScanPhoto` con avisos hablados, `SCANNER_URL=fixture`. Probado de punta a punta con el servidor real: foto → «Un momento…» → documento con esquinas → explicación (0 $); sin servicio → «El lector de documentos no está abierto».
+
+- T18: `POST /transcribe` (Gemini 2.5 Flash Lite + respaldo gratuito; 2,3 s, 0,00006 $ probado) y `transcribeRemote()` para Nil. API local protegida con `ws.Guard` (Host, Origin, CORS; `/message` solo JSON), probada contra DNS rebinding y webs ajenas.
 
 ## Pendiente
 - T8: sustituir las respuestas de ejemplo por la lógica real (`backend/llm` + B2).

@@ -329,6 +329,14 @@ type TierStats struct {
 	LastLatencyMs int64   `json:"lastLatencyMs"`
 }
 
+// Transcription defines model for Transcription.
+type Transcription struct {
+	CostUsd   float64 `json:"costUsd"`
+	LatencyMs int64   `json:"latencyMs"`
+	Model     string  `json:"model"`
+	Text      string  `json:"text"`
+}
+
 // UtteranceMessage defines model for UtteranceMessage.
 type UtteranceMessage struct {
 	Id      string               `json:"id"`
@@ -348,6 +356,11 @@ type UtterancePayload struct {
 	// Lang Example: es-ES
 	Lang *string `json:"lang,omitempty"`
 	Text string  `json:"text"`
+}
+
+// PostTranscribeParams defines parameters for PostTranscribe.
+type PostTranscribeParams struct {
+	Lang *string `form:"lang,omitempty" json:"lang,omitempty"`
 }
 
 // PostMessageJSONRequestBody defines body for PostMessage for application/json ContentType.
