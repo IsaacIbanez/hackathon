@@ -2,7 +2,7 @@
 
 - **Person:** Nil
 - **Tool:** Claude Code
-- **Current task:** T6 (role C): gestures acting on the real computer (Gesture Control helper). Voice comes later.
+- **Current task:** T6 (role C): voice (speaking and listening) and gestures acting on the real computer (Gesture Control helper).
 - **Branch:** `claude/kind-cray-863b6t` (the one assigned by the cloud session; it can be renamed to `feature/T6-hand-gestures` when opening the PR)
 - **State:** in progress (hand module merged in #9; desktop helper on this branch, not in a PR yet)
 - **Last change:** 2026-11-21
@@ -19,13 +19,15 @@
 
 - **Gesture Control** (`adapters/desktop/` + `web/src/input/desktop/`): a local Go helper that performs gesture actions on the real computer — shortcuts, mouse, system volume and video-call controls (Meet, Zoom, Teams: mute, camera, raise hand, leave) on Windows, Linux and macOS, behind a per-run token on 127.0.0.1. New `call` context: ✋ raise hand, 👍 mute, 👎 camera, ✌️ menu ↓ leave. The tracker keeps running when its window is hidden. Tested with Go/TS tests and a dry run end to end; not yet on a real desktop.
 
+- **Voice** (`web/src/input/voice/`): `Speaker` reads sentence by sentence (pause/resume where it stopped, repeat the last sentence, best voice for the language, no 15 s cut-off) and is a drop-in for `app/voice.ts`. `VoiceInput` listens push-to-talk (point and hold, or menu → dictate) with beeps and captions: short commands ("para", "repite", "más alto"…) run locally; anything else goes to Go as an `utterance`; saying nothing sends the default "¿Qué pone aquí?". Listening uses the browser recognizer and falls back to local Whisper (transformers.js, audio stays on the computer) where the browser one doesn't work, e.g. inside Wails. Wired into `app/Gestures.tsx` and `app/App.tsx` (role A files: small change, please review). Whisper could not be tried here (Hugging Face is blocked in my environment).
+
 ## To do
 - Test Gesture Control on a real desktop (Windows, Linux, macOS) with a real call; check each app's shortcuts.
 - Decide which experimental features stay after testing them with the camera.
 - Test with the webcam and a real hand; tune thresholds (`DEFAULT_OPTIONS`, `DEFAULT_THRESHOLDS`).
 - Connect to the WebSocket now that T2 has published the contract (`api/openapi.yaml`).
 - Add `@mediapipe/tasks-vision@0.10.21` to `web/package.json` and pass `loadVision: () => import("@mediapipe/tasks-vision")`; serve the model locally so the demo doesn't depend on the network.
-- Voice (microphone → `utterance`), the other half of T6.
+- Try voice on a real computer: browser recognizer in Chrome/Edge and local Whisper inside the Wails app (first use downloads ~40 MB).
 
 ## Blockers and questions for humans
 - **New folder `adapters/desktop/`** (Go helper, role C): it follows the decision that adapters live in `adapters/` and talk to the app locally. It is a separate program and doesn't touch the Wails app; please confirm, and add it to the Decisions in `AGENTS.md`.
