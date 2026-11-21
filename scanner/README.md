@@ -1,4 +1,4 @@
-# scanner/ — captura de documentos (rol B, Pau)
+# scanner/ — captura de documentos (rol B1, Pau)
 
 Prototipo aislado en Python: captura el frame completo de la webcam (Logitech MX Brio) por comando.
 Reglas del subproyecto: `AGENTS_B.md`. No forma parte todavía del flujo de la app (eso es `web/src/camera`).

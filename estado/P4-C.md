@@ -2,9 +2,9 @@
 
 - **Persona:** Pau
 - **Herramienta:** Claude Code
-- **Tarea actual:** rol B — prototipo aislado `scanner/`: captura del frame completo de la MX Brio por comando
+- **Tarea actual:** rol B1 (captura y visión) — prototipo aislado `scanner/`: captura del frame completo de la MX Brio por comando
 - **Rama:** feature/B-scanner-captura (parte de `main` 35dddc1 + el commit de contexto de `feature/B-contexto-scanner`)
-- **Estado:** en curso
+- **Estado:** en revisión
 - **Último cambio:** 2026-11-21 15:05
 
 ## Hecho
@@ -18,12 +18,13 @@
 - Probar con la MX Brio conectada: resolución real entregada, formato y si el autoenfoque se estabiliza en 1,5 s.
 - Siguientes pasos del subproyecto (según `AGENTS_B.md`): detección y corrección de perspectiva, OCR local, PDF buscable.
 
+- Reparto: Pau es B1 (captura); su compañero hace la conversión a PDF y parte de esta rama o de `main` una vez fusionada.
+
 ## Bloqueos y preguntas para humanos
 - `scanner/` no figura en la estructura de `AGENTS.md`. Lo uso como prototipo aislado (lo permite `TAREAS.md`).
   Falta que un humano apruebe la carpeta y la anote en Decisiones, o decida moverla (p. ej. a `adapters/`).
 - La rama `feature/B-contexto-scanner` parte de un `main` antiguo y, fusionada tal cual, borraría el contrato de T2.
   Esta rama ya incluye su commit sobre el `main` actual; se puede cerrar aquella.
-- Falta decidir quién es B1 y quién B2 entre Didac y Pau.
 
 ## Archivos tocados
 - `scanner/capturar.py`, `scanner/test_capturar.py`, `scanner/README.md`, `scanner/requirements.txt`, `scanner/.gitignore`
