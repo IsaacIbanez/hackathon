@@ -81,7 +81,7 @@ export type EventoManos =
    * Control de nivel con la pinza: se empieza juntando las puntas de pulgar e índice y el nivel
    * es la separación entre ambas, de 0 (juntas) a 1 (muy separadas). Termina al cerrar el puño.
    */
-  | { tipo: "nivel"; fase: "inicio" | "mover" | "fin"; valor: number; t: number }
+  | { tipo: "nivel"; fase: "esperar" | "inicio" | "mover" | "fin" | "cancelar"; valor: number; t: number }
   /** Menú abierto con ✌️; se elige llevando el puntero (☝️) encima de una opción y manteniéndolo. */
   | {
       tipo: "menu";

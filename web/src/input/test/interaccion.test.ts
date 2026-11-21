@@ -83,7 +83,7 @@ test("el puntero se traduce a coordenadas del documento", () => {
 });
 
 test("perder la mano emite mano ausente y resetea el gesto", () => {
-  const ctl = new InteraccionManos();
+  const ctl = new InteraccionManos({ usarPuno: true });
   const ev = simular(ctl, [...repetir(mano(FORMAS.puno), 15), ...repetir(null, 15)]);
   const tipos = ev.map((e) => (e.tipo === "gesto" ? `gesto:${e.gesto}` : e.tipo === "mano" ? `mano:${e.presente}` : e.tipo));
   assert.deepEqual(tipos, ["mano:true", "gesto:puno", "gesto:ninguno", "mano:false"]);

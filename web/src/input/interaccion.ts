@@ -73,8 +73,14 @@ export interface OpcionesInteraccion {
   confirmarNivelMs: number;
   /** Tiempo que hay que mantener la pinza para empezar a controlar el nivel. */
   inicioNivelMs: number;
-  /** Alcance del índice por debajo del cual se considera la mano cerrada (fin del nivel). */
+  /** Tras elegir "ajustar volumen" en el menú, tiempo para juntar los dedos antes de cancelar. */
+  esperaNivelMs: number;
+  /** Alcance del índice por debajo del cual se considera la mano cerrada (puño). */
   indiceCerrado: number;
+  /** Si es false, el puño no se usa: ni se emite como gesto ni termina el ajuste de volumen. */
+  usarPuno: boolean;
+  /** Si es true, la palma solo cuenta cuando la palma (no el dorso) mira a la cámara. */
+  palmaHaciaCamara: boolean;
   /** Tiempo señalando hacia un lado del menú para elegir esa opción. */
   elegirMenuMs: number;
   /** Tras abrir el menú, se ignora la mano durante este tiempo (aún se está colocando). */
@@ -109,6 +115,9 @@ export const OPCIONES_POR_DEFECTO: OpcionesInteraccion = {
   confirmarNivelMs: 1000,
   inicioNivelMs: 150,
   indiceCerrado: 0.9,
+  esperaNivelMs: 8000,
+  usarPuno: false,
+  palmaHaciaCamara: true,
   elegirMenuMs: 500,
   esperaMenuMs: 300,
   caducidadMenuMs: 5000,
@@ -219,6 +228,8 @@ export class InteraccionManos {
   private fSeparacion = new FiltroOneEuro({ minCorte: 1.0, beta: 0.3, corteDerivada: 1.0 });
   /** Tras confirmar un nivel, hay que soltar la pinza antes de empezar otro. */
   private esperarSoltarPinza = false;
+  /** Volumen armado desde el menú, a la espera de juntar los dedos (momento en que se armó). */
+  private nivelArmado: number | null = null;
   private cabeza: DetectorCabeza;
 
   constructor(op: Partial<OpcionesInteraccion> = {}) {
@@ -318,6 +329,24 @@ export class InteraccionManos {
     return { valor: n.valor, continuo: n.continuo, progresoConfirmar, pulgar: n.pulgar, indice: n.indice };
   }
 
+  /**
+   * Arma el ajuste de volumen (se llama al elegir "ajustar volumen" en el menú). A partir de ahí,
+   * juntar las puntas de pulgar e índice empieza el ajuste. Fuera de esto, la pinza no hace nada.
+   */
+  iniciarNivel(t: number = this.tUltimaMano): void {
+    if (this.nivel) return;
+    this.nivelArmado = t;
+    this.tPinzaInicio = null;
+    this.esperarSoltarPinza = false;
+    this.ultimoPuntero = null;
+    this.emitir({ tipo: "nivel", fase: "esperar", valor: 0, t });
+  }
+
+  /** true mientras el volumen está armado esperando a que se junten los dedos. */
+  get nivelEsperando(): boolean {
+    return this.nivelArmado !== null;
+  }
+
   /** Medida que es 0 % y medida que es 100 %. */
   get escalaNivel(): { cero: number; lleno: number } {
     return { cero: this.op.nivelCero, lleno: this.op.nivelLleno };
@@ -349,6 +378,7 @@ export class InteraccionManos {
       if (this.presente && t - this.tUltimaMano > this.op.perdidaManoMs) {
         this.presente = false;
         this.terminarNivel(t);
+        this.cancelarNivelArmado(t);
         this.cerrarMenu(t);
         this.reiniciarSeguimiento();
         if (this.gestoEstable !== "ninguno") {
@@ -366,7 +396,11 @@ export class InteraccionManos {
       this.emitir({ tipo: "mano", presente: true, t });
     }
 
-    const pose = clasificarPose(mano, aspecto, this.op.umbrales);
+    let pose = clasificarPose(mano, aspecto, this.op.umbrales);
+    if (pose === "palma" && this.op.palmaHaciaCamara && palmaHaciaCamara(mano, this.ladoDe(mano)) === false) {
+      pose = "ninguno"; // es el dorso de la mano
+    }
+    if (pose === "puno" && !this.op.usarPuno) pose = "ninguno";
     this.poseActual = pose;
     const centro = centroPalma(mano, aspecto);
     const pts = puntosParaForma(mano, aspecto);
@@ -538,28 +572,32 @@ export class InteraccionManos {
   // ---------- Experimental: nivel con la pinza ----------
 
   /**
-   * Volumen con la pinza:
+   * Volumen con la pinza (solo después de elegir "ajustar volumen" en el menú):
    * 1. Se empieza juntando las puntas de pulgar e índice hasta la zona del 0 % (~0,15 s).
    * 2. El valor es la medida de la línea pulgar–índice entre nivelCero (0 %) y nivelLleno (100 %),
    *    redondeado a escalones de 10 %.
-   * 3. Se confirma quedándose quieto ~1 s en el mismo valor, o cerrando el puño.
+   * 3. Se confirma quedándose quieto ~1 s en el mismo valor (o cerrando el puño, si usarPuno).
    * Devuelve true si el frame lo ha consumido el control de volumen.
    */
   private actualizarNivel(t: number, pose: Gesto, centro: Punto): boolean {
     const diag = this.diag!;
     const juntos = diag.separacion <= this.op.nivelCero && diag.alcance >= this.op.umbrales.indiceFuera;
     if (!this.nivel) {
-      if (!juntos) {
-        this.tPinzaInicio = null;
-        this.esperarSoltarPinza = false;
+      if (this.nivelArmado === null) return false; // la pinza sola no hace nada
+      if (t - this.nivelArmado > this.op.esperaNivelMs) {
+        this.cancelarNivelArmado(t);
         return false;
       }
-      if (this.esperarSoltarPinza) return false;
+      if (!juntos) {
+        this.tPinzaInicio = null;
+        return true; // armado: el resto de gestos esperan
+      }
       this.tPinzaInicio ??= t;
-      if (t - this.tPinzaInicio < this.op.inicioNivelMs) return false;
+      if (t - this.tPinzaInicio < this.op.inicioNivelMs) return true;
       this.tPinzaInicio = null;
+      this.nivelArmado = null;
       this.fSeparacion.reiniciar();
-    } else if (diag.alcance < this.op.indiceCerrado) {
+    } else if (this.op.usarPuno && diag.alcance < this.op.indiceCerrado) {
       // Puño: termina. Toleramos fallos breves de la detección.
       if (t - this.nivel.tUltimoValido <= 200) return true;
       this.terminarNivel(t, true);
@@ -608,11 +646,17 @@ export class InteraccionManos {
     // Confirmar: quieto en el mismo escalón el tiempo indicado.
     if (n.movido && t - n.tCambio >= this.op.confirmarNivelMs) {
       this.terminarNivel(t, false);
-      this.esperarSoltarPinza = true;
       this.gestoEstable = pose;
       this.reiniciarCandidato(t, pose, centro);
     }
     return true;
+  }
+
+  private cancelarNivelArmado(t: number): void {
+    if (this.nivelArmado === null) return;
+    this.nivelArmado = null;
+    this.tPinzaInicio = null;
+    this.emitir({ tipo: "nivel", fase: "cancelar", valor: 0, t });
   }
 
   /** @param alCerrar true si termina por cerrar el puño o perder la mano (se usa el valor de antes). */
@@ -718,6 +762,13 @@ export class InteraccionManos {
 
   // ---------- Mano usada ----------
 
+  /** Mano de este frame: la estabilizada si la hay; si no, la etiqueta del propio frame. */
+  private ladoDe(mano: Mano): LadoMano | null {
+    if (this.manoEstable) return this.manoEstable;
+    if (mano.lateralidad !== "Left" && mano.lateralidad !== "Right") return null;
+    return (mano.lateralidad === "Right") !== this.op.invertirLateralidad ? "derecha" : "izquierda";
+  }
+
   /** Votación suavizada: un frame mal etiquetado no cambia la mano. */
   private actualizarLateralidad(mano: Mano): void {
     const etiqueta = mano.lateralidad;
@@ -775,6 +826,21 @@ export function direccionIndice(mano: Mano, aspecto: number, espejo: boolean): S
   if (Math.abs(dx) > 1.3 * Math.abs(dy)) return dx > 0 ? "derecha" : "izquierda";
   if (Math.abs(dy) > 1.3 * Math.abs(dx)) return dy > 0 ? "abajo" : "arriba";
   return null;
+}
+
+/**
+ * ¿Mira la palma (no el dorso) a la cámara? Con la imagen sin espejo, en una mano derecha con la
+ * palma hacia la cámara el índice queda a la derecha de la imagen y el meñique a la izquierda; en
+ * la izquierda, al revés. El signo del producto vectorial muñeca→índice × muñeca→meñique lo dice
+ * (y no cambia al girar la mano en el plano). null si no se sabe qué mano es.
+ */
+export function palmaHaciaCamara(mano: Mano, lado: LadoMano | null): boolean | null {
+  if (!lado) return null;
+  const m = mano.puntos[P.MUNECA];
+  const i = mano.puntos[P.INDICE_MCP];
+  const k = mano.puntos[P.MENIQUE_MCP];
+  const cruz = (i.x - m.x) * (k.y - m.y) - (i.y - m.y) * (k.x - m.x);
+  return lado === "derecha" ? cruz < 0 : cruz > 0;
 }
 
 /**

@@ -44,7 +44,7 @@ interaccion.on((e) => {
     $("doc").textContent = e.documento ? `${e.documento.x.toFixed(2)}, ${e.documento.y.toFixed(2)}` : "fuera";
     return;
   }
-  if (e.tipo === "nivel") {
+  if (e.tipo === "nivel" && (e.fase === "inicio" || e.fase === "mover" || e.fase === "fin")) {
     // La pinza fija el volumen de la voz de la demo (efecto real, no solo un evento).
     volumen = e.valor;
     $("volumen").textContent = `${Math.round(volumen * 100)} %`;
@@ -57,6 +57,9 @@ interaccion.on((e) => {
   if (e.tipo === "modo") pintarModo();
   if (accion === "volumen" && e.tipo === "nivel") mostrarAccion(accion, `volumen ${Math.round(e.valor * 100)} %`);
   else if (accion) mostrarAccion(accion);
+  // Elegir "ajustar volumen" en el menú arma el control: después hay que juntar los dedos.
+  if (accion === "ajustar_volumen") interaccion.iniciarNivel();
+  if (e.tipo === "nivel" && e.fase === "cancelar") mostrarAccion("volumen cancelado");
   if (e.tipo === "seleccion" && casilla("vozSel").checked) escucharPregunta(e.documento ?? e.imagen);
 });
 
@@ -153,13 +156,13 @@ function pintarChuleta() {
   const m = MAPAS[contexto];
   const filas: [string, string, boolean][] = [
     ["👍 pulgar arriba (mantener)", m.pulgar_arriba, false],
-    ["✋ palma quieta", m.palma, false],
+    ["✋ palma quieta, mirando a la cámara", m.palma, false],
     ["✋↔ deslizar a tu derecha", m.deslizar_derecha, false],
     ["✋↔ deslizar a tu izquierda", m.deslizar_izquierda, false],
     ["☝️ señalar", "mover el puntero", false],
     ["☝️ señalar quieto ~1 s", m.seleccion, false],
     ["👎 pulgar abajo", m.pulgar_abajo, true],
-    ["🤏 junta las puntas de pulgar e índice, luego sepáralas", `${m.pinza ?? "—"} en pasos de 10 %: la medida de la línea entre 0 % y 100 %; quieto ~1 s (o puño) para fijarlo`, true],
+    ["✌️ menú → ↑ ajustar volumen, luego 🤏 junta los dedos y sepáralos", `${m.pinza ?? "—"} en pasos de 10 %: la medida de la línea entre 0 % y 100 %; quieto ~1 s para fijarlo`, true],
     ["✌️ victoria → menú", "después ☝️ lleva el puntero a una opción y mantén ~0,5 s", true],
     ...(Object.entries(menuPara(interaccion.manoUsada)) as [SectorMenu, string][]).map(
       ([s, a]) => [`   menú ${FLECHA[s]} ${s}`, a, true] as [string, string, boolean],
@@ -349,13 +352,14 @@ function dibujar() {
   }
 
   dibujarPinza(w, h);
+  if (interaccion.nivelEsperando) texto("🤏 Junta pulgar e índice para empezar", w / 2, h * 0.12, 34, "#00e0ff");
   pintarMenu();
   const d = interaccion.diagnostico;
   const esc = interaccion.escalaNivel;
   $("separacion").textContent = d
     ? `${d.separacion.toFixed(2)} (0 % ≤ ${esc.cero.toFixed(2)} · 100 % ≥ ${esc.lleno.toFixed(2)})`
     : "—";
-  $("alcance").textContent = d ? `${d.alcance.toFixed(2)} (arranca ≥ ${interaccion.opciones.umbrales.indiceFuera.toFixed(2)} · puño < ${interaccion.opciones.indiceCerrado.toFixed(2)})` : "—";
+  $("alcance").textContent = d ? `${d.alcance.toFixed(2)} (para empezar ≥ ${interaccion.opciones.umbrales.indiceFuera.toFixed(2)})` : "—";
   // Puntero por encima del menú (la capa del menú tapa el lienzo). El lienzo va en espejo.
   const cur = $("cursor");
   cur.hidden = !(interaccion.menuAbierto(performance.now()) && p);
@@ -405,7 +409,7 @@ async function reconectar(intentos = 20): Promise<void> {
 $("reiniciar").addEventListener("click", () => void reconectar(1));
 // ---------- Ajustes de la pinza (deslizadores) ----------
 
-type ClaveAjuste = "nivelCero" | "nivelLleno" | "indiceFuera" | "indiceCerrado";
+type ClaveAjuste = "nivelCero" | "nivelLleno" | "indiceFuera";
 function valorAjuste(k: ClaveAjuste): number {
   const o = interaccion.opciones;
   return k === "indiceFuera" ? o.umbrales.indiceFuera : o[k];

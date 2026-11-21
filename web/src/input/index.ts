@@ -13,6 +13,7 @@ export {
   direccionIndice,
   sectorEnPantalla,
   separacionEnPantalla,
+  palmaHaciaCamara,
   type Diagnostico,
   type OpcionesInteraccion,
 } from "./interaccion.ts";

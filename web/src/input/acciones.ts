@@ -33,6 +33,7 @@ export type Accion =
   | "despertar"
   | "dormir"
   // Menú radial
+  | "ajustar_volumen"
   | "repetir"
   | "copiar_texto"
   | "dictar"
@@ -85,15 +86,15 @@ export const MAPAS: Record<Contexto, MapaContexto> = {
 
 /** Opciones del menú radial (✌️) cuando no se sabe qué mano se usa, iguales en todos los contextos. */
 export const MENU_RADIAL: Record<SectorMenu, Accion> = {
-  arriba: "repetir",
-  derecha: "copiar_texto",
-  abajo: "dictar",
+  arriba: "ajustar_volumen",
+  derecha: "dictar",
+  abajo: "repetir",
   izquierda: "pedir_ayuda",
 };
 
 /**
- * Menú según la mano: se quita el lado de esa mano (señalar hacia fuera cuesta) y "pedir ayuda"
- * queda siempre en el lado cómodo, para que nunca se pierda. "Copiar texto" sale del menú.
+ * Menú según la mano: se quita el lado de esa mano (llevar el puntero hacia fuera cuesta) y
+ * "pedir ayuda" queda siempre en el lado cómodo, para que nunca se pierda. "Dictar" sale del menú.
  */
 export function menuPara(mano: LadoMano | null): Partial<Record<SectorMenu, Accion>> {
   if (!mano) return MENU_RADIAL;
@@ -119,7 +120,7 @@ export function accionDe(evento: EventoManos, contexto: Contexto = "documento"):
     case "seleccion":
       return m.seleccion;
     case "nivel":
-      return evento.fase === "inicio" ? null : m.pinza;
+      return evento.fase === "mover" || evento.fase === "fin" ? m.pinza : null;
     case "menu":
       return evento.fase === "elegir" && evento.sector ? (menuPara(evento.mano)[evento.sector] ?? null) : null;
     case "cabeza":

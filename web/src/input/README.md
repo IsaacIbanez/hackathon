@@ -11,13 +11,13 @@ definido en `acciones.ts` (`MAPAS`). Los marcados como EXP son experimentales.
 | Gesto | Documento | Formulario | PC |
 |---|---|---|---|
 | 👍 pulgar arriba (mantener ~0,3 s) | leer | confirmar campo | Intro |
-| ✋ palma quieta | pausar | pausar | Escape |
+| ✋ palma quieta, mirando a la cámara | pausar | pausar | Escape |
 | ✋↔ deslizar a la derecha / izquierda del usuario | siguiente / anterior | campo siguiente / anterior | pestaña siguiente / anterior |
 | ☝️ señalar | puntero | puntero | puntero |
 | ☝️ señalar quieto ~0,9 s | explicar aquí | dictar campo | clic |
 | 👎 pulgar abajo (EXP) | deshacer | borrar campo | deshacer |
-| 🤏 juntar las puntas de pulgar e índice y separarlas; quieto ~1 s o puño para fijar (EXP) | volumen | volumen | volumen |
-| ✌️ victoria → menú; ☝️ puntero encima de una opción ~0,5 s (EXP) | ↑ repetir · ↓ dictar · pedir ayuda en el lado contrario a la mano (sin mano detectada: → copiar texto, ← pedir ayuda) | igual | igual |
+| ✌️ menú → ajustar volumen, y 🤏 juntar y separar pulgar e índice; quieto ~1 s para fijar (EXP) | volumen | volumen | volumen |
+| ✌️ victoria → menú; ☝️ puntero encima de una opción ~0,5 s (EXP) | ↑ ajustar volumen · ↓ repetir · pedir ayuda en el lado contrario a la mano (sin mano detectada: → dictar, ← pedir ayuda) | igual | igual |
 | 🙂 asentir (EXP, cabeza) | leer | confirmar campo | Intro |
 | 🙂 negar (EXP, cabeza) | pausar | borrar campo | Escape |
 
@@ -25,23 +25,28 @@ Opciones experimentales (en `OpcionesInteraccion`):
 - `requiereDespertar`: modo dormido/despierto. Se ignoran los gestos hasta mantener ✋ ~1 s (o asentir);
   vuelve a dormirse tras `dormirMs` sin actividad. Evita gestos accidentales.
 - `PERFIL_MOVILIDAD_REDUCIDA`: tiempos más largos y radios más amplios para temblor o movilidad reducida.
-- Volumen con la pinza (evento `nivel`), deliberadamente simple:
+- Volumen con la pinza (evento `nivel`), deliberadamente simple. **Solo se activa desde el menú**
+  (opción «ajustar volumen», que llama a `iniciarNivel()`), para que no se dispare sin querer; si no se
+  juntan los dedos en `esperaNivelMs` (8 s), se cancela:
   - Medida = distancia en pantalla entre las puntas de pulgar e índice ÷ tamaño de la mano en
     pantalla (muñeca → nudillo del corazón), `separacionEnPantalla`. Es la línea que se dibuja; dividir
     por el tamaño de la mano hace que no dependa de la distancia a la cámara.
   - Medida ≤ `nivelCero` (0,25) = 0 %; ≥ `nivelLleno` (1,0) = 100 %; en medio, lineal, redondeado a
     escalones de 10 % (`pasoNivel`) con un poco de histéresis (`histeresisNivel`).
   - Para empezar se juntan los dedos por debajo de `nivelCero` ~0,15 s (con el índice no metido en un
-    puño). Se confirma quedándose quieto ~1 s (`confirmarNivelMs`) o cerrando el puño.
+    puño). Se confirma quedándose quieto ~1 s (`confirmarNivelMs`).
   - Calibración guiada: `fijarEscalaNivel(juntos, abiertos)`; en la demo, botón «Calibrar volumen» y
     deslizadores para los umbrales. En la demo ajusta de verdad el volumen de la voz.
+- Palma: solo cuenta si la palma (no el dorso) mira a la cámara (`palmaHaciaCamara`), según la mano
+  detectada y el orden de los nudillos en la imagen.
+- Puño: desactivado por defecto (`usarPuno: false`): no se emite ni termina el ajuste de volumen.
 - Menú: tras abrirlo con ✌️, se pone ☝️ y se lleva el puntero (la punta del índice) encima de una
   opción, manteniéndolo `elegirMenuMs` (~0,5 s). Las opciones ocupan zonas fijas de la pantalla en
   cruz (tercios, `sectorEnPantalla`); con ✌️ o en el centro no se elige nada; se cierra solo a los 5 s.
 - Mano usada: se detecta qué mano usa el usuario (`manoUsada`, votación suavizada de la etiqueta de
   MediaPipe; `invertirLateralidad` por si sale al revés). En el menú se quita el lado de esa mano
-  (`sectoresMenu`, `menuPara`): quedan ↑ repetir, ↓ dictar y, en el lado contrario, pedir ayuda.
-  Si no se sabe la mano, salen las 4.
+  (`sectoresMenu`, `menuPara`): quedan ↑ ajustar volumen, ↓ repetir y, en el lado contrario, pedir ayuda.
+  Si no se sabe la mano, salen las 4 (→ dictar).
 - Cabeza: `crearRastreador(..., { cara: true })` o `rastreador.activarCara(true)` (otro modelo, ~4 MB;
   se analiza 1 de cada 2 frames).
 - Señalar + voz: solo en la demo, con el reconocimiento de voz del navegador (Chrome/Edge; Firefox no lo tiene).
