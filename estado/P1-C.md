@@ -28,7 +28,7 @@
 ## Bloqueos y preguntas para humanos
 - **Qué dispara el escaneo en la demo** (botón/tecla en la app de B, automático cuando la hoja está quieta, o un gesto → haría falta un mensaje nuevo en el contrato).
 - **Para Nil:** en la ventana de escritorio existe `webkitSpeechRecognition`, pero hay que probar que reconoce de verdad (en Edge/WebView2 depende de un servicio en la nube). Probarlo pronto con el micro dentro de `task dev`.
-- **Decidir quién es dueño de la cámara** (el scanner de B en Python y los gestos de Nil en el navegador no pueden abrir la misma cámara a la vez en Windows). Opciones: A) dos cámaras; B) el navegador captura y envía la imagen al scanner (recomendada: el dedo y el papel en la misma imagen); C) el Python captura y envía frames. Mientras tanto, `Gestures.tsx` usa la imagen entera como documento.
+- **Cámara decidida (Isaac):** la que haya; la Logitech si está conectada. Queda por resolver quién abre la cámara cuando solo hay una (scanner o navegador). Mientras tanto, `Gestures.tsx` usa la imagen entera como documento.
 - **Cómo llega el scanner de B a Go.** B trabaja en Python (`scanner/`: captura con la MX Brio, OCR con Tesseract, PDF buscable), no en el navegador. Propuesta: el scanner envía `document` (bloques con caja y confianza, que Tesseract ya da) a `ws://127.0.0.1:8765/ws`, y Go responde con `speak`. Encaja con el contrato sin cambiarlo. Falta que Didac, Pau e Isaac lo acuerden.
 - **Para Nil (rama `claude/kind-cray-863b6t`):** probada en local sobre `main`, sus 43 tests pasan en `task check`. Falla un único error de TypeScript: `web/src/input/interaccion.ts:230`, `esperarSoltarPinza` está declarada y no se usa (`noUnusedLocals`). Hay que quitarla o usarla antes del PR.
 - Hace falta Go ≥ 1.26 y `task`.
