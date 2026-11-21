@@ -1,0 +1,247 @@
+openapi: 3.0.3
+info:
+  title: Proyecto LauzHack — contrato backend <-> frontend
+  version: 0.1.0
+  description: |
+    Única interfaz entre módulos. HTTP para salud y WebSocket (`/ws`) para todo lo demás.
+
+    Todos los mensajes del WebSocket viajan en un sobre común `{type, id, ts, payload}`:
+    - `type`: tipo de mensaje (`document`, `pointer`, `utterance`, `speak`).
+    - `id`: identificador único del mensaje (UUID o cualquier cadena única por sesión).
+    - `ts`: marca de tiempo en milisegundos desde epoch (`Date.now()` en el navegador).
+    - `payload`: el contenido, cuyo esquema depende de `type`.
+
+    Sentido: el navegador envía `document`, `pointer` y `utterance` (ClientMessage);
+    Go responde con `speak` (ServerMessage).
+
+    Coordenadas: siempre normalizadas a [0, 1] respecto a la imagen del documento
+    recortado, con origen arriba a la izquierda.
+
+    Un cambio aquí se anota en la sección Decisiones de AGENTS.md.
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      summary: Comprobación de vida del servidor
+      responses:
+        "200":
+          description: El servidor está vivo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+  /ws:
+    get:
+      operationId: openWebSocket
+      summary: Abre el WebSocket de la sesión
+      description: |
+        Upgrade a WebSocket. Cada frame de texto es un JSON con el sobre común:
+        el cliente envía `ClientMessage` y el servidor responde con `ServerMessage`.
+      responses:
+        "101":
+          description: Protocolo cambiado a WebSocket
+components:
+  schemas:
+    Health:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          example: ok
+
+    MessageType:
+      type: string
+      enum: [document, pointer, utterance, speak]
+
+    Envelope:
+      description: Sobre genérico. Sirve para leer `type` antes de decodificar `payload`.
+      type: object
+      required: [type, id, ts, payload]
+      properties:
+        type:
+          $ref: "#/components/schemas/MessageType"
+        id:
+          type: string
+        ts:
+          type: integer
+          format: int64
+          description: Milisegundos desde epoch
+        payload:
+          type: object
+          # El código generado ya importa encoding/json (por las uniones).
+          x-go-type: json.RawMessage
+
+    # ---------- Payloads ----------
+
+    Box:
+      description: Caja normalizada a [0, 1] (origen arriba a la izquierda)
+      type: object
+      required: [x, y, w, h]
+      properties:
+        x: { type: number, format: float, minimum: 0, maximum: 1 }
+        y: { type: number, format: float, minimum: 0, maximum: 1 }
+        w: { type: number, format: float, minimum: 0, maximum: 1 }
+        h: { type: number, format: float, minimum: 0, maximum: 1 }
+
+    TextBlock:
+      type: object
+      required: [id, text, box, confidence]
+      properties:
+        id:
+          type: string
+          description: Estable dentro del documento; lo usan pointer y speak
+        text:
+          type: string
+        box:
+          $ref: "#/components/schemas/Box"
+        confidence:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: Confianza del OCR local
+
+    FrameIssue:
+      type: string
+      enum: [blurry, dark, glare, cropped, tilted, too_far]
+
+    FrameQuality:
+      description: Calidad del encuadre del documento
+      type: object
+      required: [score, issues]
+      properties:
+        score:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: 1 = perfecto
+        issues:
+          type: array
+          items:
+            $ref: "#/components/schemas/FrameIssue"
+
+    DocumentPayload:
+      type: object
+      required: [blocks, quality]
+      properties:
+        blocks:
+          type: array
+          items:
+            $ref: "#/components/schemas/TextBlock"
+        quality:
+          $ref: "#/components/schemas/FrameQuality"
+        imageWidth:
+          type: integer
+          description: Ancho en píxeles de la imagen recortada (opcional)
+        imageHeight:
+          type: integer
+          description: Alto en píxeles de la imagen recortada (opcional)
+        lang:
+          type: string
+          description: Idioma detectado (BCP-47), si se conoce
+          example: es
+
+    PointerPayload:
+      type: object
+      required: [x, y]
+      properties:
+        x: { type: number, format: float, minimum: 0, maximum: 1 }
+        y: { type: number, format: float, minimum: 0, maximum: 1 }
+        blockId:
+          type: string
+          description: Bloque señalado, si el dedo cae dentro de alguno
+
+    UtterancePayload:
+      type: object
+      required: [text, isFinal]
+      properties:
+        text:
+          type: string
+        isFinal:
+          type: boolean
+          description: false para resultados parciales del reconocimiento de voz
+        lang:
+          type: string
+          example: es-ES
+
+    SpeakPayload:
+      type: object
+      required: [text, highlightBlockIds, lang]
+      properties:
+        text:
+          type: string
+          description: Texto a leer en voz alta y mostrar
+        highlightBlockIds:
+          type: array
+          items:
+            type: string
+          description: Ids de TextBlock a resaltar mientras se habla
+        lang:
+          type: string
+          description: Idioma de la voz (BCP-47)
+          example: es-ES
+        replyTo:
+          type: string
+          description: id del mensaje al que responde, si aplica
+
+    # ---------- Mensajes tipados (sobre + payload) ----------
+
+    DocumentMessage:
+      type: object
+      required: [type, id, ts, payload]
+      properties:
+        type: { type: string, enum: [document] }
+        id: { type: string }
+        ts: { type: integer, format: int64 }
+        payload: { $ref: "#/components/schemas/DocumentPayload" }
+
+    PointerMessage:
+      type: object
+      required: [type, id, ts, payload]
+      properties:
+        type: { type: string, enum: [pointer] }
+        id: { type: string }
+        ts: { type: integer, format: int64 }
+        payload: { $ref: "#/components/schemas/PointerPayload" }
+
+    UtteranceMessage:
+      type: object
+      required: [type, id, ts, payload]
+      properties:
+        type: { type: string, enum: [utterance] }
+        id: { type: string }
+        ts: { type: integer, format: int64 }
+        payload: { $ref: "#/components/schemas/UtterancePayload" }
+
+    SpeakMessage:
+      type: object
+      required: [type, id, ts, payload]
+      properties:
+        type: { type: string, enum: [speak] }
+        id: { type: string }
+        ts: { type: integer, format: int64 }
+        payload: { $ref: "#/components/schemas/SpeakPayload" }
+
+    ClientMessage:
+      description: Lo que envía el navegador a Go
+      oneOf:
+        - $ref: "#/components/schemas/DocumentMessage"
+        - $ref: "#/components/schemas/PointerMessage"
+        - $ref: "#/components/schemas/UtteranceMessage"
+      discriminator:
+        propertyName: type
+        mapping:
+          document: "#/components/schemas/DocumentMessage"
+          pointer: "#/components/schemas/PointerMessage"
+          utterance: "#/components/schemas/UtteranceMessage"
+
+    ServerMessage:
+      description: Lo que envía Go al navegador
+      oneOf:
+        - $ref: "#/components/schemas/SpeakMessage"
+      discriminator:
+        propertyName: type
+        mapping:
+          speak: "#/components/schemas/SpeakMessage"

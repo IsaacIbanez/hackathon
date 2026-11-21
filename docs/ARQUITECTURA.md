@@ -6,13 +6,15 @@ Resumen corto en `AGENTS.md`. Este archivo guarda el detalle.
 ```
 hackathon/
 ├── AGENTS.md, CLAUDE.md, GEMINI.md
-├── Makefile              # make dev / gen / test / check
+├── Taskfile.yml          # task gen / mock / check
 ├── api/openapi.yaml      # contrato backend <-> frontend
+├── api/fixtures/         # un ejemplo JSON de cada mensaje
+├── api/gen/              # tipos Go generados (no editar)
 ├── backend/              # Go
 │   ├── cmd/mock/         # servidor mock sin Wails
 │   └── {ws,session,llm,ocr}/   # sin "internal/"
 ├── web/                  # React + Vite + TS + Tailwind
-│   └── src/{app,camera,document,input}/
+│   └── src/{api,app,camera,document,input}/   # src/api: tipos TS generados
 ├── adapters/logitech/    # solo si el SDK exige Python o C#
 ├── docs/
 └── .github/workflows/ci.yml
@@ -30,7 +32,7 @@ hackathon/
 ## Cómo se coordinan los agentes
 - Por archivos y git, no por mensajes: `TAREAS.md`, `estado/`, la sección Decisiones de `AGENTS.md` y el contrato en `api/`.
 - Una tarea, una rama, un PR; nadie mergea a `main` sin revisión humana.
-- `make check` (go vet, tests, lint, build del front) antes de abrir un PR.
+- `task check` (go vet, go test, build del front) antes de abrir un PR.
 - Un cambio de contrato se anota en Decisiones y se avisa al resto.
 
 ## Cronograma de 24 h
