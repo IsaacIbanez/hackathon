@@ -73,8 +73,9 @@ Coordinates: `image` is the normalized [0,1] position in the camera frame **with
 message.
 
 ## Testing
+The module's tests run with the rest of the frontend (`task check` → `npm test`):
 ```bash
-node --test 'web/src/input/test/*.test.ts'
+cd web && npm test
 ```
 Demo with the camera (needs Vite; it can run without installing anything in the repo):
 ```bash
