@@ -1,0 +1,6 @@
+{
+  "type": "pointer",
+  "id": "ptr-0001",
+  "ts": 1795262402000,
+  "payload": { "x": 0.3, "y": 0.2, "blockId": "b2" }
+}

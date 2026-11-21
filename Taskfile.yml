@@ -1,0 +1,39 @@
+# Tareas del proyecto. Instala task una vez:
+#   go install github.com/go-task/task/v3/cmd/task@latest
+# Uso: task gen | task mock | task check
+version: "3"
+
+tasks:
+  gen:
+    desc: Genera los tipos Go (api/gen) y TypeScript (web/src/api/types.ts) desde api/openapi.yaml
+    sources:
+      - api/openapi.yaml
+      - api/oapi-codegen.yaml
+    generates:
+      - api/gen/types.gen.go
+      - web/src/api/types.ts
+    cmds:
+      - go tool oapi-codegen -config api/oapi-codegen.yaml api/openapi.yaml
+      - npx --yes openapi-typescript@7.13.0 api/openapi.yaml -o web/src/api/types.ts
+
+  mock:
+    desc: Arranca el servidor mock (sin Wails) en localhost:8080
+    cmds:
+      - go run ./backend/cmd/mock {{.CLI_ARGS}}
+
+  check:
+    desc: go vet, go test y build del frontend (si existe web/package.json)
+    cmds:
+      - go vet ./...
+      - go test ./...
+      - task: web-build
+
+  web-build:
+    internal: true
+    status:
+      # Se salta si todavía no hay frontend.
+      - test ! -f package.json
+    dir: web
+    cmds:
+      - npm ci
+      - npm run build

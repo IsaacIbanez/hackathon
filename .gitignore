@@ -6,3 +6,11 @@ credentials*
 .claude/settings.local.json
 node_modules/
 __pycache__/
+
+# Caché de task
+.task/
+
+# Wails y Vite: binarios y archivos generados
+/build/
+web/dist/
+web/package.json.md5
