@@ -1,12 +1,18 @@
 // Punto de entrada del módulo de manos (rol C). Uso típico:
 //
 //   const interaccion = new InteraccionManos();
-//   interaccion.on((e) => { const a = accionDe(e); if (a) enviar(a, e); });
+//   interaccion.on((e) => { const a = accionDe(e, "documento"); if (a) enviar(a, e); });
 //   await crearRastreador(video, (f) => interaccion.procesar(f));
 //   interaccion.fijarDocumento(esquinasDeB1);
 
 export * from "./tipos.ts";
-export { InteraccionManos, OPCIONES_POR_DEFECTO, type OpcionesInteraccion } from "./interaccion.ts";
-export { accionDe, MAPA_GESTOS, type Accion } from "./acciones.ts";
+export {
+  InteraccionManos,
+  OPCIONES_POR_DEFECTO,
+  PERFIL_MOVILIDAD_REDUCIDA,
+  type OpcionesInteraccion,
+} from "./interaccion.ts";
+export { accionDe, MAPAS, MENU_RADIAL, type Accion, type Contexto } from "./acciones.ts";
 export { clasificarPose, estadoDedos } from "./poses.ts";
+export { DetectorCabeza } from "./cabeza.ts";
 export { crearRastreador, type Rastreador, type OpcionesRastreador } from "./rastreador.ts";

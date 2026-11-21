@@ -5,22 +5,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Prueba de gestos de mano</title>
     <style>
-      :root { color-scheme: dark; --fondo: #111; --texto: #f5f5f5; --acento: #ffd400; }
-      body { margin: 0; font: 18px/1.4 system-ui, sans-serif; background: var(--fondo); color: var(--texto); }
-      main { display: grid; grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); gap: 16px; padding: 16px; }
-      @media (max-width: 800px) { main { grid-template-columns: 1fr; } }
+      :root { color-scheme: dark; --fondo: #111; --panel: #1c1c1c; --texto: #f5f5f5; --suave: #aaa; --acento: #ffd400; --ok: #34c759; --mal: #ff453a; }
+      * { box-sizing: border-box; }
+      body { margin: 0; font: 17px/1.4 system-ui, sans-serif; background: var(--fondo); color: var(--texto); }
+      main { display: grid; grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr); gap: 16px; padding: 16px; }
+      @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
       /* El lienzo dibuja el vídeo y el esqueleto juntos: así siempre coinciden, aunque la
          cámara cambie de resolución. El <video> solo sirve de fuente y queda oculto debajo. */
       .escena { position: relative; align-self: start; }
       canvas { display: block; width: 100%; height: auto; transform: scaleX(-1); border-radius: 8px; background: #000; }
       video { position: absolute; inset: 0; width: 100%; opacity: 0; pointer-events: none; }
-      h1 { font-size: 24px; margin: 0 0 8px; }
-      dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0 0 12px; }
-      dt { opacity: 0.7; } dd { margin: 0; font-weight: 700; }
-      #accion { font-size: 32px; color: var(--acento); min-height: 1.4em; }
-      button { font: inherit; padding: 8px 12px; border-radius: 6px; border: 2px solid var(--acento); background: none; color: var(--texto); cursor: pointer; }
-      ol { padding-left: 20px; max-height: 40vh; overflow: auto; font-size: 15px; }
-      .ayuda { font-size: 15px; opacity: 0.8; }
+      #modo { position: absolute; top: 12px; left: 12px; padding: 6px 12px; border-radius: 999px; font-weight: 700; background: #000c; }
+      #modo.despierto { color: var(--ok); } #modo.dormido { color: var(--mal); }
+      #accion { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); font-size: 34px; font-weight: 800; color: var(--acento); background: #000c; padding: 4px 16px; border-radius: 8px; white-space: nowrap; }
+      #accion:empty { display: none; }
+      h1 { font-size: 22px; margin: 0 0 8px; }
+      h2 { font-size: 16px; margin: 16px 0 6px; color: var(--suave); text-transform: uppercase; letter-spacing: .05em; }
+      section > div { background: var(--panel); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+      dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 0; }
+      dt { color: var(--suave); } dd { margin: 0; font-weight: 700; }
+      label { display: block; margin: 4px 0; } label small { color: var(--suave); }
+      select, button { font: inherit; padding: 6px 10px; border-radius: 6px; border: 2px solid var(--acento); background: none; color: var(--texto); cursor: pointer; }
+      table { width: 100%; border-collapse: collapse; font-size: 15px; }
+      td { padding: 3px 4px; border-bottom: 1px solid #333; vertical-align: top; }
+      td:first-child { white-space: nowrap; }
+      .exp { color: var(--acento); font-size: 12px; font-weight: 700; }
+      ol { padding-left: 20px; max-height: 30vh; overflow: auto; font-size: 14px; margin: 0; }
     </style>
   </head>
   <body>
@@ -28,27 +38,44 @@
       <div class="escena">
         <video id="video" autoplay playsinline muted></video>
         <canvas id="lienzo"></canvas>
+        <div id="modo" hidden></div>
+        <div id="accion" aria-live="assertive"></div>
       </div>
       <section>
         <h1>Gestos de mano</h1>
         <p id="estado" role="status">Cargando el modelo…</p>
-        <div id="accion" aria-live="assertive"></div>
-        <dl>
-          <dt>Pose (frame)</dt><dd id="pose">—</dd>
-          <dt>Gesto estable</dt><dd id="gesto">—</dd>
-          <dt>Puntero en doc.</dt><dd id="doc">—</dd>
-          <dt>FPS</dt><dd id="fps">—</dd>
-        </dl>
-        <p>
-          <button id="marcar">Marcar documento (4 clics)</button>
-          <button id="reiniciar">Reiniciar cámara</button>
+
+        <div>
+          <dl>
+            <dt>Pose (frame)</dt><dd id="pose">—</dd>
+            <dt>Gesto estable</dt><dd id="gesto">—</dd>
+            <dt>Puntero en doc.</dt><dd id="doc">—</dd>
+            <dt>Arrastre</dt><dd id="arrastre">—</dd>
+            <dt>FPS</dt><dd id="fps">—</dd>
+          </dl>
+        </div>
+
+        <div>
+          <label>Contexto
+            <select id="contexto">
+              <option value="documento">Leyendo un documento</option>
+              <option value="formulario">Rellenando un formulario</option>
+              <option value="pc">Usando el PC</option>
+            </select>
+          </label>
+          <label><input type="checkbox" id="despertar" /> Modo dormido / despierto <span class="exp">EXP</span><br /><small>✋ mantenida ~1 s para despertar; se duerme tras 10 s sin gestos</small></label>
+          <label><input type="checkbox" id="movilidad" /> Perfil movilidad reducida <span class="exp">EXP</span><br /><small>gestos más lentos y tolerantes al temblor</small></label>
+          <label><input type="checkbox" id="cabeza" /> Gestos de cabeza <span class="exp">EXP</span><br /><small>asentir, negar, parpadeo largo (descarga otro modelo, ~4 MB)</small></label>
+          <label><input type="checkbox" id="vozSel" /> Señalar + voz <span class="exp">EXP</span><br /><small id="vozInfo">al seleccionar señalando, escucha una pregunta</small></label>
           <label><input type="checkbox" id="voz" /> Decir la acción en voz alta</label>
-        </p>
-        <p class="ayuda">
-          👍 leer · ✋ quieta: pausar · ✌️ repetir · mano abierta deslizando: siguiente / anterior ·
-          ☝️ señalar quieto ~1 s: explicar aquí
-        </p>
-        <ol id="registro" reversed></ol>
+          <p><button id="marcar">Marcar documento (4 clics)</button> <button id="reiniciar">Reiniciar cámara</button></p>
+        </div>
+
+        <h2>Chuleta del contexto actual</h2>
+        <div><table id="chuleta"></table></div>
+
+        <h2>Registro</h2>
+        <div><ol id="registro" reversed></ol></div>
       </section>
     </main>
     <script type="module" src="./demo.ts"></script>

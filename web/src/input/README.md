@@ -4,19 +4,33 @@ Convierte los landmarks de la mano (MediaPipe HandLandmarker, en el navegador) e
 de la app. Sin dependencias de npm: MediaPipe se carga en tiempo de ejecución desde jsDelivr
 (`@mediapipe/tasks-vision@0.10.21`) y el modelo desde Google Storage.
 
-## Gestos y acciones por defecto
-| Gesto | Cómo | Acción (`accionDe`) |
-|---|---|---|
-| 👍 pulgar arriba | mantener ~0,3 s, mano quieta | `leer` |
-| ✋ palma abierta | mantener ~0,3 s, mano quieta | `pausar` |
-| ✌️ victoria | mantener ~0,3 s | `repetir` |
-| mano abierta deslizando | ≥20 % del ancho en ≤0,4 s | `siguiente` (a la derecha del usuario) / `anterior` |
-| ☝️ señalar | el puntero sigue la punta del índice | evento `puntero` (~15 por segundo como máximo) |
-| ☝️ señalar quieto | ~0,9 s dentro de un radio pequeño | `explicar_aqui` (evento `seleccion`) |
+## Gestos
+Pocos gestos, muchas acciones: el significado depende del **contexto** (`documento`, `formulario`, `pc`),
+definido en `acciones.ts` (`MAPAS`). Los marcados como EXP son experimentales.
 
-El mapa de gestos a acciones está en `acciones.ts` (`MAPA_GESTOS`) y los tiempos y umbrales en
-`OPCIONES_POR_DEFECTO` (`interaccion.ts`). Pensado para accesibilidad: gestos que se mantienen
-(no hace falta precisión ni rapidez), filtro One Euro contra el temblor y "clic por permanencia".
+| Gesto | Documento | Formulario | PC |
+|---|---|---|---|
+| 👍 pulgar arriba (mantener ~0,3 s) | leer | confirmar campo | Intro |
+| ✋ palma quieta | pausar | pausar | Escape |
+| ✋↔ deslizar a la derecha / izquierda del usuario | siguiente / anterior | campo siguiente / anterior | pestaña siguiente / anterior |
+| ☝️ señalar | puntero | puntero | puntero |
+| ☝️ señalar quieto ~0,9 s | explicar aquí | dictar campo | clic |
+| 👎 pulgar abajo (EXP) | deshacer | borrar campo | deshacer |
+| 🤏 pinza "OK" y mover (EXP) | velocidad de voz | — | desplazar (scroll) |
+| ✌️ victoria → menú radial (EXP) | arriba: repetir · derecha: copiar texto · abajo: dictar · izquierda: pedir ayuda | igual | igual |
+| 🙂 asentir (EXP, cabeza) | leer | confirmar campo | Intro |
+| 🙂 negar (EXP, cabeza) | pausar | borrar campo | Escape |
+| 😑 ojos cerrados ~0,7 s (EXP, cabeza) | explicar aquí | dictar campo | clic |
+
+Opciones experimentales (en `OpcionesInteraccion`):
+- `requiereDespertar`: modo dormido/despierto. Se ignoran los gestos hasta mantener ✋ ~1 s (o asentir);
+  vuelve a dormirse tras `dormirMs` sin actividad. Evita gestos accidentales.
+- `PERFIL_MOVILIDAD_REDUCIDA`: tiempos más largos y radios más amplios para temblor o movilidad reducida.
+- Cabeza: `crearRastreador(..., { cara: true })` o `rastreador.activarCara(true)` (otro modelo, ~4 MB;
+  se analiza 1 de cada 2 frames).
+- Señalar + voz: solo en la demo, con el reconocimiento de voz del navegador (Chrome/Edge; Firefox no lo tiene).
+
+Los tiempos y umbrales están en `OPCIONES_POR_DEFECTO` (`interaccion.ts`) y `OPCIONES_CABEZA` (`cabeza.ts`).
 
 ## Uso
 ```ts
@@ -24,7 +38,7 @@ import { InteraccionManos, crearRastreador, accionDe } from "./input/index.ts";
 
 const interaccion = new InteraccionManos();      // { espejo: false } si la cámara mira al papel desde arriba
 interaccion.on((e) => {
-  const accion = accionDe(e);                    // "leer" | "pausar" | ... | null
+  const accion = accionDe(e, "documento");       // "leer" | "pausar" | ... | null
   // e.tipo === "puntero" / "seleccion": e.documento es {x,y} en [0,1] dentro del documento, o null
 });
 await crearRastreador(videoElement, (frame) => interaccion.procesar(frame));
@@ -50,8 +64,9 @@ esquinas tal como las ves. Sin acceso a jsDelivr, sirve `@mediapipe/tasks-vision
 ## Archivos
 - `tipos.ts`: tipos e índices de los landmarks.
 - `poses.ts`: pose estática (rectitud de cada dedo; no depende de la rotación ni la distancia).
-- `interaccion.ts`: estabilización de gestos, deslizar, puntero filtrado y selección por permanencia.
-- `acciones.ts`: eventos a acciones de la app.
+- `interaccion.ts`: estabilización de gestos, deslizar, puntero filtrado, selección por permanencia y los experimentales (dormir/despertar, arrastre, menú radial, cabeza).
+- `acciones.ts`: eventos a acciones de la app, por contexto, y opciones del menú radial.
+- `cabeza.ts`: asentir, negar y parpadeo largo (experimental).
 - `geometria.ts`, `filtro.ts`: homografía y filtro One Euro.
 - `rastreador.ts`: único archivo que depende de MediaPipe y del DOM.
 - `demo/`: página de prueba. `test/`: tests con manos sintéticas.

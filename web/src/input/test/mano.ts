@@ -2,7 +2,7 @@
 import type { Mano, Punto3D } from "../tipos.ts";
 
 export interface FormaMano {
-  pulgar?: "fuera" | "arriba" | "doblado";
+  pulgar?: "fuera" | "arriba" | "abajo" | "doblado";
   indice?: boolean;
   corazon?: boolean;
   anular?: boolean;
@@ -25,6 +25,10 @@ export function mano(f: FormaMano = {}): Mano {
     pts[2] = p(0.4, 0.68);
     pts[3] = p(0.4, 0.57);
     pts[4] = p(0.4, 0.46);
+  } else if (f.pulgar === "abajo") {
+    pts[2] = p(0.4, 0.72);
+    pts[3] = p(0.4, 0.83);
+    pts[4] = p(0.4, 0.94);
   } else if (f.pulgar === "fuera") {
     pts[2] = p(0.38, 0.7);
     pts[3] = p(0.33, 0.65);
@@ -70,5 +74,6 @@ export const FORMAS = {
   victoria: { indice: true, corazon: true },
   puno: {},
   pulgar_arriba: { pulgar: "arriba" },
+  pulgar_abajo: { pulgar: "abajo" },
   pinza: { pinza: true, corazon: true, anular: true, menique: true },
 } satisfies Record<string, FormaMano>;

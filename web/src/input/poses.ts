@@ -97,17 +97,22 @@ export function clasificarPose(mano: Mano, aspecto = 1, u: Umbrales = UMBRALES_P
   if (d.indice && d.corazon && !d.anular && !d.menique) return "victoria";
   if (d.indice && nOtros === 0) return "senalar";
   if (!d.indice && nOtros === 0) {
-    if (d.pulgar && pulgarHaciaArriba(mano, aspecto)) return "pulgar_arriba";
+    if (d.pulgar) {
+      const v = direccionPulgar(mano, aspecto);
+      if (v === "arriba") return "pulgar_arriba";
+      if (v === "abajo") return "pulgar_abajo";
+    }
     return "puno";
   }
   return "ninguno";
 }
 
-/** El pulgar apunta hacia arriba en la imagen (y decrece) más que hacia los lados. */
-export function pulgarHaciaArriba(mano: Mano, aspecto = 1): boolean {
+/** Hacia dónde apunta el pulgar en la imagen: claramente arriba, abajo o ninguno de los dos. */
+export function direccionPulgar(mano: Mano, aspecto = 1): "arriba" | "abajo" | null {
   const base = mano.puntos[P.PULGAR_MCP];
   const punta = mano.puntos[P.PULGAR_PUNTA];
   const dx = (punta.x - base.x) * aspecto;
   const dy = punta.y - base.y;
-  return dy < 0 && Math.abs(dy) > 1.2 * Math.abs(dx);
+  if (Math.abs(dy) <= 1.2 * Math.abs(dx)) return null;
+  return dy < 0 ? "arriba" : "abajo";
 }

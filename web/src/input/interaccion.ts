@@ -1,11 +1,22 @@
 // Controlador de interacción con las manos: recibe frames con landmarks y emite
-// eventos de alto nivel (gesto estable, deslizar, puntero y selección por permanencia).
+// eventos de alto nivel (gesto estable, deslizar, puntero, selección por permanencia y,
+// como experimentales, modo dormido/despierto, arrastre con pinza, menú radial y cabeza).
 // No depende de MediaPipe ni del DOM: se puede probar con datos sintéticos.
 
+import { DetectorCabeza, type OpcionesCabeza } from "./cabeza.ts";
 import { FiltroOneEuro } from "./filtro.ts";
 import { aplicarHomografia, distancia2D, homografiaDocumento, media } from "./geometria.ts";
 import { clasificarPose, UMBRALES_POR_DEFECTO, type Umbrales } from "./poses.ts";
-import { P, type Esquinas, type EventoManos, type FrameManos, type Gesto, type Mano, type Punto } from "./tipos.ts";
+import {
+  P,
+  type Esquinas,
+  type EventoManos,
+  type FrameManos,
+  type Gesto,
+  type Mano,
+  type Punto,
+  type SectorMenu,
+} from "./tipos.ts";
 
 export interface OpcionesInteraccion {
   /** Tiempo que una pose debe mantenerse (y la mano quieta) para emitirse. */
@@ -24,13 +35,29 @@ export interface OpcionesInteraccion {
   permanenciaMs: number;
   /** Radio de quietud del puntero para la permanencia (unidades de alto de imagen). */
   radioPermanencia: number;
-  /** Intervalo mínimo entre eventos de puntero (limita el tráfico por WebSocket). */
+  /** Intervalo mínimo entre eventos de puntero y de arrastre (limita el tráfico). */
   intervaloPunteroMs: number;
   /** Adelanto del puntero más allá de la punta del índice, en longitudes de la última falange. */
   adelantoPuntero: number;
   /** true si la cámara mira al usuario (las direcciones se dan desde su punto de vista). */
   espejo: boolean;
   umbrales: Umbrales;
+
+  // ---- Experimentales ----
+  /** Si es true, se ignoran los gestos hasta "despertar" con la palma abierta mantenida. */
+  requiereDespertar: boolean;
+  /** Tiempo con la palma abierta y quieta para despertar. */
+  despertarMs: number;
+  /** Tiempo sin actividad para volver a dormir. */
+  dormirMs: number;
+  /** Distancia desde el centro del menú radial para resaltar un sector (alto de imagen). */
+  radioMenu: number;
+  /** Tiempo en un sector del menú para elegirlo. */
+  elegirMenuMs: number;
+  /** El menú se cierra solo tras este tiempo. */
+  caducidadMenuMs: number;
+  /** Opciones del detector de gestos de cabeza. */
+  cabeza: Partial<OpcionesCabeza>;
 }
 
 export const OPCIONES_POR_DEFECTO: OpcionesInteraccion = {
@@ -46,12 +73,51 @@ export const OPCIONES_POR_DEFECTO: OpcionesInteraccion = {
   adelantoPuntero: 0.5,
   espejo: true,
   umbrales: UMBRALES_POR_DEFECTO,
+  requiereDespertar: false,
+  despertarMs: 1000,
+  dormirMs: 10000,
+  radioMenu: 0.08,
+  elegirMenuMs: 600,
+  caducidadMenuMs: 5000,
+  cabeza: {},
+};
+
+/** Perfil para movilidad reducida o temblor: gestos más lentos y tolerantes. */
+export const PERFIL_MOVILIDAD_REDUCIDA: Partial<OpcionesInteraccion> = {
+  duracionGestoMs: 600,
+  quietudGesto: 0.1,
+  permanenciaMs: 1500,
+  radioPermanencia: 0.045,
+  distanciaDeslizar: 0.15,
+  ventanaDeslizarMs: 700,
+  despertarMs: 1500,
+  elegirMenuMs: 1000,
+  caducidadMenuMs: 8000,
 };
 
 type Oyente = (e: EventoManos) => void;
 
+interface EstadoMenu {
+  centro: Punto; // imagen, sin aspecto (para dibujar)
+  centroA: Punto; // con x corregida por aspecto
+  tApertura: number;
+  sector: SectorMenu | null;
+  tSector: number;
+}
+
+interface EstadoArrastre {
+  inicio: Punto; // con x corregida por aspecto
+  tUltimaPinza: number;
+  tUltimoEvento: number;
+  dx: number;
+  dy: number;
+}
+
+/** Eventos que cuentan como actividad (mantienen despierto el sistema). */
+const ACTIVIDAD = new Set<EventoManos["tipo"]>(["gesto", "deslizar", "seleccion", "arrastre", "menu", "cabeza"]);
+
 export class InteraccionManos {
-  readonly op: OpcionesInteraccion;
+  private op: OpcionesInteraccion;
   private oyentes = new Set<Oyente>();
   private homografia: number[] | null = null;
 
@@ -80,13 +146,36 @@ export class InteraccionManos {
   private seleccionHecha = false;
   private ultimoPuntero: Punto | null = null;
 
+  // Experimentales
+  private despierto = true;
+  private tActividad = 0;
+  private tInicioDespertar: number | null = null;
+  private posDespertar: Punto = { x: 0, y: 0 };
+  private menu: EstadoMenu | null = null;
+  private arrastre: EstadoArrastre | null = null;
+  private cabeza: DetectorCabeza;
+
   constructor(op: Partial<OpcionesInteraccion> = {}) {
     this.op = { ...OPCIONES_POR_DEFECTO, ...op };
+    this.despierto = !this.op.requiereDespertar;
+    this.cabeza = new DetectorCabeza(this.op.cabeza);
   }
 
   on(oyente: Oyente): () => void {
     this.oyentes.add(oyente);
     return () => this.oyentes.delete(oyente);
+  }
+
+  /** Cambia opciones en caliente (p. ej. activar el perfil de movilidad reducida). */
+  configurar(op: Partial<OpcionesInteraccion>): void {
+    const antes = this.op.requiereDespertar;
+    this.op = { ...this.op, ...op };
+    if (op.cabeza) this.cabeza = new DetectorCabeza(this.op.cabeza);
+    if (antes !== this.op.requiereDespertar) this.despierto = !this.op.requiereDespertar;
+  }
+
+  get opciones(): Readonly<OpcionesInteraccion> {
+    return this.op;
   }
 
   /** Esquinas del documento en la imagen (las da B1), o null si no hay documento. */
@@ -107,15 +196,41 @@ export class InteraccionManos {
     return this.ultimoPuntero;
   }
 
+  get estaDespierto(): boolean {
+    return this.despierto;
+  }
+
+  /** Progreso [0,1] de la palma mantenida para despertar (para mostrar una barra). */
+  progresoDespertar(t: number): number {
+    if (this.despierto || this.tInicioDespertar === null) return 0;
+    return Math.min(1, (t - this.tInicioDespertar) / this.op.despertarMs);
+  }
+
+  get menuAbierto(): { centro: Punto; sector: SectorMenu | null } | null {
+    return this.menu ? { centro: this.menu.centro, sector: this.menu.sector } : null;
+  }
+
+  get arrastrando(): { dx: number; dy: number } | null {
+    return this.arrastre ? { dx: this.arrastre.dx, dy: this.arrastre.dy } : null;
+  }
+
   procesar(frame: FrameManos): void {
     const { t } = frame;
     const aspecto = frame.aspecto ?? 1;
-    const mano = elegirMano(frame.manos);
 
+    this.procesarCabeza(t, frame);
+
+    if (this.despierto && this.op.requiereDespertar && t - this.tActividad > this.op.dormirMs) {
+      this.dormir(t);
+    }
+
+    const mano = elegirMano(frame.manos);
     if (!mano) {
       this.poseActual = "ninguno";
       if (this.presente && t - this.tUltimaMano > this.op.perdidaManoMs) {
         this.presente = false;
+        this.terminarArrastre(t);
+        this.cerrarMenu(t);
         this.reiniciarSeguimiento();
         if (this.gestoEstable !== "ninguno") {
           this.gestoEstable = "ninguno";
@@ -136,33 +251,50 @@ export class InteraccionManos {
     this.poseActual = pose;
     const centro = centroPalma(mano, aspecto);
 
+    if (!this.despierto) {
+      this.intentarDespertar(t, pose, centro);
+      return;
+    }
+    if (this.menu) {
+      this.actualizarMenu(t, pose, centro);
+      return;
+    }
+    if (this.actualizarArrastre(t, pose, centro)) return;
+
     const deslizo = this.detectarDeslizar(t, centro, pose, aspecto);
-    if (!deslizo) this.estabilizarGesto(t, pose, centro);
+    if (!deslizo) this.estabilizarGesto(t, pose, centro, mano, aspecto);
     this.actualizarPuntero(t, mano, pose, aspecto);
   }
 
-  private estabilizarGesto(t: number, pose: Gesto, centro: Punto): void {
+  // ---------- Gestos estables ----------
+
+  private estabilizarGesto(t: number, pose: Gesto, centro: Punto, mano: Mano, aspecto: number): void {
     if (t - this.tUltimoDeslizar < this.op.esperaDeslizarMs) {
       // Tras deslizar, la mano sigue abierta: no lo confundimos con "palma".
-      this.candidato = pose;
-      this.tCandidato = t;
-      this.posCandidato = centro;
+      this.reiniciarCandidato(t, pose, centro);
       return;
     }
     // Se exige la mano quieta para que un movimiento (p. ej. deslizar) no dispare gestos.
     // "senalar" es la excepción: al señalar, la mano se mueve a propósito.
     const movido = pose !== "senalar" && distancia2D(centro, this.posCandidato) > this.op.quietudGesto;
     if (pose !== this.candidato || movido) {
-      this.candidato = pose;
-      this.tCandidato = t;
-      this.posCandidato = centro;
+      this.reiniciarCandidato(t, pose, centro);
       return;
     }
     if (t - this.tCandidato >= this.op.duracionGestoMs && this.candidato !== this.gestoEstable) {
       this.gestoEstable = this.candidato;
       this.emitir({ tipo: "gesto", gesto: this.gestoEstable, t });
+      if (this.gestoEstable === "victoria") this.abrirMenu(t, mano, aspecto);
     }
   }
+
+  private reiniciarCandidato(t: number, pose: Gesto, centro: Punto): void {
+    this.candidato = pose;
+    this.tCandidato = t;
+    this.posCandidato = centro;
+  }
+
+  // ---------- Deslizar ----------
 
   private detectarDeslizar(t: number, centro: Punto, pose: Gesto, aspecto: number): boolean {
     if (pose === "senalar" || pose === "pinza") {
@@ -190,6 +322,8 @@ export class InteraccionManos {
     this.emitir({ tipo: "deslizar", direccion, t });
     return true;
   }
+
+  // ---------- Puntero ----------
 
   private actualizarPuntero(t: number, mano: Mano, pose: Gesto, aspecto: number): void {
     if (pose === "senalar") this.tUltimoSenalar = t;
@@ -242,6 +376,141 @@ export class InteraccionManos {
     return d;
   }
 
+  // ---------- Experimental: dormido / despierto ----------
+
+  private intentarDespertar(t: number, pose: Gesto, centro: Punto): void {
+    const quieta = distancia2D(centro, this.posDespertar) <= this.op.quietudGesto;
+    if (pose !== "palma") {
+      this.tInicioDespertar = null;
+      return;
+    }
+    if (this.tInicioDespertar === null || !quieta) {
+      this.tInicioDespertar = t;
+      this.posDespertar = centro;
+      return;
+    }
+    if (t - this.tInicioDespertar >= this.op.despertarMs) this.despertar(t, "palma");
+  }
+
+  private despertar(t: number, poseActual: Gesto): void {
+    this.despierto = true;
+    this.tInicioDespertar = null;
+    this.tActividad = t;
+    // La palma con la que se despierta no debe disparar además "pausar".
+    this.gestoEstable = poseActual;
+    this.candidato = poseActual;
+    this.tCandidato = t;
+    this.emitir({ tipo: "modo", despierto: true, t });
+  }
+
+  private dormir(t: number): void {
+    this.despierto = false;
+    this.terminarArrastre(t);
+    this.cerrarMenu(t);
+    this.reiniciarSeguimiento();
+    this.gestoEstable = "ninguno";
+    this.emitir({ tipo: "modo", despierto: false, t });
+  }
+
+  // ---------- Experimental: arrastre con pinza ----------
+
+  /** Devuelve true si el frame lo ha consumido el arrastre. */
+  private actualizarArrastre(t: number, pose: Gesto, centro: Punto): boolean {
+    if (pose === "pinza") {
+      if (!this.arrastre) {
+        this.arrastre = { inicio: centro, tUltimaPinza: t, tUltimoEvento: t, dx: 0, dy: 0 };
+        this.ultimoPuntero = null;
+        this.emitir({ tipo: "arrastre", fase: "inicio", dx: 0, dy: 0, t });
+        return true;
+      }
+      const a = this.arrastre;
+      a.tUltimaPinza = t;
+      const dxImagen = centro.x - a.inicio.x;
+      a.dx = this.op.espejo ? -dxImagen : dxImagen;
+      a.dy = centro.y - a.inicio.y;
+      if (t - a.tUltimoEvento >= this.op.intervaloPunteroMs) {
+        a.tUltimoEvento = t;
+        this.emitir({ tipo: "arrastre", fase: "mover", dx: a.dx, dy: a.dy, t });
+      }
+      return true;
+    }
+    if (this.arrastre) {
+      // Toleramos fallos breves de la clasificación al mover la mano pinzada.
+      if (t - this.arrastre.tUltimaPinza <= 200) return true;
+      this.terminarArrastre(t);
+      this.reiniciarCandidato(t, pose, centro);
+    }
+    return false;
+  }
+
+  private terminarArrastre(t: number): void {
+    if (!this.arrastre) return;
+    const { dx, dy } = this.arrastre;
+    this.arrastre = null;
+    this.emitir({ tipo: "arrastre", fase: "fin", dx, dy, t });
+  }
+
+  // ---------- Experimental: menú radial ----------
+
+  private abrirMenu(t: number, mano: Mano, aspecto: number): void {
+    const centroA = centroPalma(mano, aspecto);
+    const centro = { x: centroA.x / aspecto, y: centroA.y };
+    this.menu = { centro, centroA, tApertura: t, sector: null, tSector: t };
+    this.ultimoPuntero = null;
+    this.emitir({ tipo: "menu", fase: "abrir", sector: null, centro, t });
+  }
+
+  private actualizarMenu(t: number, pose: Gesto, centro: Punto): void {
+    const m = this.menu!;
+    if (t - m.tApertura > this.op.caducidadMenuMs) {
+      this.cerrarMenu(t);
+      return;
+    }
+    const dxImagen = centro.x - m.centroA.x;
+    const dx = this.op.espejo ? -dxImagen : dxImagen;
+    const dy = centro.y - m.centroA.y;
+    let sector: SectorMenu | null = null;
+    if (Math.hypot(dx, dy) >= this.op.radioMenu) {
+      sector = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "derecha" : "izquierda") : dy > 0 ? "abajo" : "arriba";
+    }
+    if (sector !== m.sector) {
+      m.sector = sector;
+      m.tSector = t;
+      this.emitir({ tipo: "menu", fase: "resaltar", sector, centro: m.centro, t });
+      return;
+    }
+    if (sector && t - m.tSector >= this.op.elegirMenuMs) {
+      this.menu = null;
+      this.emitir({ tipo: "menu", fase: "elegir", sector, centro: m.centro, t });
+      // Hay que cambiar de pose antes de volver a abrir el menú.
+      this.gestoEstable = pose;
+      this.reiniciarCandidato(t, pose, centro);
+    }
+  }
+
+  private cerrarMenu(t: number): void {
+    if (!this.menu) return;
+    const { centro } = this.menu;
+    this.menu = null;
+    this.emitir({ tipo: "menu", fase: "cerrar", sector: null, centro, t });
+  }
+
+  // ---------- Experimental: cabeza ----------
+
+  private procesarCabeza(t: number, frame: FrameManos): void {
+    if (frame.cara === undefined) return; // detección de cara desactivada
+    const g = this.cabeza.procesar(t, frame.cara);
+    if (!g) return;
+    if (!this.despierto) {
+      // Para quien no puede usar las manos: asentir también despierta.
+      if (g === "asentir") this.despertar(t, this.poseActual);
+      return;
+    }
+    this.emitir({ tipo: "cabeza", gesto: g, t });
+  }
+
+  // ---------- Utilidades ----------
+
   private reiniciarSeguimiento(): void {
     this.candidato = "ninguno";
     this.historial = [];
@@ -249,11 +518,13 @@ export class InteraccionManos {
     this.ultimoPuntero = null;
     this.ancla = null;
     this.seleccionHecha = false;
+    this.tInicioDespertar = null;
     this.fx.reiniciar();
     this.fy.reiniciar();
   }
 
   private emitir(e: EventoManos): void {
+    if (ACTIVIDAD.has(e.tipo)) this.tActividad = e.t;
     for (const o of this.oyentes) o(e);
   }
 }

@@ -1,16 +1,18 @@
-// Envoltorio de MediaPipe HandLandmarker: lee frames de un <video> y entrega FrameManos.
-// Es la única parte del módulo que depende del navegador y de MediaPipe.
+// Envoltorio de MediaPipe (HandLandmarker y, opcional, FaceLandmarker): lee frames de un <video>
+// y entrega FrameManos. Es la única parte del módulo que depende del navegador y de MediaPipe.
 //
 // MediaPipe se carga en tiempo de ejecución desde una URL (por defecto, jsDelivr) para no
 // depender todavía del package.json del frontend (lo crea T2). Cuando exista, se puede
 // pasar `cargarVision: () => import("@mediapipe/tasks-vision")`.
 
-import type { FrameManos, Mano } from "./tipos.ts";
+import type { Cara, FrameManos, Mano } from "./tipos.ts";
 
 export const VERSION_MEDIAPIPE = "0.10.21";
 export const BASE_MEDIAPIPE = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${VERSION_MEDIAPIPE}`;
 export const MODELO_MANOS =
   "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
+export const MODELO_CARA =
+  "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
 
 // Tipos mínimos de la API de MediaPipe que usamos.
 interface LandmarkMP {
@@ -18,45 +20,61 @@ interface LandmarkMP {
   y: number;
   z: number;
 }
-interface ResultadoMP {
+interface ResultadoManosMP {
   landmarks: LandmarkMP[][];
   worldLandmarks: LandmarkMP[][];
   handedness: { categoryName: string; score: number }[][];
 }
-interface HandLandmarkerMP {
-  detectForVideo(video: HTMLVideoElement, t: number): ResultadoMP;
+interface ResultadoCaraMP {
+  faceLandmarks: LandmarkMP[][];
+  faceBlendshapes?: { categories: { categoryName: string; score: number }[] }[];
+}
+interface DetectorMP<R> {
+  detectForVideo(video: HTMLVideoElement, t: number): R;
   close(): void;
+}
+interface FabricaMP<R> {
+  createFromOptions(fileset: unknown, opciones: Record<string, unknown>): Promise<DetectorMP<R>>;
 }
 interface ModuloVisionMP {
   FilesetResolver: { forVisionTasks(rutaWasm: string): Promise<unknown> };
-  HandLandmarker: {
-    createFromOptions(fileset: unknown, opciones: Record<string, unknown>): Promise<HandLandmarkerMP>;
-  };
+  HandLandmarker: FabricaMP<ResultadoManosMP>;
+  FaceLandmarker: FabricaMP<ResultadoCaraMP>;
 }
 
 export interface OpcionesRastreador {
   /** Carpeta con `vision_bundle.mjs` y `wasm/`. */
   baseMediapipe: string;
   modelo: string;
+  modeloCara: string;
   cargarVision?: () => Promise<ModuloVisionMP>;
   numManos: number;
   /** Límite de frames por segundo analizados (ahorra CPU y batería). */
   fpsMax: number;
   delegado: "GPU" | "CPU";
+  /** Activar desde el principio la detección de cara (gestos de cabeza, experimental). */
+  cara: boolean;
+  /** Analizar la cara solo uno de cada N frames (la cabeza se mueve despacio; ahorra CPU). */
+  caraCadaN: number;
 }
 
 const POR_DEFECTO: OpcionesRastreador = {
   baseMediapipe: BASE_MEDIAPIPE,
   modelo: MODELO_MANOS,
+  modeloCara: MODELO_CARA,
   numManos: 1,
   fpsMax: 30,
   delegado: "GPU",
+  cara: false,
+  caraCadaN: 2,
 };
 
 export interface Rastreador {
   detener(): void;
-  /** Recrea el detector (p. ej. tras cambiar de cámara). */
+  /** Recrea los detectores (p. ej. tras cambiar de cámara). */
   reiniciar(): Promise<void>;
+  /** Activa o desactiva la detección de cara (el modelo se descarga la primera vez). */
+  activarCara(activa: boolean): Promise<void>;
   /** Frames analizados por segundo (media reciente). */
   readonly fps: number;
 }
@@ -72,16 +90,14 @@ export async function crearRastreador(
     : await import(/* @vite-ignore */ `${o.baseMediapipe}/vision_bundle.mjs`);
   const fileset = await vision.FilesetResolver.forVisionTasks(`${o.baseMediapipe}/wasm`);
 
-  const crear = (delegate: "GPU" | "CPU") =>
-    vision.HandLandmarker.createFromOptions(fileset, {
-      baseOptions: { modelAssetPath: o.modelo, delegate },
-      runningMode: "VIDEO",
-      numHands: o.numManos,
-      minHandDetectionConfidence: 0.5,
-      minHandPresenceConfidence: 0.5,
-      minTrackingConfidence: 0.5,
-    });
-  const crearConRespaldo = async (): Promise<HandLandmarkerMP> => {
+  // Crea un detector con GPU y, si falla, con CPU.
+  async function conRespaldo<R>(fabrica: FabricaMP<R>, opciones: Record<string, unknown>, modelo: string) {
+    const crear = (delegate: "GPU" | "CPU") =>
+      fabrica.createFromOptions(fileset, {
+        baseOptions: { modelAssetPath: modelo, delegate },
+        runningMode: "VIDEO",
+        ...opciones,
+      });
     try {
       return await crear(o.delegado);
     } catch (e) {
@@ -89,8 +105,26 @@ export async function crearRastreador(
       console.warn("MediaPipe: GPU no disponible, se usa CPU", e);
       return await crear("CPU");
     }
-  };
-  let detector: HandLandmarkerMP | null = await crearConRespaldo();
+  }
+  const crearManos = () =>
+    conRespaldo(
+      vision.HandLandmarker,
+      {
+        numHands: o.numManos,
+        minHandDetectionConfidence: 0.5,
+        minHandPresenceConfidence: 0.5,
+        minTrackingConfidence: 0.5,
+      },
+      o.modelo,
+    );
+  const crearCara = () =>
+    conRespaldo(vision.FaceLandmarker, { numFaces: 1, outputFaceBlendshapes: true }, o.modeloCara);
+
+  let manos: DetectorMP<ResultadoManosMP> | null = await crearManos();
+  let cara: DetectorMP<ResultadoCaraMP> | null = o.cara ? await crearCara() : null;
+  let caraActiva = o.cara;
+  let ultimaCara: Cara | null = null;
+  let nFrame = 0;
 
   let activo = true;
   let tUltimo = -Infinity;
@@ -104,11 +138,14 @@ export async function crearRastreador(
   const recrear = (): Promise<void> => {
     // Si ya se está recreando, no abrimos un segundo detector.
     recreando ??= (async () => {
-      const viejo = detector;
-      detector = null;
-      viejo?.close();
+      const [viejoManos, viejoCara] = [manos, cara];
+      manos = null;
+      cara = null;
+      viejoManos?.close();
+      viejoCara?.close();
       try {
-        detector = await crearConRespaldo();
+        manos = await crearManos();
+        if (caraActiva) cara = await crearCara();
       } finally {
         recreando = null;
       }
@@ -122,7 +159,7 @@ export async function crearRastreador(
     if (!activo) return;
     requestAnimationFrame(paso);
     const t = performance.now();
-    if (!detector || video.readyState < 2 || video.videoWidth === 0 || t - tUltimo < intervalo) return;
+    if (!manos || video.readyState < 2 || video.videoWidth === 0 || t - tUltimo < intervalo) return;
 
     const dims = `${video.videoWidth}x${video.videoHeight}`;
     if (dims !== dimensiones) {
@@ -140,25 +177,41 @@ export async function crearRastreador(
       fps = fps === 0 ? instantaneo : 0.9 * fps + 0.1 * instantaneo;
     }
     tUltimo = t;
-    const r = detector.detectForVideo(video, t);
-    alFrame(convertir(r, t, video.videoWidth / video.videoHeight));
+    nFrame++;
+    const frame = convertirManos(manos.detectForVideo(video, t), t, video.videoWidth / video.videoHeight);
+    if (caraActiva) {
+      if (cara && nFrame % o.caraCadaN === 0) ultimaCara = convertirCara(cara.detectForVideo(video, t));
+      frame.cara = ultimaCara;
+    }
+    alFrame(frame);
   };
   requestAnimationFrame(paso);
 
   return {
     detener() {
       activo = false;
-      detector?.close();
-      detector = null;
+      manos?.close();
+      cara?.close();
+      manos = null;
+      cara = null;
     },
     reiniciar: recrear,
+    async activarCara(activa: boolean) {
+      caraActiva = activa;
+      ultimaCara = null;
+      if (activa && !cara) cara = await crearCara();
+      if (!activa && cara) {
+        cara.close();
+        cara = null;
+      }
+    },
     get fps() {
       return fps;
     },
   };
 }
 
-function convertir(r: ResultadoMP, t: number, aspecto: number): FrameManos {
+function convertirManos(r: ResultadoManosMP, t: number, aspecto: number): FrameManos {
   const manos: Mano[] = r.landmarks.map((puntos, i) => ({
     puntos: puntos.map(({ x, y, z }) => ({ x, y, z })),
     puntosMundo: r.worldLandmarks[i]?.map(({ x, y, z }) => ({ x, y, z })),
@@ -166,4 +219,12 @@ function convertir(r: ResultadoMP, t: number, aspecto: number): FrameManos {
     confianza: r.handedness[i]?.[0]?.score,
   }));
   return { t, manos, aspecto };
+}
+
+function convertirCara(r: ResultadoCaraMP): Cara | null {
+  const puntos = r.faceLandmarks[0];
+  if (!puntos) return null;
+  const expresiones: Record<string, number> = {};
+  for (const c of r.faceBlendshapes?.[0]?.categories ?? []) expresiones[c.categoryName] = c.score;
+  return { puntos: puntos.map(({ x, y, z }) => ({ x, y, z })), expresiones };
 }
