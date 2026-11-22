@@ -53,6 +53,8 @@ interface GoBindings {
   SetGesturesActive(on: boolean): Promise<void>
   SetCompact(on: boolean): Promise<void>
   SetScreenOverlay(on: boolean): Promise<void>
+  /** The see-through layer over the whole screen (true) or a normal window (false). */
+  SetLayer(on: boolean): Promise<void>
   MoveBubble(): Promise<void>
   OpenFileForReading(): Promise<string>
   PDFPage(id: string, page: number): Promise<string>
