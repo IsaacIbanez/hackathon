@@ -37,7 +37,6 @@ const (
 
 type overlayState struct {
 	mu       sync.Mutex
-	visible  bool
 	hotkey   string
 	hotkeyOK bool
 	keypad   []KeypadKey
@@ -46,25 +45,19 @@ type overlayState struct {
 	padOn    bool   // keypad plugged in and read directly
 	reading  *overlay.ReadingService
 	// Gesture Control (role C) runs inside this app: its camera page is option 1 and its actions
-	// go through GestureCall, with no separate program, port or token.
-	gestures   *control.Server
-	gesturesOn bool // option 1 is showing the camera
-	compact    bool // shrunk to a camera bubble in a corner instead of hidden
-	screen     bool // from the bubble: see-through over the whole screen while the gesture menu is open
-	leftCorner bool // the bubble sits in the bottom-left corner (it dodges the gesture cursor)
-	// The program that was active before the full-screen menu: it gets the focus back afterwards,
-	// so the gestures' keys (Enter, shortcuts) go to it and not to this window.
-	before uintptr
-	bubble bool // shrunk to the summary bubble next to the pointer (option 4, app_summary.go)
-	// layer: the overlay covers the whole screen as a see-through layer (the menu and the reading
-	// options, docs/DISENO.md); false for Gesture Control, whose clicks must reach the programs below.
-	layer bool
+	// go through GestureCall, with no separate program, port or token. Whether the overlay is open,
+	// a layer, a bubble… is not here: it is the window's shape (app_window.go).
+	gestures *control.Server
 }
 
 // startOverlay registers the shortcut; the window starts visible so the person sees it once.
 func (a *App) startOverlay(ctx context.Context) {
 	o := &a.overlay
-	o.visible = true
+	// main.go opens the window as a normal window: the menu view asks for the layer right away.
+	a.window.mu.Lock()
+	a.window.in.open = true
+	a.window.shape = shapeWindow
+	a.window.mu.Unlock()
 	o.reading = overlay.NewReadingService()
 	o.gestures = newGestureControl()
 	h, err := overlay.HotkeyFromEnv()
@@ -135,18 +128,9 @@ func (a *App) keypadPressed(ctx context.Context, action overlay.KeypadAction) {
 		a.toggleOverlay(ctx)
 		return
 	}
-	o := &a.overlay
-	o.mu.Lock()
-	// From the gestures' camera bubble, a keypad key brings the full window back first.
-	bubble := o.gesturesOn && o.compact
-	show := !o.visible || !overlay.ForegroundIsOurs()
-	o.visible = true
-	o.mu.Unlock()
-	if bubble {
-		a.setCompact(ctx, false)
-	} else if show {
-		a.showOverlay(ctx)
-	}
+	// The overlay comes back as it was (from the bubble, hidden or covered) and runs the action.
+	raise := !overlay.ForegroundIsOurs()
+	a.setWindow(func(in *windowInputs) { in.open = true; in.summary = false }, raise)
 	wruntime.EventsEmit(ctx, "overlay:keypad", string(action))
 }
 
@@ -167,70 +151,25 @@ func (a *App) toggleOverlay(ctx context.Context) {
 	// Remember the program in front before the overlay takes the focus: option 4 copies its
 	// selected text.
 	overlay.RememberTarget()
-	o := &a.overlay
-	o.mu.Lock()
-	if o.bubble { // the summary bubble is open: the shortcut closes it
-		o.mu.Unlock()
+	in := a.currentInputs()
+	if in.summary { // the summary bubble is open: the shortcut closes it
 		a.CloseSummary()
 		return
 	}
-	if o.gesturesOn {
-		// With the gestures on, the window is never hidden (a hidden page would pause the camera):
-		// the shortcut switches between the full overlay and the camera bubble.
-		compact := !o.compact
-		o.mu.Unlock()
-		a.setCompact(ctx, compact)
+	// Open and in front: hide it (to the camera bubble if the gestures are on). Hidden, in the
+	// bubble or covered by another window: bring it to the front as it was.
+	if in.open && overlay.ForegroundIsOurs() {
+		a.setWindow(func(in *windowInputs) { in.open = false }, false)
 		return
 	}
-	// Open but covered by another window: bring it to the front instead of hiding it.
-	show := !o.visible || !overlay.ForegroundIsOurs()
-	o.visible = show
-	o.mu.Unlock()
-	if show {
-		a.showOverlay(ctx)
-	} else {
-		wruntime.EventsEmit(ctx, "overlay:hidden")
-		wruntime.WindowHide(ctx)
-	}
+	a.setWindow(func(in *windowInputs) { in.open = true }, true)
 }
 
-func (a *App) showOverlay(ctx context.Context) {
-	a.overlay.mu.Lock()
-	layer := a.overlay.layer && !a.overlay.compact && !a.overlay.bubble
-	a.overlay.mu.Unlock()
-	wruntime.WindowShow(ctx)
-	wruntime.WindowUnminimise(ctx)
-	if layer {
-		wruntime.WindowFullscreen(ctx)
-	} else {
-		wruntime.WindowCenter(ctx)
-	}
-	wruntime.WindowSetAlwaysOnTop(ctx, true)
-	wruntime.EventsEmit(ctx, "overlay:shown")
-}
-
-// SetLayer makes the overlay a see-through layer over the whole screen (true: the menu and the
-// reading options, like Xbox Game Bar) or a normal window (false: Gesture Control, whose clicks
-// must reach the programs below, and its camera bubble). The UI calls it when the view changes.
+// SetLayer: the current view wants the see-through layer over the whole screen (true: the menu and
+// the reading options, like Xbox Game Bar) or a normal window (false: Gesture Control, whose clicks
+// must reach the programs below). The UI calls it when the view changes.
 func (a *App) SetLayer(on bool) {
-	o := &a.overlay
-	o.mu.Lock()
-	o.layer = on
-	apply := o.visible && !o.compact && !o.bubble && !o.screen
-	o.mu.Unlock()
-	if !apply {
-		return // applied the next time the window is shown
-	}
-	ctx := a.ctx
-	if on {
-		wruntime.WindowFullscreen(ctx)
-		return
-	}
-	if wruntime.WindowIsFullscreen(ctx) {
-		wruntime.WindowUnfullscreen(ctx)
-	}
-	wruntime.WindowSetSize(ctx, overlayWidth, overlayHeight)
-	wruntime.WindowCenter(ctx)
+	a.setWindow(func(in *windowInputs) { in.layer = on }, false)
 }
 
 // OverlayInfo tells the UI how the overlay is opened.
@@ -266,26 +205,18 @@ func toJSON(v any) string {
 	return string(b)
 }
 
-// HideOverlay hides the window (the shortcut shows it again). Without a working shortcut it only
+// HideOverlay hides the overlay: to the camera bubble while the gestures are on, otherwise out of
+// sight (the shortcut shows it again). Without any way back (no shortcut, no gestures) it only
 // minimises, so the window can't get lost.
 func (a *App) HideOverlay() {
-	o := &a.overlay
-	o.mu.Lock()
-	gestures := o.gesturesOn
-	o.mu.Unlock()
-	if gestures {
-		a.setCompact(a.ctx, true)
-		return
-	}
-	if !o.hotkeyOK {
+	a.overlay.mu.Lock()
+	hotkeyOK := a.overlay.hotkeyOK
+	a.overlay.mu.Unlock()
+	if !hotkeyOK && !a.currentInputs().gestures {
 		wruntime.WindowMinimise(a.ctx)
 		return
 	}
-	o.mu.Lock()
-	o.visible = false
-	o.mu.Unlock()
-	wruntime.EventsEmit(a.ctx, "overlay:hidden")
-	wruntime.WindowHide(a.ctx)
+	a.setWindow(func(in *windowInputs) { in.open = false }, false)
 }
 
 // Quit closes the app (and the helper processes it started).
@@ -441,61 +372,28 @@ func (a *App) GestureCall(method, path, body string) string {
 	}{code, out})
 }
 
-// SetGesturesActive tells Go that option 1 is using the camera (true) or has stopped (false).
-// While it is on, hiding the overlay shrinks it to a camera bubble instead.
+// SetGesturesActive tells Go that the gesture engine is using the camera (true) or has stopped
+// (false: PDF Scanner borrowed the camera). While it is on, a hidden overlay stays as a camera bubble.
 func (a *App) SetGesturesActive(on bool) {
-	o := &a.overlay
-	o.mu.Lock()
-	o.gesturesOn = on
-	compact := o.compact
-	o.mu.Unlock()
-	if !on && compact {
-		a.setCompact(a.ctx, false)
-	}
+	a.setWindow(func(in *windowInputs) {
+		in.gestures = on
+		if !on {
+			in.gestureScreen = false
+		}
+	}, false)
 }
 
-// SetCompact shrinks the window to a small camera bubble in the bottom-right corner (true), or
-// brings back the full overlay (false).
-func (a *App) SetCompact(on bool) { a.setCompact(a.ctx, on) }
+// SetCompact(true) hides the overlay to the camera bubble ("Shrink to a camera bubble", M);
+// SetCompact(false) brings the overlay back as it was (a double click on the bubble).
+func (a *App) SetCompact(on bool) {
+	a.setWindow(func(in *windowInputs) { in.open = !on }, !on)
+}
 
 const (
 	compactWidth  = 360
 	compactHeight = 240
 	compactMargin = 24
 )
-
-func (a *App) setCompact(ctx context.Context, on bool) {
-	o := &a.overlay
-	o.mu.Lock()
-	o.compact = on
-	o.visible = true
-	wasScreen := o.screen
-	o.screen = false
-	o.mu.Unlock()
-	// Out of the full-screen gesture menu or of the full-screen layer (docs/DISENO.md).
-	if wasScreen || wruntime.WindowIsFullscreen(ctx) {
-		wruntime.WindowUnfullscreen(ctx)
-	}
-	wruntime.WindowShow(ctx)
-	wruntime.WindowUnminimise(ctx)
-	wruntime.WindowSetAlwaysOnTop(ctx, true)
-	if on {
-		wruntime.WindowSetSize(ctx, compactWidth, compactHeight)
-		a.placeBubble(ctx)
-		wruntime.EventsEmit(ctx, "overlay:compact")
-		return
-	}
-	wruntime.WindowSetSize(ctx, overlayWidth, overlayHeight)
-	wruntime.WindowCenter(ctx)
-	o.mu.Lock()
-	layer := o.layer
-	o.mu.Unlock()
-	if layer { // back to the full-screen layer of the screen that was open
-		wruntime.WindowFullscreen(ctx)
-	}
-	wruntime.EventsEmit(ctx, "overlay:expanded")
-	wruntime.EventsEmit(ctx, "overlay:shown")
-}
 
 func currentScreen(ctx context.Context) (int, int) {
 	screens, err := wruntime.ScreenGetAll(ctx)
@@ -529,51 +427,18 @@ func keepCameraRunning() {
 	_ = os.Setenv(env, "--disable-background-timer-throttling --disable-renderer-backgrounding --disable-backgrounding-occluded-windows")
 }
 
-// SetScreenOverlay, from the camera bubble or the normal window, spreads the window over the whole screen with a
-// see-through page (true): the gesture menu and the volume/brightness control show on top of what
-// is open, with the camera small in a corner. false goes back to the bubble. The window covers the
-// screen only while the menu or the level control is in use — when the mouse is not needed — so it
-// never takes the clicks meant for other programs.
+// SetScreenOverlay: the gesture menu or the volume/brightness control is open (true) or closed
+// (false). While open the window spreads see-through over the whole screen, with the camera small
+// in a corner; when it closes the window goes back to exactly the shape it had (app_window.go).
 func (a *App) SetScreenOverlay(on bool) {
-	o := &a.overlay
-	o.mu.Lock()
-	if o.screen == on {
-		o.mu.Unlock()
-		return
-	}
-	o.screen = on
-	compact := o.compact
-	if on {
-		o.before = overlay.OtherForeground()
-	}
-	before := o.before
-	o.mu.Unlock()
-	ctx := a.ctx
-	if on {
-		wruntime.WindowSetAlwaysOnTop(ctx, true)
-		wruntime.WindowFullscreen(ctx)
-		wruntime.EventsEmit(ctx, "overlay:screen")
-		return
-	}
-	wruntime.WindowUnfullscreen(ctx)
-	if !compact {
-		// Opened from the normal window: back to it.
-		wruntime.WindowSetSize(ctx, overlayWidth, overlayHeight)
-		wruntime.WindowCenter(ctx)
-		wruntime.EventsEmit(ctx, "overlay:expanded")
-		return
-	}
-	wruntime.WindowSetSize(ctx, compactWidth, compactHeight)
-	a.placeBubble(ctx)
-	wruntime.EventsEmit(ctx, "overlay:compact")
-	overlay.RestoreForeground(before)
+	a.setWindow(func(in *windowInputs) { in.gestureScreen = on }, false)
 }
 
 // placeBubble puts the bubble above the taskbar, in the bottom-right or bottom-left corner.
 func (a *App) placeBubble(ctx context.Context) {
-	a.overlay.mu.Lock()
-	left := a.overlay.leftCorner
-	a.overlay.mu.Unlock()
+	a.window.mu.Lock()
+	left := a.window.leftCorner
+	a.window.mu.Unlock()
 	// On Windows, in real pixels: Wails sizes windows scaled by the display scaling but positions
 	// them unscaled, so with 125 % or 150 % scaling its corner is not the corner.
 	if overlay.PlaceInCorner(windowTitle, left, compactMargin) {
@@ -593,13 +458,13 @@ func (a *App) placeBubble(ctx context.Context) {
 // MoveBubble moves the camera bubble to the other bottom corner. The page calls it when the gesture
 // cursor comes near the bubble: clicks on it would go to this window instead of the program below.
 func (a *App) MoveBubble() {
-	o := &a.overlay
-	o.mu.Lock()
-	if !o.compact || o.screen {
-		o.mu.Unlock()
+	w := &a.window
+	w.mu.Lock()
+	if w.shape != shapeBubble {
+		w.mu.Unlock()
 		return
 	}
-	o.leftCorner = !o.leftCorner
-	o.mu.Unlock()
+	w.leftCorner = !w.leftCorner
+	w.mu.Unlock()
 	a.placeBubble(a.ctx)
 }

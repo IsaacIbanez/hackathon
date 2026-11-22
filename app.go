@@ -20,8 +20,9 @@ type App struct {
 	server *ws.Local
 	hub    *ws.Hub // nil when answering with fixtures
 
-	overlay overlayState // shortcut and helper processes (app_overlay.go)
-	llm     *llm.Client  // nil without an OpenRouter key (option 4 then summarizes locally)
+	overlay overlayState  // shortcut and helper processes (app_overlay.go)
+	window  windowControl // the one window's shape (app_window.go, docs/VENTANA.md)
+	llm     *llm.Client   // nil without an OpenRouter key (option 4 then summarizes locally)
 }
 
 func NewApp() *App {

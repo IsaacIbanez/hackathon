@@ -32,8 +32,8 @@ export function gestureRoot(): HTMLDivElement | null {
     // The gesture menu and the volume/brightness control: Go spreads the window over the whole
     // screen, see-through, with the camera small in a corner (from the bubble or the normal window).
     onScreenOverlay: (need) => void app.SetScreenOverlay(need).catch(() => {}),
-    // Cursor mode on: the window becomes the bubble, out of the way; off: it comes back.
-    onCursorMode: (on) => void app.SetCompact(on).catch(() => {}),
+    // Cursor mode does not touch the window (fix R5, docs/VENTANA.md): with the overlay open the hand
+    // cursor can press its buttons; hidden, the bubble stays. It used to shrink and reopen the overlay.
     // The bubble dodges the gesture cursor: clicks on it would go to this window, not to the
     // program below. It jumps to the other bottom corner when the cursor comes near.
     onPointer: (p) => {

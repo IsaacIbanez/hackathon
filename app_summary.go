@@ -59,39 +59,21 @@ func (a *App) SummarizeSelection() (string, error) {
 }
 
 // showBubble shrinks the overlay window next to the mouse pointer, on top, with the focus (so Esc
-// and R work).
+// and R work). The shape is applied by the window controller (app_window.go).
 func (a *App) showBubble() {
-	ctx := a.ctx
-	a.overlay.mu.Lock()
-	a.overlay.visible = true
-	a.overlay.bubble = true
-	a.overlay.mu.Unlock()
-	if wruntime.WindowIsFullscreen(ctx) {
-		wruntime.WindowUnfullscreen(ctx) // out of the full-screen layer, into a bubble
-	}
-	wruntime.WindowShow(ctx)
-	wruntime.WindowSetAlwaysOnTop(ctx, true)
-	where, placed := overlay.PlaceNearCursor(bubbleWidth, bubbleHeight)
-	log.Printf("summary: bubble %s", where)
-	if !placed {
-		wruntime.WindowSetSize(ctx, bubbleWidth, bubbleHeight)
-		wruntime.WindowCenter(ctx)
-	}
+	a.setWindow(func(in *windowInputs) { in.summary = true }, false)
 }
 
-// CloseSummary closes the bubble: the window gets its size back, hides and the program the text
-// came from gets the focus again.
+// CloseSummary closes the bubble: the overlay hides (to the camera bubble if the gestures are on)
+// and the program the text came from gets the focus again.
 func (a *App) CloseSummary() {
-	a.overlay.mu.Lock()
-	was := a.overlay.bubble
-	a.overlay.bubble = false
-	a.overlay.mu.Unlock()
-	if !was {
+	if !a.currentInputs().summary {
 		return
 	}
-	wruntime.WindowSetSize(a.ctx, overlayWidth, overlayHeight)
-	wruntime.WindowCenter(a.ctx)
-	a.HideOverlay()
+	a.setWindow(func(in *windowInputs) {
+		in.summary = false
+		in.open = false
+	}, false)
 	overlay.FocusTarget()
 }
 
