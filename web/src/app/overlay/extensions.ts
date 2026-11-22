@@ -1,7 +1,6 @@
 // Buttons and panels of the overlay, as lists: to add one, add an entry (docs/OVERLAY.md,
 // «Añadir un botón o un panel»). Overlay.tsx draws them; nothing else needs changing.
 import type { ComponentType } from 'react'
-import { GestureTipsPanel } from './GestureTipsPanel.tsx'
 import { desktop, inDesktopApp } from './desktop.ts'
 import type { ModeId } from './modes.ts'
 
@@ -56,7 +55,6 @@ export interface MenuPanel {
   Component: ComponentType
 }
 
-export const MENU_PANELS: MenuPanel[] = [
-  // Example panel (N1): how the hand works with the camera in the top-left corner.
-  { id: 'gesture-tips', title: 'Hand gestures, anywhere in the overlay', Component: GestureTipsPanel },
-]
+// Empty: the gesture tips panel that sat in the bottom-left corner was removed (Pau, 2026-11-22).
+// Add `{ id, title, Component }` here to show a panel below the menu options.
+export const MENU_PANELS: MenuPanel[] = []

@@ -92,7 +92,7 @@ Todo está en `web/src/app/overlay/extensions.ts`: son listas, y `Overlay.tsx` l
   },
   ```
   Si el botón hace lo mismo que una tecla, la tecla se sigue gestionando en `Overlay.tsx`; el botón solo la hace accesible con el ratón.
-- **Un panel en el menú** (debajo de las opciones): crea un componente (por ejemplo `MiPanel.tsx`) y añade `{ id, title, Component: MiPanel }` a `MENU_PANELS`. El ejemplo que hay, `GestureTipsPanel.tsx`, explica los gestos; se puede quitar borrando su entrada.
+- **Un panel en el menú** (debajo de las opciones): crea un componente (por ejemplo `MiPanel.tsx`) y añade `{ id, title, Component: MiPanel }` a `MENU_PANELS`. Ahora la lista está vacía: el panel de ayuda de los gestos que había abajo a la izquierda se quitó el 2026-11-22.
 - **Una opción nueva del menú** (una pantalla entera): una entrada en `modes.ts` y su componente en `views` de `Overlay.tsx` (ver más abajo).
 - **La cámara:** la vista de arriba a la izquierda es `CameraPanel` en `Overlay.tsx`. Si una pantalla nueva abre la cámara por su cuenta, añádela a `NEEDS_CAMERA` en `Overlay.tsx`: los gestos le dejan la cámara mientras está abierta.
 
