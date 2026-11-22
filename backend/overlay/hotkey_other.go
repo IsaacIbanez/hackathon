@@ -21,3 +21,6 @@ func OtherForeground() uintptr { return 0 }
 
 // RestoreForeground is only implemented on Windows.
 func RestoreForeground(uintptr) {}
+
+// PlaceInCorner is only implemented on Windows (the caller falls back to Wails' positioning).
+func PlaceInCorner(string, bool, int) bool { return false }

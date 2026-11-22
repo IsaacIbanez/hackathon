@@ -269,7 +269,7 @@ func (windowsDesktop) FocusWindow(app CallApp) error {
 	})
 	procEnumWindows.Call(cb, 0)
 	if found == 0 {
-		return ErrUnsupported
+		return ErrWindowNotFound
 	}
 	if minimized, _, _ := procIsIconic.Call(found); minimized != 0 {
 		procShowWindow.Call(found, swRestore)

@@ -66,11 +66,8 @@ export function menuPage(
       return {
         up: { kind: "level", target: "volume", label: "🔊 Volume" },
         down: { kind: "level", target: "brightness", label: "🔆 Brightness" },
-        // In a call, the call's own mute (the others see the icon); otherwise the system microphone.
-        left:
-          context === "call"
-            ? { kind: "action", action: "toggle_mic", label: "🎙️ Microphone" }
-            : { kind: "action", action: "mic_mute", label: "🎙️ Microphone" },
+        // The system microphone: it works with any app (👍 toggles the call app's own mute).
+        left: { kind: "action", action: "mic_mute", label: "🎙️ Microphone" },
         right: { kind: "page", page: { id: "apps" }, label: "🚀 Apps ▸" },
         down_right: { kind: "page", page: { id: "computer" }, label: "⏻ Computer ▸" },
         up_right: { kind: "cursor", label: cursorOn ? "🖱️ Cursor off" : "🖱️ Cursor mode" },

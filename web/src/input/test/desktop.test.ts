@@ -89,7 +89,7 @@ test("menu: the main page has volume, brightness, microphone, apps and computer"
   assert.equal(pc.left?.kind === "action" && pc.left.action, "mic_mute"); // the system microphone
   // In a call: the call's own mute, plus raising your hand and leaving the call.
   const call = menuPage({ id: "main" }, "call");
-  assert.equal(call.left?.kind === "action" && call.left.action, "toggle_mic");
+  assert.equal(call.left?.kind === "action" && call.left.action, "mic_mute"); // always the system microphone
   assert.equal(call.up_left?.kind === "action" && call.up_left.action, "raise_hand");
   assert.equal(call.down_left?.kind === "action" && call.down_left.action, "leave_call");
 });

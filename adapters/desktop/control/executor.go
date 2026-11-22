@@ -36,6 +36,7 @@ var (
 	ErrUnsupported     = errors.New("not supported on this system")
 	ErrUnknownAction   = errors.New("unknown action")
 	ErrNeedsConfirm    = errors.New("action requires confirmation")
+	ErrWindowNotFound  = errors.New("window not found")
 	ErrUnknownLauncher = errors.New("unknown launcher")
 )
 
@@ -128,8 +129,12 @@ func (e *Executor) Do(r Request) (string, error) {
 	if CallActions[r.Action] {
 		app, _ := FindCallApp(r.App)
 		did = fmt.Sprintf("%s in %s", r.Action, app.Name)
-		// Best effort: if the window can't be focused, the shortcut goes to the focused window.
-		if err := e.Desktop.FocusWindow(app); err != nil {
+		// The call's window must be found: otherwise the shortcut would go to whatever window is
+		// active (Ctrl+D in another app does something else entirely). Only where focusing isn't
+		// supported at all (some Linux desktops) does it go to the active window.
+		if err := e.Desktop.FocusWindow(app); errors.Is(err, ErrWindowNotFound) {
+			return "", fmt.Errorf("%s window not found: open the call first", app.Name)
+		} else if err != nil {
 			log.Printf("focus %s: %v", app.Name, err)
 		} else if e.FocusDelay > 0 {
 			time.Sleep(e.FocusDelay)

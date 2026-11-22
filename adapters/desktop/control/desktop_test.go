@@ -479,3 +479,19 @@ func TestDefaultLaunchers(t *testing.T) {
 		t.Errorf("browser on windows: %v", argv)
 	}
 }
+
+type noCallWindow struct{ DryRun }
+
+func (n *noCallWindow) FocusWindow(CallApp) error { return ErrWindowNotFound }
+
+// Without the call's window, its shortcut is not sent to whatever window is active.
+func TestCallActionNeedsTheCallWindow(t *testing.T) {
+	d := &noCallWindow{}
+	e := &Executor{Desktop: d, GOOS: "windows"}
+	if _, err := e.Do(Request{Action: "toggle_mic", App: "meet"}); err == nil || !strings.Contains(err.Error(), "open the call first") {
+		t.Fatalf("got %v", err)
+	}
+	if len(d.Calls) != 0 {
+		t.Errorf("no keys may be pressed: %v", d.Calls)
+	}
+}

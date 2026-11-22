@@ -365,6 +365,9 @@ func currentScreen(ctx context.Context) (int, int) {
 	return 0, 0
 }
 
+// Title of the window (main.go); PlaceInCorner finds the window by it.
+const windowTitle = "LauzHack overlay"
+
 // Size of the full overlay window.
 const (
 	overlayWidth  = 960
@@ -416,13 +419,18 @@ func (a *App) SetScreenOverlay(on bool) {
 
 // placeBubble puts the bubble above the taskbar, in the bottom-right or bottom-left corner.
 func (a *App) placeBubble(ctx context.Context) {
+	a.overlay.mu.Lock()
+	left := a.overlay.leftCorner
+	a.overlay.mu.Unlock()
+	// On Windows, in real pixels: Wails sizes windows scaled by the display scaling but positions
+	// them unscaled, so with 125 % or 150 % scaling its corner is not the corner.
+	if overlay.PlaceInCorner(windowTitle, left, compactMargin) {
+		return
+	}
 	sw, sh := currentScreen(ctx)
 	if sw == 0 {
 		return
 	}
-	a.overlay.mu.Lock()
-	left := a.overlay.leftCorner
-	a.overlay.mu.Unlock()
 	x := sw - compactWidth - compactMargin
 	if left {
 		x = compactMargin
