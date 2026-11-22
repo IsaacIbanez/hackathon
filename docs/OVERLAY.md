@@ -66,7 +66,7 @@ lauzhack.exe (Wails, ventana siempre encima)
 │    ReadFileMode.tsx        3: OpenAndReadFile → GuidedReader
 │    desktop.ts              acceso a los bindings de Go (window.go), sin depender de wailsjs/
 ├─ app_overlay.go            bindings: OverlayInfo, HideOverlay, Quit, EnsureReadingService,
-│                            ReadPhoto, OpenAndReadFile, StartGestures, StopGestures, GesturesRunning
+│                            ReadPhoto, OpenAndReadFile, GestureCall, SetGesturesActive, SetCompact
 ├─ backend/overlay/          atajo global (RegisterHotKey de Windows), procesos auxiliares
 └─ backend/scanner/          cliente del servicio de lectura: Scan (fotos) y ReadFile (archivos)
 
