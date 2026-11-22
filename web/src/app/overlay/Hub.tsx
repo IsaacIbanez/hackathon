@@ -6,11 +6,11 @@ import { Icon, type IconName } from './ui.tsx'
 
 // The layer's home (docs/DESIGN.md): a page of large print over the dimmed desktop. Every key of
 // the MX Keypad is a line, in key order (1 to 8; 9 is this menu), with its number in a fixed column.
-// The tools are in large print; hide, voice and read/pause in smaller print. The line under the
+// Every line is the same size. The line under the
 // pointer, the hand or the focus gets the highlighter, the same mark as the line being read. Under
 // the list, one sentence says what that line does.
 
-type Line = { n: string; name: string; icon: IconName; says: string; press: () => void; minor?: boolean }
+type Line = { n: string; name: string; icon: IconName; says: string; press: () => void }
 
 export function Hub({
   info,
@@ -18,6 +18,7 @@ export function Hub({
   onHide,
   onKey,
   onQuit,
+  gutterLeft = 0,
   extras,
 }: {
   info: OverlayInfo | null
@@ -26,6 +27,8 @@ export function Hub({
   /** Keys that are not a tool: the voice command and read/pause (keypad.ts). */
   onKey?: (action: KeypadAction) => void
   onQuit?: () => void
+  /** Room kept free on the left for the camera panel (top-left corner), in CSS pixels. */
+  gutterLeft?: number
   /** Extra panels of the menu (extensions.ts, MENU_PANELS), in the bottom-left corner. */
   extras?: ReactNode
 }) {
@@ -33,10 +36,10 @@ export function Hub({
   const failedKeys = (info?.keypad ?? []).filter((k) => !k.ok)
 
   const lines: Line[] = [
-    { n: '1', name: 'Hide', icon: 'hide' as const, says: 'Hide this layer. Key 1 brings it back.', press: onHide, minor: true },
+    { n: '1', name: 'Hide', icon: 'hide' as const, says: 'Hide this layer. Key 1 brings it back.', press: onHide },
     ...MODES.filter((m) => m.ready).map((m) => ({ n: m.key, name: m.title, icon: m.icon, says: m.description, press: () => onChoose(m.id) })),
-    { n: '7', name: 'Voice command', icon: 'mic' as const, says: 'Press 7, say what you want, press 7 again.', press: () => onKey?.('record-toggle'), minor: true },
-    { n: '8', name: 'Read or pause', icon: 'play' as const, says: 'Start or pause the reading that is open.', press: () => onKey?.('play'), minor: true },
+    { n: '7', name: 'Voice command', icon: 'mic' as const, says: 'Press 7, say what you want, press 7 again.', press: () => onKey?.('record-toggle') },
+    { n: '8', name: 'Read or pause', icon: 'play' as const, says: 'Start or pause the reading that is open.', press: () => onKey?.('play') },
   ].sort((a, b) => Number(a.n) - Number(b.n))
   const hover = (l: Line) => ({
     onMouseEnter: () => setHint(l.says),
@@ -48,13 +51,17 @@ export function Hub({
   return (
     // A click on the empty layer hides it, like a click outside a menu.
     <div className="halo-layer" onClick={(e) => e.target === e.currentTarget && onHide()}>
-      <main className="absolute top-1/2 left-[max(3rem,9vw)] w-[min(40rem,80vw)] -translate-y-1/2">
+      <main
+        className="absolute top-1/2 w-[min(40rem,80vw)] -translate-y-1/2"
+        // Right of the camera panel, so it never covers the first line.
+        style={{ left: `max(3rem, 9vw, ${gutterLeft + 32}px)` }}
+      >
         <nav aria-label="Tools" className="print-list">
           {lines.map((l, i) => (
             <button
               key={l.n}
               type="button"
-              className={l.minor ? 'print-line minor' : 'print-line'}
+              className="print-line"
               style={{ animation: `line-in var(--duration-base) var(--ease-soft) ${i * 35}ms backwards` } as CSSProperties}
               aria-keyshortcuts={l.n}
               aria-describedby="hub-caption"
@@ -63,7 +70,7 @@ export function Hub({
             >
               <span className="print-num">{l.n}</span>
               <span>{l.name}</span>
-              <Icon name={l.icon} size={l.minor ? 24 : 34} className="print-icon justify-self-end" />
+              <Icon name={l.icon} size={34} className="print-icon justify-self-end" />
             </button>
           ))}
         </nav>

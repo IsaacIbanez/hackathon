@@ -336,11 +336,6 @@
     color: var(--color-fg-muted);
     transition: color var(--duration-fast) var(--ease-soft);
   }
-  /* Keys that are not a tool (hide, voice, read/pause): the same line, in smaller print. */
-  .print-line.minor {
-    font-size: var(--text-lead);
-    padding-block: 0.3em;
-  }
   /* The highlighter sweeps across the line under the pointer, the hand or the focus. */
   .print-line:hover,
   .print-line:focus-visible {

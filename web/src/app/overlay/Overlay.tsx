@@ -192,6 +192,7 @@ export function Overlay() {
           }}
           onHide={() => inDesktopApp() && void desktop().HideOverlay()}
           onKey={(action) => run(action)}
+          gutterLeft={gutter}
           extras={MENU_PANELS.map(({ id, title, Component }) => (
             <section key={id} aria-label={title} className="glass rounded-card p-5">
               <h2 className="mb-2 text-body font-bold">{title}</h2>
