@@ -41,9 +41,10 @@ type overlayState struct {
 	hotkeyOK bool
 	keypad   []KeypadKey
 	stopKey  func()
-	stopPad  func()   // direct USB reading of the keypad
-	padOn    bool     // keypad plugged in and read directly
-	problems []string // what the tools need and is missing (checkStartup), shown in the menu
+	stopPad  func()            // direct USB reading of the keypad
+	padOn    bool              // keypad plugged in and read directly
+	problems []string          // what the tools need and is missing (checkStartup), shown in the menu
+	build    overlay.BuildInfo // which build is running (shown in the menu)
 	reading  *overlay.ReadingService
 	// Gesture Control (role C) runs inside this app: its camera page is option 1 and its actions
 	// go through GestureCall, with no separate program, port or token. Whether the overlay is open,
@@ -186,6 +187,8 @@ type OverlayInfo struct {
 	KeypadConnected bool `json:"keypadConnected"`
 	// Problems: what a tool needs and is missing on this computer, each with what to do.
 	Problems []string `json:"problems,omitempty"`
+	// Version: which build is running, to tell an old .exe apart.
+	Version overlay.BuildInfo `json:"version"`
 }
 
 // KeypadKey is one MX Keypad shortcut and whether it could be registered.
@@ -201,8 +204,9 @@ func (a *App) OverlayInfo() string {
 	o.mu.Lock()
 	on := o.padOn
 	problems := o.problems
+	build := o.build
 	o.mu.Unlock()
-	return toJSON(OverlayInfo{Hotkey: o.hotkey, HotkeyOK: o.hotkeyOK, Keypad: o.keypad, KeypadConnected: on, Problems: problems})
+	return toJSON(OverlayInfo{Hotkey: o.hotkey, HotkeyOK: o.hotkeyOK, Keypad: o.keypad, KeypadConnected: on, Problems: problems, Version: build})
 }
 
 func toJSON(v any) string {

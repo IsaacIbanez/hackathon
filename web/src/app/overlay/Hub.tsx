@@ -110,8 +110,15 @@ export function Hub({
           </span>
         )}
         {failedKeys.length > 0 && <span className="text-warn">Keypad shortcuts {failedKeys.map((k) => k.shortcut).join(', ')} are taken</span>}
+        {info?.version && (
+          <span className="ml-auto text-meta" title="The build that is running: commit and date of the .exe">
+            {info.version.commit}
+            {info.version.modified ? '+' : ''}
+            {info.version.built ? `, built ${info.version.built}` : ''}
+          </span>
+        )}
         {onQuit && (
-          <button type="button" onClick={onQuit} className="btn btn-quiet ml-auto min-h-0 py-1.5 text-body">
+          <button type="button" onClick={onQuit} className="btn btn-quiet min-h-0 py-1.5 text-body">
             <Icon name="power" size={18} /> Quit <span className="kbd">Q</span>
           </button>
         )}
