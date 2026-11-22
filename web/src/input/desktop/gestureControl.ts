@@ -9,7 +9,7 @@
 //   (twice quickly: right click; holding: drag).
 import { actionFor, MAPS, type Action } from "../actions.ts";
 import { areaPoint, HandInteraction, POINTER_AREA, type WakeIssue } from "../interaction.ts";
-import { createTracker } from "../tracker.ts";
+import { createTracker, type Tracker } from "../tracker.ts";
 import { CONNECTIONS, L, type HandEvent, type HandFrame, type LevelTarget, type MenuSector, type MouseAction, type Point } from "../types.ts";
 import { latestOnly, OS_ACTIONS, toScreen, type ActionOptions, type CallAppId, type HelperClient } from "./client.ts";
 import { MARKUP } from "./markup.ts";
@@ -61,7 +61,9 @@ export function mountGestureControl(
   const interaction = new HandInteraction({ requireWake: true, mouseClicks: false, menuArea: POINTER_AREA });
   let stopped = false;
   let screenNeeded = false;
-  let tracker: { stop(): void } | null = null;
+  let tracker: Tracker | null = null;
+  let tDrawn = -Infinity;
+  const DRAW_MS = 1000 / 32;
 
   let context: DesktopContext = "call";
   let page: MenuPage = { id: "main" };
@@ -384,6 +386,14 @@ export function mountGestureControl(
     el.style.setProperty("--p", String(progress));
   }
 
+  /** Rewriting the same text every frame still costs layout work: only when it changes. */
+  function setHtml(el: HTMLElement, html: string) {
+    if (el.dataset.html !== html) {
+      el.dataset.html = html;
+      el.innerHTML = html;
+    }
+  }
+
   /** Volume or brightness being adjusted: the value, and how long until it is set. */
   function paintLevel(lvl: ReturnType<HandInteraction["levelActive"]>) {
     const el = $("level");
@@ -392,20 +402,29 @@ export function mountGestureControl(
     const brightness = interaction.levelTargetName === "brightness";
     const icon = brightness ? "🔆" : "🔊";
     if (!lvl) {
-      el.innerHTML = `${icon} <small>touch thumb and index, then open them</small>`;
+      setHtml(el, `${icon} <small>touch thumb and index, then open them</small>`);
       el.style.setProperty("--p", "0");
       return;
     }
     const hint = lvl.confirmProgress > 0 ? "hold still to set it" : "open or close your fingers";
-    el.innerHTML = `${icon} ${Math.round(lvl.value * 100)} % <small>${hint}</small>`;
+    setHtml(el, `${icon} ${Math.round(lvl.value * 100)} % <small>${hint}</small>`);
     el.style.setProperty("--p", String(lvl.confirmProgress));
   }
 
   function draw() {
     if (stopped) return;
     const t = performance.now();
-    const w = (canvas.width = video.videoWidth || 640);
-    const h = (canvas.height = video.videoHeight || 360);
+    // At most as often as the camera gives images: the screen may refresh 60–144 times a second.
+    if (t - tDrawn < DRAW_MS) {
+      requestAnimationFrame(draw);
+      return;
+    }
+    tDrawn = t;
+    // Setting a canvas's size reallocates and clears it: only when the camera's size changes.
+    const w = video.videoWidth || 640;
+    const h = video.videoHeight || 360;
+    if (canvas.width !== w) canvas.width = w;
+    if (canvas.height !== h) canvas.height = h;
     ctx.clearRect(0, 0, w, h);
     if (video.readyState >= 2) ctx.drawImage(video, 0, 0, w, h);
     for (const hand of lastFrame?.hands ?? []) {
@@ -465,11 +484,29 @@ export function mountGestureControl(
 
   // ---------- Start ----------
 
+  let statusText = "";
+
+  /**
+   * Speed in the status line, every second: images analysed per second, where the detector runs
+   * and how long each analysis takes. On the CPU it is several times slower: say so.
+   */
+  function showSpeed(base: string) {
+    const id = setInterval(() => {
+      if (stopped || !tracker) return clearInterval(id);
+      const tr = tracker;
+      const speed = `${Math.round(tr.fps)} fps · ${tr.delegate ?? "?"} · ${Math.round(tr.analysisMs)} ms`;
+      const el = $("status");
+      el.textContent = `${statusText || base} · ${speed}`;
+      el.classList.toggle("error", tr.delegate === "CPU" || (tr.fps > 0 && tr.fps < 15));
+    }, 1000);
+  }
+
   async function start() {
     try {
       const s = await helper.status();
       launchers = s.launchers ?? [];
-      $("status").textContent = `${s.dryRun ? "Dry run — nothing is pressed · " : ""}${s.desktop}`;
+      statusText = `${s.dryRun ? "Dry run — nothing is pressed · " : ""}${s.desktop}`;
+      $("status").textContent = statusText;
       $("dryrun").hidden = !s.dryRun;
       showPage({ id: "main" });
       paintGuide();
@@ -478,7 +515,12 @@ export function mountGestureControl(
       $("status").classList.add("error");
     }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 }, audio: false });
+      // 640×360 is plenty: MediaPipe shrinks every image to ~200 px to find the hand, and a smaller
+      // image is cheaper to copy to it and to draw.
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: 30 } },
+        audio: false,
+      });
       if (stopped) {
         for (const tr of stream.getTracks()) tr.stop();
         return;
@@ -486,15 +528,22 @@ export function mountGestureControl(
       video.srcObject = stream;
       await video.play();
       requestAnimationFrame(draw); // the image shows even if the hand tracker fails to load
-      const tr = await createTracker(video, (f) => {
-        lastFrame = f;
-        interaction.process(f);
-      });
+      // One hand: with two, MediaPipe looks for the second one in every frame while only one is
+      // in view, which costs as much as tracking it.
+      const tr = await createTracker(
+        video,
+        (f) => {
+          lastFrame = f;
+          interaction.process(f);
+        },
+        { numHands: 1 },
+      );
       if (stopped) {
         tr.stop();
         return;
       }
       tracker = tr;
+      showSpeed(statusText);
     } catch (e) {
       $("status").textContent = `Camera error: ${(e as Error).message}`;
       $("status").classList.add("error");
