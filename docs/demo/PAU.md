@@ -104,7 +104,7 @@ For each bug: symptom → how to reproduce it → cause → fix → how it was c
   - **Checked:**
     - `task check` and `go vet` (Windows and Linux);
     - with the `.exe`: the target is now the right Notepad window in both cases (before: `none`, or Notepad's `#32770`);
-    - **still to test by hand:** the summary coming out. The automatic test could not get past this point: a modal «Open» dialog, left open by an earlier test run, blocked Notepad, and then the screen stopped refreshing (locked or asleep), so the simulated keys reached no window.
+    - the summary coming out: tested by hand by Pau with the `.exe` (the automatic test could not get that far: a modal «Open» dialog left by an earlier run blocked Notepad, and then the screen stopped refreshing, so the simulated keys reached no window).
 - **Seen in passing (pending):**
   - On a 1536 px screen **the overlay's panels** (Transcribe, PDF Scanner…) overflow on the right and cut off text and buttons: it belongs to the overlay's design (Isaac).
   - An old `server.exe` (`go run ./backend/cmd/server`) was holding 8765: the app uses another port, but the manual tests against 8765 were talking to the old code.
