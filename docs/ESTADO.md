@@ -1,53 +1,56 @@
-# Estado del proyecto: dónde estamos y adónde vamos
+# Project status: where we are and where we are going
 
-Última actualización: **2026-11-22, madrugada** (Pau). **Mantenlo al día:** si cierras un arreglo o cambias algo que afecta a todos, cambia aquí la línea correspondiente. El detalle va en la ficha, no aquí.
+Last update: **2026-11-22** (Pau). **Keep it up to date:** if you close a fix or change something that affects everyone, change its line here. The details go in the sheet, not here.
 
-## La app hoy
-El **overlay** (`task overlay` → `build/bin/lauzhack.exe`): Ctrl+Alt+Espacio o la tecla 1 del keypad oscurecen la pantalla y muestran las herramientas.
+## The app today
+The **overlay** (`task overlay` → `build/bin/lauzhack.exe`): Ctrl+Alt+Space or keypad key 1 dims the screen and shows the tools.
 
-| Herramienta | Qué hace | Estado |
+| Tool | What it does | Status |
 |---|---|---|
-| **Gesture Control** (centro, tecla 8) | Gestos con la mano → acciones del PC y de las videollamadas; menú del puño, volumen y brillo con la pinza; burbuja de cámara | En Halo y seguro (acciones de energía desactivadas, pinza sin saltos). Comprobado por Pau con el `.exe` y la mano |
-| **PDF Scanner** (tecla 2) | Papel ante la cámara → foto **solo al pulsar «Take photo»** (o Enter; con el modo cursor, con la mano) → OCR → **dos PDF siempre**: el escaneado (la foto, con texto buscable) y la **versión con IA** (el documento rehecho por el modelo de visión, ~30 s más y ~0,03 $). Se ven en el visor, que solo lee al pulsar Espacio | Arreglado el 2026-11-22: el servicio no arrancaba en un equipo sin `scanner\pdf\.venv` (`No module named cv2`); hay que pasar `scanner\pdf\scripts\install.ps1` una vez por equipo |
-| **Read Text** (tecla 5) | Abre un PDF, una imagen o un texto y lo lee línea a línea | Probado |
-| **Visor de PDF** | Lee el PDF entero en voz alta, página a página (N4) | Hecho; algunas partes, con el estilo viejo (R1) |
-| **AI Summary** (tecla 7) | Resume el texto seleccionado en cualquier programa, en una burbuja junto al cursor | Probado (modelo barato) |
-| **Transcribe** | Subtítulos en directo del micro o de una llamada: quién habla, idioma, barbarismos entre comillas, traducción, `.txt` | En `main` desde hoy (`GET /captions`, Together AI). Probado en el navegador; **falta el `.exe`** |
-| **MX Keypad** | Teclas 1–9 → acciones (`docs/KEYPAD.md`) | Hecho; teclas reasignadas por Isaac (`docs/KEYPAD.md`); **falta probar la orden de voz (tecla 7) con micro** (R4) |
+| **Gesture Control** (centre, key 8) | Hand gestures → PC and video-call actions; fist menu, volume and brightness with the pinch; camera bubble | In Halo and safe (power actions disabled, pinch without jumps). Checked by Pau with the `.exe` and the hand |
+| **PDF Scanner** (key 2) | Paper in front of the camera → photo **only on «Take photo»** (or Enter; in cursor mode, with the hand) → OCR → **always two PDFs**: the scanned one (the photo, with searchable text) and the **AI version** (the document rebuilt by the vision model, ~30 s more and ~$0.03). They are shown in the viewer, which only reads when you press Space | Fixed on 2026-11-22: without `scanner\pdf\.venv` or with an old service on 8770, the screen now says what to do; `scanner\pdf\scripts\install.ps1` must be run once per machine |
+| **Read Text** (key 5) | Opens a PDF, an image or a text file and reads it line by line | Tested |
+| **PDF viewer** | Reads the whole PDF aloud, page by page (N4) | Done; some parts still in the old style (R1) |
+| **AI Summary** (key 7) | Summarises the text selected in any program, in a bubble next to the cursor | Tested (cheap model) |
+| **Transcribe** | Live captions of the mic or a call: who is speaking, language, barbarisms in quotes, translation, `.txt` | In `main` (`GET /captions`, Together AI). Without a valid key it says so once and stops retrying (tested with the `.exe`); **still to test with the real key** |
+| **MX Keypad** | Keys 1–9 → actions (`docs/KEYPAD.md`) | Done; keys remapped by Isaac (`docs/KEYPAD.md`); **the voice command (key 7) with a mic is still to test** (R4) |
 
-## Ahora: pulido para la demo
-Reparto en **`docs/demo/README.md`**: Nil (gestos), Pau (leer papel y Transcribe) e Isaac (arranque, overlay, voz e integración). Cada ficha trae qué revisar, los fallos conocidos y un prompt para su agente. **Falta `TOGETHER_API_KEY`** en el `.env` del portátil de la demo: sin ella, Transcribe no funciona.
+## Now: polishing for the demo
+Split in **`docs/demo/README.md`**: Nil (gestures), Pau (reading paper and Transcribe) and Isaac (startup, overlay, voice and integration). Each sheet has what to review, the known bugs and a prompt for its agent. **`TOGETHER_API_KEY` is missing** from the demo laptop's `.env`: without it, Transcribe does not work.
 
-## Fase de arreglos (va antes que cualquier funcionalidad nueva)
-| ID | Arreglo | Persona | Estado |
+**Language:** since 2026-11-22 everything in the repo (code and docs) is in English; the team still talks in Spanish (`AGENTS.md`).
+
+## Fix phase (comes before any new feature)
+| ID | Fix | Person | Status |
 |---|---|---|---|
-| R1 | Una sola interfaz (Halo) en todas las pantallas | Didac | Gesture Control ya en Halo. **Falta:** pantalla Developer (`App.tsx`, `DocumentText.tsx`, `Cost.tsx`) y visor de PDF (`PdfViewer.tsx`), o sacarlas del recorrido de la demo |
-| R2 | Gesture Control seguro y estable | Nil | Energía desactivada y pinza estable, en `main`. **Falta:** 5 min de uso con el `.exe` sin acciones involuntarias; compartir la cámara con PDF Scanner |
-| R3 | PDF Scanner de punta a punta (y Transcribe) | Pau | PDF digital de pago **desactivado** por defecto y Transcribe conectado, en `main`. **Falta:** 5 escaneos seguidos con la Brio desde el `.exe`; aviso por voz si falta el servicio o Tesseract |
-| R5 | Flujo de ventanas: el overlay manda y los gestos conviven (`docs/VENTANA.md`) | Pau | Controlador único de la forma de la ventana, probado con el `.exe` y el log. **Falta:** que Pau lo pruebe con la mano (menú del puño, modo cursor, AI Summary) |
-| R4 | Arranque: versión visible, instalación, keypad y voz | Isaac | PR #51 abierto. **Falta:** versión en la barra, `task setup`, aviso de otra instancia, voz con micro |
+| R1 | A single interface (Halo) on every screen | Didac | Gesture Control already in Halo. **Missing:** the Developer screen (`App.tsx`, `DocumentText.tsx`, `Cost.tsx`) and the PDF viewer (`PdfViewer.tsx`), or take them out of the demo route |
+| R2 | Safe and stable Gesture Control | Nil | Power disabled and stable pinch, in `main`. **Missing:** 5 min of use with the `.exe` without unintended actions; sharing the camera with PDF Scanner |
+| R3 | PDF Scanner end to end (and Transcribe) | Pau | Paid digital PDF **disabled** by default and Transcribe connected, in `main`. **Missing:** 5 scans in a row with the Brio from the `.exe`; voice warning if the service or Tesseract is missing |
+| R5 | Window flow: the overlay rules and the gestures coexist (`docs/VENTANA.md`) | Pau | A single controller of the window's shape, tested with the `.exe` and the log. **Missing:** Pau testing it with the hand (fist menu, cursor mode, AI Summary) |
+| R4 | Startup: visible version, install, keypad and voice | Isaac | Visible version and `task setup` in `main` (from PR #51). **Missing:** voice with a mic |
 
-Fichas con el «Hecho cuando» y el registro: `docs/arreglos/R1.md` … `R4.md`.
+Sheets with their «Done when» and log: `docs/arreglos/R1.md` … `R4.md`.
 
-## Después de los arreglos (tablero `TAREAS.md`)
-- **N5** modo cursor (parcial) → **N6** seleccionar texto con el cursor (parcial) → **N7** resumir el documento entero (falta; la selección ya funciona) → **N8** demostrar que es eficiente (pendiente).
-- **N9** volumen por voz (parcial).
-- Ideas aparcadas: `docs/historial/ideas/`.
+## After the fixes (board `TAREAS.md`)
+- **N5** cursor mode (partial) → **N6** select text with the cursor (partial) → **N7** summarise the whole document (missing; the selection already works) → **N8** show that it is efficient (pending).
+- **N9** volume by voice (partial).
+- Parked ideas: `docs/historial/ideas/`.
 
-## Para la demo
-- Guion: `docs/PITCH.md`. Pruebas de humo: `docs/COMO_PROBAR.md`.
-- Hace falta: `.env` con `OPENROUTER_API_KEY` (y `TOGETHER_API_KEY` para Transcribe); el escáner instalado (`scanner\pdf\scripts\install.ps1`); la MX Brio y el MX Keypad conectados.
+## For the demo
+- Script: `docs/PITCH.md`. Smoke tests: `docs/COMO_PROBAR.md`.
+- Needed: a `.env` with `OPENROUTER_API_KEY` (and `TOGETHER_API_KEY` for Transcribe); the scanner installed (`scanner\pdf\scripts\install.ps1`); the MX Brio and the MX Keypad connected.
 
-## Decisiones vigentes (el porqué, en `docs/DECISIONES.md`)
-- **Sistema de diseño del overlay** (`docs/DESIGN.md`): sustituye a Halo (en `docs/historial/`); todas las pantallas migradas, un solo acento amarillo. Gesture Control va dentro de la app (un solo ejecutable).
-- **Keypad** leído por USB, sin Options+; atajos de respaldo Ctrl+Alt+Shift+N.
-- **Modelos:** `cheap` Haiku 5.5, `expensive` Sonnet 5.5 (OpenRouter); transcripción de respaldo con Gemini Flash Lite; Transcribe con Together AI (Parakeet + Qwen3.5-9B). **Presupuesto del equipo: 10 €**; `LLM_PROFILE=dev` mientras se desarrolla.
-- **Escáner:** responde con el `document` en cuanto acaba el OCR y hace los PDF en segundo plano; el PDF digital (de pago) solo con `SCANNER_DIGITAL=1`. Sin hoja pero con texto, devuelve el texto sin `pageCorners`.
-- **Ventana:** una sola forma a la vez, decidida por `app_window.go` con una jerarquía fija; los gestos nunca abren, cierran ni encogen el overlay (`docs/VENTANA.md`).
-- **API local** solo para 127.0.0.1 y los orígenes de la app (`ws.Guard`).
+## Current decisions (the why, in `docs/DECISIONES.md`)
+- **Overlay design system** (`docs/DESIGN.md`): replaces Halo (in `docs/historial/`); every screen migrated, a single yellow accent. Gesture Control lives inside the app (a single executable).
+- **Keypad** read over USB, without Options+; fallback shortcuts Ctrl+Alt+Shift+N.
+- **Models:** `cheap` Haiku 5.5, `expensive` Sonnet 5.5 (OpenRouter); fallback transcription with Gemini Flash Lite; Transcribe with Together AI (Parakeet + Qwen3.5-9B). **Team budget: €10**; `LLM_PROFILE=dev` while developing.
+- **Scanner:** answers with the `document` as soon as the OCR is done and makes the PDFs in the background; the digital (paid) PDF only with `SCANNER_DIGITAL=1`. With no page found but with text, it returns the text without `pageCorners`.
+- **Window:** a single shape at a time, decided by `app_window.go` with a fixed hierarchy; the gestures never open, close or shrink the overlay (`docs/VENTANA.md`).
+- **Local API** only for 127.0.0.1 and the app's origins (`ws.Guard`).
+- **Language:** everything in the repo in English, except `docs/historial/` and Spanish data that is there on purpose.
 
-## Problemas conocidos
-- Un gesto llegó a suspender el PC (arreglado en R2; vigilar el log `did:`).
-- Ctrl+Alt+Espacio puede estar ocupado por otro programa: usar la tecla 1 del keypad.
-- Fotos desenfocadas: el escáner no las lee (normal); la guía de encuadre de la app espera al enfoque.
-- El servicio de lectura necesita su entorno (`scanner\pdf\scripts\install.ps1`, una vez por equipo). Sin él, la app arranca el Python del sistema y el servicio muere con `No module named cv2` (se ve en `build/bin/reading-service.log`).
+## Known problems
+- A gesture once suspended the PC (fixed in R2; watch the `did:` log).
+- Ctrl+Alt+Space may be taken by another program: use keypad key 1.
+- Blurry photos: the scanner cannot read them (normal); the app's framing guide waits for focus.
+- The reading service needs its environment (`scanner\pdf\scripts\install.ps1`, once per machine). Without it, the app no longer starts the system Python: PDF Scanner gives the install command.

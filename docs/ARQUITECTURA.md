@@ -1,54 +1,54 @@
-# Arquitectura y plan de 24 horas
+# Architecture and 24-hour plan
 
-Resumen corto en `AGENTS.md`. Este archivo guarda el detalle.
+Short summary in `AGENTS.md`. This file keeps the details.
 
-## Estructura de carpetas prevista
+## Planned folder structure
 ```
 hackathon/
 ├── AGENTS.md, CLAUDE.md, GEMINI.md
 ├── Taskfile.yml          # task gen / mock / check
-├── api/openapi.yaml      # contrato backend <-> frontend
-├── api/fixtures/         # un ejemplo JSON de cada mensaje
-├── api/gen/              # tipos Go generados (no editar)
+├── api/openapi.yaml      # backend <-> frontend contract
+├── api/fixtures/         # a JSON example of each message
+├── api/gen/              # generated Go types (do not edit)
 ├── backend/              # Go
-│   ├── cmd/mock/         # servidor mock sin Wails
-│   └── {ws,session,llm,ocr}/   # sin "internal/"
+│   ├── cmd/mock/         # mock server without Wails
+│   └── {ws,session,llm,ocr}/   # no "internal/"
 ├── web/                  # React + Vite + TS + Tailwind
-│   └── src/{api,app,camera,document,input}/   # src/api: tipos TS generados
-├── adapters/logitech/    # solo si el SDK exige Python o C#
+│   └── src/{api,app,camera,document,input}/   # src/api: generated TS types
+├── adapters/logitech/    # only if the SDK requires Python or C#
 ├── docs/
 └── .github/workflows/ci.yml
 ```
 
-## Flujo de datos
-1. La cámara y el micro se capturan en el navegador (`getUserMedia`).
-2. B1 detecta y recorta el documento y hace OCR local.
-3. El mensaje `document` (bloques de texto con caja en la imagen y confianza) viaja por WebSocket a Go.
-4. B2 decide: si el OCR es fiable, estructura en local; si duda, escala a un modelo mayor vía OpenRouter.
-5. C aporta `pointer` (zona señalada con la mano) y `utterance` (lo que dice el usuario).
-6. Go responde con `speak` y con los campos a resaltar. La UI muestra y lee en voz alta.
-7. A registra coste y latencia de cada llamada y los muestra en pantalla.
+## Data flow
+1. The camera and the mic are captured in the browser (`getUserMedia`).
+2. B1 detects and crops the document and runs local OCR.
+3. The `document` message (text blocks with their box in the image and a confidence) travels over WebSocket to Go.
+4. B2 decides: if the OCR is reliable, it structures it locally; if in doubt, it escalates to a larger model through OpenRouter.
+5. C provides `pointer` (the area pointed at with the hand) and `utterance` (what the user says).
+6. Go answers with `speak` and with the fields to highlight. The UI shows them and reads them aloud.
+7. A records the cost and latency of each call and shows them on screen.
 
-## Cómo se coordinan los agentes
-- Por archivos y git, no por mensajes: `TAREAS.md`, `estado/`, la sección Decisiones de `AGENTS.md` y el contrato en `api/`.
-- Una tarea, una rama, un PR; nadie mergea a `main` sin revisión humana.
-- `task check` (go vet, go test, build del front) antes de abrir un PR.
-- Un cambio de contrato se anota en Decisiones y se avisa al resto.
+## How the agents coordinate
+- Through files and git, not messages: `TAREAS.md`, `estado/`, the Decisions section of `AGENTS.md` and the contract in `api/`.
+- One task, one branch, one PR; nobody merges into `main` without human review.
+- `task check` (go vet, go test, frontend build) before opening a PR.
+- A contract change is written down in Decisions and the rest are told.
 
-## Cronograma de 24 h
-| Horas | Qué |
+## 24 h schedule
+| Hours | What |
 |-------|-----|
-| H0–1 | Repo, CI, contrato, prueba de cámara en todos los SO y qué ofrece el SDK de Logitech para la cámara |
-| H1–4 | Esqueleto de punta a punta: la cámara manda un frame, Go responde, la UI lo muestra |
-| H4–16 | Módulos en paralelo (captura, comprensión, interacción) |
-| H16–20 | Accesibilidad y flujo de la demo |
-| H20–24 | Congelar funcionalidades, pulir y ensayar |
+| H0–1 | Repo, CI, contract, camera test on every OS and what the Logitech SDK offers for the camera |
+| H1–4 | End-to-end skeleton: the camera sends a frame, Go answers, the UI shows it |
+| H4–16 | Modules in parallel (capture, understanding, interaction) |
+| H16–20 | Accessibility and the demo flow |
+| H20–24 | Feature freeze, polish and rehearse |
 
-## Criterios de los challenges (para no perderlos de vista)
-- **AXA:** una app real puntúa más que un notebook o diapositivas; se resta por "AI slop"; se valora la frugalidad (no tirarlo todo a un modelo grande), el reto técnico propio, el trabajo en equipo y la presentación.
-- **IMC:** utilidad real, calidad técnica, impacto social potencial y presentación; orientado a una ONG en educación, inclusión o comunidad.
-- **Logitech:** webcam como ojos y oídos de la IA, con entradas multimodales y flujos con contexto.
+## Challenge criteria (so we do not lose sight of them)
+- **AXA:** a real app scores more than a notebook or slides; "AI slop" is penalised; frugality is valued (not throwing everything at a large model), along with our own technical challenge, teamwork and the presentation.
+- **IMC:** real usefulness, technical quality, potential social impact and presentation; aimed at an NGO in education, inclusion or community.
+- **Logitech:** the webcam as the AI's eyes and ears, with multimodal inputs and context-aware flows.
 
-## Pendiente de averiguar en el stand de Logitech
-- Qué expone el SDK para la cámara más allá de un vídeo normal (enfoque, zoom...) y el enlace a su documentación.
-- Si hace falta Python o C# y para qué parte exacta.
+## To find out at the Logitech stand
+- What the SDK exposes for the camera beyond a normal video (focus, zoom...) and the link to its documentation.
+- Whether Python or C# is needed and for which exact part.

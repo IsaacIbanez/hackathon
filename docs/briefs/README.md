@@ -1,60 +1,60 @@
-# Briefs por persona
+# Briefs per person
 
-Cada agente guarda aquí, en `docs/briefs/<persona>.md` (`isaac`, `didac`, `pau` o `nil`), el brief que su persona confirmó tras la entrevista de `docs/historial/arranque/<persona>.md`. En una sesión nueva, el agente lee el brief y trabaja con él, sin repetir la entrevista.
+Each agent keeps here, in `docs/briefs/<person>.md` (`isaac`, `didac`, `pau` or `nil`), the brief its person confirmed after the interview in `docs/historial/arranque/<person>.md`. In a new session, the agent reads the brief and works from it, without repeating the interview.
 
-Reglas:
-- Un brief por persona. Lo escribe su agente y solo se guarda cuando la persona lo confirma.
-- Si cambia el plan, se actualiza el brief antes que el código y se anota en «Cambios del brief».
-- Los briefs de los demás se pueden leer para no solaparse, pero no se editan.
+Rules:
+- One brief per person. Its agent writes it and it is only saved once the person confirms it.
+- If the plan changes, the brief is updated before the code and noted in «Brief changes».
+- Other people's briefs can be read so as not to overlap, but they are not edited.
 
-## Plantilla
+## Template
 
 ```markdown
-# Brief de <Persona> (P<n>)
-Confirmado por <persona> el <AAAA-MM-DD HH:MM>. Última revisión: <AAAA-MM-DD HH:MM>.
+# Brief for <Person> (P<n>)
+Confirmed by <person> on <YYYY-MM-DD HH:MM>. Last review: <YYYY-MM-DD HH:MM>.
 
-## Objetivo
-Una o dos frases: qué se construye, para quién y qué problema resuelve.
+## Goal
+One or two sentences: what is built, for whom and what problem it solves.
 
-## Qué se verá en la demo
-Lo que verá y oirá el jurado, en 2-4 frases.
+## What the demo will show
+What the jury will see and hear, in 2-4 sentences.
 
-## Alcance
+## Scope
 - ...
 
-## Fuera de alcance
+## Out of scope
 - ...
 
-## Flujo, desde el punto de vista del usuario
+## Flow, from the user's point of view
 1. ...
-Ejemplo concreto: entrada → salida.
+A concrete example: input → output.
 
-## Criterios de «hecho» (medibles)
-- [ ] ... (con la cifra, la prueba o el comando que lo demuestra)
+## «Done» criteria (measurable)
+- [ ] ... (with the figure, the test or the command that proves it)
 
-## Carpetas que toca
-- Propias: ...
-- De otras personas, con su conformidad: ...
+## Folders it touches
+- Own: ...
+- Other people's, with their agreement: ...
 
-## Contrato (`api/openapi.yaml`)
-- Consume: ...
-- Añade o cambia: ... (en un PR aparte, revisado por ...)
+## Contract (`api/openapi.yaml`)
+- Consumes: ...
+- Adds or changes: ... (in a separate PR, reviewed by ...)
 
-## Modelos y coste
-- Qué modelo o servicio usa, cuándo lo llama y con qué límite de coste.
+## Models and cost
+- Which model or service it uses, when it calls it and with what cost limit.
 
-## Si falla
-- Cómo se degrada sin romper la app.
+## If it fails
+- How it degrades without breaking the app.
 
-## Dependencias de otras personas
+## Dependencies on other people
 - ...
 
-## Riesgos
+## Risks
 - ...
 
-## Preguntas abiertas
+## Open questions
 - ...
 
-## Cambios del brief
-- <AAAA-MM-DD HH:MM> — qué cambió y por qué.
+## Brief changes
+- <YYYY-MM-DD HH:MM> — what changed and why.
 ```

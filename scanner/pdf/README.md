@@ -1,56 +1,56 @@
-# scanner/pdf/ — paquete `scanner_pdf`
+# scanner/pdf/ — the `scanner_pdf` package
 
-Referencia técnica del paquete. **Para integrarlo en la app, empieza por [`../ENTREGA.md`](../ENTREGA.md)**.
-Dueño: Didac (P2-C). Reglas del subproyecto: `../AGENTS.md`.
+Technical reference of the package. **To integrate it into the app, start with [`../ENTREGA.md`](../ENTREGA.md)**.
+Owner: Didac (P2-C). Rules of the subproject: `../AGENTS.md`.
 
-Recibe el **PNG** de una página y produce:
-- un **PDF escaneado buscable**: la página con su aspecto real (recortada, enderezada, girada, con la
-  iluminación igualada y el texto oscuro sobre papel blanco) + una capa de texto OCR invisible y alineada;
-- opcionalmente, un **PDF digital**: página en blanco con el texto escrito de verdad y las imágenes
-  (firma, logo, sello) en su sitio, como si el documento se hubiera hecho en el ordenador;
-- el payload del mensaje **`document`** del contrato (`api/openapi.yaml`), listo para enviar a la app.
+It receives the **PNG** of a page and produces:
+- a **searchable scanned PDF**: the page with its real look (cropped, straightened, rotated, with the
+  lighting evened out and dark text on white paper) + an invisible, aligned OCR text layer;
+- optionally, a **digital PDF**: a blank page with the text truly written and the images
+  (signature, logo, stamp) in place, as if the document had been made on the computer;
+- the payload of the contract's **`document`** message (`api/openapi.yaml`), ready to send to the app.
 
-## Instalación
+## Installation
 ```
 powershell -ExecutionPolicy Bypass -File scanner\pdf\scripts\install.ps1     # Windows
 bash scanner/pdf/scripts/install.sh                                          # Linux / macOS
 ```
-Crean `scanner/pdf/.venv`, instalan Tesseract (+ spa, cat, eng) y, en Windows, ffmpeg; acaban ejecutando
-los tests. Un solo entorno para todo `scanner/` (OpenCV *headless* también captura de la cámara).
+They create `scanner/pdf/.venv`, install Tesseract (+ spa, cat, eng) and, on Windows, ffmpeg; they end by running
+the tests. A single environment for the whole of `scanner/` (*headless* OpenCV also captures from the camera).
 
-## Uso
+## Usage
 ```
-.venv\Scripts\python -m scanner_pdf captura.png -o output [--digital] [--json]
+.venv\Scripts\python -m scanner_pdf capture.png -o output [--digital] [--json]
 ```
-Opciones: `--mode gray|bw`, `--paper-size A4|Letter|image`, `--corners x1,y1,...,x4,y4` (recorte manual),
+Options: `--mode gray|bw`, `--paper-size A4|Letter|image`, `--corners x1,y1,...,x4,y4` (manual crop),
 `--no-crop`, `--no-lighting`, `--no-enhance`, `--no-orient`, `--no-ocr`, `--jpeg`, `--digital`.
-Código de salida: 0 ok · 2 PDF generado pero parcial (p. ej. sin OCR) · 1 error.
+Exit code: 0 ok · 2 PDF generated but partial (e.g. without OCR) · 1 error.
 
 ```python
 from scanner_pdf import convert, Options
-r = convert("captura.png", "output/", Options(digital=True))   # también acepta los bytes del PNG
+r = convert("capture.png", "output/", Options(digital=True))   # also accepts the PNG's bytes
 r.status, r.pdf, r.digital_pdf, r.warnings, r.error, r.document()
 ```
-`convert` no lanza excepciones por errores esperables: siempre devuelve un `Result`.
+`convert` does not raise exceptions for expected errors: it always returns a `Result`.
 
-## Módulos (`src/scanner_pdf/`)
-| Módulo | Qué hace |
+## Modules (`src/scanner_pdf/`)
+| Module | What it does |
 |--------|----------|
-| `input_image.py` | Valida el PNG (firma, tamaño, 8/16 bits, alfa sobre blanco, DPI) y guarda los bytes originales. |
-| `geometry.py` | Detecta la hoja (contornos, umbral y rectas largas de Hough; filtros de soporte de borde, contraste por lado, contenido, ángulos, razón de lados, marco), refina esquinas, proporción real (Zhang y He), ajuste a A4/Letter/A5/Legal. Si no está segura, no recorta. |
-| `image.py` | Iluminación y **realce de documento** solo en papel claro (papel normalizado localmente, tinta a casi negro, sin dominantes, nitidez suave); modos color/gray/bw; calidad con `FrameIssue`; máscara de letras. |
-| `ocr.py` | Tesseract: orientación (OSD sobre la zona con más letras + lectura de comprobación), OCR con pases psm 3 y 6 **en paralelo** (+ psm 11 si casi no lee), capa invisible "sandwich" + palabras con caja y confianza. |
-| `pdf.py` | Imagen sin recodificar (img2pdf) al tamaño físico exacto, superposición exacta de la capa (pikepdf), validación. |
-| `vision.py` | Cliente de OpenRouter (biblioteca estándar): maqueta de la página con un modelo de visión. |
-| `digital.py` | PDF digital: con la maqueta del modelo (`digitalize_layout`) o solo con el OCR local (`digitalize`). ReportLab escribe el texto. |
-| `pipeline.py` | `convert()`: une todo, mide tiempos, guarda intermedios y `result.json`. |
-| `errors.py` | `ScannerError(code, message)`: errores esperables con un código estable. |
+| `input_image.py` | Validates the PNG (signature, size, 8/16 bits, alpha over white, DPI) and keeps the original bytes. |
+| `geometry.py` | Detects the page (contours, threshold and long Hough lines; filters for edge support, per-side contrast, content, angles, aspect ratio, frame), refines the corners, real proportion (Zhang and He), fit to A4/Letter/A5/Legal. If it is not sure, it does not crop. |
+| `image.py` | Lighting and **document enhancement** only on light paper (locally normalised paper, ink to almost black, no colour casts, soft sharpening); color/gray/bw modes; quality with `FrameIssue`; letter mask. |
+| `ocr.py` | Tesseract: orientation (OSD over the area with the most letters + a check reading), OCR with psm 3 and 6 passes **in parallel** (+ psm 11 if it barely reads), an invisible "sandwich" layer + words with box and confidence. |
+| `pdf.py` | Image without re-encoding (img2pdf) at the exact physical size, exact overlay of the layer (pikepdf), validation. |
+| `vision.py` | OpenRouter client (standard library): the page's layout with a vision model. |
+| `digital.py` | Digital PDF: with the model's layout (`digitalize_layout`) or only with the local OCR (`digitalize`). ReportLab writes the text. |
+| `pipeline.py` | `convert()`: joins everything, measures times, saves intermediates and `result.json`. |
+| `errors.py` | `ScannerError(code, message)`: expected errors with a stable code. |
 
-Detalle de cada decisión, medidas y costes: `../ENTREGA.md`.
+Details of each decision, measurements and costs: `../ENTREGA.md`.
 
 ## Tests
 ```
-.venv\Scripts\python -m pytest -q          # 77 tests, ~37 s; sin red (el modelo de visión se simula)
+.venv\Scripts\python -m pytest -q          # 77 tests, ~37 s; no network (the vision model is simulated)
 ```
-Imágenes sintéticas (`tests/synthetic.py`): ningún documento real en el repositorio. Los textos de
-ejemplo imitan un formulario en español y se quedan en español (regla «Idioma» de `AGENTS.md`).
+Synthetic images (`tests/synthetic.py`): no real document in the repository. The sample texts
+imitate a form in Spanish and stay in Spanish (they test the Spanish OCR).

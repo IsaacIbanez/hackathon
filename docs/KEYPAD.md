@@ -1,93 +1,93 @@
 # MX Keypad
 
-Tarea N2 (`docs/tareas/N2.md`), brief `docs/briefs/N2.md`. Dueño: Isaac.
+Task N2 (`docs/tareas/N2.md`), brief `docs/briefs/N2.md`. Owner: Isaac.
 
-El **MX Keypad** (MX Creative Console) controla la app **sin instalar nada**: se enchufa por USB y la app lee sus teclas directamente (sin Logi Options+ ni SDK). Funciona **aunque otro programa tenga el foco**: la app muestra el overlay (si estaba oculto o tapado) y hace la acción. El menú dice «MX Keypad connected» cuando lo detecta.
+The **MX Keypad** (MX Creative Console) controls the app **without installing anything**: it is plugged in over USB and the app reads its keys directly (without Logi Options+ or an SDK). It works **even when another program has the focus**: the app shows the overlay (if it was hidden or covered) and does the action. The menu says «MX Keypad connected» when it detects it.
 
-**Respaldo:** cada acción tiene también un atajo **Ctrl+Alt+Shift + tecla**, registrado en Windows de forma global. Sirve con Logi Options+, con el keypad por Bluetooth o por el receptor Bolt (sin probar), o con un teclado normal.
+**Fallback:** each action also has a **Ctrl+Alt+Shift + key** shortcut, registered globally on Windows. It works with Logi Options+, with the keypad over Bluetooth or through the Bolt receiver (untested), or with a normal keyboard.
 
-## Teclas (página 1)
-Decidido de nuevo por Isaac, tecla a tecla, el 2026-11-22 (antes estaban en otro orden). El atajo de respaldo de la tecla N es siempre **Ctrl+Alt+Shift+N**.
+## Keys (page 1)
+Decided again by Isaac, key by key, on 2026-11-22 (they were in another order before). The fallback shortcut of key N is always **Ctrl+Alt+Shift+N**.
 
-| Tecla | Acción | Qué hace en la app |
+| Key | Action | What it does in the app |
 |---|---|---|
-| 1 | **Abrir/cerrar la app** | muestra u oculta el overlay desde cualquier programa (como Ctrl+Alt+Espacio) |
-| 2 | PDF Scanner (leer papel) | abre la opción 2 (cámara) |
-| 3 | Read Text (leer archivo) | abre la opción 3 (PDF, imagen, texto) |
-| 4 | AI Summary | opción 4: resume el texto seleccionado en el programa de delante |
-| 5 | Transcribe | abre la opción 5 (subtítulos en directo) |
-| 6 | Gesture Control | abre la opción 1 |
-| 7 | **Orden de voz** | primera pulsación: pitido y aviso rojo «Recording…»; segunda: pitido de fin, se transcribe (unos 2 s) y la app hace la orden |
-| 8 | Leer/pausa | `Espacio` en el lector abierto |
-| 9 | Volver al menú | vuelve al menú (no oculta la ventana) |
+| 1 | **Open/close the app** | shows or hides the overlay from any program (like Ctrl+Alt+Space) |
+| 2 | PDF Scanner (read paper) | opens option 2 (camera) |
+| 3 | Read Text (read file) | opens option 3 (PDF, image, text) |
+| 4 | AI Summary | option 4: summarises the text selected in the program in front |
+| 5 | Transcribe | opens option 5 (live captions) |
+| 6 | Gesture Control | opens option 1 |
+| 7 | **Voice command** | first press: a beep and a red «Recording…» notice; second: an end beep, it is transcribed (about 2 s) and the app carries out the command |
+| 8 | Read/pause | `Space` in the open reader |
+| 9 | Back to the menu | goes back to the menu (does not hide the window) |
 
-Las teclas 2–5 coinciden con los números de las opciones en pantalla; Gesture Control es la opción 1 en pantalla y la tecla 6 en el keypad. Una tecla con la acción `off` no hace nada (ni muestra el overlay); cada pulsación sale en el log como `overlay: keypad key N -> acción`.
+Keys 2–5 match the numbers of the options on screen; Gesture Control is option 1 on screen and key 6 on the keypad. A key with the `off` action does nothing (it does not even show the overlay); every press shows up in the log as `overlay: keypad key N -> action`.
 
-## Órdenes de voz (tecla 7)
-- **Cómo funciona:**
-  - pulsa la 7, di la orden y vuelve a pulsar la 7;
-  - Go la transcribe (`POST /transcribe`, el modelo de audio barato: unos 2 s y 0,00006 $; en `LLM_PROFILE=dev`, el mismo orden de modelos de `LLM_TRANSCRIBE_MODELS`);
-  - la frase se convierte en una acción del keypad.
-- **La app responde siempre:**
-  - repite lo que ha oído en pantalla;
-  - si no lo entiende, dice «No sé hacer: …».
-- **Límite:** a los 30 s la grabación para sola.
-- **Necesita la clave** (`OPENROUTER_API_KEY`). Sin ella, lo dice.
+## Voice commands (key 7)
+- **How it works:**
+  - press 7, say the command and press 7 again;
+  - Go transcribes it (`POST /transcribe`, the cheap audio model: about 2 s and $0.00006; with `LLM_PROFILE=dev`, the same model order as `LLM_TRANSCRIBE_MODELS`);
+  - the sentence is turned into a keypad action.
+- **The app always answers:**
+  - it repeats on screen what it heard;
+  - if it does not understand it, it says «I can't do: …».
+- **Limit:** after 30 s the recording stops on its own.
+- **It needs the key** (`OPENROUTER_API_KEY`). Without it, it says so.
 
-| Dices (español, catalán o inglés) | Hace |
+| You say (Spanish, Catalan or English) | Does |
 |---|---|
-| «lee el documento», «escanea el papel», «llegeix el paper» | leer papel (opción 2) |
-| «abre un archivo», «léeme el PDF» | leer archivo (opción 3) |
-| «resume», «resumen» | resumir la selección (opción 4) |
-| «gestos» | opción 1 |
-| «menú», «vuelve», «atrás» | menú |
-| «siguiente», «anterior», «repite» | en el lector |
-| «pausa», «lee», «continúa» | leer/pausa |
-| «oculta», «cierra» | oculta la app |
-| «sube el volumen», «más alto», «puja el volum», «louder» | sube el **volumen del sistema** un 10 % (Windows enseña su indicador) |
-| «baja el volumen», «más bajo», «baixa el volum», «quieter» | baja el volumen del sistema un 10 % |
-| «borra el texto», «elimina la selección», «esborra», «delete» | **borra el texto seleccionado** en el programa de delante. Antes comprueba que hay texto seleccionado (lo copia); si no lo hay, no borra nada y dice «No hay texto seleccionado». El portapapeles se queda como estaba |
+| «lee el documento», «escanea el papel», «llegeix el paper» | read paper (option 2) |
+| «abre un archivo», «léeme el PDF» | read file (option 3) |
+| «resume», «resumen» | summarise the selection (option 4) |
+| «gestos» | option 1 |
+| «menú», «vuelve», «atrás» | menu |
+| «siguiente», «anterior», «repite» | in the reader |
+| «pausa», «lee», «continúa» | read/pause |
+| «oculta», «cierra» | hides the app |
+| «sube el volumen», «más alto», «puja el volum», «louder» | raises the **system volume** by 10 % (Windows shows its indicator) |
+| «baja el volumen», «más bajo», «baixa el volum», «quieter» | lowers the system volume by 10 % |
+| «borra el texto», «elimina la selección», «esborra», «delete» | **deletes the selected text** in the program in front. It first checks that there is selected text (it copies it); if there is none, it deletes nothing and says «No text is selected». The clipboard stays as it was |
 
-Las frases están en `web/src/app/overlay/voiceCommand.ts`, con tests.
+The phrases are in `web/src/app/overlay/voiceCommand.ts`, with tests.
 
-## Usarlo
-1. Enchufa el MX Keypad por USB.
-2. Arranca la app (`task overlay` → `build/bin/lauzhack.exe`). En el log (`build/bin/lauzhack.log`) debe salir `MX Keypad read directly: connected=true`; se puede enchufar también con la app abierta (lo busca cada 2 s).
-3. Prueba: con otro programa delante, pulsa la tecla 2 (leer papel). El overlay debe aparecer en esa opción. Después, tecla 7, di «abre un archivo» y otra vez tecla 7.
+## Using it
+1. Plug the MX Keypad in over USB.
+2. Start the app (`task overlay` → `build/bin/lauzhack.exe`). The log (`build/bin/lauzhack.log`) must say `MX Keypad read directly: connected=true`; it can also be plugged in with the app open (it looks for it every 2 s).
+3. Test: with another program in front, press key 2 (read paper). The overlay should appear on that option. Then, key 7, say «abre un archivo» and key 7 again.
 
-**Comprobado el 2026-11-22 con el keypad real, sin Options+:** las 9 teclas llegaron con su acción, dos rondas seguidas (con la tabla anterior; las teclas físicas son las mismas). **Sin probar todavía:** las órdenes de voz con micrófono real. Sin keypad se puede probar con las combinaciones de respaldo desde el teclado.
+**Checked on 2026-11-22 with the real keypad, without Options+:** all 9 keys arrived with their action, two rounds in a row (with the previous table; the physical keys are the same). **Not tested yet:** the voice commands with a real microphone. Without a keypad it can be tested with the fallback combinations from the keyboard.
 
-**Con Logi Options+** (opcional): en la página 1, asigna a cada tecla **Acción → Atajo de teclado** con la combinación de la tabla. Si Options+ se queda el keypad para él, la app sigue funcionando por los atajos.
+**With Logi Options+** (optional): on page 1, give each key **Action → Keyboard shortcut** with the combination from the table. If Options+ keeps the keypad for itself, the app keeps working through the shortcuts.
 
-## Si algo no va
-- **Un atajo está ocupado por otro programa:**
-  - el log dice `overlay: keypad: could not register …`;
-  - el menú lo avisa en amarillo;
-  - las demás teclas siguen funcionando.
-- **El menú no dice «MX Keypad connected»:** mira el log. Solo se reconoce el keypad por USB (Logitech VID 046D, PID C354).
-- **Desactivar el keypad (lectura directa y atajos):** `LAUZHACK_KEYPAD=off`.
-- **Solo Windows.** En Linux y macOS no hay atajos globales (igual que Ctrl+Alt+Espacio).
+## If something does not work
+- **A shortcut is taken by another program:**
+  - the log says `overlay: keypad: could not register …`;
+  - the menu warns about it in yellow;
+  - the other keys keep working.
+- **The menu does not say «MX Keypad connected»:** look at the log. Only the USB keypad is recognised (Logitech VID 046D, PID C354).
+- **Turning the keypad off (direct reading and shortcuts):** `LAUZHACK_KEYPAD=off`.
+- **Windows only.** On Linux and macOS there are no global shortcuts (just like Ctrl+Alt+Space).
 
-## Cómo funciona (para quien lo mantenga)
-- **Lectura directa:**
-  - `backend/overlay/keypadhid.go` (formato) y `keypadhid_windows.go` (abrir el dispositivo);
-  - el keypad envía en una colección HID del fabricante `13 ff 02 00 <contador> 01 <tecla>`, con la tecla de 1 a 9 al pulsar y `00` al soltar (medido sin Options+);
-  - la tecla N hace la fila N de `DefaultKeypad`;
-  - un test usa informes grabados del keypad real.
-- `backend/overlay/keypad.go`: la tabla de atajos → acción (`DefaultKeypad`).
-- `backend/overlay/hotkey_windows.go`: `ListenAll` registra todos los atajos (`RegisterHotKey`) en un mismo hilo, con un id por atajo.
-- `app_overlay.go` (`keypadPressed`): muestra la ventana si hace falta y emite el evento de Wails `overlay:keypad` con la acción.
-- `web/src/app/overlay/keypad.ts`: traduce la acción.
-  - Las opciones y «menú» cambian la vista del overlay.
-  - Las de lectura simulan la tecla que el lector guiado ya entiende (`web/src/document/reader.ts`), sin tocar el lector.
-  - Un test comprueba que esas teclas siguen siendo las del lector.
-- **Añadir una tecla:**
-  1. una entrada en `DefaultKeypad` (Go; con lectura directa, solo hay 9 teclas por página);
-  2. un caso en `keypadCommand` (TS);
-  3. una fila en esta tabla.
+## How it works (for whoever maintains it)
+- **Direct reading:**
+  - `backend/overlay/keypadhid.go` (format) and `keypadhid_windows.go` (opening the device);
+  - the keypad sends `13 ff 02 00 <counter> 01 <key>` in a vendor HID collection, with the key from 1 to 9 on press and `00` on release (measured without Options+);
+  - key N does row N of `DefaultKeypad`;
+  - a test uses reports recorded from the real keypad.
+- `backend/overlay/keypad.go`: the shortcut → action table (`DefaultKeypad`).
+- `backend/overlay/hotkey_windows.go`: `ListenAll` registers all the shortcuts (`RegisterHotKey`) on a single thread, with one id per shortcut.
+- `app_overlay.go` (`keypadPressed`): shows the window if needed and emits the Wails event `overlay:keypad` with the action.
+- `web/src/app/overlay/keypad.ts`: translates the action.
+  - The options and «menu» change the overlay's view.
+  - The reading ones simulate the key the guided reader already understands (`web/src/document/reader.ts`), without touching the reader.
+  - A test checks that those keys are still the reader's.
+- **Adding a key:**
+  1. an entry in `DefaultKeypad` (Go; with direct reading, there are only 9 keys per page);
+  2. a case in `keypadCommand` (TS);
+  3. a row in this table.
 
-## Pendiente (opcional)
-- Página 2: subir y bajar el volumen (también como orden de voz) y el modo cursor (N5).
-- Dial de la MX Creative Console para el volumen.
-- Probar con la app completa: tecla pulsada desde otro programa → overlay, y desenchufar y volver a enchufar.
-- Páginas del keypad: el cambio de página no envía nada que hayamos visto. Sin probar si la página 2 manda otros números.
+## Pending (optional)
+- Page 2: turning the volume up and down (also as a voice command) and cursor mode (N5).
+- The MX Creative Console's dial for the volume.
+- Testing with the full app: a key pressed from another program → overlay, and unplugging and plugging back in.
+- Keypad pages: changing page sends nothing that we have seen. Untested whether page 2 sends other numbers.

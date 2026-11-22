@@ -1,53 +1,53 @@
 # api/
 
-Contrato entre módulos. Es la única interfaz entre backend y frontend.
+Contract between modules. It is the only interface between backend and frontend.
 
-- **Dueño:** rol A (Isaac).
-- Un cambio aquí se anota en la sección Decisiones de `AGENTS.md` y se avisa al resto.
+- **Owner:** role A (Isaac).
+- A change here is written down in `docs/DECISIONES.md` and the rest are told.
 
-## Contenido
-| Archivo | Qué es |
+## Contents
+| File | What it is |
 |---------|--------|
-| `openapi.yaml` | `GET /health`, `GET /ws` y los mensajes del WebSocket en `components/schemas` |
-| `fixtures/*.json` | un ejemplo de cada mensaje (`document`, `pointer`, `utterance`, `speak`, `speak-utterance`, `stats`) |
-| `gen/types.gen.go` | tipos Go generados (paquete `gen`). **No editar** |
-| `oapi-codegen.yaml` | configuración del generador de Go |
-| `../web/src/api/types.ts` | tipos TypeScript generados. **No editar**; usa los alias de `web/src/api/index.ts` |
+| `openapi.yaml` | `GET /health`, `GET /ws` and the WebSocket messages in `components/schemas` |
+| `fixtures/*.json` | an example of each message (`document`, `pointer`, `utterance`, `speak`, `speak-utterance`, `stats`) |
+| `gen/types.gen.go` | generated Go types (package `gen`). **Do not edit** |
+| `oapi-codegen.yaml` | configuration of the Go generator |
+| `../web/src/api/types.ts` | generated TypeScript types. **Do not edit**; use the aliases in `web/src/api/index.ts` |
 
-Tras cambiar `openapi.yaml`: `task gen` y commitea lo generado.
+After changing `openapi.yaml`: `task gen` and commit what is generated.
 
-## Mensajes del WebSocket
-Sobre común: `{ "type": "...", "id": "...", "ts": 1795262400000, "payload": { ... } }` (`ts` en ms).
-Coordenadas normalizadas a [0, 1] sobre el documento recortado, origen arriba a la izquierda.
+## WebSocket messages
+Common envelope: `{ "type": "...", "id": "...", "ts": 1795262400000, "payload": { ... } }` (`ts` in ms).
+Coordinates normalised to [0, 1] over the cropped document, origin at the top left.
 
-| type | Sentido | payload |
+| type | Direction | payload |
 |------|---------|---------|
-| `document` | cliente → Go | `blocks[]` (`id`, `text`, `box {x,y,w,h}`, `confidence`), `quality {score, issues[]}`, opcional `imageWidth`, `imageHeight`, `lang` |
-| `pointer` | navegador → Go | `x`, `y`, opcional `blockId` |
-| `utterance` | navegador → Go | `text`, `isFinal`, opcional `lang` |
-| `speak` | Go → navegador | `text`, `highlightBlockIds[]`, `lang`, opcional `replyTo` |
-| `document` (eco) | Go → todos | el documento aceptado, tal cual, para que la pantalla lo muestre aunque lo enviara el scanner |
-| `stats` | Go → todos | coste y latencia acumulados: `cheap` y `expensive` (`calls`, `cacheHits`, `errors`, `costUsd`, `avgLatencyMs`, `lastLatencyMs`) y `totalCostUsd`. Se envía tras cada llamada a un modelo |
+| `document` | client → Go | `blocks[]` (`id`, `text`, `box {x,y,w,h}`, `confidence`), `quality {score, issues[]}`, optional `imageWidth`, `imageHeight`, `lang` |
+| `pointer` | browser → Go | `x`, `y`, optional `blockId` |
+| `utterance` | browser → Go | `text`, `isFinal`, optional `lang` |
+| `speak` | Go → browser | `text`, `highlightBlockIds[]`, `lang`, optional `replyTo` |
+| `document` (echo) | Go → all | the accepted document, as it is, so that the screen shows it even if the scanner sent it |
+| `stats` | Go → all | accumulated cost and latency: `cheap` and `expensive` (`calls`, `cacheHits`, `errors`, `costUsd`, `avgLatencyMs`, `lastLatencyMs`) and `totalCostUsd`. Sent after each model call |
 
-## `POST /scan` (contrato 0.5)
-La app envía la foto de la cámara (`image/jpeg`, `image/png` o `image/webp`, hasta 40 MB) → `202`. Go dice «Un momento, estoy leyendo el documento», la pasa al servicio de lectura (`SCANNER_URL`, por defecto `http://127.0.0.1:8770/scan`) y trata el documento devuelto como cualquier otro. Los problemas se dicen en voz alta. `SCANNER_URL=fixture` responde con el formulario de ejemplo, sin servicio. El `document` puede llevar `pageCorners`: las esquinas de la hoja en la foto (ver `docs/INTEGRACION_SCANNER.md`).
+## `POST /scan` (contract 0.5)
+The app sends the camera's photo (`image/jpeg`, `image/png` or `image/webp`, up to 40 MB) → `202`. Go says «One moment, I'm reading the document», passes it to the reading service (`SCANNER_URL`, by default `http://127.0.0.1:8770/scan`) and treats the returned document like any other. Problems are said aloud. `SCANNER_URL=fixture` answers with the sample form, without a service. The `document` can carry `pageCorners`: the page's corners in the photo (see `docs/INTEGRACION_SCANNER.md`).
 
-## Sesión compartida y `POST /message`
-La app tiene **una sola sesión** para todos sus clientes: un mensaje de cualquiera (la interfaz por WebSocket o el scanner con `POST /message`) actualiza el mismo estado, y cada `speak` y `stats` se envía a **todos** los clientes WebSocket.
+## Shared session and `POST /message`
+The app has **a single session** for all its clients: a message from anyone (the interface over WebSocket or the scanner with `POST /message`) updates the same state, and each `speak` and `stats` is sent to **all** WebSocket clients.
 
-- `POST http://127.0.0.1:8765/message` con un sobre en el cuerpo → `202 {"ok":true}`; la respuesta llega a la interfaz, no aquí.
-- Ejemplo en Python sin dependencias: `api/examples/send_message.py` (y la guía `docs/INTEGRACION_SCANNER.md`).
+- `POST http://127.0.0.1:8765/message` with an envelope in the body → `202 {"ok":true}`; the answer reaches the interface, not here.
+- A Python example with no dependencies: `api/examples/send_message.py` (and the guide `docs/INTEGRACION_SCANNER.md`).
 
-## Servidor mock, servidor real y app
-`task server` arranca la lógica real (sesiones + modelos) sin ventana en `ws://127.0.0.1:8765/ws`; necesita la clave en `.env`. Es lo que hay que usar para probar el scanner o el frontend con respuestas de verdad.
+## Mock server, real server and app
+`task server` starts the real logic (sessions + models) without a window on `ws://127.0.0.1:8765/ws`; it needs the key in `.env`. It is what you should use to test the scanner or the frontend with real answers.
 
-La app de escritorio (`task dev` o el ejecutable) sirve lo mismo en `ws://127.0.0.1:8765/ws`, por ahora con las mismas respuestas de ejemplo. Cualquier proceso local puede conectarse (no hace falta un navegador).
+The desktop app (`task dev` or the executable) serves the same on `ws://127.0.0.1:8765/ws`, for now with the same sample answers. Any local process can connect (no browser needed).
 
-`task mock` (o `go run ./backend/cmd/mock -addr localhost:8080`):
+`task mock` (or `go run ./backend/cmd/mock -addr localhost:8080`):
 - `GET http://localhost:8080/health` → `{"status":"ok"}`
-- `ws://localhost:8080/ws`: `document` → reenvía el mismo `document` y responde `fixtures/speak.json` y `fixtures/stats.json`; `utterance` final → `fixtures/speak-utterance.json` y `stats`; `pointer` → no responde. El `replyTo` de la respuesta es el `id` recibido.
+- `ws://localhost:8080/ws`: `document` → forwards the same `document` and answers `fixtures/speak.json` and `fixtures/stats.json`; final `utterance` → `fixtures/speak-utterance.json` and `stats`; `pointer` → no answer. The answer's `replyTo` is the received `id`.
 
-Prueba rápida desde la consola del navegador:
+A quick test from the browser console:
 ```js
 const ws = new WebSocket("ws://localhost:8080/ws");
 ws.onmessage = (e) => console.log(JSON.parse(e.data));

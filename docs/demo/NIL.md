@@ -1,74 +1,74 @@
-# Demo · Nil: gestos
+# Demo · Nil: gestures
 
-Responsable: **Nil**. Plan común y reglas: `docs/demo/README.md`.
+Owner: **Nil**. Common plan and rules: `docs/demo/README.md`.
 
-## Qué revisas
-| Pieza | Dónde |
+## What you review
+| Piece | Where |
 |---|---|
-| Seguimiento de la mano y gestos (MediaPipe) | `web/src/input/` |
-| Página de Gesture Control, menú del puño, modo cursor, nivel de volumen y brillo | `web/src/input/desktop/` (`gestureControl.ts`, `menu.ts`, `menuView.ts`, `gestureControl.css`) |
-| El ayudante que pulsa teclas y mueve el ratón de verdad | `adapters/desktop/` |
-| La cámara única compartida con PDF Scanner, la burbuja y «Main menu» | `web/src/app/overlay/gestureHost.ts` (de Isaac: avísale si lo tocas) |
+| Hand tracking and gestures (MediaPipe) | `web/src/input/` |
+| The Gesture Control page, fist menu, cursor mode, volume and brightness level | `web/src/input/desktop/` (`gestureControl.ts`, `menu.ts`, `menuView.ts`, `gestureControl.css`) |
+| The helper that really presses keys and moves the mouse | `adapters/desktop/` |
+| The single camera shared with PDF Scanner, the bubble and «Main menu» | `web/src/app/overlay/gestureHost.ts` (Isaac's: tell them if you touch it) |
 
-## Qué tiene que funcionar en la demo
-1. **Tecla 6** (Gesture Control): el overlay se reduce a la burbuja de cámara arriba a la izquierda y los gestos funcionan.
-2. **La burbuja** solo salta a la otra esquina de arriba cuando el cursor de la mano se pone encima.
-3. **Menú del puño:** se abre, cada opción se elige al mantener el gesto y se cierra sin dejar la ventana rara.
-   - «Main menu» (antes «Close gestures») vuelve al menú principal del overlay **sin** apagar la cámara ni los gestos.
-   - «Close app» cierra.
-4. **Modo cursor:** mover el ratón con el dedo y hacer clic en botones del overlay. El más importante es «Take photo» de PDF Scanner.
-5. **Tres dedos** leen en voz alta el texto seleccionado en otro programa; deslizar atrás vuelve a empezar y deslizar adelante termina.
-6. **Volumen y brillo con la pinza**, sin saltos.
-7. **Cámara compartida:** abrir PDF Scanner (tecla 2) pausa los gestos y, al salir, vuelven solos.
+## What has to work in the demo
+1. **Key 6** (Gesture Control): the overlay shrinks to the camera bubble at the top left and the gestures work.
+2. **The bubble** only jumps to the other top corner when the hand cursor goes over it.
+3. **Fist menu:** it opens, each option is chosen by holding the gesture, and it closes without leaving the window in an odd state.
+   - «Main menu» (formerly «Close gestures») goes back to the overlay's main menu **without** turning off the camera or the gestures.
+   - «Close app» closes it.
+4. **Cursor mode:** move the mouse with your finger and click buttons of the overlay. The most important one is PDF Scanner's «Take photo».
+5. **Three fingers** read aloud the text selected in another program; swiping back starts again and swiping forward ends.
+6. **Volume and brightness with the pinch**, without jumps.
+7. **Shared camera:** opening PDF Scanner (key 2) pauses the gestures and, when you leave, they come back on their own.
 
-## Fallos y riesgos conocidos
-- **«Microphone» del menú del puño silencia el micro de Windows.** Si se queda silenciado, las órdenes de voz (tecla 7) no oyen nada. Hay que hacerlo visible: que la opción diga claramente «Muted» o «On» y que el estado sea el real al abrir el menú (hoy empieza en «Microphone» hasta que se pulsa). Valora si en la demo debe estar.
-- **Acciones involuntarias:** 5 minutos de uso sin que se dispare nada solo (R2). Vigila el log (`did:`).
-- **La pinza** iba de 20 % a 100 % y a 0 % en un segundo. Está arreglado en R2: compruébalo.
-- **La cámara sin luz o tapada:** la página tiene que decir qué pasa y no quedarse en negro.
-- **Rendimiento:** el seguimiento de la mano va en el hilo principal. Si el overlay se nota lento con los gestos activos, mídelo (fotogramas) antes de cambiar nada.
+## Known bugs and risks
+- **The fist menu's «Microphone» mutes the Windows mic.** If it stays muted, voice commands (key 7) hear nothing. It has to be visible: the option should clearly say «Muted» or «On» and the state should be the real one when the menu opens (today it starts as «Microphone» until pressed). Consider whether it should be in the demo.
+- **Unintended actions:** 5 minutes of use without anything firing on its own (R2). Watch the log (`did:`).
+- **The pinch** went from 20 % to 100 % and to 0 % in one second. It is fixed in R2: check it.
+- **The camera with no light or covered:** the page has to say what is going on and not stay black.
+- **Performance:** hand tracking runs on the main thread. If the overlay feels slow with gestures on, measure it (frames) before changing anything.
 
-## Cómo probar
-`task overlay` → `build/bin/lauzhack.exe` con la MX Brio. Tecla 1 abre el menú y la 6 activa los gestos. Los tests están en `web/src/input/test/` (`task check`).
+## How to test
+`task overlay` → `build/bin/lauzhack.exe` with the MX Brio. Key 1 opens the menu and key 6 turns on the gestures. The tests are in `web/src/input/test/` (`task check`).
 
-## Hecho cuando
-- [ ] Los 7 puntos de arriba funcionan dos veces seguidas con el `.exe`.
-- [ ] 5 minutos de uso sin acciones involuntarias.
-- [ ] El estado del micro en el menú del puño es el real.
-- [ ] Ningún error de la cámara o del ayudante sin un mensaje en pantalla.
+## Done when
+- [ ] The 7 points above work twice in a row with the `.exe`.
+- [ ] 5 minutes of use without unintended actions.
+- [ ] The mic state in the fist menu is the real one.
+- [ ] No camera or helper error without an on-screen message.
 
-## Prompt para tu agente
+## Prompt for your agent
 ```
-Lee AGENTS.md, docs/demo/README.md y docs/demo/NIL.md. Trabajas para Nil en la fase de pulido para la
-demo: no añadas funcionalidades, haz robusto lo que hay. Revisa web/src/input, web/src/input/desktop y
-adapters/desktop, uno a uno, con los puntos de «Qué tiene que funcionar» y «Fallos y riesgos». Antes de
-cambiar código, reprodúcelo con el .exe (task overlay) y el log. Un arreglo = un commit en una rama
-demo/nil-<tema>, con su línea en el Registro de docs/demo/NIL.md. task check en verde antes de subir.
-Si necesitas tocar gestureHost.ts u otra carpeta, pregúntame primero.
-Para cada arreglo escribe o actualiza sus tests, pasa task check (y los tests de tu parte) y
-pruébalo con el .exe; abre un PR y, con el CI en verde, fusiónalo tú mismo a main
-(gh pr merge <n> --merge). Nadie revisa lo de otros.
+Read AGENTS.md, docs/demo/README.md and docs/demo/NIL.md. You work for Nil in the demo polish phase:
+do not add features, make what exists robust. Review web/src/input, web/src/input/desktop and
+adapters/desktop, one by one, against the points in «What has to work» and «Known bugs and risks».
+Before changing code, reproduce it with the .exe (task overlay) and the log. One fix = one commit on a
+demo/nil-<topic> branch, with its line in the Log of docs/demo/NIL.md. task check green before pushing.
+If you need to touch gestureHost.ts or another folder, ask me first.
+For each fix write or update its tests, run task check (and the tests of your part) and
+test it with the .exe; open a PR and, with green CI, merge it yourself into main
+(gh pr merge <n> --merge). Nobody reviews other people's work.
 ```
 
-## Registro (lo rellena el agente)
-Por cada fallo: síntoma → cómo reproducirlo → causa → arreglo → cómo se ha comprobado (con el `.exe`).
+## Log (filled in by the agent)
+For each bug: symptom → how to reproduce it → cause → fix → how it was checked (with the `.exe`).
 
-**1. «Close gestures» dejaba los gestos activos (2026-11-22)**
-- Síntoma: tras «Close gestures» el overlay volvía, pero la mano seguía disparando acciones. Quedaba además código viejo que apagaba la cámara.
-- Arreglo: «Close gestures» duerme los gestos (`HandInteraction.sleepNow`), apaga el modo cursor y vuelve al overlay; la cámara sigue encendida. Una palma abierta o abrir Gesture Control (tecla 6, `wakeNow`) los despierta.
-- Comprobado: test nuevo en `experimental.test.ts`, `tsc`, 199 tests. Falta el `.exe` (lo prueba Nil en Windows).
+**1. «Close gestures» left the gestures active (2026-11-22)**
+- Symptom: after «Close gestures» the overlay came back, but the hand kept firing actions. There was also old code left that turned the camera off.
+- Fix: «Close gestures» puts the gestures to sleep (`HandInteraction.sleepNow`), turns cursor mode off and goes back to the overlay; the camera stays on. An open palm or opening Gesture Control (key 6, `wakeNow`) wakes them up.
+- Checked: new test in `experimental.test.ts`, `tsc`, 199 tests. The `.exe` is still missing (Nil tests it on Windows).
 
-**2. «Microphone» no mostraba el estado real (2026-11-22)**
-- Síntoma: la opción decía «Microphone» hasta pulsarla. Además, tras pulsarla en Windows tampoco cambiaba: el ayudante responde «microphone on» y la página buscaba «unmuted».
-- Arreglo: el ayudante tiene `GET /api/mic` (`{"muted": true|false}`, `Desktop.MicMuted` en Windows, Linux y macOS). La página lo lee al arrancar y al abrir el menú (como mucho cada 2 s); tras pulsar, usa la respuesta del ayudante (`micStateOf`). Si falla, vuelve a leer el estado real. Silenciado, avisa de que las órdenes de voz no oirán.
-- Comprobado: `TestServerMicState` (Go), tests de `micStateOf` y `micMuted` (web), `go vet` Linux y Windows, 201 tests. Falta el `.exe` (Nil en Windows).
+**2. «Microphone» did not show the real state (2026-11-22)**
+- Symptom: the option said «Microphone» until pressed. Also, after pressing it on Windows it did not change either: the helper answers «microphone on» and the page was looking for «unmuted».
+- Fix: the helper has `GET /api/mic` (`{"muted": true|false}`, `Desktop.MicMuted` on Windows, Linux and macOS). The page reads it at startup and when the menu opens (at most every 2 s); after pressing, it uses the helper's answer (`micStateOf`). If that fails, it reads the real state again. When muted, it warns that voice commands will not hear.
+- Checked: `TestServerMicState` (Go), tests of `micStateOf` and `micMuted` (web), `go vet` Linux and Windows, 201 tests. The `.exe` is still missing (Nil on Windows).
 
-**3. «Close gestures» pasa a ser «Main menu» (2026-11-22, pedido por Nil tras probarlo)**
-- Síntoma: hacía falta volver al menú general del overlay sin desactivar los gestos por completo; el arreglo 1 los dormía.
-- Arreglo: ↖ «Main menu» muestra el menú principal del overlay (`gestures:main-menu` → `view = "menu"`) y, desde la burbuja, devuelve la ventana. Los gestos y el modo cursor siguen activos. Se quita `sleepNow`; queda `wakeNow` para la tecla 6.
-- Comprobado: tests actualizados, `tsc`, 201 tests, build web. Falta el `.exe` (Nil en Windows).
+**3. «Close gestures» becomes «Main menu» (2026-11-22, asked for by Nil after testing it)**
+- Symptom: a way was needed to go back to the overlay's general menu without turning the gestures off completely; fix 1 put them to sleep.
+- Fix: ↖ «Main menu» shows the overlay's main menu (`gestures:main-menu` → `view = "menu"`) and, from the bubble, restores the window. The gestures and cursor mode stay active. `sleepNow` is removed; `wakeNow` stays for key 6.
+- Checked: tests updated, `tsc`, 201 tests, web build. The `.exe` is still missing (Nil on Windows).
 
-**4. Pulgar a la izquierda = volver atrás y deshacer (2026-11-22, pedido por Nil)**
-- Qué: el puño con el pulgar hacia la izquierda del usuario (`thumbs_left`, en `poses.ts`) vuelve atrás en el menú del puño (el pulgar hacia abajo ya no). Si el volumen o el brillo están esperando la pinza, lo cancela. Fuera del menú deshace la última acción (15 s): volumen y brillo al valor de antes, micro y modo cursor.
-- Para restaurar el valor exacto, el ayudante lee el volumen y el brillo actuales: `GET /api/level?target=volume|brightness` (`Desktop.Level`; Windows por Core Audio y WMI, Linux con wpctl/pactl/amixer y brightnessctl/light, macOS solo el volumen).
-- Comprobado: `TestServerLevel`, `TestParsePercent` (Go), tests de pose, menú, cancelación y `level()` (web), `go vet` Linux, Windows y macOS, 209 tests, build web. Falta el `.exe` (Nil en Windows).
+**4. Thumb to the left = go back and undo (2026-11-22, asked for by Nil)**
+- What: the fist with the thumb pointing to the user's left (`thumbs_left`, in `poses.ts`) goes back in the fist menu (thumbs down no longer does). If volume or brightness is waiting for the pinch, it cancels it. Outside the menu it undoes the last action (15 s): volume and brightness back to the value before, microphone and cursor mode.
+- To restore the exact value, the helper reads the current volume and brightness: `GET /api/level?target=volume|brightness` (`Desktop.Level`; Windows through Core Audio and WMI, Linux with wpctl/pactl/amixer and brightnessctl/light, macOS volume only).
+- Checked: `TestServerLevel`, `TestParsePercent` (Go), pose, menu, cancel and `level()` tests (web), `go vet` Linux, Windows and macOS, 209 tests, web build, and Nil tested it with the `.exe` on Windows.

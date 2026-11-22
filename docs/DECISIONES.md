@@ -1,99 +1,104 @@
-# Decisiones del proyecto
+# Project decisions
 
-Registro completo, de la más nueva a la más antigua. Movido desde `AGENTS.md` el 2026-11-22 para ahorrar tokens: `docs/ESTADO.md` resume las vigentes. **Si tomas una decisión que cambia una interfaz o el contrato, añádela aquí arriba** (una entrada corta) y, si afecta al trabajo diario, una línea en «Decisiones vigentes» de `docs/ESTADO.md`.
+Full record, newest first. Moved from `AGENTS.md` on 2026-11-22 to save tokens: `docs/ESTADO.md` summarises the current ones. **If you make a decision that changes an interface or the contract, add it here at the top** (a short entry) and, if it affects day-to-day work, a line in «Current decisions» of `docs/ESTADO.md`.
 
-- 2026-11-22 — **Orden de voz «borra el texto»** (Isaac; `docs/KEYPAD.md`):
-  - Binding nuevo `DeleteSelection()` (`app_readselection.go`, `backend/overlay/selection_windows.go`): copia la selección del programa de delante y, solo si hay texto seleccionado, pulsa Supr; devuelve el portapapeles anterior.
-  - Solo por voz: graba únicamente al pulsar la 7 (o «Voice command»), transcribe con `POST /transcribe` y borra solo si la frase es una orden de borrar (regla que va primero en `voiceCommand.ts`).
-  - Motivo: borrar sin selección quitaría la letra tras el cursor; por eso se comprueba antes.
-- 2026-11-22 — **Sistema de diseño nuevo para el overlay** (Isaac; `docs/DESIGN.md`):
-  - Sustituye a Halo (`docs/DISENO.md`): tokens semánticos en `web/src/index.css` (texto, un solo acento, estados, transparencias, 5 tamaños de letra, radios, elevación, movimiento) y componentes base en `ui.tsx` (`IconButton`, `Switch`, `Tag`, más `.btn-quiet` y `.backing`).
-  - Las transparencias se conservan con los mismos valores, ahora como tokens; el contraste se ha medido sobre un escritorio blanco y uno negro.
-  - Aplicado a todas las pantallas el mismo día, solo la apariencia (sin tocar lógica, props ni contrato): un solo acento amarillo (las herramientas se distinguen por icono, nombre y sitio), anillo quieto en vez del halo que giraba, bordes de 1 px en vez de sombras grandes, 5 tamaños de letra, sin emojis como iconos. `DISENO.md` pasa a `docs/historial/DISENO_halo.md`. Motivo: coherencia entre pantallas y un aspecto de overlay sobrio, no de app «hecha por IA».
-- 2026-11-22 — **Una sola pieza decide la forma de la ventana** (R5, Pau; `docs/VENTANA.md`):
-  - `app_window.go`: las partes declaran lo que quieren (`open`, `layer`, `gestures`, `gestureScreen`, `summary`) y `desiredShape` decide con una jerarquía fija: resumen > menú del puño > overlay (capa o ventana) > burbuja de cámara > oculta.
-  - Las formas temporales vuelven solas a la que había. Los gestos nunca abren, cierran ni encogen el overlay; el modo cursor no toca la ventana.
-  - Motivo: seis funciones movían la ventana por su cuenta y el menú del puño, el modo cursor o el resumen dejaban el overlay en 960×680 o lo encogían.
-- 2026-11-22 — **Contexto para las IA reorganizado** (Pau, a petición del equipo):
-  - `AGENTS.md` pasa de 12 KB a ~3 KB: qué es, dónde estamos, qué leer según la tarea y 10 reglas. Se carga en cada petición.
-  - Tres documentos nuevos: `docs/ESTADO.md` (dónde estamos y adónde vamos; mantenerlo al día), `docs/MAPA.md` (carpetas, dueños, puertos y flujos) y `docs/TRABAJAR.md` (ciclo de trabajo, `.exe`, trampas de Windows, ahorro de tokens).
-  - `scanner/AGENTS.md` pasa de 15,6 KB a ~2,5 KB y se borra su copia `AGENTS_B.md`.
-  - Al historial: `ESTADO_PROYECTO.md`, `INSTRUCCIONES_ARRANQUE.md`, `arranque/`, `ideas/`, `PRUEBA_WAILS.md` y los briefs por persona de Didac e Isaac; el de los subtítulos pasa a `docs/briefs/subtitulos.md`.
-- 2026-11-22 — **Escaneo medido y mejorado (N3, Pau; `docs/medidas/N3.md`):**
-  - El servicio de lectura responde en cuanto el `document` está listo; el PDF buscable y el PDF digital se terminan en segundo plano.
-  - El PDF digital va **desactivado** por defecto, porque usa un modelo de pago en cada escaneo (arreglo R3). Se activa con `?digital=1` o `SCANNER_DIGITAL=1`.
-  - Sin hoja detectada pero con texto sobre papel, el servicio devuelve el `document` sin `pageCorners` (opcional en el contrato) en vez de 422.
-- 2026-11-22 — **Subtítulos en directo (Pau; brief `docs/briefs/subtitulos.md`, `web/src/captions/README.md`):**
-  - El navegador manda el audio (PCM 16 kHz) a Go por `GET /captions` (WebSocket); Go lo pasa a Together AI: subtítulos en directo y diarización por lotes con Parakeet v3; idioma, barbarismos entre comillas y traducción con Qwen3.5-9B (sin razonamiento).
-  - Contrato 0.8, solo añade: `GET /captions`, `CaptionsEvent` (con `revise`), `speakers`.
-  - Carpetas de Pau: `backend/captions/` (de Isaac solo se toca el registro de la ruta en `mux.go`) y `web/src/captions/`.
-  - Clave `TOGETHER_API_KEY` solo en `.env`; coste visible con tope por sesión (`CAPTIONS_LIMIT_USD`, 1 $); si Together falla, se ofrece el Whisper local de Nil.
-- 2026-11-22 — **Diseño final del overlay, «Halo»** (Didac, `docs/DISENO.md`).
-  - Una capa a pantalla completa y sin marco, como Xbox Game Bar.
-  - Gesture Control en el círculo grande del centro, y PDF Scanner, Read Text, AI Summary y Transcribe (*Coming soon*) en un arco por encima.
-  - Cada herramienta abre un panel de cristal con la misma cabecera.
-  - Tipografía Atkinson Hyperlegible, un color por herramienta y el amarillo para lo que se lee y el foco.
-  - Las pantallas nuevas usan los tokens y los componentes de `index.css` y `web/src/app/overlay/ui.tsx`.
+- 2026-11-22 — **Everything in the repo in English** (Pau, for the whole team):
+  - Code, comments, logs, tests, interface text and now also the documentation (`*.md`) are in English. The conversation with the team stays in Spanish.
+  - The file names of the existing docs (`ESTADO.md`, `COMO_PROBAR.md`…) are kept so as not to break links and open branches.
+  - Exceptions: `docs/historial/` (archive) and the Spanish data that is there on purpose (test sentences, language detection, prompts that handle Spanish text, Spanish voice commands).
+  - Replaces the 2026-11-21 rule «documentation in Spanish».
+- 2026-11-22 — **Voice command «borra el texto» (delete the text)** (Isaac; `docs/KEYPAD.md`):
+  - New binding `DeleteSelection()` (`app_readselection.go`, `backend/overlay/selection_windows.go`): copies the selection of the program in front and, only if there is selected text, presses Delete; restores the previous clipboard.
+  - Voice only: it records only when key 7 (or «Voice command») is pressed, transcribes with `POST /transcribe` and deletes only if the sentence is a delete command (a rule that goes first in `voiceCommand.ts`).
+  - Reason: deleting with no selection would remove the letter after the cursor; that is why it is checked first.
+- 2026-11-22 — **New design system for the overlay** (Isaac; `docs/DESIGN.md`):
+  - Replaces Halo (`docs/DISENO.md`): semantic tokens in `web/src/index.css` (text, a single accent, states, transparencies, 5 type sizes, radii, elevation, motion) and base components in `ui.tsx` (`IconButton`, `Switch`, `Tag`, plus `.btn-quiet` and `.backing`).
+  - The transparencies keep the same values, now as tokens; contrast was measured over a white and a black desktop.
+  - Applied to every screen the same day, appearance only (no logic, props or contract touched): a single yellow accent (the tools are told apart by icon, name and place), a still ring instead of the spinning halo, 1 px borders instead of large shadows, 5 type sizes, no emojis as icons. `DISENO.md` moves to `docs/historial/DISENO_halo.md`. Reason: consistency between screens and a sober overlay look, not an app «made by AI».
+- 2026-11-22 — **A single piece decides the window's shape** (R5, Pau; `docs/VENTANA.md`):
+  - `app_window.go`: the parts declare what they want (`open`, `layer`, `gestures`, `gestureScreen`, `summary`) and `desiredShape` decides with a fixed hierarchy: summary > fist menu > overlay (layer or window) > camera bubble > hidden.
+  - Temporary shapes go back on their own to the previous one. The gestures never open, close or shrink the overlay; cursor mode does not touch the window.
+  - Reason: six functions moved the window on their own, and the fist menu, cursor mode or the summary left the overlay at 960×680 or shrank it.
+- 2026-11-22 — **Context for the AIs reorganised** (Pau, at the team's request):
+  - `AGENTS.md` goes from 12 KB to ~3 KB: what it is, where we are, what to read depending on the task, and 10 rules. It is loaded on every request.
+  - Three new documents: `docs/ESTADO.md` (where we are and where we are going; keep it up to date), `docs/MAPA.md` (folders, owners, ports and flows) and `docs/TRABAJAR.md` (work cycle, `.exe`, Windows pitfalls, saving tokens).
+  - `scanner/AGENTS.md` goes from 15.6 KB to ~2.5 KB and its copy `AGENTS_B.md` is deleted.
+  - Moved to history: `ESTADO_PROYECTO.md`, `INSTRUCCIONES_ARRANQUE.md`, `arranque/`, `ideas/`, `PRUEBA_WAILS.md` and the per-person briefs of Didac and Isaac; the captions one moves to `docs/briefs/subtitulos.md`.
+- 2026-11-22 — **Scan measured and improved (N3, Pau; `docs/medidas/N3.md`):**
+  - The reading service answers as soon as the `document` is ready; the searchable PDF and the digital PDF are finished in the background.
+  - The digital PDF is **off** by default, because it uses a paid model on every scan (fix R3). It is turned on with `?digital=1` or `SCANNER_DIGITAL=1`.
+  - With no page detected but with text on paper, the service returns the `document` without `pageCorners` (optional in the contract) instead of 422.
+- 2026-11-22 — **Live captions (Pau; brief `docs/briefs/subtitulos.md`, `web/src/captions/README.md`):**
+  - The browser sends the audio (16 kHz PCM) to Go over `GET /captions` (WebSocket); Go passes it to Together AI: live captions and batch diarisation with Parakeet v3; language, barbarisms in quotes and translation with Qwen3.5-9B (no reasoning).
+  - Contract 0.8, additions only: `GET /captions`, `CaptionsEvent` (with `revise`), `speakers`.
+  - Pau's folders: `backend/captions/` (of Isaac's, only the route registration in `mux.go` is touched) and `web/src/captions/`.
+  - Key `TOGETHER_API_KEY` only in `.env`; visible cost with a per-session cap (`CAPTIONS_LIMIT_USD`, $1); if Together fails, Nil's local Whisper is offered.
+- 2026-11-22 — **Final overlay design, «Halo»** (Didac, `docs/DISENO.md`).
+  - A full-screen, frameless layer, like the Xbox Game Bar.
+  - Gesture Control in the large circle in the centre, and PDF Scanner, Read Text, AI Summary and Transcribe (*Coming soon*) in an arc above it.
+  - Each tool opens a glass panel with the same header.
+  - Atkinson Hyperlegible type, one colour per tool and yellow for what is being read and the focus.
+  - The new screens use the tokens and components of `index.css` and `web/src/app/overlay/ui.tsx`.
 - 2026-11-22 — **MX Keypad (N2, Isaac; `docs/KEYPAD.md`, brief `docs/briefs/N2.md`):**
-  - **Lectura directa por USB, sin Logi Options+ ni SDK:** el keypad (VID 046D, PID C354) envía `13 ff 02 00 <contador> 01 <tecla>` en una colección HID del fabricante. Comprobado con el keypad real.
-  - **Respaldo:** la tecla N tiene el atajo global Ctrl+Alt+Shift+N.
-  - **Las teclas, decididas por Isaac:**
-    1. abrir/cerrar la app;
-    2. empezar a grabar una orden de voz;
-    3. parar la grabación;
-    4. leer papel;
-    5. leer archivo;
-    6. leer/pausa;
-    7. resumir la selección;
-    8. gestos;
-    9. menú.
-  - **Órdenes de voz** (teclas 2 y 3): Go transcribe la grabación con `POST /transcribe` (modelo de audio barato) y la frase se convierte en una acción del keypad (`web/src/app/overlay/voiceCommand.ts`, en español, catalán e inglés).
-  - Funciona con otro programa delante: Go muestra el overlay y envía `overlay:keypad`. El contrato no cambia.
-- 2026-11-22 — **Visor de PDF que lee el PDF entero en voz alta (N4, Didac; brief `docs/briefs/N4.md`):**
-  - lee página a página, con parar (X), velocidad, páginas e ir a página (`web/src/document/PdfViewer.tsx`, `pdfReader.ts`);
-  - el servicio de lectura da cada página (imagen y líneas, con OCR para las escaneadas, sin límite de páginas) y Go la pasa con `app_pdf.go`;
-  - documentos de prueba nuevos: 40 páginas y 3 páginas escaneadas.
-- 2026-11-22 — **Gesture Control dentro del overlay** (Nil, rama `feature/T6-overlay-unified`): un solo ejecutable. El programa de gestos pasa a ser un paquete (`adapters/desktop/control`) que la app usa en su propio proceso; la página de la cámara (`mountGestureControl`) se monta en la opción 1 y habla con Go por el binding `GestureCall` (la misma API, sin HTTP, puerto ni token). Con los gestos activos, ocultar el overlay lo encoge a una burbuja de cámara en una esquina (una ventana oculta frenaría la cámara). `gesture-control` sigue existiendo para usarlo solo (`task gestures`, o en Linux, donde la cámara no funciona dentro de Wails).
-- 2026-11-22 — **Opción 4 del overlay: resumir el texto seleccionado en cualquier programa** (Didac, rama `feature/didac-resumir-seleccion`, `docs/OVERLAY.md`).
-  - Funcionamiento: Go recuerda la ventana que había delante al abrir el overlay, copia su selección con Ctrl+C, la resume con el **modelo barato** (2–3 frases, con alternativa local a 0 $) y deja el resumen en el portapapeles, en voz alta y en una burbuja junto al cursor.
-  - Preparado para el cursor de la mano de Nil: `TriggerSummary` y el evento `overlay:summarize`.
-  - **Es la implementación del resumen que se queda** (decisión de Isaac y Didac): sustituye a la N7 de Isaac, que se había fusionado (#48) y se retiró de `main` (revert de de357f8; el keypad N2 se queda). Resumir el documento abierto (opciones 2 y 3) queda pendiente, sobre `backend/summary`.
-  - El contrato no cambia.
-- 2026-11-21 — **App overlay** (rama `overlay`, detalle en `docs/OVERLAY.md`):
-  - la app de escritorio es una ventana siempre encima que se abre desde cualquier programa con **Ctrl+Alt+Espacio** (`LAUZHACK_HOTKEY`; el MX Keypad, desde el 2026-11-22, por USB: ver la decisión N2);
-  - opciones: **1** gestos (Nil; desde el 2026-11-22 va dentro de la app, ver la decisión siguiente), **2** leer un papel (Pau y Didac: cámara → servicio de lectura → lectura guiada) y **3** leer un archivo del PC (Didac: PDF, imágenes, TXT/MD → lectura guiada);
-  - la app arranca y para el servicio de lectura y Gesture Control;
-  - ninguna opción usa IA y el contrato no cambia.
-  - Motivo: juntar las funcionalidades en un solo ejecutable.
-- 2026-11-21 — **Arranque por persona:** no se reparten más tareas cerradas.
-  - Cada persona trabaja con su agente en lo que decida: Nil, en la cámara y su entorno (voz, cara, manos, teclado); Didac y Pau, en una funcionalidad grande y distinta cada uno; Isaac decide entre el backend, una funcionalidad o ayudar a otra persona.
-  - El agente entrevista primero a su persona (`docs/historial/arranque/<persona>.md`) y deja un brief confirmado en `docs/briefs/<persona>.md`.
-  - Motivo: más autonomía. Con el brief por escrito, las sesiones nuevas no repiten la entrevista.
-- 2026-11-21 — **Proyecto unificado:** todas las ramas integradas en `integration/proyecto-unificado` (merges normales, ver `docs/historial/ESTADO_PROYECTO.md`); las tareas por agente se disuelven: `TAREAS.md` pasa a ser un tablero único sin responsables y el estado y el plan por agente se guardan en `docs/historial/`. El reparto se redefinirá tras la lluvia de ideas (`docs/historial/ideas/`).
-- 2026-11-21 — **API local protegida** (`ws.Guard`): solo responde a `Host` 127.0.0.1 o localhost (sin DNS rebinding) y a los orígenes de la app (Vite, Wails), con CORS para ellos; `POST /message` solo acepta JSON. Los procesos locales (el scanner) no mandan `Origin` y siguen funcionando. Sin esto, cualquier web abierta podía enviarnos documentos o preguntas y gastar IA.
-- 2026-11-21 — **Respaldo de voz hecho (T18):** `POST /transcribe` (WAV → texto, contrato 0.6) con Gemini 2.5 Flash Lite y un respaldo gratuito; `transcribeRemote()` en `web/src/app/transcribe.ts` para el rol C.
-- 2026-11-21 — **Contrato 0.5:** `document.pageCorners` (esquinas de la hoja en la foto: arriba-izq, arriba-der, abajo-der, abajo-izq de la hoja tal como se lee) y `POST /scan` (la app envía la foto; Go la pasa al servicio de lectura en `SCANNER_URL`, por defecto `127.0.0.1:8770/scan`, y dice en voz alta lo que pasa). `SCANNER_URL=fixture` permite probarlo todo sin el servicio.
-- 2026-11-21 — **Voz:** reconocimiento local con `whisper-small` (T17, Nil) y respaldo en la nube con `POST /transcribe` en Go y `google/gemini-2.5-flash-lite` (T18, Isaac), solo si el local falla. Medido: `whisper-tiny` falla, `whisper-small` acierta en 1,1 s; Gemini acierta en 2,3 s por 0,00006 $ (`docs/VOZ.md`).
-- 2026-11-21 — **Carpetas aceptadas:** `adapters/desktop/` (Gesture Control de Nil, programa Go aparte, puerto 8767) y `scanner/` (rol B, Python). `scanner/demo_app/` es una herramienta de prueba de Didac, no parte del producto.
-- 2026-11-21 — **Qué dispara el escaneo:** la orden «lee el documento» por **botón** (plan B de la demo), **frase** y **gesto** (acción `scan_document`).
-- 2026-11-21 — **Cámara: se usa la que haya.** En desarrollo, la webcam del portátil; si hay una cámara Logitech conectada (MX Brio), se usa esa, porque es la del reto de Logitech (decisión de Isaac). Consecuencias pendientes: (1) con **una sola cámara**, el scanner (Python) y los gestos (navegador) no pueden abrirla a la vez: hay que decidir cuál la abre; (2) `scanner/capturar.py` hoy falla si no encuentra la Brio: debe usar la cámara disponible si no está (rol B); (3) la interfaz elegirá la Logitech por nombre si está conectada (rol A).
-- 2026-11-21 — Go reenvía a todos los clientes WebSocket cada `document` que acepta (contrato 0.4.0, `ServerMessage` incluye `document`): la pantalla muestra y resalta el documento aunque lo haya enviado el scanner. Los documentos con mal encuadre no se reenvían. Vista mínima en `web/src/app/DocumentText.tsx`; B2 puede sustituirla en `web/src/document`.
-- 2026-11-21 — Una sola sesión compartida por toda la app (`ws.Hub`): los mensajes de cualquier cliente (interfaz por WebSocket, scanner por `POST /message`) actualizan el mismo estado y cada `speak`/`stats` se envía a todos los clientes WebSocket — es una app de escritorio para una persona; sin esto, la explicación del documento del scanner volvía al scanner y no a la pantalla.
-- 2026-11-21 — Código, comentarios, commits y títulos de PR en inglés; conversación y documentación en español (sección «Idioma») — lo pide el equipo. Los commits ya en `main` no se reescriben. En el contrato, los niveles de `stats` pasan de `barato`/`caro` a `cheap`/`expensive` (aún no los usaba nadie más).
-- 2026-11-21 — El scanner de B (Python, `scanner/`) se conecta a Go enviando mensajes `document` a `ws://127.0.0.1:8765/ws` (los bloques con caja y confianza salen de Tesseract) y recibe `speak` y `stats` — el contrato no cambia y B sigue aislado en su carpeta. Acordado por Isaac, Didac y Pau.
-- 2026-11-21 — Presupuesto de IA: 10 € para todo el equipo. Mientras se desarrolla, `LLM_PROFILE=dev` (modelos gratuitos con visión primero y Haiku como último recurso); el perfil por defecto (Haiku + Sonnet) es para la demo. Clave en `.env` (ignorado por git) o en el entorno — que no se acabe el presupuesto antes de la demo.
-- 2026-11-21 — Mensaje `stats` (Go → navegador) con el coste y la latencia de los modelos, enviado tras cada llamada; su payload es el JSON de `llm.Meter.Snapshot()` (hay un test que lo garantiza). Cambio solo aditivo: no afecta a los mensajes existentes — enseñar el coste en pantalla es lo que pide AXA.
-- 2026-11-21 — La app Wails sirve el contrato en `127.0.0.1:8765` (`/health` y `/ws`; se cambia con `LAUZHACK_ADDR` y, si el puerto está ocupado, usa uno libre). El frontend pide la URL a Go con el binding `WsURL()`. Puerto fijo para que un proceso local (por ejemplo, el scanner en Python) pueda enviar `document` sin pasar por el navegador. Solo escucha en 127.0.0.1.
-- 2026-11-21 — Modelos vía `backend/llm`: nivel `cheap` `anthropic/claude-haiku-5.5` y `expensive` `anthropic/claude-sonnet-5.5` (ambos con visión; configurables con `LLM_CHEAP_MODEL` y `LLM_EXPENSIVE_MODEL`), clave en `OPENROUTER_API_KEY`. El paquete pone el mecanismo (caché, contador, `CompleteWithEscalation`) y B2 decide cuándo escalar con su función de duda — el criterio de frugalidad de AXA queda en un solo sitio y se puede medir.
-- 2026-11-21 — Mensajes del WebSocket: sobre común `{type, id, ts, payload}` (`ts` en ms desde epoch; coordenadas normalizadas a [0, 1] sobre el documento recortado). El navegador envía `document`, `pointer` y `utterance`; Go responde con `speak` (con `replyTo` = `id` del mensaje que contesta). Esquemas en `api/openapi.yaml`, ejemplos en `api/fixtures/` — un contrato único que comparten Go y TS.
-- 2026-11-21 — Tipos generados, nunca a mano: Go en `api/gen` (paquete `gen`, oapi-codegen como `go tool`) y TypeScript en `web/src/api/types.ts` (openapi-typescript, alias en `web/src/api/index.ts`). Se regeneran con `task gen` — así Go y TS no se desincronizan.
-- 2026-11-21 — `Taskfile.yml` en lugar de `Makefile`; módulo Go `github.com/IsaacIbanez/hackathon`, Go ≥ 1.26 — en Windows no hay `make`; las dependencias (oapi-codegen) piden Go 1.26.
-- 2026-11-21 — Estructura definitiva: Wails en la raíz, frontend en `web/`, paquetes Go en `backend/<nombre>` sin `internal/`, mock en `backend/cmd/mock` — comprobado: Go rechaza importar `internal/` desde la raíz, y Wails acepta `frontend:dir` y paquetes propios (prueba de Isaac en Windows, Wails v2.17.1).
-- 2026-11-21 — Un agente principal (Claude) por persona y Gemini de apoyo o revisión; los agentes no editan `TAREAS.md` — menos conflictos y más control con cuatro personas.
-- 2026-11-21 — PRs pequeños, revisados por otra persona y fusionados cada 30–60 minutos — el proceso no debe frenar el desarrollo.
-- 2026-11-21 — Monorepo único con Go + frontend web dentro de una app de escritorio — queda todo en un sitio y los agentes se coordinan por archivos.
-- 2026-11-21 — Contrato (OpenAPI y mensajes WebSocket) antes que el código — permite trabajar en paralelo con mocks.
-- 2026-11-21 — Visión, gestos y voz en el navegador, Go solo orquesta — es local, barato y encaja con la frugalidad de AXA.
-- 2026-11-21 — Wails como envoltura de escritorio, con prueba de cámara en todos los SO en la primera hora — plan B: Electron.
-- 2026-11-21 — Hápticos y keypad de Logitech aparcados; solo se mira el SDK de la cámara — foco en el bucle de cámara.
-- 2026-11-21 — Si el SDK de Logitech exige Python o C#, va como adaptador aparte en `adapters/logitech/` que habla con la app por WebSocket o HTTP local — aísla el lenguaje del SDK.
+  - **Direct reading over USB, without Logi Options+ or an SDK:** the keypad (VID 046D, PID C354) sends `13 ff 02 00 <counter> 01 <key>` in a vendor HID collection. Checked with the real keypad.
+  - **Fallback:** key N has the global shortcut Ctrl+Alt+Shift+N.
+  - **The keys, decided by Isaac:**
+    1. open/close the app;
+    2. start recording a voice command;
+    3. stop the recording;
+    4. read paper;
+    5. read file;
+    6. read/pause;
+    7. summarise the selection;
+    8. gestures;
+    9. menu.
+  - **Voice commands** (keys 2 and 3): Go transcribes the recording with `POST /transcribe` (cheap audio model) and the sentence is turned into a keypad action (`web/src/app/overlay/voiceCommand.ts`, in Spanish, Catalan and English).
+  - Works with another program in front: Go shows the overlay and sends `overlay:keypad`. The contract does not change.
+- 2026-11-22 — **PDF viewer that reads the whole PDF aloud (N4, Didac; brief `docs/briefs/N4.md`):**
+  - reads page by page, with stop (X), speed, pages and go to a page (`web/src/document/PdfViewer.tsx`, `pdfReader.ts`);
+  - the reading service provides each page (image and lines, with OCR for the scanned ones, with no page limit) and Go passes it on with `app_pdf.go`;
+  - new test documents: 40 pages and 3 scanned pages.
+- 2026-11-22 — **Gesture Control inside the overlay** (Nil, branch `feature/T6-overlay-unified`): a single executable. The gesture program becomes a package (`adapters/desktop/control`) that the app uses in its own process; the camera page (`mountGestureControl`) is mounted in option 1 and talks to Go through the `GestureCall` binding (the same API, without HTTP, port or token). With the gestures active, hiding the overlay shrinks it to a camera bubble in a corner (a hidden window would slow down the camera). `gesture-control` still exists to be used on its own (`task gestures`, or on Linux, where the camera does not work inside Wails).
+- 2026-11-22 — **Overlay option 4: summarise the text selected in any program** (Didac, branch `feature/didac-resumir-seleccion`, `docs/OVERLAY.md`).
+  - How it works: Go remembers the window that was in front when the overlay opened, copies its selection with Ctrl+C, summarises it with the **cheap model** (2–3 sentences, with a local $0 alternative) and leaves the summary in the clipboard, aloud and in a bubble next to the cursor.
+  - Ready for Nil's hand cursor: `TriggerSummary` and the `overlay:summarize` event.
+  - **It is the summary implementation that stays** (decision of Isaac and Didac): it replaces Isaac's N7, which had been merged (#48) and was removed from `main` (revert of de357f8; the N2 keypad stays). Summarising the open document (options 2 and 3) remains pending, on top of `backend/summary`.
+  - The contract does not change.
+- 2026-11-21 — **Overlay app** (branch `overlay`, details in `docs/OVERLAY.md`):
+  - the desktop app is an always-on-top window that opens from any program with **Ctrl+Alt+Space** (`LAUZHACK_HOTKEY`; the MX Keypad, since 2026-11-22, over USB: see the N2 decision);
+  - options: **1** gestures (Nil; since 2026-11-22 it lives inside the app, see the decision above), **2** read a paper (Pau and Didac: camera → reading service → guided reading) and **3** read a file from the PC (Didac: PDF, images, TXT/MD → guided reading);
+  - the app starts and stops the reading service and Gesture Control;
+  - no option uses AI and the contract does not change.
+  - Reason: bring the features together in a single executable.
+- 2026-11-21 — **Per-person startup:** no more closed tasks are handed out.
+  - Each person works with their agent on what they decide: Nil, on the camera and its surroundings (voice, face, hands, keyboard); Didac and Pau, on a large and different feature each; Isaac chooses between the backend, a feature or helping someone else.
+  - The agent first interviews its person (`docs/historial/arranque/<person>.md`) and leaves a confirmed brief in `docs/briefs/<person>.md`.
+  - Reason: more autonomy. With the brief written down, new sessions do not repeat the interview.
+- 2026-11-21 — **Unified project:** all branches integrated into `integration/proyecto-unificado` (normal merges, see `docs/historial/ESTADO_PROYECTO.md`); the per-agent tasks are dissolved: `TAREAS.md` becomes a single board without owners, and the per-agent status and plan are kept in `docs/historial/`. The split will be redefined after the brainstorm (`docs/historial/ideas/`).
+- 2026-11-21 — **Protected local API** (`ws.Guard`): it only answers to `Host` 127.0.0.1 or localhost (no DNS rebinding) and to the app's origins (Vite, Wails), with CORS for them; `POST /message` only accepts JSON. Local processes (the scanner) do not send `Origin` and keep working. Without this, any open web page could send us documents or questions and spend AI.
+- 2026-11-21 — **Voice fallback done (T18):** `POST /transcribe` (WAV → text, contract 0.6) with Gemini 2.5 Flash Lite and a free fallback; `transcribeRemote()` in `web/src/app/transcribe.ts` for role C.
+- 2026-11-21 — **Contract 0.5:** `document.pageCorners` (corners of the page in the photo: top-left, top-right, bottom-right, bottom-left of the page as it reads) and `POST /scan` (the app sends the photo; Go passes it to the reading service at `SCANNER_URL`, by default `127.0.0.1:8770/scan`, and says aloud what is happening). `SCANNER_URL=fixture` lets you test everything without the service.
+- 2026-11-21 — **Voice:** local recognition with `whisper-small` (T17, Nil) and a cloud fallback with `POST /transcribe` in Go and `google/gemini-2.5-flash-lite` (T18, Isaac), only if the local one fails. Measured: `whisper-tiny` fails, `whisper-small` gets it right in 1.1 s; Gemini gets it right in 2.3 s for $0.00006 (`docs/VOZ.md`).
+- 2026-11-21 — **Folders accepted:** `adapters/desktop/` (Nil's Gesture Control, a separate Go program, port 8767) and `scanner/` (role B, Python). `scanner/demo_app/` is a test tool of Didac's, not part of the product.
+- 2026-11-21 — **What triggers the scan:** the «read the document» command by **button** (the demo's plan B), **sentence** and **gesture** (action `scan_document`).
+- 2026-11-21 — **Camera: use whichever there is.** In development, the laptop's webcam; if a Logitech camera is connected (MX Brio), that one is used, because it is the Logitech challenge's (Isaac's decision). Pending consequences: (1) with **a single camera**, the scanner (Python) and the gestures (browser) cannot open it at the same time: we have to decide which one opens it; (2) `scanner/capturar.py` today fails if it does not find the Brio: it must use the available camera if it is not there (role B); (3) the interface will pick the Logitech one by name if it is connected (role A).
+- 2026-11-21 — Go forwards to every WebSocket client each `document` it accepts (contract 0.4.0, `ServerMessage` includes `document`): the screen shows and highlights the document even if the scanner sent it. Badly framed documents are not forwarded. Minimal view in `web/src/app/DocumentText.tsx`; B2 can replace it in `web/src/document`.
+- 2026-11-21 — A single session shared by the whole app (`ws.Hub`): messages from any client (interface over WebSocket, scanner through `POST /message`) update the same state and each `speak`/`stats` is sent to every WebSocket client — it is a desktop app for one person; without this, the explanation of the scanner's document went back to the scanner and not to the screen.
+- 2026-11-21 — Code, comments, commits and PR titles in English; conversation and documentation in Spanish («Language» section) — the team asks for it. Commits already in `main` are not rewritten. In the contract, the `stats` tiers go from `barato`/`caro` to `cheap`/`expensive` (nobody else used them yet). *(Documentation moved to English on 2026-11-22: see the top entry.)*
+- 2026-11-21 — B's scanner (Python, `scanner/`) connects to Go by sending `document` messages to `ws://127.0.0.1:8765/ws` (the blocks with box and confidence come from Tesseract) and receives `speak` and `stats` — the contract does not change and B stays isolated in its folder. Agreed by Isaac, Didac and Pau.
+- 2026-11-21 — AI budget: €10 for the whole team. While developing, `LLM_PROFILE=dev` (free models with vision first and Haiku as a last resort); the default profile (Haiku + Sonnet) is for the demo. Key in `.env` (ignored by git) or in the environment — so the budget does not run out before the demo.
+- 2026-11-21 — `stats` message (Go → browser) with the models' cost and latency, sent after each call; its payload is the JSON of `llm.Meter.Snapshot()` (a test guarantees it). An additive-only change: it does not affect the existing messages — showing the cost on screen is what AXA asks for.
+- 2026-11-21 — The Wails app serves the contract on `127.0.0.1:8765` (`/health` and `/ws`; changed with `LAUZHACK_ADDR` and, if the port is taken, it uses a free one). The frontend asks Go for the URL with the `WsURL()` binding. A fixed port so that a local process (for example, the Python scanner) can send `document` without going through the browser. It only listens on 127.0.0.1.
+- 2026-11-21 — Models through `backend/llm`: `cheap` tier `anthropic/claude-haiku-5.5` and `expensive` `anthropic/claude-sonnet-5.5` (both with vision; configurable with `LLM_CHEAP_MODEL` and `LLM_EXPENSIVE_MODEL`), key in `OPENROUTER_API_KEY`. The package provides the mechanism (cache, meter, `CompleteWithEscalation`) and B2 decides when to escalate with its doubt function — AXA's frugality criterion stays in one place and can be measured.
+- 2026-11-21 — WebSocket messages: a common envelope `{type, id, ts, payload}` (`ts` in ms since epoch; coordinates normalised to [0, 1] over the cropped document). The browser sends `document`, `pointer` and `utterance`; Go answers with `speak` (with `replyTo` = `id` of the message it answers). Schemas in `api/openapi.yaml`, examples in `api/fixtures/` — a single contract shared by Go and TS.
+- 2026-11-21 — Generated types, never by hand: Go in `api/gen` (package `gen`, oapi-codegen as `go tool`) and TypeScript in `web/src/api/types.ts` (openapi-typescript, aliases in `web/src/api/index.ts`). They are regenerated with `task gen` — so Go and TS do not drift apart.
+- 2026-11-21 — `Taskfile.yml` instead of a `Makefile`; Go module `github.com/IsaacIbanez/hackathon`, Go ≥ 1.26 — there is no `make` on Windows; the dependencies (oapi-codegen) require Go 1.26.
+- 2026-11-21 — Final structure: Wails in the root, frontend in `web/`, Go packages in `backend/<name>` without `internal/`, mock in `backend/cmd/mock` — verified: Go refuses to import `internal/` from the root, and Wails accepts `frontend:dir` and our own packages (Isaac's test on Windows, Wails v2.17.1).
+- 2026-11-21 — One main agent (Claude) per person and Gemini for support or review; the agents do not edit `TAREAS.md` — fewer conflicts and more control with four people.
+- 2026-11-21 — Small PRs, reviewed by another person and merged every 30–60 minutes — the process must not slow down development.
+- 2026-11-21 — A single monorepo with Go + a web frontend inside a desktop app — everything stays in one place and the agents coordinate through files.
+- 2026-11-21 — Contract (OpenAPI and WebSocket messages) before the code — it allows working in parallel with mocks.
+- 2026-11-21 — Vision, gestures and voice in the browser, Go only orchestrates — it is local, cheap and fits AXA's frugality.
+- 2026-11-21 — Wails as the desktop wrapper, with a camera test on every OS in the first hour — plan B: Electron.
+- 2026-11-21 — Logitech haptics and keypad parked; only the camera SDK is looked at — focus on the camera loop.
+- 2026-11-21 — If the Logitech SDK requires Python or C#, it goes as a separate adapter in `adapters/logitech/` that talks to the app over local WebSocket or HTTP — it isolates the SDK's language.

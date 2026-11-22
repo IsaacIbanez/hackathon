@@ -1,27 +1,27 @@
-# Gesture Control (programa de escritorio)
+# Gesture Control (desktop program)
 
-Dueño: rol C (Nil). Un programa local pequeño en Go que hace que los gestos de la mano (`web/src/input`) actúen sobre el ordenador real: control del ratón, teclado, volumen, brillo, silencio de micrófono, energía del sistema y lanzador de aplicaciones.
+Owner: role C (Nil). A small local Go program that makes the hand gestures (`web/src/input`) act on the real computer: mouse control, keyboard, volume, brightness, microphone mute, system power and an app launcher.
 
-Sirve la página de la ventana de cámara (`web/src/input/desktop/`) y una API local en `127.0.0.1:8767` (el 8766 es del scanner), protegida por un token por ejecución, comprobación de cabecera `Host` (contra DNS rebinding) y verificación de `Origin`. Es independiente de la app Wails.
+It serves the camera window's page (`web/src/input/desktop/`) and a local API on `127.0.0.1:8767` (8766 is the scanner's), protected by a per-run token, a check of the `Host` header (against DNS rebinding) and verification of `Origin`. It is independent of the Wails app.
 
-## Dentro del overlay (un solo ejecutable)
-Lo normal es usarlo como **opción 1 del overlay** (`task overlay` → `build/bin/lauzhack.exe`, ver `docs/OVERLAY.md`):
-- la app de Wails usa el paquete `adapters/desktop/control` dentro de su propio proceso: no hay programa aparte, ni puerto 8767, ni token;
-- la página de la cámara (`web/src/input/desktop/gestureControl.ts`, `mountGestureControl`) se monta en la ventana del overlay, y sus peticiones van a Go por el binding `GestureCall`, que responde la misma API (`control.Server.Call`);
-- con los gestos activos, el atajo del overlay (o **M**) encoge la ventana a una **burbuja de cámara** en una esquina en vez de ocultarla; el atajo o un doble clic la devuelven;
-- opciones por variables de entorno: `LAUZHACK_GESTURES_DRY_RUN=1`, `LAUZHACK_SCREEN=1920x1080` y `LAUZHACK_APPS=<ruta de apps.json>`.
+## Inside the overlay (a single executable)
+The normal way is to use it as **overlay option 1** (`task overlay` → `build/bin/lauzhack.exe`, see `docs/OVERLAY.md`):
+- the Wails app uses the `adapters/desktop/control` package inside its own process: there is no separate program, no port 8767 and no token;
+- the camera page (`web/src/input/desktop/gestureControl.ts`, `mountGestureControl`) is mounted in the overlay's window, and its requests go to Go through the `GestureCall` binding, which answers the same API (`control.Server.Call`);
+- with the gestures active, the overlay's shortcut (or **M**) shrinks the window to a **camera bubble** in a corner instead of hiding it; the shortcut or a double click restores it;
+- options through environment variables: `LAUZHACK_GESTURES_DRY_RUN=1`, `LAUZHACK_SCREEN=1920x1080` and `LAUZHACK_APPS=<path to apps.json>`.
 
-## Modo cursor (usar el ordenador con la mano)
-Se activa en el menú (✊ → «🖱️ Cursor mode») o con el interruptor de la ventana. Dentro del overlay, al activarlo la ventana se aparta a la burbuja.
-- ☝️ apuntar mueve el ratón: una zona pequeña y alta de la imagen (`POINTER_AREA`, el 46 % del ancho y del 6 % al 50 % de la altura) cubre toda la pantalla, así la mano no sale del encuadre al llegar abajo; el menú de gestos usa la misma zona;
-- punta del corazón sobre el pulgar: clic; dos toques rápidos: clic derecho; mantener: arrastrar;
-- ✋ palma abierta hacia arriba o abajo: rueda del ratón (scroll);
-- «Keyboard» (primera opción de «Apps»): abre el teclado en pantalla para escribir con el ratón (Windows: `osk.exe`; Linux: `onboard`, si está instalado; macOS: abre los ajustes del teclado de accesibilidad).
+## Cursor mode (using the computer with the hand)
+It is turned on from the menu (✊ → «🖱️ Cursor mode») or with the window's switch. Inside the overlay, turning it on moves the window aside to the bubble.
+- ☝️ pointing moves the mouse: a small, high area of the image (`POINTER_AREA`, 46 % of the width and from 6 % to 50 % of the height) covers the whole screen, so the hand does not leave the frame when reaching the bottom; the gesture menu uses the same area;
+- middle fingertip on the thumb: click; two quick taps: right click; holding: drag;
+- ✋ open palm facing up or down: mouse wheel (scroll);
+- «Keyboard» (first option of «Apps»): opens the on-screen keyboard to type with the mouse (Windows: `osk.exe`; Linux: `onboard`, if installed; macOS: opens the accessibility keyboard settings).
 
-Sin `apps.json`, «Apps» ofrece por defecto navegador, archivos, calculadora y editor de texto.
+Without `apps.json`, «Apps» offers by default a browser, files, a calculator and a text editor.
 
-## Cómo se arranca solo (sin el overlay)
-`task gestures` compila `build/bin/gesture-control`. A mano, desde la raíz del repositorio:
+## How to start it on its own (without the overlay)
+`task gestures` builds `build/bin/gesture-control`. By hand, from the repository root:
 
 ```bash
 cd web && npm ci && npx vite build src/input/desktop --outDir ../../../../adapters/desktop/dist --emptyOutDir && cd ..
@@ -30,69 +30,69 @@ cd web && npm ci && npx vite build src/input/desktop --outDir ../../../../adapte
 go run ./adapters/desktop
 ```
 
-Abre una ventana pequeña «Gesture Control» (Chrome, Edge, Chromium o Brave, con un perfil propio para que siga siguiendo la mano aunque quede detrás de la videollamada). Opciones:
+It opens a small «Gesture Control» window (Chrome, Edge, Chromium or Brave, with its own profile so it keeps tracking the hand even when it is behind the video call). Options:
 
-- `-dry-run`: solo escribe en la terminal lo que haría, sin pulsar nada (para pruebas seguras).
-- `-open=false`: no abre la ventana del navegador; abre tú la URL que aparece.
-- `-apps <ruta>`: ruta a un archivo `apps.json` personalizado.
-- `-screen 1920x1080`: tamaño de pantalla cuando no se detecta automáticamente (Linux Wayland sin Hyprland).
+- `-dry-run`: only writes to the terminal what it would do, without pressing anything (for safe tests).
+- `-open=false`: does not open the browser window; open the URL that appears yourself.
+- `-apps <path>`: path to a custom `apps.json` file.
+- `-screen 1920x1080`: screen size when it is not detected automatically (Linux Wayland without Hyprland).
 
-Para compilarlo como un único binario ejecutable:
+To build it as a single executable binary:
 ```bash
 go build -o gesture-control ./adapters/desktop
 ```
-(En Windows: `gesture-control.exe`). La interfaz web va embebida en el binario, por lo que debe construirse antes (`vite build`).
+(On Windows: `gesture-control.exe`). The web interface is embedded in the binary, so it must be built first (`vite build`).
 
-## Detector de gestos y modo reposo
-El detector arranca en modo **dormido** (`requireWake`) para prevenir gestos accidentales:
-- Se despierta mostrando una **palma abierta estricta** mantenida ~1,2 s delante de la cámara.
-- La postura es exigente: los 5 dedos extendidos y rectos (rectitud ≥ 0,93), dedos separados (separación índice–meñique ≥ 0,8), la palma orientada a la cámara y la mano erguida (inclinación ≤ 40°).
-- La pantalla muestra avisos contextuales (`wakeHint`) indicando qué corregir: `"open"`, `"straight"`, `"spread"`, `"facing"` o `"upright"`.
-- Tras un periodo de inactividad sin gestos ni movimiento de ratón, vuelve a dormirse automáticamente.
+## Gesture detector and sleep mode
+The detector starts **asleep** (`requireWake`) to prevent accidental gestures:
+- It wakes up when a **strict open palm** is held ~1.2 s in front of the camera.
+- The pose is demanding: all 5 fingers extended and straight (straightness ≥ 0.93), fingers spread (index–little finger spread ≥ 0.8), the palm facing the camera and the hand upright (tilt ≤ 40°).
+- The screen shows contextual hints (`wakeHint`) saying what to correct: `"open"`, `"straight"`, `"spread"`, `"facing"` or `"upright"`.
+- After a period of inactivity with no gestures or mouse movement, it goes back to sleep automatically.
 
-## Menú rápido con el puño (✊) y páginas
-El menú se presenta en una rejilla 3×3 de pantalla (con el centro vacío):
-- **Abrir y cerrar:** un ✊ puño mantenido ~0,5 s y quieto abre el menú principal. Dentro del menú, soltar el puño y volver a mostrar ✊ durante ~0,5 s lo cierra. También se cierra solo tras 5 s de inactividad.
-- **Volver atrás (como Alt+← en el navegador):** el puño con el pulgar hacia tu izquierda, mantenido ~0,7 s, o un barrido lateral ✋←, retrocede de página en el menú (o lo cierra desde la página principal). El pulgar hacia abajo ya no lo hace.
-  - Mientras el volumen o el brillo esperan la pinza, el pulgar a la izquierda lo cancela.
-  - Fuera del menú, el pulgar a la izquierda **deshace la última acción** de los últimos 15 s: el volumen o el brillo vuelven al valor de antes de ajustarlos (el ayudante lo lee con `GET /api/level`), y el micro o el modo cursor vuelven a como estaban. Si no hay nada, dice «Nothing to undo».
-- **Página principal:**
-  - ↑ 🔊 Volume y ↓ 🔆 Brightness: activan el control de nivel por pinza (🤏 abrir o cerrar dedos pulgar e índice, fijándolo al quedarse quieto).
-  - ↖ Main menu: vuelve al menú principal del overlay (las opciones grandes) sin apagar los gestos; desde la burbuja, la ventana vuelve a su tamaño. Con el modo cursor se puede elegir allí una opción.
-  - ← Close app (en rojo): cierra toda la aplicación.
-  - ↙ Microphone: interruptor del micrófono del sistema (`mic_mute`). Elegirlo no cierra el menú; la opción pasa a «Mic: muted» o «Mic: on».
-  - ↗ Cursor mode: activa o desactiva el ratón por gestos.
-  - → Apps ▸: abre el submenú de aplicaciones (primero el teclado en pantalla y, en videollamada, «Raise hand»).
-  - ↘ Computer ▸: abre el submenú de opciones de energía (solo si está permitido).
-- **Submenú Computer:**
-  - Opciones: ↑ Suspender…, ← Reiniciar…, → Apagar… y ↓ Volver.
-  - Todas las opciones de apagado/reinicio requieren confirmación previa.
-- **Página de confirmación de energía:**
-  - Menú simplificado a sólo 2 opciones: ↑ ↩ Back (volver a Computer) y ↓ ✔ Yes, <action> (confirma la acción).
-  - Por seguridad, sólo la celda inferior confirma la acción.
-  - La celda elegida queda temporalmente bloqueada para que la nueva pantalla no active opciones accidentalmente al cambiar de página.
-- **Submenú Apps:**
-  - Permite abrir hasta 7 aplicaciones configuradas en `apps.json` distribuidas en las celdas disponibles (`APP_CELLS`), con ↓ Volver. Si no hay apps configuradas, muestra huecos («App N · not set»).
+## Fist quick menu (✊) and pages
+The menu is shown on a 3×3 screen grid (with the centre empty):
+- **Open and close:** a ✊ fist held still ~0.5 s opens the main menu. Inside the menu, releasing the fist and showing ✊ again for ~0.5 s closes it. It also closes on its own after 5 s of inactivity.
+- **Going back (like Alt+← in a browser):** the fist with the thumb pointing to your left, held ~0.7 s, or a lateral swipe ✋←, goes back a page in the menu (or closes it from the main page). Thumbs down no longer does.
+  - While volume or brightness is waiting for the pinch, the thumb to the left cancels it.
+  - Outside the menu, the thumb to the left **undoes the last action** of the last 15 s: volume or brightness go back to the value before the adjustment (the helper reads it with `GET /api/level`), and the microphone or cursor mode go back to how they were. With nothing to undo it says «Nothing to undo».
+- **Main page:**
+  - ↑ 🔊 Volume and ↓ 🔆 Brightness: turn on the pinch level control (🤏 opening or closing the thumb and index fingers, set by holding still).
+  - ↖ Main menu: goes back to the overlay's main menu (the large options) without turning the gestures off; from the bubble, the window goes back to its size. With cursor mode an option can be chosen there.
+  - ← Close app (in red): closes the whole application.
+  - ↙ Microphone: toggle of the system microphone (`mic_mute`). Choosing it does not close the menu; the option changes to «Mic: muted» or «Mic: on».
+  - ↗ Cursor mode: turns mouse-by-gesture on or off.
+  - → Apps ▸: opens the applications submenu (first the on-screen keyboard and, in a video call, «Raise hand»).
+  - ↘ Computer ▸: opens the power options submenu (only if allowed).
+- **Computer submenu:**
+  - Options: ↑ Suspend…, ← Restart…, → Shut down… and ↓ Back.
+  - All the shut down/restart options require a confirmation first.
+- **Power confirmation page:**
+  - A menu simplified to only 2 options: ↑ ↩ Back (back to Computer) and ↓ ✔ Yes, <action> (confirms the action).
+  - For safety, only the bottom cell confirms the action.
+  - The chosen cell is temporarily blocked so that the new screen does not trigger options by accident when the page changes.
+- **Apps submenu:**
+  - Opens up to 7 applications configured in `apps.json` spread over the available cells (`APP_CELLS`), with ↓ Back. If there are no apps configured, it shows gaps («App N · not set»).
 
-## Control del ratón con la mano
-Al activar la casilla **«Move the mouse with ☝️»** (activada por defecto):
-- **Mover cursor:** apuntar con el dedo índice ☝️ desplaza el cursor suavemente (mapeo con margen para alcanzar las esquinas sin salirse del encuadre de la cámara).
-- **Clic izquierdo:** se realiza exclusivamente juntando la punta del dedo corazón (heart finger) y el pulgar mientras se apunta. Quedarse quieto nunca hace clic (mantenerse quieto sólo confirma gestos como despertar o fijar el volumen/brillo).
-- **Clic derecho:** dar dos toques rápidos seguidos con el dedo corazón sobre el pulgar.
-- **Arrastre:** mantener juntos el corazón y el pulgar mientras se desplaza el índice.
-- **Arrastrar (mantener pulsado):** juntar corazón y pulgar y mantenerlos juntos más de 300 ms (emite `mouse down`). Al separar los dedos, se suelta el botón (`mouse up`).
-- **Sin conflicto de gestos:** el gesto de victoria (✌️) se ha eliminado por completo porque se asemejaba a la postura de clic; dos dedos levantados cuentan como apuntar en reposo.
+## Mouse control with the hand
+With the **«Move the mouse with ☝️»** checkbox ticked (on by default):
+- **Move the cursor:** pointing with the index finger ☝️ moves the cursor smoothly (a mapping with a margin to reach the corners without leaving the camera's frame).
+- **Left click:** done only by joining the middle fingertip (heart finger) and the thumb while pointing. Holding still never clicks (holding still only confirms gestures such as waking up or setting the volume/brightness).
+- **Right click:** two quick taps in a row with the middle finger on the thumb.
+- **Drag:** keep the middle finger and the thumb together while moving the index finger.
+- **Drag (holding down):** join the middle finger and the thumb and keep them together for more than 300 ms (emits `mouse down`). When the fingers separate, the button is released (`mouse up`).
+- **No gesture conflict:** the victory gesture (✌️) has been removed completely because it looked like the click pose; two raised fingers count as resting pointing.
 
-## Aplicaciones configurables (`apps.json`)
-La lista de aplicaciones se configura mediante un archivo JSON local. La página web sólo conoce los identificadores (`id`) y nombres (`name`), impidiendo que el navegador ejecute comandos arbitrarios.
+## Configurable applications (`apps.json`)
+The list of applications is configured through a local JSON file. The web page only knows the identifiers (`id`) and names (`name`), which prevents the browser from running arbitrary commands.
 
-Orden de búsqueda de `apps.json`:
-1. Parámetro `-apps <ruta>`
+`apps.json` search order:
+1. The `-apps <path>` parameter
 2. `./apps.json`
 3. `adapters/desktop/apps.json`
-4. Junto al ejecutable
+4. Next to the executable
 
-Ejemplo (`adapters/desktop/apps.example.json`):
+Example (`adapters/desktop/apps.example.json`):
 ```json
 [
   {
@@ -115,39 +115,40 @@ Ejemplo (`adapters/desktop/apps.example.json`):
 ]
 ```
 
-## Requisitos y soporte por sistema operativo
+## Requirements and support per operating system
 
 ### Windows
-- Funciona sin herramientas externas adicionales (utiliza `user32.dll` y llamadas a PowerShell 5.1).
-- **Ratón:** eventos de `user32.dll` (`mouse_event`).
-- **Brillo:** ajuste vía WMI (`WmiMonitorBrightnessMethods`).
-- **Micrófono:** script C# en PowerShell interactuando con las interfaces COM de CoreAudio (`MMDeviceEnumerator` e `IAudioEndpointVolume`).
-- **Energía:** `shutdown /s /t 0`, `shutdown /r /t 0`, y `SetSuspendState` en Forms para suspender.
+- Works without additional external tools (it uses `user32.dll` and calls to PowerShell 5.1).
+- **Mouse:** `user32.dll` events (`mouse_event`).
+- **Brightness:** set through WMI (`WmiMonitorBrightnessMethods`).
+- **Microphone:** a C# script in PowerShell working with CoreAudio's COM interfaces (`MMDeviceEnumerator` and `IAudioEndpointVolume`).
+- **Power:** `shutdown /s /t 0`, `shutdown /r /t 0`, and `SetSuspendState` in Forms to suspend.
 
 ### Linux
-- **Teclado y ratón:**
-  - En **X11**: requiere `xdotool` (`xdotool mousedown 1`, `xdotool mouseup 1`, `xdotool click 3`).
-  - En **Wayland**: requiere `wtype` (teclas) e `ydotool` (ratón, con `ydotoold` en ejecución; clics con `0x40`, `0x80` y `0xC1`).
-- **Brillo:** usa `brightnessctl set N%`, `light -S N` o `xrandr --output <display> --brightness <v>`.
-- **Micrófono:** usa `wpctl set-mute`, `pactl set-source-mute` o `amixer sset Capture toggle`.
-- **Energía:** `systemctl suspend`, `systemctl reboot`, `systemctl poweroff`.
-- **Ventana activa:** enfoca llamadas mediante `hyprctl` (Hyprland), `swaymsg` (Sway) o `xdotool` (X11).
+- **Keyboard and mouse:**
+  - On **X11**: requires `xdotool` (`xdotool mousedown 1`, `xdotool mouseup 1`, `xdotool click 3`).
+  - On **Wayland**: requires `wtype` (keys) and `ydotool` (mouse, with `ydotoold` running; clicks with `0x40`, `0x80` and `0xC1`).
+- **Brightness:** uses `brightnessctl set N%`, `light -S N` or `xrandr --output <display> --brightness <v>`.
+- **Microphone:** uses `wpctl set-mute`, `pactl set-source-mute` or `amixer sset Capture toggle`.
+- **Power:** `systemctl suspend`, `systemctl reboot`, `systemctl poweroff`.
+- **Active window:** focuses calls through `hyprctl` (Hyprland), `swaymsg` (Sway) or `xdotool` (X11).
 
 ### macOS
-- Otorga permiso de Accesibilidad a la terminal (Ajustes del Sistema → Privacidad y seguridad → Accesibilidad).
-- **Ratón:** requiere `cliclick` (`brew install cliclick`).
-- **Brillo:** utiliza la herramienta `brightness` (`brew install brightness`) si está presente, o teclas de brillo mediante AppleScript.
-- **Micrófono:** ajusta y restaura el volumen de entrada (`input volume`) mediante AppleScript.
-- **Energía:** `pmset sleepnow` (suspender), o AppleScript para reiniciar y apagar vía System Events.
+- Give the terminal the Accessibility permission (System Settings → Privacy & Security → Accessibility).
+- **Mouse:** requires `cliclick` (`brew install cliclick`).
+- **Brightness:** uses the `brightness` tool (`brew install brightness`) if present, or the brightness keys through AppleScript.
+- **Microphone:** sets and restores the input volume (`input volume`) through AppleScript.
+- **Power:** `pmset sleepnow` (suspend), or AppleScript to restart and shut down through System Events.
 
-## Endpoints de la API local
-Todas las llamadas requieren la cabecera `X-Gesture-Token` con el token generado al arrancar, y validan la cabecera `Host` y `Origin`:
-- `GET /api/status`: devuelve plataforma, driver de escritorio, modo dryRun, lista de apps de llamada y lanzadores (`launchers: [{id, name}]`) sin revelar órdenes internas.
-- `POST /api/action`: ejecuta una acción de sistema (`Request{action, value, app, confirm, target}`). Las acciones de energía exigen `confirm: true` (error 428 si falta).
-- `POST /api/mouse`: gestiona botones del ratón con `{action: "down" | "up" | "click" | "right_click"}` garantizando orden secuencial en cola.
-- `POST /api/pointer`: actualiza la posición del puntero `{x, y}` normalizado [0, 1].
+## Local API endpoints
+All calls require the `X-Gesture-Token` header with the token generated at startup, and they validate the `Host` and `Origin` headers:
+- `GET /api/status`: returns the platform, desktop driver, dryRun mode, the list of call apps and launchers (`launchers: [{id, name}]`) without revealing internal commands.
+- `POST /api/action`: runs a system action (`Request{action, value, app, confirm, target}`). Power actions require `confirm: true` (error 428 if missing).
+- `POST /api/mouse`: handles the mouse buttons with `{action: "down" | "up" | "click" | "right_click"}`, guaranteeing sequential order in a queue.
+- `POST /api/pointer`: updates the pointer's position `{x, y}` normalised to [0, 1].
+- `GET /api/mic`: the real state of the system microphone (`{"muted": true|false}`).
 
-## Límites conocidos
-- **Pantallas externas:** el control de brillo está limitado a pantallas internas de portátiles o salidas primarias compatibles con los controladores del sistema (no soporta DDC/CI para monitores de escritorio externos).
-- **Pruebas en hardware real:** la implementación ha sido validada exhaustivamente mediante pruebas unitarias y en modo `-dry-run`, pero las acciones físicas de hardware (apagado real, suspensión, micrófonos específicos) deben supervisarse en cada entorno.
-- **Cámara compartida:** si una videollamada bloquea el acceso exclusivo a la webcam en Linux, arranca con `-open=false` y abre la interfaz web en una pestaña del mismo navegador para compartir el stream.
+## Known limits
+- **External screens:** brightness control is limited to internal laptop screens or primary outputs supported by the system's drivers (it does not support DDC/CI for external desktop monitors).
+- **Tests on real hardware:** the implementation has been validated thoroughly with unit tests and in `-dry-run` mode, but the physical hardware actions (real shut down, suspend, specific microphones) must be supervised in each environment.
+- **Shared camera:** if a video call takes exclusive access to the webcam on Linux, start with `-open=false` and open the web interface in a tab of the same browser to share the stream.

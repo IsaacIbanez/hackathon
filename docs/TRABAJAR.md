@@ -1,31 +1,31 @@
-# Cómo trabajar en el repo (y qué trampas evitar)
+# How to work in the repo (and which pitfalls to avoid)
 
-## Ciclo de un arreglo o una tarea
-1. `git pull` en `main` y rama `feature/<ID>-<nombre>` (mejor en un worktree: `scripts/nueva-tarea.sh`).
-2. Lee la ficha (`docs/arreglos/` o `docs/tareas/`). La ficha de un arreglo es su brief; una tarea N necesita un brief confirmado por tu persona (`docs/briefs/<ID>.md`, plantilla en `docs/briefs/README.md`).
-3. **Reproduce el fallo con el `.exe` real** antes de arreglarlo (abajo).
-4. Un fallo = un commit, con su línea en el «Registro» de la ficha: síntoma → cómo reproducirlo → causa → arreglo → cómo se ha comprobado.
-5. `task check` en verde (go vet, go test, lint, tests y build del front).
-6. PR pequeño (qué, qué falta, decisiones, cómo probarlo). Otra persona lo prueba con su `.exe`; se fusiona con el CI en verde. A `main` directo, solo si una persona lo pide.
-7. Si cierras algo que cambia el estado general, actualiza la línea en `docs/ESTADO.md`.
+## Life cycle of a fix or a task
+1. `git pull` on `main` and a `feature/<ID>-<name>` branch (better in a worktree: `scripts/nueva-tarea.sh`).
+2. Read the sheet (`docs/arreglos/` or `docs/tareas/`). A fix's sheet is its brief; an N task needs a brief confirmed by your person (`docs/briefs/<ID>.md`, template in `docs/briefs/README.md`).
+3. **Reproduce the bug with the real `.exe`** before fixing it (below).
+4. One bug = one commit, with its line in the sheet's «Log»: symptom → how to reproduce it → cause → fix → how it was checked.
+5. `task check` green (go vet, go test, lint, frontend tests and build).
+6. A small PR (what, what is missing, decisions, how to test it). Another person tests it with their `.exe`; it is merged with green CI. Straight into `main` only if a person asks for it.
+7. If you close something that changes the overall status, update its line in `docs/ESTADO.md`.
 
-## Compilar y probar la app
-- **Una vez por equipo:** Go ≥ 1.26, `go install github.com/go-task/task/v3/cmd/task@latest`, Wails v2, Node; después **`task setup`** (el escáner con su Python, Tesseract y los idiomas, y las dependencias web).
-- **Compilar:** `task overlay` → `build/bin/lauzhack.exe` (lee el `.env` de la raíz; log en `build/bin/lauzhack.log`). El log y el pie del menú dicen qué versión es (`version: <commit> (built …)`; un «+» = compilado con cambios sin commit).
-- **Antes de abrirlo, cierra cualquier otra copia** de la app y de `gesture-control.exe`: con dos abiertas no sabes cuál estás probando.
-- **Sin ventana:** `task server` (lógica real en 8765) o `task mock` (respuestas fijas en 8080, sin coste).
-- **Pruebas de humo:** `docs/COMO_PROBAR.md`.
+## Build and test the app
+- **Once per machine:** Go ≥ 1.26, `go install github.com/go-task/task/v3/cmd/task@latest`, Wails v2, Node; then **`task setup`** (the scanner with its Python, Tesseract and the languages, and the web dependencies).
+- **Build:** `task overlay` → `build/bin/lauzhack.exe` (reads the root `.env`; log in `build/bin/lauzhack.log`). The log and the menu footer say which version it is (`version: <commit> (built …)`; a «+» = built with uncommitted changes).
+- **Before opening it, close any other copy** of the app and of `gesture-control.exe`: with two open you do not know which one you are testing.
+- **Without a window:** `task server` (real logic on 8765) or `task mock` (fixed answers on 8080, no cost).
+- **Smoke tests:** `docs/COMO_PROBAR.md`.
 
-## Trampas conocidas (Windows)
-- **`npm ci` falla con `EPERM` y deja `web/node_modules` casi vacío** si hay un `node` en marcha (un `npm run dev`, Vite) que bloquea un archivo. Cierra los `npm run dev` antes de `task check`; si ya pasó, `npm install` en `web/` lo recupera.
-- **La cámara da imágenes negras** si otro programa la usa (la app Cámara de Windows, una pestaña del navegador, el overlay): ciérralo. La MX Brio solo la puede usar un programa a la vez.
-- **Smart App Control** de Windows bloquea `go.exe` y todo lo que compila («Una directiva de Control de aplicaciones bloqueó este archivo»): hay que desactivarlo en Seguridad de Windows.
-- **Saltos de línea:** muchos archivos están en CRLF. Al editar con scripts, conserva el formato del archivo; `git diff` con solo cambios de CRLF no es un cambio real.
-- **`gh`** (GitHub CLI) hace falta para ver el CI y los PR: `winget install GitHub.cli` y `gh auth login`.
-- **Claves:** `.env` en la raíz (`OPENROUTER_API_KEY`, `TOGETHER_API_KEY`, `LLM_PROFILE=dev`). Nunca en el repo ni en el chat de otra herramienta.
+## Known pitfalls (Windows)
+- **`npm ci` fails with `EPERM` and leaves `web/node_modules` almost empty** if a running `node` (an `npm run dev`, Vite) locks a file. Close the `npm run dev` processes before `task check`; if it already happened, `npm install` in `web/` recovers it.
+- **The camera gives black images** if another program is using it (the Windows Camera app, a browser tab, the overlay): close it. The MX Brio can only be used by one program at a time.
+- **Windows Smart App Control** blocks `go.exe` and everything it builds («An Application Control policy has blocked this file»): it must be turned off in Windows Security.
+- **Line endings:** many files are CRLF. When editing with scripts, keep the file's format; a `git diff` with only CRLF changes is not a real change.
+- **`gh`** (GitHub CLI) is needed to see CI and PRs: `winget install GitHub.cli` and `gh auth login`.
+- **Keys:** `.env` in the root (`OPENROUTER_API_KEY`, `TOGETHER_API_KEY`, `LLM_PROFILE=dev`). Never in the repo nor in another tool's chat.
 
-## Ahorro de tokens
-- Una sesión por tarea; al acabar, deja lo pendiente en la ficha y `/clear`.
-- Lee solo tu ficha, `docs/ESTADO.md` y lo que enlacen. Busca con `grep` y lee rangos; no abras enteros los archivos grandes (`docs/OVERLAY.md`, `web/src/input/interaction.ts`, `app_overlay.go`).
-- Filtra la salida: `task check 2>&1 | grep -E "ℹ fail|FAIL|error"`, `… | tail -20`, `gh … --jq`. Nunca vuelques logs ni diffs enteros.
-- Sin subagentes ni búsquedas por todo el repo, salvo que tu persona lo pida. Sonnet por defecto; Opus para diseño o depuración difícil.
+## Saving tokens
+- One session per task; when you finish, leave what is pending in the sheet and `/clear`.
+- Read only your sheet, `docs/ESTADO.md` and what they link to. Search with `grep` and read ranges; do not open large files whole (`docs/OVERLAY.md`, `web/src/input/interaction.ts`, `app_overlay.go`).
+- Filter the output: `task check 2>&1 | grep -E "ℹ fail|FAIL|error"`, `… | tail -20`, `gh … --jq`. Never dump whole logs or diffs.
+- No subagents nor repo-wide searches, unless your person asks for them. Sonnet by default; Opus for design or hard debugging.

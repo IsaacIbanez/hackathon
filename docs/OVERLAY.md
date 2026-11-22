@@ -1,221 +1,221 @@
-# Overlay: una app que junta las funcionalidades
+# Overlay: one app that brings the features together
 
-Rama `overlay`, creada el 2026-11-21. Brief de Isaac: `docs/historial/briefs/isaac.md`.
+Branch `overlay`, created on 2026-11-21. Isaac's brief: `docs/historial/briefs/isaac.md`.
 
-La app de escritorio deja de ser una ventana normal y pasa a ser un **overlay**: una ventana siempre encima de las demás que se abre desde cualquier programa con **Ctrl+Alt+Espacio**. El **MX Keypad** de Logitech también puede abrirla si en Logi Options+ se asigna esa combinación a una de sus teclas. El overlay ofrece las funcionalidades del equipo como opciones.
+The desktop app stops being a normal window and becomes an **overlay**: a window always on top of the others that opens from any program with **Ctrl+Alt+Space**. The Logitech **MX Keypad** can also open it if that combination is assigned to one of its keys in Logi Options+. The overlay offers the team's features as options.
 
-**Diseño (2026-11-22):** una capa a pantalla completa, al estilo Xbox Game Bar. Gesture Control va en un círculo grande en el centro y las demás herramientas en un arco por encima, con los nombres en inglés que aparecen entre paréntesis. Todo sigue el sistema «Halo», descrito en `docs/DISENO.md`.
+**Design (2026-11-22):** a full-screen layer, in the style of the Xbox Game Bar. Gesture Control goes in a large circle in the centre and the other tools in an arc above it, with the English names shown in brackets. Everything follows the «Halo» system, described in `docs/DISENO.md`.
 
-| Tecla | Opción | De quién | Qué hace |
+| Key | Option | Whose | What it does |
 |---|---|---|---|
-| **1** | Gestos con la mano (*Gesture Control*, centro) | Nil (C) | **Gesture Control** dentro de la propia ventana: la cámara ve la mano y controla el ordenador (ratón, volumen, brillo, micrófono, apps, apagado, videollamada) |
-| **2** | Leer un papel (*PDF Scanner*) | Pau (B1) y Didac (B2) | Cámara con la guía de encuadre por voz → foto automática → servicio de lectura → **lectura guiada** en voz alta |
-| **3** | Leer un archivo (*Read Text*) | Didac (B2) | Pide un documento del PC. Un **PDF** se abre en un **visor** con las páginas de verdad y un botón «Read the whole PDF» que lo lee entero, página a página y sin límite (N4, `docs/briefs/N4.md`). El texto y las imágenes se leen línea a línea (**lectura guiada**) |
-| **4** | Resumir el texto seleccionado (*AI Summary*) | Didac (B2) | Resume en 2–3 frases sencillas el texto seleccionado en **cualquier programa**: lo dice en voz alta, lo copia al portapapeles y lo enseña en una burbuja junto al cursor (sección «Opción 4») |
-| 5 | Subtítulos en directo (*Transcribe*) | Pau (B1) | `<LiveCaptions />` (`web/src/captions`) sobre `GET /captions`; necesita `TOGETHER_API_KEY` en `.env` |
+| **1** | Hand gestures (*Gesture Control*, centre) | Nil (C) | **Gesture Control** inside the window itself: the camera sees the hand and controls the computer (mouse, volume, brightness, microphone, apps, shut down, video call) |
+| **2** | Read a paper (*PDF Scanner*) | Pau (B1) and Didac (B2) | Camera with the voice framing guide → automatic photo → reading service → **guided reading** aloud |
+| **3** | Read a file (*Read Text*) | Didac (B2) | Asks for a document from the PC. A **PDF** opens in a **viewer** with the real pages and a «Read the whole PDF» button that reads it all, page by page and with no limit (N4, `docs/briefs/N4.md`). Text and images are read line by line (**guided reading**) |
+| **4** | Summarise the selected text (*AI Summary*) | Didac (B2) | Summarises in 2–3 plain sentences the text selected in **any program**: says it aloud, copies it to the clipboard and shows it in a bubble next to the cursor (section «Option 4») |
+| 5 | Live captions (*Transcribe*) | Pau (B1) | `<LiveCaptions />` (`web/src/captions`) over `GET /captions`; needs `TOGETHER_API_KEY` in `.env` |
 
-Las opciones 1 a 3 son **locales y gratuitas**: no llaman a ningún modelo de IA. La 4 usa el **modelo barato**: unos 0,0001 $ por resumen, con el coste a la vista. Sin clave, resume en local.
+Options 1 to 3 are **local and free**: they call no AI model. Option 4 uses the **cheap model**: about $0.0001 per summary, with the cost in view. Without a key, it summarises locally.
 
-## Cómo se construye y se arranca
-Requisitos:
-- Go 1.26 o superior, Wails 2.17.1, Task y Node.
-- El entorno de Python del escáner (`scanner/pdf/.venv`, ver `scanner/ENTREGA.md`).
-- Tesseract, solo para las fotos, los PDF escaneados y las imágenes.
+## How it is built and started
+Requirements:
+- Go 1.26 or later, Wails 2.17.1, Task and Node.
+- The scanner's Python environment (`scanner/pdf/.venv`, see `scanner/ENTREGA.md`).
+- Tesseract, only for photos, scanned PDFs and images.
 
 ```
-task overlay          # build/bin/lauzhack.exe (con Gesture Control dentro)
+task overlay          # build/bin/lauzhack.exe (with Gesture Control inside)
 build\bin\lauzhack.exe
 ```
-- `task overlay` hace `wails build`: un solo ejecutable. Gesture Control va dentro (paquete `adapters/desktop/control`). Si se quiere usar solo, sin el overlay, `task gestures` compila `build/bin/gesture-control` como antes.
-- La app busca `scanner/service.py` subiendo desde su carpeta (hasta 4 niveles), así que `build/bin/lauzhack.exe` lo encuentra en el repo.
-- Log en `build/bin/lauzhack.log`; el servicio de lectura escribe en `reading-service.log`, en la misma carpeta.
+- `task overlay` runs `wails build`: a single executable. Gesture Control goes inside (package `adapters/desktop/control`). To use it on its own, without the overlay, `task gestures` builds `build/bin/gesture-control` as before.
+- The app looks for `scanner/service.py` going up from its folder (up to 4 levels), so `build/bin/lauzhack.exe` finds it in the repo.
+- Log in `build/bin/lauzhack.log`; the reading service writes to `reading-service.log`, in the same folder.
 
-Variables opcionales:
+Optional variables:
 
-| Variable | Para qué | Por defecto |
+| Variable | What for | Default |
 |---|---|---|
-| `LAUZHACK_HOTKEY` | Otro atajo: `ctrl+shift+l`, `f13`… Una tecla sola solo se acepta de F13 a F24 | `ctrl+alt+space` |
-| `LAUZHACK_PYTHON` | Otro intérprete de Python para el servicio de lectura | el de `scanner/pdf/.venv`; si no, `py -3` o `python3` |
-| `LAUZHACK_GESTURES_DRY_RUN` | `1`: los gestos solo escriben en el log lo que harían, sin pulsar nada | apagado |
-| `LAUZHACK_SCREEN` | Tamaño de pantalla para el ratón cuando no se detecta (Linux Wayland), por ejemplo `1920x1080` | se detecta |
-| `LAUZHACK_APPS` | Ruta del `apps.json` del menú «Apps» de los gestos | se busca `apps.json` (ver `adapters/desktop/README.md`) |
-| `SCANNER_URL` | Otro servicio de lectura, o `fixture` para el ejemplo fijo | `http://127.0.0.1:8770/scan` |
+| `LAUZHACK_HOTKEY` | Another shortcut: `ctrl+shift+l`, `f13`… A single key is only accepted from F13 to F24 | `ctrl+alt+space` |
+| `LAUZHACK_PYTHON` | Another Python interpreter for the reading service | the one in `scanner/pdf/.venv`; without it, the app gives the install command instead of using the system Python |
+| `LAUZHACK_GESTURES_DRY_RUN` | `1`: the gestures only write to the log what they would do, without pressing anything | off |
+| `LAUZHACK_SCREEN` | Screen size for the mouse when it is not detected (Linux Wayland), for example `1920x1080` | detected |
+| `LAUZHACK_APPS` | Path to the `apps.json` of the gestures' «Apps» menu | `apps.json` is looked for (see `adapters/desktop/README.md`) |
+| `SCANNER_URL` | Another reading service, or `fixture` for the fixed example | `http://127.0.0.1:8770/scan` |
 
-## Cómo se usa
-- **Ctrl+Alt+Espacio:**
-  - Si el overlay está oculto, lo muestra al frente con el teclado listo.
-  - Si está abierto pero tapado por otra ventana (la de los gestos, por ejemplo), lo trae al frente.
-  - Si está al frente, lo oculta.
-- **En el menú:**
-  - **1 a 4** (también Num 1–4) eligen una opción.
-  - **Esc** oculta el overlay.
-  - **D** abre la pantalla de desarrollo anterior (`App.tsx`).
-  - **Q** cierra la app y los programas que haya arrancado.
-- **Dentro de una opción:** **Esc** vuelve al menú. Lo que se está leyendo sigue sonando aunque se oculte el overlay.
-- **Lectura guiada** (opciones 2 y 3): Espacio o Num 5 pausa y sigue, ← o Num 4 va a la línea anterior, → o Num 6 a la siguiente, R o Num 8 repite, y un clic en una línea lee desde ahí.
-- **Cámara arriba a la izquierda (N1):** en todas las pantallas se ve la cámara con los puntos de la mano que se sigue. Es el mismo motor de gestos de la opción 1, siempre encendido mientras el overlay está abierto (`gestureHost.ts`). Con el botón **Hide camera** se oculta la vista (los gestos siguen); **📷 Show camera** la vuelve a mostrar, y se recuerda para la próxima vez. Al abrir el menú de gestos con ✊, o al ajustar el volumen o el brillo, la vista crece a toda la ventana. Mientras la opción 2 o la pantalla de desarrollo usan la cámara, se pausa con un aviso. Sin cámara (o bloqueada, u ocupada por otro programa), lo dice encima de la vista y el resto de la app sigue funcionando.
-- **Todo con el ratón (N1):** arriba a la derecha hay botones para lo que hacen las teclas: **Developer screen** (D, en el menú), **Hide** (Esc) y **Quit** (Q). Cada opción tiene su botón en el menú y **← Menu** para volver.
-- **Opción 1:** la página completa de Gesture Control (interruptor, Llamada/Ordenador, app de la llamada, modo cursor, guía de gestos y registro). Mientras los gestos están en marcha, **el atajo**, **Hide** o **M** no ocultan la ventana: la encogen a una **burbuja de cámara** en una esquina inferior, siempre encima, y los gestos siguen funcionando. El atajo o un doble clic en la burbuja la devuelven a tamaño completo. (Una ventana oculta frenaría la cámara.) Desde la burbuja, al abrir el menú de gestos con ✊ (o al ajustar el volumen o el brillo) la ventana pasa a **pantalla completa transparente**: las opciones salen encima de lo que haya abierto y la cámara queda pequeña en una esquina; al terminar vuelve a la burbuja. Solo ocupa la pantalla mientras no hace falta el ratón, así que nunca se queda con los clics de otros programas.
-- **Opción 2:** la foto se hace sola cuando el papel está quieto (a los 8 s, la mejor que haya); **Intro** la hace en el momento. Si no hay hoja, lo dice en voz alta e **Intro** lo reintenta.
-- **Opción 3:** se abre el diálogo de archivos; **O** abre otro archivo.
-  - Con un **PDF**, **Espacio** (o el botón amarillo) lo lee entero.
-  - Teclas del visor:
+## How it is used
+- **Ctrl+Alt+Space:**
+  - If the overlay is hidden, it shows it in front with the keyboard ready.
+  - If it is open but covered by another window (the gestures', for example), it brings it to the front.
+  - If it is in front, it hides it.
+- **In the menu:**
+  - **1 to 4** (also Num 1–4) choose an option.
+  - **Esc** hides the overlay.
+  - **D** opens the previous development screen (`App.tsx`).
+  - **Q** closes the app and the programs it has started.
+- **Inside an option:** **Esc** goes back to the menu. What is being read keeps playing even if the overlay is hidden.
+- **Guided reading** (options 2 and 3): Space or Num 5 pauses and resumes, ← or Num 4 goes to the previous line, → or Num 6 to the next, R or Num 8 repeats, and a click on a line reads from there.
+- **Camera at the top left (N1):** every screen shows the camera with the points of the tracked hand. It is the same gesture engine as option 1, always on while the overlay is open (`gestureHost.ts`). The **Hide camera** button hides the view (the gestures carry on); **📷 Show camera** shows it again, and it is remembered for next time. When the gesture menu is opened with ✊, or when adjusting the volume or the brightness, the view grows to the whole window. While option 2 or the development screen uses the camera, it pauses with a notice. Without a camera (or blocked, or taken by another program), it says so over the view and the rest of the app keeps working.
+- **Everything with the mouse (N1):** at the top right there are buttons for what the keys do: **Developer screen** (D, in the menu), **Hide** (Esc) and **Quit** (Q). Each option has its button in the menu and **← Menu** to go back.
+- **Option 1:** the full Gesture Control page (switch, Call/Computer, the call app, cursor mode, gesture guide and log). While the gestures are running, **the shortcut**, **Hide** or **M** do not hide the window: they shrink it to a **camera bubble** in a bottom corner, always on top, and the gestures keep working. The shortcut or a double click on the bubble restores it to full size. (A hidden window would slow the camera down.) From the bubble, opening the gesture menu with ✊ (or adjusting the volume or the brightness) turns the window into a **transparent full screen**: the options come up over whatever is open and the camera stays small in a corner; when done it goes back to the bubble. It only takes the screen while the mouse is not needed, so it never keeps other programs' clicks.
+- **Option 2:** the photo is taken on its own when the paper is still (after 8 s, the best there is); **Enter** takes it right away. If there is no page, it says so aloud and **Enter** retries.
+- **Option 3:** the file dialog opens; **O** opens another file.
+  - With a **PDF**, **Space** (or the yellow button) reads it all.
+  - Viewer keys:
 
-    | Acción | Teclas |
+    | Action | Keys |
     |---|---|
-    | Línea anterior / siguiente | ← → |
-    | Repetir | R |
-    | Parar | X |
-    | Más rápido / más lento (0,75× a 1,5×) | + / − |
-    | Página anterior / siguiente | RePág / AvPág |
-    | Ir a una página | G |
+    | Previous / next line | ← → |
+    | Repeat | R |
+    | Stop | X |
+    | Faster / slower (0.75× to 1.5×) | + / − |
+    | Previous / next page | PgUp / PgDn |
+    | Go to a page | G |
 
-  - Al empezar cada página dice «Página N de M».
-- **Opción 4:**
-  - Selecciona un texto en cualquier programa, pulsa el atajo y luego **4**. Sale la burbuja con el resumen.
-  - **R** lo repite.
-  - **Esc** (o el atajo) cierra la burbuja y devuelve el foco al programa del que vino el texto.
+  - At the start of each page it says «Page N of M».
+- **Option 4:**
+  - Select a text in any program, press the shortcut and then **4**. The bubble comes up with the summary.
+  - **R** repeats it.
+  - **Esc** (or the shortcut) closes the bubble and gives the focus back to the program the text came from.
 
-**MX Keypad:** en Logi Options+, asigna a una tecla la combinación Ctrl+Alt+Espacio y, si quieres, a otras teclas «1», «2» y «3» (o Num 1–3) y las de la lectura guiada (Num 4, 5, 6 y 8). No hace falta cambiar nada en la app. *Sin probar todavía con el keypad real.*
+**MX Keypad:** in Logi Options+, give one key the Ctrl+Alt+Space combination and, if you like, other keys «1», «2» and «3» (or Num 1–3) and the guided reading ones (Num 4, 5, 6 and 8). Nothing needs to change in the app. *Not tested yet with the real keypad.*
 
-## Añadir un botón o un panel (N1)
-Todo está en `web/src/app/overlay/extensions.ts`: son listas, y `Overlay.tsx` las dibuja. No hace falta tocar nada más.
+## Adding a button or a panel (N1)
+Everything is in `web/src/app/overlay/extensions.ts`: they are lists, and `Overlay.tsx` draws them. Nothing else needs to be touched.
 
-- **Un botón en la barra de arriba a la derecha** (sale en todas las pantallas): añade una entrada a `TOOLBAR`.
+- **A button in the top-right bar** (shows on every screen): add an entry to `TOOLBAR`.
   ```ts
   {
-    id: 'help',                       // único
-    label: '❓ Help',                 // texto del botón (en inglés, como el resto de la interfaz)
-    key: 'H',                         // opcional: la tecla que hace lo mismo, se muestra al lado
-    show: (ctx) => ctx.view === 'menu', // opcional: en qué pantallas sale (por defecto, en todas)
-    run: (ctx) => ctx.setView('read-file'), // qué hace: cambiar de pantalla, llamar a Go (desktop())…
+    id: 'help',                       // unique
+    label: '❓ Help',                 // the button's text (in English, like the rest of the interface)
+    key: 'H',                         // optional: the key that does the same, shown next to it
+    show: (ctx) => ctx.view === 'menu', // optional: on which screens it shows (by default, all)
+    run: (ctx) => ctx.setView('read-file'), // what it does: change screen, call Go (desktop())…
   },
   ```
-  Si el botón hace lo mismo que una tecla, la tecla se sigue gestionando en `Overlay.tsx`; el botón solo la hace accesible con el ratón.
-- **Un panel en el menú** (debajo de las opciones): crea un componente (por ejemplo `MiPanel.tsx`) y añade `{ id, title, Component: MiPanel }` a `MENU_PANELS`. Ahora la lista está vacía: el panel de ayuda de los gestos que había abajo a la izquierda se quitó el 2026-11-22.
-- **Una opción nueva del menú** (una pantalla entera): una entrada en `modes.ts` y su componente en `views` de `Overlay.tsx` (ver más abajo).
-- **La cámara:** la vista de arriba a la izquierda es `CameraPanel` en `Overlay.tsx`. Si una pantalla nueva abre la cámara por su cuenta, añádela a `NEEDS_CAMERA` en `Overlay.tsx`: los gestos le dejan la cámara mientras está abierta.
+  If the button does the same as a key, the key is still handled in `Overlay.tsx`; the button only makes it reachable with the mouse.
+- **A panel in the menu** (below the options): create a component (for example `MyPanel.tsx`) and add `{ id, title, Component: MyPanel }` to `MENU_PANELS`. The list is empty now: the gesture help panel that was at the bottom left was removed on 2026-11-22.
+- **A new menu option** (a whole screen): an entry in `modes.ts` and its component in `views` of `Overlay.tsx` (see below).
+- **The camera:** the top-left view is `CameraPanel` in `Overlay.tsx`. If a new screen opens the camera on its own, add it to `NEEDS_CAMERA` in `Overlay.tsx`: the gestures leave it the camera while it is open.
 
-## Cómo está hecho
+## How it is built
 ```
-lauzhack.exe (Wails, ventana siempre encima)
-├─ web/src/app/overlay/      menú y opciones (React)
-│    modes.ts                lista de opciones: tecla, título, dueño, ready
-│    Overlay.tsx             menú, teclas, Esc, pantalla de desarrollo
-│    GesturesMode.tsx        1: monta la página de Gesture Control (web/src/input/desktop) en la ventana
+lauzhack.exe (Wails, always-on-top window)
+├─ web/src/app/overlay/      menu and options (React)
+│    modes.ts                list of options: key, title, owner, ready
+│    Overlay.tsx             menu, keys, Esc, development screen
+│    GesturesMode.tsx        1: mounts the Gesture Control page (web/src/input/desktop) in the window
 │    DocumentsMode.tsx       2: openCamera + startFramingGuide (Pau) → ReadPhoto → GuidedReader (Didac)
 │    ReadFileMode.tsx        3: OpenAndReadFile → GuidedReader
-│    desktop.ts              acceso a los bindings de Go (window.go), sin depender de wailsjs/
+│    desktop.ts              access to the Go bindings (window.go), without depending on wailsjs/
 ├─ app_overlay.go            bindings: OverlayInfo, HideOverlay, Quit, EnsureReadingService,
 │                            ReadPhoto, OpenAndReadFile, GestureCall, SetGesturesActive, SetCompact
-├─ backend/overlay/          atajo global (RegisterHotKey de Windows), procesos auxiliares
-└─ backend/scanner/          cliente del servicio de lectura: Scan (fotos) y ReadFile (archivos)
+├─ backend/overlay/          global shortcut (Windows RegisterHotKey), helper processes
+└─ backend/scanner/          reading service client: Scan (photos) and ReadFile (files)
 
-Procesos que arranca la app (y que para al cerrarla, con sus hijos):
-  scanner/service.py         127.0.0.1:8770 (solo si no responde ya); POST /scan y POST /document
+Processes the app starts (and stops when it closes, with their children):
+  scanner/service.py         127.0.0.1:8770 (only if it is not already answering); POST /scan and POST /document
 ```
 
-**Archivos del PC → documento.** El documento que sale es el `DocumentPayload` del contrato, sin cambiarlo.
-- Texto (`.txt`, `.md`): lo lee Go (`scanner.FromText`). Una línea por bloque; los párrafos largos se cortan por frases.
-- PDF e imágenes: van a `POST /document` del servicio de lectura (`scanner/documents.py`).
-  - **PDF con texto:** las líneas salen del propio PDF, al instante y sin OCR.
-  - **Página escaneada:** se renderiza a 300 ppp y pasa por el OCR, como mucho 8 páginas por PDF.
-  - **PNG o JPEG:** pasa por el OCR, buscando la hoja si es una foto de un papel.
-  - Las páginas se apilan de arriba abajo: la página p de n ocupa `y ∈ [p/n, (p+1)/n]`, así que se leen en orden.
-- Para añadir un formato: `FileTypes` en `backend/scanner/document.go` y, si no es texto, un lector en `scanner/documents.py`.
+**PC files → document.** The resulting document is the contract's `DocumentPayload`, unchanged.
+- Text (`.txt`, `.md`): Go reads it (`scanner.FromText`). One line per block; long paragraphs are split into sentences.
+- PDF and images: they go to the reading service's `POST /document` (`scanner/documents.py`).
+  - **PDF with text:** the lines come from the PDF itself, instantly and without OCR.
+  - **Scanned page:** rendered at 300 dpi and passed through OCR, at most 8 pages per PDF.
+  - **PNG or JPEG:** passed through OCR, looking for the page if it is a photo of a paper.
+  - The pages are stacked from top to bottom: page p of n takes `y ∈ [p/n, (p+1)/n]`, so they are read in order.
+- To add a format: `FileTypes` in `backend/scanner/document.go` and, if it is not text, a reader in `scanner/documents.py`.
 
-## Decisiones (2026-11-21, Isaac con Didac)
-1. **Rama `overlay`** a partir de `feature/didac-lectura-guiada`: la integración completa (#38), más el arranque por persona (#39) y la lectura guiada (#40). No se toca `main`.
-2. **El atajo es Ctrl+Alt+Espacio**, configurable con `LAUZHACK_HOTKEY`. El keypad envía la misma combinación desde Logi Options+.
-3. **Tres opciones de momento:** gestos (Nil), leer un papel (Pau y Didac) y leer un archivo (Didac). Añadir otra es una entrada en `modes.ts` y un componente.
-4. **«Texto a voz» lee un documento del PC** (PDF, texto o imagen) y comparte el lector con los papeles escaneados. Formatos de ahora: PDF con texto, PDF escaneado, imágenes y TXT/Markdown. Más adelante se pueden añadir otros (Word…).
-5. **El servicio de lectura lo arranca la app** si no responde, con el Python del repo, y lo para al cerrarse (solo si lo arrancó ella).
-6. **Gesture Control va dentro de la app** (cambiado por Nil, 2026-11-22): un solo ejecutable. La página de la cámara se monta en la opción 1 y sus acciones van a Go por el binding `GestureCall`, que responde la misma API que el programa independiente (`control.Server.Call`) sin HTTP, puerto ni token. Con los gestos activos la ventana no se oculta, se encoge a una burbuja; además, la app pide a WebView2 que no frene la página cuando queda tapada (`WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`).
-7. **Una cámara a la vez:** la opción 2 para los gestos antes de abrir la cámara.
-8. **Los bindings devuelven JSON en texto.** Si devolvieran estructuras, Wails generaría `models.ts` con `namespace`, que el `tsconfig` del proyecto rechaza (`erasableSyntaxOnly`).
-9. **Ventana:** normal, con marco, siempre encima y de 960×680. Se abre visible la primera vez. El diseño visual queda para después.
-10. **Log:** primero el archivo y después stderr, y los fallos graves (panic) también van al log. Antes, `build/bin/lauzhack.log` se quedaba vacío porque una app sin consola no tiene stderr válido.
+## Decisions (2026-11-21, Isaac with Didac)
+1. **Branch `overlay`** from `feature/didac-lectura-guiada`: the full integration (#38), plus the per-person startup (#39) and guided reading (#40). `main` is not touched.
+2. **The shortcut is Ctrl+Alt+Space**, configurable with `LAUZHACK_HOTKEY`. The keypad sends the same combination from Logi Options+.
+3. **Three options for now:** gestures (Nil), read a paper (Pau and Didac) and read a file (Didac). Adding another one is an entry in `modes.ts` and a component.
+4. **«Text to speech» reads a document from the PC** (PDF, text or image) and shares the reader with the scanned papers. Current formats: PDF with text, scanned PDF, images and TXT/Markdown. Others can be added later (Word…).
+5. **The app starts the reading service** if it is not answering, with the repo's Python, and stops it when it closes (only if it started it).
+6. **Gesture Control lives inside the app** (changed by Nil, 2026-11-22): a single executable. The camera page is mounted in option 1 and its actions go to Go through the `GestureCall` binding, which answers the same API as the standalone program (`control.Server.Call`) without HTTP, port or token. With the gestures active the window does not hide, it shrinks to a bubble; also, the app asks WebView2 not to throttle the page when it is covered (`WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`).
+7. **One camera at a time:** option 2 stops the gestures before opening the camera.
+8. **The bindings return JSON as text.** If they returned structs, Wails would generate `models.ts` with `namespace`, which the project's `tsconfig` rejects (`erasableSyntaxOnly`).
+9. **Window:** normal, with a frame, always on top and 960×680. It opens visible the first time. The visual design is left for later.
+10. **Log:** first the file and then stderr, and serious failures (panic) also go to the log. Before, `build/bin/lauzhack.log` stayed empty because an app without a console has no valid stderr.
 
-## Opción 4: resumir el texto seleccionado
-Añadida el 2026-11-22. Funcionalidad de Didac; su brief está en `docs/historial/briefs/didac.md`.
-- Se hizo en la rama `feature/didac-resumir-seleccion` y se fusionó en `main` el 2026-11-22. Entraron solo los commits de Didac, sin `feature/T6-overlay-unified` de Nil, que aún no estaba en `main`.
-- Por decisión de Isaac y Didac, **esta es la implementación del resumen que se queda**: sustituye a la N7 de Isaac. La N7 se había fusionado (#48) y se retiró de `main` al fusionar esto (revert de de357f8). Su brief se conserva en `docs/briefs/N7.md` como historial.
-- La N7 resumía además el documento abierto en las opciones 2 y 3. Eso queda pendiente; se puede hacer llamando a `backend/summary` con el texto del documento.
+## Option 4: summarise the selected text
+Added on 2026-11-22. Didac's feature; their brief is in `docs/historial/briefs/didac.md`.
+- It was done on the `feature/didac-resumir-seleccion` branch and merged into `main` on 2026-11-22. Only Didac's commits went in, without Nil's `feature/T6-overlay-unified`, which was not in `main` yet.
+- By decision of Isaac and Didac, **this is the summary implementation that stays**: it replaces Isaac's N7. N7 had been merged (#48) and was removed from `main` when this was merged (revert of de357f8). Its brief is kept in `docs/briefs/N7.md` as history.
+- N7 also summarised the open document in options 2 and 3. That remains pending; it can be done by calling `backend/summary` with the document's text.
 
-**Flujo:**
-1. **Seleccionar.** La persona selecciona texto en cualquier programa: Word, el navegador, un PDF, el correo…
-2. **Recordar el programa.** Al pulsar el atajo del overlay, Go anota qué ventana estaba delante (`overlay.RememberTarget`) antes de que el overlay se quede el foco.
-3. **Copiar la selección.** Con **4**, Go devuelve el foco a esa ventana y envía **Ctrl+C**. Espera a que cambie el portapapeles, como mucho 0,9 s, y lee el texto (`overlay.CopySelection`). Si el portapapeles no cambia, no había nada seleccionado: lo dice en voz alta y lo enseña.
-4. **Resumir** (`backend/summary`).
-   - Se manda al **nivel barato** (`backend/llm`), con caché y contador de coste, así que el gasto suma en `stats`.
-   - Se pide **2 o 3 frases sencillas (45 palabras como mucho)** en el idioma del texto, con plazos, fechas, importes y lo que hay que hacer, sin teléfonos ni fórmulas de cortesía.
-   - Los textos de más de **12 000 caracteres** (unas 6 páginas) se cortan y la burbuja lo avisa.
-   - Los de menos de 40 caracteres se leen tal cual.
-   - **Sin clave, o si el modelo falla:** un resumen local que se queda con las 2–3 frases con fechas, importes y palabras de plazo, a 0 $.
-5. **Copiar el resumen** al portapapeles. Sustituye al texto copiado.
-6. **Mostrar la burbuja.** La ventana del overlay se encoge a 540×420 junto al cursor (`overlay.PlaceNearCursor`; cambia de lado si no cabe), dice el resumen en voz alta y enseña el coste y «resumido en la nube».
+**Flow:**
+1. **Select.** The person selects text in any program: Word, the browser, a PDF, email…
+2. **Remember the program.** When the overlay's shortcut is pressed, Go notes which window was in front (`overlay.RememberTarget`) before the overlay takes the focus.
+3. **Copy the selection.** With **4**, Go gives the focus back to that window and sends **Ctrl+C**. It waits for the clipboard to change, at most 0.9 s, and reads the text (`overlay.CopySelection`). If the clipboard does not change, nothing was selected: it says so aloud and shows it.
+4. **Summarise** (`backend/summary`).
+   - It is sent to the **cheap tier** (`backend/llm`), with a cache and a cost meter, so the spending adds up in `stats`.
+   - It asks for **2 or 3 plain sentences (45 words at most)** in the text's language, with deadlines, dates, amounts and what has to be done, without phone numbers or courtesy formulas.
+   - Texts of more than **12,000 characters** (about 6 pages) are cut and the bubble says so.
+   - Those of fewer than 40 characters are read as they are.
+   - **Without a key, or if the model fails:** a local summary that keeps the 2–3 sentences with dates, amounts and deadline words, at $0.
+5. **Copy the summary** to the clipboard. It replaces the copied text.
+6. **Show the bubble.** The overlay window shrinks to 540×420 next to the cursor (`overlay.PlaceNearCursor`; it switches sides if it does not fit), says the summary aloud and shows the cost and «summarised in the cloud».
 
-**Decisiones (Didac, 2026-11-22):**
-- **Dónde:** el texto puede estar en cualquier programa, no solo en la app.
-- **Disparador:** de momento, la opción 4 del overlay. Después, el cursor de la mano de Nil (ver más abajo).
-- **Motor:** el modelo barato, con alternativa local.
-- **Salida:**
-  - burbuja junto al cursor;
-  - voz;
-  - portapapeles.
-- **Estilo:** 2–3 frases sencillas.
-- **Textos largos:** límite de 12 000 caracteres con aviso.
-- **Privacidad:** aviso discreto («resumido en la nube»). El texto no se guarda en ningún sitio, salvo en la caché de memoria mientras la app está abierta.
+**Decisions (Didac, 2026-11-22):**
+- **Where:** the text can be in any program, not just in the app.
+- **Trigger:** for now, overlay option 4. Later, Nil's hand cursor (see below).
+- **Engine:** the cheap model, with a local alternative.
+- **Output:**
+  - a bubble next to the cursor;
+  - voice;
+  - clipboard.
+- **Style:** 2–3 plain sentences.
+- **Long texts:** a 12,000-character limit with a notice.
+- **Privacy:** a discreet notice («summarised in the cloud»). The text is not saved anywhere, except in the in-memory cache while the app is open.
 
-**Preparado para el cursor de la mano (Nil):**
-- `TriggerSummary()` (binding de Go) anota la ventana que hay delante y emite el evento `overlay:summarize`; el overlay abre la opción 4.
-- Una acción «resumir» de Gesture Control solo tiene que llamarlo.
-- **MX Keypad (N2):** existe la acción `summarize`, que abre la opción 4. Al pulsar una tecla del keypad, Go recuerda la ventana que había delante, igual que con el atajo. Todavía no tiene una tecla asignada (página 2 de la N2).
-- **Pendiente al conectarlo:** en `main`, los gestos son un programa aparte (`gesture-control.exe`), así que abrir la opción 4 no les quita la cámara.
-- Si se fusiona `feature/T6-overlay-unified` (los gestos dentro de la ventana), abrir la opción 4 cambiará de vista y apagará esa cámara. Entonces habrá que mostrar la burbuja del resumen sin salir de la opción 1.
+**Ready for the hand cursor (Nil):**
+- `TriggerSummary()` (Go binding) notes the window in front and emits the `overlay:summarize` event; the overlay opens option 4.
+- A Gesture Control «summarise» action only has to call it.
+- **MX Keypad (N2):** there is a `summarize` action, which opens option 4. When a keypad key is pressed, Go remembers the window that was in front, just like with the shortcut. It does not have a key assigned yet (page 2 of N2).
+- **Pending when connecting it:** in `main`, the gestures are a separate program (`gesture-control.exe`), so opening option 4 does not take the camera away from them.
+- If `feature/T6-overlay-unified` is merged (the gestures inside the window), opening option 4 will change the view and turn that camera off. Then the summary bubble will have to be shown without leaving option 1.
 
-**Limitaciones:**
-- Solo Windows.
-- No funciona en los programas que no copian con Ctrl+C.
-- El portapapeles acaba con el resumen, no con lo que tenía antes.
-- El `.exe` solo busca la clave en el `.env` de la raíz. En las pruebas se la pasé por el entorno, sin escribirla en ningún archivo.
+**Limitations:**
+- Windows only.
+- It does not work in programs that do not copy with Ctrl+C.
+- The clipboard ends up with the summary, not with what it had before.
+- The `.exe` only looks for the key in the root `.env`. In the tests I passed it through the environment, without writing it to any file.
 
-**Probado** (2026-11-22, `.exe` real, Windows 11 al 125 %):
-- **Resumen de la carta:** la selección (728 caracteres) de otra ventana pasó por Haiku y salió un resumen de 2 frases (246–260 caracteres) con la fecha de vencimiento, el plazo y el importe. Tardó 1,3 s, costó 0,00010 $ y quedó copiado en el portapapeles.
-- **Burbuja:** se colocó junto al cursor y dentro de la pantalla.
-- **Sin selección:** aviso en pantalla y en voz alta.
-- **Esc:** cierra la burbuja y devuelve el foco a la ventana de origen.
-- **Tests:** `backend/summary` (modelo falso, alternativa local, corte, idioma) y lint, tipos y build de la web.
+**Tested** (2026-11-22, real `.exe`, Windows 11 at 125 %):
+- **Summary of the letter:** the selection (728 characters) from another window went through Haiku and a 2-sentence summary came out (246–260 characters) with the due date, the deadline and the amount. It took 1.3 s, cost $0.00010 and was left copied in the clipboard.
+- **Bubble:** it was placed next to the cursor and inside the screen.
+- **No selection:** a notice on screen and aloud.
+- **Esc:** closes the bubble and gives the focus back to the source window.
+- **Tests:** `backend/summary` (fake model, local alternative, cutting, language) and the web's lint, types and build.
 
-## Preparado para lo que aún no está definido
-| Pendiente | Qué hay preparado | Quién lo decide |
+## Ready for what is not defined yet
+| Pending | What is ready | Who decides |
 |---|---|---|
-| Abrir una opción **por voz o por gesto** (por ejemplo, la acción `scan_document`, «lee el documento») | Las opciones son una lista (`MODES`) y el menú solo necesita un `setView(id)`. El módulo de voz y gestos puede emitir esa orden cuando exista | Nil e Isaac |
-| **Explicar** el documento con IA (como hace la app con `POST /scan`) | No está conectado, para no gastar. Bastaría con enviar el documento por el WebSocket (`document`): Go ya lo explica y el coste sale en `stats` | Equipo (coste, AXA) |
-| **Más formatos** (Word, ePub…) | `FileTypes` en Go y un lector en `documents.py` | Didac |
-| **MX Keypad** | El atajo y todas las teclas son combinaciones normales, sin código propio de Logitech | Probarlo con el keypad real |
-| **Idioma** de la voz | Fijo en es-ES en la opción 2; el lector usa el idioma del documento si lo trae | Equipo |
-| **Linux y macOS** | El atajo solo está hecho para Windows; en los demás sistemas la ventana se queda abierta | Si hace falta |
-| **Diseño visual** | Funcional, con texto grande y alto contraste | Después |
-| **Resumir con el cursor de la mano** | `TriggerSummary()` y el evento `overlay:summarize` (ver «Opción 4») | Nil y Didac |
-| Qué pasa con la **pantalla anterior** (`App.tsx`, con «Send sample document» y el diagnóstico) | Se abre con **D** desde el menú | Isaac |
+| Opening an option **by voice or by gesture** (for example, the `scan_document` action, «read the document») | The options are a list (`MODES`) and the menu only needs a `setView(id)`. The voice and gesture module can emit that command when it exists | Nil and Isaac |
+| **Explaining** the document with AI (as the app does with `POST /scan`) | Not connected, so as not to spend. It would be enough to send the document over the WebSocket (`document`): Go already explains it and the cost shows up in `stats` | Team (cost, AXA) |
+| **More formats** (Word, ePub…) | `FileTypes` in Go and a reader in `documents.py` | Didac |
+| **MX Keypad** | The shortcut and all the keys are normal combinations, with no Logitech-specific code | Test it with the real keypad |
+| Voice **language** | Fixed to es-ES in option 2; the reader uses the document's language if it has one | Team |
+| **Linux and macOS** | The shortcut is only done for Windows; on the other systems the window stays open | If needed |
+| **Visual design** | Functional, with large text and high contrast | Later |
+| **Summarising with the hand cursor** | `TriggerSummary()` and the `overlay:summarize` event (see «Option 4») | Nil and Didac |
+| What happens with the **previous screen** (`App.tsx`, with «Send sample document» and the diagnostics) | It opens with **D** from the menu | Isaac |
 
-## Qué está probado
-Probado en Windows 11 con el `.exe` real, enviando las teclas al sistema y comprobándolo con capturas y con el log:
-- El atajo muestra y oculta el overlay desde cualquier programa, y lo trae al frente si está tapado. Esc lo oculta.
-- **Opción 3:** con `01-carta-renovacion.pdf`, la app arrancó sola el servicio de lectura en 1 s. Leyó 21 líneas del PDF en 16 ms y empezó a leerlas en voz alta, con la línea resaltada.
-- **Opción 2:** se abrió la cámara, la guía disparó a los 8 s y el servicio respondió 422 (no había ningún papel delante). La app lo dijo y ofreció reintentar. La imagen de la cámara salía con el icono de cámara tapada: hay que repetirlo con la MX Brio destapada y un papel.
-- **Opción 1:** (antes de unirlo) Gesture Control arrancó con su ventana. **Gestos dentro de la app: sin probar aún en Windows** — solo con tests, compilación para Windows y una prueba en navegador con los bindings simulados.
-- **Q y cerrar la ventana** paran también el servicio de lectura.
+## What is tested
+Tested on Windows 11 with the real `.exe`, sending the keys to the system and checking with screenshots and the log:
+- The shortcut shows and hides the overlay from any program, and brings it to the front if it is covered. Esc hides it.
+- **Option 3:** with `01-carta-renovacion.pdf`, the app started the reading service on its own in 1 s. It read 21 lines of the PDF in 16 ms and started reading them aloud, with the line highlighted.
+- **Option 2:** the camera opened, the guide fired after 8 s and the service answered 422 (there was no paper in front). The app said so and offered to retry. The camera image came out with the covered-camera icon: it has to be repeated with the MX Brio uncovered and a paper.
+- **Option 1:** (before merging it) Gesture Control started with its window. **Gestures inside the app: not tested on Windows yet** — only with tests, the Windows build and a browser test with simulated bindings.
+- **Q and closing the window** also stop the reading service.
 - **Tests:**
-  - Go: `backend/overlay` (atajos, URL del servicio) y `backend/scanner` (texto, envío a `/document`, tipos no admitidos);
-  - Python: `scanner/test_service.py` (PDF con texto, PDF de 2 páginas, PDF escaneado con OCR y archivo no válido): 33 de 33;
-  - web: lint sin avisos, 136 tests y build.
+  - Go: `backend/overlay` (shortcuts, service URL) and `backend/scanner` (text, sending to `/document`, unsupported types);
+  - Python: `scanner/test_service.py` (PDF with text, 2-page PDF, scanned PDF with OCR and invalid file): 33 out of 33;
+  - web: lint without warnings, 136 tests and build.
 
-**Sin probar:**
-- el MX Keypad;
-- un papel real con la cámara destapada;
-- un PDF escaneado o una imagen desde la app (sí con los tests del servicio);
-- Linux y macOS.
+**Not tested:**
+- the MX Keypad;
+- a real paper with the camera uncovered;
+- a scanned PDF or an image from the app (it is, with the service's tests);
+- Linux and macOS.
 
-**Observado una vez:** en la primera prueba, el `.exe` se cerró solo, sin dejar nada en el log, que entonces no funcionaba. No se ha repetido. Si vuelve a pasar, ahora el motivo queda en `lauzhack.log`.
+**Seen once:** in the first test, the `.exe` closed on its own, leaving nothing in the log, which did not work back then. It has not happened again. If it happens again, the reason now ends up in `lauzhack.log`.

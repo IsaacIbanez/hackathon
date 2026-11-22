@@ -1,36 +1,36 @@
 # backend/llm
 
-Cliente frugal de modelos (OpenRouter). Dueño: rol A.
+Frugal model client (OpenRouter). Owner: role A.
 
-- Dos niveles: `llm.Cheap` (por defecto `anthropic/claude-haiku-5.5`) y `llm.Expensive` (`anthropic/claude-sonnet-5.5`). Los dos aceptan imágenes.
-- **Caché**: la misma petición exacta no se paga dos veces.
-- **Contador**: llamadas, aciertos de caché, errores, coste en USD y latencia por nivel (`Meter.Snapshot()`). Su JSON es el payload del mensaje `stats` del contrato.
-- **Escalado**: `CompleteWithEscalation` prueba el barato y solo llama al caro si tu función de duda dice que sí (o si el barato falla). **La política la decide quien llama (rol B2)**.
+- Two tiers: `llm.Cheap` (by default `anthropic/claude-haiku-5.5`) and `llm.Expensive` (`anthropic/claude-sonnet-5.5`). Both accept images.
+- **Cache**: the exact same request is not paid twice.
+- **Meter**: calls, cache hits, errors, cost in USD and latency per tier (`Meter.Snapshot()`). Its JSON is the payload of the contract's `stats` message.
+- **Escalation**: `CompleteWithEscalation` tries the cheap one and only calls the expensive one if your doubt function says yes (or if the cheap one fails). **The caller decides the policy (role B2)**.
 
-## Configuración (entorno o archivo `.env` en la raíz; nunca en el repo)
-`.env` está en `.gitignore`. La clave del equipo se pasa por chat, no por git.
+## Configuration (environment or a `.env` file in the root; never in the repo)
+`.env` is in `.gitignore`. The team's key is passed by chat, not through git.
 ```
 OPENROUTER_API_KEY=sk-or-v1-...
 LLM_PROFILE=dev
 ```
 
-| Variable | Obligatoria | Por defecto |
+| Variable | Required | Default |
 |----------|-------------|-------------|
-| `OPENROUTER_API_KEY` | sí | — |
-| `LLM_PROFILE` | no | vacío (demo). `dev` = gratuitos primero, ver abajo |
+| `OPENROUTER_API_KEY` | yes | — |
+| `LLM_PROFILE` | no | empty (demo). `dev` = free ones first, see below |
 | `LLM_CHEAP_MODEL` | no | `anthropic/claude-haiku-5.5` |
 | `LLM_EXPENSIVE_MODEL` | no | `anthropic/claude-sonnet-5.5` |
 | `OPENROUTER_URL` | no | `https://openrouter.ai/api/v1` |
 
-Cada modelo admite una **lista separada por comas**: si uno falla (429, caído o respuesta vacía), se prueba el siguiente.
+Each model accepts a **comma-separated list**: if one fails (429, down or an empty answer), the next one is tried.
 
-**Mientras desarrolláis, usad `LLM_PROFILE=dev`** (tenemos 10 € para todo el equipo):
-- cheap: `nvidia/nemotron-3.5-super-vl:free` → `google/gemma-4-31b-it:free` → `google/gemma-4-26b-a4b-it:free` → `anthropic/claude-haiku-5.5` (de pago, último recurso)
+**While developing, use `LLM_PROFILE=dev`** (we have €10 for the whole team):
+- cheap: `nvidia/nemotron-3.5-super-vl:free` → `google/gemma-4-31b-it:free` → `google/gemma-4-26b-a4b-it:free` → `anthropic/claude-haiku-5.5` (paid, last resort)
 - expensive: `anthropic/claude-haiku-5.5`
 
-Probado el 2026-11-21: nemotron (gratis) lee bien un formulario en imagen y responde en español en unos 3 s; los `:free` dan 429 a menudo, por eso hay varios. Los modelos que razonan gastan tokens pensando: no bajéis `MaxTokens` de ~1000.
+Tested on 2026-11-21: nemotron (free) reads a form in an image well and answers in Spanish in about 3 s; the `:free` ones often return 429, which is why there are several. Reasoning models spend tokens thinking: do not lower `MaxTokens` below ~1000.
 
-## Uso
+## Usage
 ```go
 c, err := llm.NewFromEnv()
 r, escalated, err := c.CompleteWithEscalation(ctx, llm.Request{
@@ -38,8 +38,8 @@ r, escalated, err := c.CompleteWithEscalation(ctx, llm.Request{
     Messages: []llm.Message{{Role: "user", Text: ocrText, Images: []string{dataURL}}},
     JSON:     true,
 }, func(r llm.Response) bool { return !isValidJSON(r.Text) })
-// r.Text, r.CostUSD, r.LatencyMs, r.Cached; c.Meter.Snapshot() para el total
+// r.Text, r.CostUSD, r.LatencyMs, r.Cached; c.Meter.Snapshot() for the total
 ```
 
-Prueba con la clave real: `go run ./backend/cmd/llmcheck "pregunta"` (opciones `-expensive`, `-image foto.jpg` y `-max 1500`).
-Los tests (`go test ./backend/llm`) usan un OpenRouter falso: no gastan ni necesitan clave.
+Test with the real key: `go run ./backend/cmd/llmcheck "question"` (options `-expensive`, `-image photo.jpg` and `-max 1500`).
+The tests (`go test ./backend/llm`) use a fake OpenRouter: they spend nothing and need no key.
