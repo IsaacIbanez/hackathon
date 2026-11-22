@@ -16,7 +16,7 @@ Se activa en el menú (✊ → «🖱️ Cursor mode») o con el interruptor de 
 - ☝️ apuntar mueve el ratón: una zona pequeña y alta de la imagen (`POINTER_AREA`, el 46 % del ancho y del 6 % al 50 % de la altura) cubre toda la pantalla, así la mano no sale del encuadre al llegar abajo; el menú de gestos usa la misma zona;
 - punta del corazón sobre el pulgar: clic; dos toques rápidos: clic derecho; mantener: arrastrar;
 - ✋ palma abierta hacia arriba o abajo: rueda del ratón (scroll);
-- «⌨️ Keyboard» (menú principal en modo Ordenador, o primera opción de «Apps»): abre el teclado en pantalla para escribir con el ratón (Windows: `osk.exe`; Linux: `onboard`, si está instalado; macOS: abre los ajustes del teclado de accesibilidad).
+- «Keyboard» (primera opción de «Apps»): abre el teclado en pantalla para escribir con el ratón (Windows: `osk.exe`; Linux: `onboard`, si está instalado; macOS: abre los ajustes del teclado de accesibilidad).
 
 Sin `apps.json`, «Apps» ofrece por defecto navegador, archivos, calculadora y editor de texto.
 
@@ -56,10 +56,12 @@ El menú se presenta en una rejilla 3×3 de pantalla (con el centro vacío):
 - **Tirar atrás (navegación):** un pulgar hacia abajo 👎 mantenido ~0,3 s o un barrido lateral ✋← permite retroceder de página en el menú (o cerrarlo desde la página principal).
 - **Página principal:**
   - ↑ 🔊 Volume y ↓ 🔆 Brightness: activan el control de nivel por pinza (🤏 abrir o cerrar dedos pulgar e índice, fijándolo al quedarse quieto).
-  - ← 🎙️ Microphone: conmuta el micrófono. En modo Videollamada utiliza el atajo de la app (`toggle_mic`), y en modo Ordenador conmuta el micrófono del sistema operativo (`mic_mute`).
-  - → 🚀 Apps ▸: abre el submenú de aplicaciones.
-  - ↘ ⏻ Computer ▸: abre el submenú de opciones de energía.
-  - En modo Videollamada se añaden: ↖ ✋ Raise hand (levantar mano) y ↙ 📞 Leave call (salir de la llamada).
+  - ↖ Close gestures: apaga solo el control por gestos (la cámara); la app sigue abierta. Para volver a encenderlo, haz clic en la vista de la cámara. Desde la burbuja, la ventana vuelve a su tamaño normal.
+  - ← Close app (en rojo): cierra toda la aplicación.
+  - ↙ Microphone: interruptor del micrófono del sistema (`mic_mute`). Elegirlo no cierra el menú; la opción pasa a «Mic: muted» o «Mic: on».
+  - ↗ Cursor mode: activa o desactiva el ratón por gestos.
+  - → Apps ▸: abre el submenú de aplicaciones (primero el teclado en pantalla y, en videollamada, «Raise hand»).
+  - ↘ Computer ▸: abre el submenú de opciones de energía (solo si está permitido).
 - **Submenú Computer:**
   - Opciones: ↑ Suspender…, ← Reiniciar…, → Apagar… y ↓ Volver.
   - Todas las opciones de apagado/reinicio requieren confirmación previa.

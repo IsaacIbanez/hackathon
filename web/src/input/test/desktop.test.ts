@@ -78,25 +78,29 @@ test("new actions go to the helper: brightness, microphone, power and apps", () 
 
 // ---- Gesture Control quick menu ----
 
-test("menu: the main page has volume, brightness, microphone, apps and computer", () => {
+test("menu: the main page has volume, brightness, microphone, apps, computer and the two closes", () => {
   const pc = menuPage({ id: "main" }, "pc");
   // Power (Computer ▸) is not offered unless allowed (R2).
   assert.deepEqual(cellsOf(pc).sort(), ["down", "down_left", "left", "right", "up", "up_left", "up_right"]);
   const withPower = menuPage({ id: "main" }, "pc", [], false, true);
   assert.equal(withPower.down_right?.kind === "page" && withPower.down_right.page.id, "computer");
-  assert.equal(pc.up_left?.kind === "action" && pc.up_left.action, "keyboard");
+  assert.equal(pc.up_left?.kind, "gestures_off"); // closes only Gesture Control
+  assert.equal(pc.left?.kind, "quit"); // "Close app", in red
+  assert.equal(pc.left?.label, "Close app");
   assert.equal(pc.up_right?.kind, "cursor");
   assert.equal(menuPage({ id: "main" }, "pc", [], true).up_right?.label, "Cursor off");
   assert.deepEqual(pc.up, { kind: "level", target: "volume", label: "Volume" });
   assert.equal(pc.down?.kind === "level" && pc.down.target, "brightness");
-  assert.equal(pc.left?.kind === "action" && pc.left.action, "mic_mute"); // the system microphone
-  // In a call: the call's own mute, plus raising your hand and leaving the call.
+  // The system microphone is a toggle whose label shows its state once known.
+  assert.equal(pc.down_left?.kind === "action" && pc.down_left.action, "mic_mute");
+  assert.equal(pc.down_left?.label, "Microphone");
+  assert.equal(menuPage({ id: "main" }, "pc", [], false, false, true).down_left?.label, "Mic: muted");
+  assert.equal(menuPage({ id: "main" }, "pc", [], false, false, false).down_left?.label, "Mic: on");
+  // In a call the main page is the same; "Raise hand" is in Apps, after the keyboard.
   const call = menuPage({ id: "main" }, "call");
-  assert.equal(call.left?.kind === "action" && call.left.action, "mic_mute"); // always the system microphone
-  assert.equal(call.up_left?.kind === "action" && call.up_left.action, "raise_hand");
-  // No "Leave call" any more: "Close assistant" quits the app, in every context.
-  assert.equal(call.down_left?.kind, "quit");
-  assert.equal(menuPage({ id: "main" }, "pc").down_left?.kind, "quit");
+  assert.deepEqual(call, pc);
+  const callApps = menuPage({ id: "apps" }, "call");
+  assert.equal(callApps.up?.kind === "action" && callApps.up.action, "raise_hand");
 });
 
 test("menu: power actions need two confirmations, in different corners (R2)", () => {

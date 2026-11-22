@@ -171,3 +171,10 @@ html.gc-see-through .gc.screen { visibility: visible; }
 @media (prefers-reduced-motion: reduce) {
   .gc *, .gc *::before, .gc *::after { transition: none !important; animation: none !important; }
 }
+
+/* "Close app" quits the whole assistant: red, so it is not taken for "Close gestures". */
+.gc #menu .op.danger, .gc.screen #menu .op.danger { background: rgb(255 107 107 / 0.28); border-color: var(--bad); color: var(--text); }
+.gc #menu .op.danger.active { border: 4px solid var(--bad); }
+.gc #menu .op.danger.chosen { background: var(--bad); color: var(--ink); }
+/* After "Close gestures": the message over the camera view is a button that turns them on again. */
+.gc #nocam.restart { cursor: pointer; }
