@@ -36,7 +36,7 @@ Fichas con el «Hecho cuando» y el registro: `docs/arreglos/R1.md` … `R4.md`.
 - Hace falta: `.env` con `OPENROUTER_API_KEY` (y `TOGETHER_API_KEY` para Transcribe); el escáner instalado (`scanner\pdf\scripts\install.ps1`); la MX Brio y el MX Keypad conectados.
 
 ## Decisiones vigentes (el porqué, en `docs/DECISIONES.md`)
-- **Halo** para todas las pantallas (`docs/DISENO.md`). Gesture Control va dentro de la app (un solo ejecutable).
+- **Sistema de diseño del overlay** (`docs/DESIGN.md`, sustituye a Halo; migración por áreas en curso, rama `design/overlay-premium`). Gesture Control va dentro de la app (un solo ejecutable).
 - **Keypad** leído por USB, sin Options+; atajos de respaldo Ctrl+Alt+Shift+N.
 - **Modelos:** `cheap` Haiku 5.5, `expensive` Sonnet 5.5 (OpenRouter); transcripción de respaldo con Gemini Flash Lite; Transcribe con Together AI (Parakeet + Qwen3.5-9B). **Presupuesto del equipo: 10 €**; `LLM_PROFILE=dev` mientras se desarrolla.
 - **Escáner:** responde con el `document` en cuanto acaba el OCR y hace los PDF en segundo plano; el PDF digital (de pago) solo con `SCANNER_DIGITAL=1`. Sin hoja pero con texto, devuelve el texto sin `pageCorners`.

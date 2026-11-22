@@ -1,7 +1,8 @@
 import type { CSSProperties, ReactNode } from 'react'
 
-// Shared pieces of the "Halo" design system (docs/DISENO.md): the tool icons, the panel every
-// tool opens in, and the round back button. Colours and buttons live in web/src/index.css.
+// Shared pieces of the overlay design system (docs/DESIGN.md): the icons (one family: 24 px grid,
+// 1.8 stroke, round caps), the panel every tool opens in, and the base controls (IconButton, Switch, Tag).
+// Tokens and the CSS classes behind them live in web/src/index.css.
 
 export type IconName = 'hand' | 'scan' | 'read' | 'ai' | 'voice' | 'back' | 'power' | 'keypad' | 'mic'
 
@@ -162,6 +163,67 @@ export function Panel({
     <div className="halo-layer flex items-center justify-center p-8" style={{ animation: 'rise .25s ease-out', paddingLeft: gutterLeft ? gutterLeft + 16 : undefined }}>
       {sheet}
     </div>
+  )
+}
+
+/**
+ * A round button with only an icon. `label` is required: it is read aloud and shown on hover, since
+ * an icon alone is not enough for everyone.
+ */
+export function IconButton({
+  icon,
+  label,
+  onClick,
+  disabled = false,
+  size = 26,
+}: {
+  icon: IconName
+  label: string
+  onClick: () => void
+  disabled?: boolean
+  size?: number
+}) {
+  return (
+    <button type="button" onClick={onClick} disabled={disabled} aria-label={label} title={label} className="btn-icon">
+      <Icon name={icon} size={size} />
+    </button>
+  )
+}
+
+/** An on/off switch with its words next to it (the state is never shown by colour alone). */
+export function Switch({
+  checked,
+  onChange,
+  label,
+  disabled = false,
+}: {
+  checked: boolean
+  onChange: (on: boolean) => void
+  label: string
+  disabled?: boolean
+}) {
+  return (
+    <label className="inline-flex cursor-pointer items-center gap-3 text-lead">
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        disabled={disabled}
+        onClick={() => onChange(!checked)}
+        className="switch"
+      />
+      <span>{label}</span>
+      <span className="sr-only">{checked ? 'on' : 'off'}</span>
+    </label>
+  )
+}
+
+/** A short label next to something: a state, a language, a speaker. Not clickable. */
+export function Tag({ children, tone }: { children: ReactNode; tone?: 'warn' | 'danger' }) {
+  return (
+    <span className="tag" data-tone={tone}>
+      {children}
+    </span>
   )
 }
 

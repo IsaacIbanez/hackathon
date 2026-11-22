@@ -4,9 +4,10 @@
 @import "@fontsource/atkinson-hyperlegible/700.css";
 
 /*
- * "Halo" design system (docs/DISENO.md). One deep ink layer over the desktop, glass panels on top,
- * one colour per tool (always next to its icon and name), and yellow for what is being read and for
- * the keyboard focus. The one bold element is the Gesture Control hub with its halo.
+ * Overlay design system (docs/DESIGN.md). It is an overlay, not an app: a dimmed see-through layer
+ * over the desktop, few surfaces, one accent (yellow: what is being read and the keyboard focus).
+ * Everything goes through these tokens: no loose colours, sizes or radii in components.
+ * The "Halo" tokens above the line stay until every piece is migrated.
  */
 @theme {
   --font-sans: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
@@ -25,6 +26,71 @@
   --color-hand-2: #7c8cff;
 }
 
+/* Overlay design system (docs/DESIGN.md). "static": every token is emitted, even before a class
+   uses it, so plain CSS (the gesture page) can read them with var(). */
+@theme static {
+  /* Text: AA measured on the real surfaces, over a white and a black desktop (DESIGN.md). */
+  --color-fg: #f3f6ff;
+  --color-fg-muted: #b4bfdc;
+  --color-on-accent: #0a1128;
+  /* The one accent: what is being read, the keyboard focus, the primary action. */
+  --color-accent: #ffd84d;
+  /* States (never colour alone: always with an icon or words). */
+  --color-warn: #ffb547;
+  --color-danger: #ff6b7a;
+
+  /* Transparencies (values kept as they were; DESIGN.md, "Transparencias"). */
+  --color-layer: rgb(6 10 24 / 0.82); /* the dimmed layer over the whole screen */
+  --color-layer-glow: rgb(20 34 80 / 0.55); /* its soft centre */
+  --color-surface: rgb(16 24 50 / 0.9); /* panels: the only surface */
+  --color-surface-solid: rgb(16 24 50 / 0.96); /* sticky bars that scroll over content */
+  --color-scrim: rgb(6 10 24 / 0.62); /* gesture menu over the camera */
+  --color-scrim-light: rgb(6 10 24 / 0.4); /* gesture menu over the desktop */
+  --color-backing: rgb(6 10 24 / 0.72); /* behind text that sits on a light scrim */
+  --color-fill: rgb(255 255 255 / 0.06); /* controls at rest */
+  --color-fill-strong: rgb(255 255 255 / 0.12); /* keys, switch track, tags */
+  --color-fill-hover: rgb(255 255 255 / 0.13); /* controls under the pointer */
+  --color-edge: rgb(196 210 255 / 0.18); /* 1 px borders */
+  --color-highlight: rgb(255 255 255 / 0.06); /* 1 px inner light on top edges */
+  --blur-surface: 18px; /* backdrop blur: only on the top surface, never stacked */
+
+  /* Type: one family (Atkinson Hyperlegible, 400 and 700), five sizes (html is at 125 %). */
+  --text-meta: 0.875rem;
+  --text-meta--line-height: 1.35;
+  --text-body: 1.125rem;
+  --text-body--line-height: 1.5;
+  --text-lead: 1.25rem;
+  --text-lead--line-height: 1.4;
+  --text-title: 1.5rem;
+  --text-title--line-height: 1.2;
+  --text-display: 2.25rem;
+  --text-display--line-height: 1.1;
+
+  /* Radii: four steps plus the pill. */
+  --radius-chip: 0.5rem;
+  --radius-field: 0.75rem;
+  --radius-card: 1.25rem;
+  --radius-panel: 2rem;
+  --radius-pill: 999px;
+
+  /* Elevation: a 1 px edge and soft light. The two large shadows are the current ones. */
+  --shadow-edge: 0 1px 0 var(--color-highlight) inset;
+  --shadow-float: 0 24px 60px -24px rgb(0 0 0 / 0.8);
+  --shadow-panel: 0 40px 90px -30px rgb(0 0 0 / 0.75);
+
+  /* Motion: short and soft, only in answer to the person (none with reduced motion). */
+  --ease-soft: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Durations and sizes Tailwind has no theme namespace for. */
+:root {
+  --duration-fast: 150ms;
+  --duration-base: 200ms;
+  --focus-width: 4px;
+  --focus-offset: 3px;
+  --target-min: 2.6rem; /* 52 px at 125 %: the smallest thing you can click */
+}
+
 @layer base {
   html {
     font-size: 125%;
@@ -38,8 +104,8 @@
     -webkit-font-smoothing: antialiased;
   }
   :focus-visible {
-    outline: 4px solid var(--color-mark);
-    outline-offset: 3px;
+    outline: var(--focus-width) solid var(--color-accent);
+    outline-offset: var(--focus-offset);
   }
   ::selection {
     background: var(--color-mark);
@@ -53,18 +119,16 @@
     position: fixed;
     inset: 0;
     background:
-      radial-gradient(ellipse 70% 60% at 50% 55%, rgb(20 34 80 / 0.55), transparent 70%),
-      rgb(6 10 24 / 0.82);
+      radial-gradient(ellipse 70% 60% at 50% 55%, var(--color-layer-glow), transparent 70%),
+      var(--color-layer);
   }
 
   /* Glass: the only surface. Solid enough to read on any wallpaper. */
   .glass {
-    background: rgb(16 24 50 / 0.9);
-    border: 1px solid var(--color-line);
-    box-shadow:
-      0 1px 0 rgb(255 255 255 / 0.06) inset,
-      0 40px 90px -30px rgb(0 0 0 / 0.75);
-    backdrop-filter: blur(18px);
+    background: var(--color-surface);
+    border: 1px solid var(--color-edge);
+    box-shadow: var(--shadow-edge), var(--shadow-panel);
+    backdrop-filter: blur(var(--blur-surface));
   }
 
   /* Buttons: pill shaped, at least 48 px high. The primary one takes the tool's colour (--accent). */
@@ -72,27 +136,33 @@
     display: inline-flex;
     align-items: center;
     gap: 0.5em;
-    min-height: 2.6rem;
+    min-height: var(--target-min);
     padding: 0.5em 1.1em;
-    border-radius: 999px;
-    border: 1px solid var(--color-line);
-    background: rgb(255 255 255 / 0.06);
-    color: var(--color-snow);
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--color-edge);
+    background: var(--color-fill);
+    color: var(--color-fg);
     font-weight: 700;
     line-height: 1.1;
     transition:
-      background-color 0.15s,
-      transform 0.15s;
+      background-color var(--duration-fast),
+      transform var(--duration-fast);
   }
   .btn:hover {
-    background: rgb(255 255 255 / 0.13);
+    background: var(--color-fill-hover);
   }
   .btn:active {
     transform: scale(0.97);
   }
-  .btn:disabled {
+  .btn:disabled,
+  .btn[aria-disabled="true"] {
     opacity: 0.45;
     pointer-events: none;
+  }
+  /* Loading: the label stays (it says what is happening); the pointer shows it is busy. */
+  .btn[aria-busy="true"] {
+    cursor: progress;
+    opacity: 0.75;
   }
   .btn-primary {
     background: var(--accent, var(--color-mark));
@@ -110,8 +180,8 @@
     min-width: 1.5em;
     padding: 0.1em 0.45em;
     border-radius: 0.45em;
-    background: rgb(255 255 255 / 0.12);
-    color: var(--color-mist);
+    background: var(--color-fill-strong);
+    color: var(--color-fg-muted);
     font-size: 0.72em;
     font-weight: 700;
     text-align: center;
@@ -122,10 +192,105 @@
     color: var(--color-ink);
   }
 
+  /* Quiet button: no fill until the pointer or the focus is on it (secondary actions in a bar). */
+  .btn-quiet {
+    border-color: transparent;
+    background: transparent;
+  }
+  .btn-quiet:hover {
+    background: var(--color-fill-hover);
+  }
+
+  /* Icon button: a circle as big as a button, always with an aria-label (ui.tsx IconButton). */
+  .btn-icon {
+    display: inline-grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: var(--target-min);
+    height: var(--target-min);
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--color-edge);
+    background: var(--color-fill);
+    color: var(--color-fg);
+    transition: background-color var(--duration-fast) var(--ease-soft);
+  }
+  .btn-icon:hover {
+    background: var(--color-fill-hover);
+  }
+  .btn-icon:disabled,
+  .btn-icon[aria-disabled="true"] {
+    opacity: 0.45;
+    pointer-events: none;
+  }
+
+  /* Switch: role="switch" and aria-checked (ui.tsx Switch). On: the accent, and the knob moves. */
+  .switch {
+    position: relative;
+    display: inline-block;
+    flex-shrink: 0;
+    width: 3.25rem;
+    height: 2rem;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--color-edge);
+    background: var(--color-fill-strong);
+    transition: background-color var(--duration-fast) var(--ease-soft);
+  }
+  .switch::after {
+    content: "";
+    position: absolute;
+    top: 0.1875rem;
+    left: 0.1875rem;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: var(--radius-pill);
+    background: var(--color-fg);
+    transition: transform var(--duration-fast) var(--ease-soft);
+  }
+  .switch[aria-checked="true"] {
+    background: var(--color-accent);
+    border-color: transparent;
+  }
+  .switch[aria-checked="true"]::after {
+    background: var(--color-on-accent);
+    transform: translateX(1.25rem);
+  }
+  .switch:disabled {
+    opacity: 0.45;
+  }
+
+  /* Tag: a short label next to something (a state, a language, a speaker). Not a button. */
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35em;
+    padding: 0.15em 0.6em;
+    border-radius: var(--radius-chip);
+    background: var(--color-fill-strong);
+    color: var(--color-fg-muted);
+    font-size: var(--text-meta);
+    font-weight: 700;
+    line-height: var(--text-meta--line-height);
+  }
+  .tag[data-tone="warn"] {
+    color: var(--color-warn);
+  }
+  .tag[data-tone="danger"] {
+    color: var(--color-danger);
+  }
+
+  /* Backing: text over a light scrim keeps AA with a soft plate behind it, not a darker screen. */
+  .backing {
+    padding: 0.1em 0.45em;
+    border-radius: var(--radius-chip);
+    background: var(--color-backing);
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
+
   /* What is being read right now (guided reader and PDF viewer). */
   .reading-mark {
-    background: var(--color-mark);
-    color: var(--color-ink);
+    background: var(--color-accent);
+    color: var(--color-on-accent);
   }
 }
 
