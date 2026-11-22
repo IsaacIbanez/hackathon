@@ -5,6 +5,7 @@ import json
 import sys
 import tempfile
 import threading
+import time
 import unittest
 import urllib.error
 import urllib.request
@@ -65,7 +66,12 @@ class TestScanService(ServiceServer):
         got = np.array([[p["x"], p["y"]] for p in body["pageCorners"]])
         expected = synthetic.PERSPECTIVE_CORNERS / np.array([1920, 1440])
         self.assertLess(np.abs(got - expected).max(), 0.003)
-        self.assertTrue(Path(headers["X-Scan-Pdf"]).is_file())
+        # The answer comes before the PDFs (they are finished in the background, N3): wait for them.
+        folder = Path(headers["X-Scan-Folder"])
+        deadline = time.monotonic() + 30
+        while not list(folder.glob("*.pdf")) and time.monotonic() < deadline:
+            time.sleep(0.1)
+        self.assertTrue(list(folder.glob("*.pdf")))
         self.assertIn("X-Scan-Ms", headers)
 
     @unittest.skipUnless(TESSERACT, "needs Tesseract")
