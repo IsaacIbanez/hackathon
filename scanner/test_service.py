@@ -297,6 +297,7 @@ class TestScanPdf(unittest.TestCase):
         with urllib.request.urlopen(f"{self.url}/pdf/{info['id']}/page/0/lines", timeout=120) as r:
             lines = json.load(r)["lines"]
         self.assertIn("siniestro", " ".join(line["text"] for line in lines).lower())
+        self.assertEqual([line["text"] for line in lines], [b["text"] for b in body["blocks"]])  # the scan's own reading
         # No digital PDF until it is asked for (paid model, off by default since R3).
         self.assertEqual(self.call(f"/scan/{scan_id}/pdf?kind=digital")[1]["error"], "pdf_not_made")
         status, digital, _ = self.call(f"/scan/{scan_id}/digital", b"")

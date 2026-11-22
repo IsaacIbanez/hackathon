@@ -247,8 +247,26 @@ class ScanService:
             return 404, {"error": "pdf_not_made", "message": reason or f"This scan has no {kind} PDF"}
         info = self.pdfs.open(Path(path).read_bytes(),
                               f"{scan_id}.pdf" if kind == "searchable" else f"{scan_id}-digital.pdf")
+        if kind == "searchable":
+            info = self._seed_scan_lines(info, result)
         job.opened[kind] = info
         return 200, info
+
+    def _seed_scan_lines(self, info: dict, result: Result) -> dict:
+        """The viewer reads the lines the scan already read, at once. Without this it OCRed the PDF's
+        page image again (its invisible OCR text is not extracted): 5-15 s more and a different, worse
+        reading than the scan's (real scans, 2026-11-22), and the language stayed es-ES for Catalan."""
+        blocks = result.document().get("blocks") or []
+        if not blocks:
+            return info
+        lines = [{"text": b["text"], "box": b["box"], "confidence": b.get("confidence", 1.0)} for b in blocks]
+        try:
+            pdf = self.pdfs.get(info["id"])
+        except KeyError:
+            return info
+        pdf.lines[0] = {"lines": lines, "ocr": True}
+        pdf.lang = pdf_pages.detect_lang(" ".join(line["text"] for line in lines))
+        return {**info, "lang": pdf.lang}
 
     def make_digital(self, scan_id: str) -> tuple[int, dict]:
         """Makes the digital PDF of a scan now, from its original photo, and opens it. Only on request:
