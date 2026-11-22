@@ -4,7 +4,7 @@ import type { CSSProperties, ReactNode } from 'react'
 // 1.8 stroke, round caps), the panel every tool opens in, and the base controls (IconButton, Switch, Tag).
 // Tokens and the CSS classes behind them live in web/src/index.css.
 
-export type IconName = 'hand' | 'scan' | 'read' | 'ai' | 'voice' | 'back' | 'power' | 'keypad' | 'mic'
+export type IconName = 'hand' | 'scan' | 'read' | 'ai' | 'voice' | 'back' | 'power' | 'keypad' | 'mic' | 'play' | 'hide'
 
 const PATHS: Record<IconName, ReactNode> = {
   // An open hand.
@@ -66,6 +66,20 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" />
     </>
   ),
+  // Read / pause: a play triangle beside two pause bars.
+  play: (
+    <>
+      <path d="M4 5l8 7-8 7z" />
+      <path d="M16 5v14M20 5v14" />
+    </>
+  ),
+  // Hide: the layer goes down to the bottom edge.
+  hide: (
+    <>
+      <path d="M12 4v11M7 10l5 5 5-5" />
+      <path d="M4 20h16" />
+    </>
+  ),
 }
 
 export function Icon({ name, size = 24, className = '' }: { name: IconName; size?: number; className?: string }) {
@@ -76,7 +90,7 @@ export function Icon({ name, size = 24, className = '' }: { name: IconName; size
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.8}
+      strokeWidth={2.2}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
@@ -117,6 +131,7 @@ export function Panel({
   fill = false,
   gutterLeft = 0,
   actions,
+  keyNumber,
   children,
 }: {
   title: string
@@ -128,6 +143,8 @@ export function Panel({
   /** Room kept free on the left (the camera panel in the top-left corner, N1), in CSS pixels. */
   gutterLeft?: number
   actions?: ReactNode
+  /** The MX Keypad key (and keyboard digit) that opens this tool, shown big in the header. */
+  keyNumber?: string
   children: ReactNode
 }) {
   const style = { '--accent': accent } as CSSProperties
@@ -139,18 +156,19 @@ export function Panel({
       className={`glass flex flex-col overflow-hidden ${fill ? 'h-screen w-screen rounded-none' : 'h-full w-full max-w-6xl rounded-panel'}`}
     >
       <header
-        className="flex items-center gap-4 border-b border-edge px-6 py-4"
+        className="flex items-center gap-5 bg-deep px-6 py-4"
         style={{ '--wails-draggable': 'drag' } as CSSProperties}
       >
         <BackButton onBack={onBack} />
-        <span
-          className="grid size-12 shrink-0 place-items-center rounded-full bg-fill-strong text-fg"
-          
-        >
-          <Icon name={icon} size={26} />
-        </span>
+        {keyNumber ? (
+          <span className="kbd shrink-0 text-display" aria-label={`Key ${keyNumber}`}>
+            {keyNumber}
+          </span>
+        ) : (
+          <Icon name={icon} size={34} className="shrink-0 text-accent" />
+        )}
         <div className="min-w-0 flex-1">
-          <h1 className="text-title leading-tight font-bold">{title}</h1>
+          <h1 className="text-title leading-tight font-bold text-accent">{title}</h1>
           {hint && <p className="truncate text-body text-fg-muted">{hint}</p>}
         </div>
         {actions}

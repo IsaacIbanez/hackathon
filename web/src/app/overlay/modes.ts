@@ -27,7 +27,7 @@ export interface Mode {
 export const MODES: Mode[] = [
   {
     id: 'gestures',
-    key: '1',
+    key: '6',
     title: 'Gesture Control',
     description: 'Use the computer with your hands, through the camera.',
     icon: 'hand',

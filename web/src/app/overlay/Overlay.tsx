@@ -191,6 +191,7 @@ export function Overlay() {
             setView(id)
           }}
           onHide={() => inDesktopApp() && void desktop().HideOverlay()}
+          onKey={(action) => run(action)}
           extras={MENU_PANELS.map(({ id, title, Component }) => (
             <section key={id} aria-label={title} className="glass rounded-card p-5">
               <h2 className="mb-2 text-body font-bold">{title}</h2>
@@ -245,6 +246,7 @@ export function Overlay() {
         hint={mode.description}
         icon={mode.icon}
         accent={mode.accent}
+        keyNumber={mode.key}
         onBack={back}
         fill={view === 'gestures'}
         gutterLeft={gutter}

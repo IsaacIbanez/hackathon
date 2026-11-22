@@ -1,116 +1,117 @@
 import { useState, type CSSProperties, type ReactNode } from 'react'
 import type { OverlayInfo } from './desktop.ts'
-import { MODES, type Mode, type ModeId } from './modes.ts'
-import { Icon } from './ui.tsx'
+import type { KeypadAction } from './keypad.ts'
+import { MODES, type ModeId } from './modes.ts'
+import { Icon, type IconName } from './ui.tsx'
 
-// The layer's home (docs/DESIGN.md): the desktop dimmed behind, Gesture Control as the big circle
-// in the middle and the other tools fanned out on an arc above it, like a radial menu: every tool
-// is the same distance from the centre and keeps its direction, so it can be found without
-// looking. Under the hub, one line says what the tool under the pointer (or focus) does.
+// The layer's home (docs/DESIGN.md): the MX Keypad drawn on the screen. Nine keys in the order of
+// the real ones (docs/KEYPAD.md), each doing what the physical key does, so what you see is what
+// you press. Under the pad, one line says what the key under the pointer (or focus) does.
 
-/** Angles of the arc, in degrees (0 = right, 270 = straight up), left to right. */
-function arcAngles(n: number): number[] {
-  if (n === 1) return [270]
-  const from = 205
-  const to = 335
-  return Array.from({ length: n }, (_, i) => from + (i * (to - from)) / (n - 1))
+type PadKey = {
+  n: string
+  name: string
+  icon: IconName
+  says: string
+  /** What a click does; none for the key you are on (9, the menu). */
+  press?: () => void
 }
 
 export function Hub({
   info,
   onChoose,
   onHide,
+  onKey,
   onQuit,
   extras,
 }: {
   info: OverlayInfo | null
   onChoose: (id: ModeId) => void
   onHide: () => void
+  /** Keys that are not a tool: the voice command and read/pause (keypad.ts). */
+  onKey?: (action: KeypadAction) => void
   onQuit?: () => void
   /** Extra panels of the menu (extensions.ts, MENU_PANELS), in the bottom-left corner. */
   extras?: ReactNode
 }) {
-  const [hint, setHint] = useState<Mode | null>(null)
-  const hub = MODES.find((m) => m.place === 'hub')!
-  const arc = MODES.filter((m) => m.place === 'arc')
-  const angles = arcAngles(arc.length)
+  const [hint, setHint] = useState<PadKey | null>(null)
   const failedKeys = (info?.keypad ?? []).filter((k) => !k.ok)
 
-  const caption = hint
-    ? hint.ready
-      ? hint.description
-      : `${hint.title} is coming soon.`
-    : `Choose a tool with the mouse or press ${MODES.filter((m) => m.ready).map((m) => m.key).join(', ')}.`
+  const tools: PadKey[] = MODES.filter((m) => m.ready).map((m) => ({
+    n: m.key,
+    name: m.title,
+    icon: m.icon,
+    says: m.description,
+    press: () => onChoose(m.id),
+  }))
+  const keys: PadKey[] = [
+    { n: '1', name: 'Hide', icon: 'hide' as const, says: 'Hide this layer. Key 1 brings it back.', press: onHide },
+    ...tools,
+    {
+      n: '7',
+      name: 'Voice command',
+      icon: 'mic' as const,
+      says: 'Press, say what you want (for example “read the paper”), press again.',
+      press: () => onKey?.('record-toggle'),
+    },
+    { n: '8', name: 'Read / pause', icon: 'play' as const, says: 'Start or pause the reading that is open.', press: () => onKey?.('play') },
+    { n: '9', name: 'Menu', icon: 'keypad' as const, says: 'You are here.' },
+  ].sort((a, b) => Number(a.n) - Number(b.n))
 
   return (
     // A click on the empty layer hides it, like a click outside a menu.
-    <div className="halo-layer" onClick={(e) => e.target === e.currentTarget && onHide()}>
-      <nav
-        aria-label="Tools"
-        className="absolute top-[58%] left-1/2"
-        style={{ '--r': 'min(44vmin, 26rem)' } as CSSProperties}
-        onClick={(e) => e.target === e.currentTarget && onHide()}
-      >
-        {arc.map((m, i) => (
-          <div
-            key={m.id}
-            className="absolute"
-            style={
-              {
-                '--a': `${angles[i]}deg`,
-                transform: 'translate(-50%, -50%) translate(calc(cos(var(--a)) * var(--r)), calc(sin(var(--a)) * var(--r)))',
-                animation: `orb-out var(--duration-base) var(--ease-soft) ${0.03 * i}s backwards`,
-              } as CSSProperties
-            }
-          >
-            <ToolOrb mode={m} onChoose={onChoose} onHint={setHint} />
-          </div>
-        ))}
+    <div className="halo-layer grid place-items-center" onClick={(e) => e.target === e.currentTarget && onHide()}>
+      <div className="flex flex-col items-center gap-6">
+        <nav aria-label="Keypad" className="pad">
+          {keys.map((k, i) => (
+            <button
+              key={k.n}
+              type="button"
+              className="key"
+              style={{ animationDelay: `${i * 25}ms` } as CSSProperties}
+              aria-current={k.press ? undefined : 'page'}
+              aria-keyshortcuts={k.n}
+              aria-describedby="hub-caption"
+              onClick={() => k.press?.()}
+              onMouseEnter={() => setHint(k)}
+              onMouseLeave={() => setHint(null)}
+              onFocus={() => setHint(k)}
+              onBlur={() => setHint(null)}
+            >
+              <span className="key-top">
+                <span className="key-num" aria-hidden="true">
+                  {k.n}
+                </span>
+                <Icon name={k.icon} size={30} />
+              </span>
+              <span className="key-name">
+                {k.name}
+                {!k.press && <span className="key-sub">You are here</span>}
+              </span>
+            </button>
+          ))}
+        </nav>
 
-        <div className="absolute" style={{ transform: 'translate(-50%, -50%)' }}>
-          <button
-            type="button"
-            onClick={() => onChoose(hub.id)}
-            onMouseEnter={() => setHint(hub)}
-            onMouseLeave={() => setHint(null)}
-            onFocus={() => setHint(hub)}
-            onBlur={() => setHint(null)}
-            aria-keyshortcuts={hub.key}
-            aria-describedby="hub-caption"
-            className="orb hub-orb relative size-[13rem] flex-col gap-1"
-          >
-            <span className="hub-halo" aria-hidden="true" />
-            <Icon name={hub.icon} size={68} />
-            <span className="text-lead leading-tight font-bold">{hub.title}</span>
-            <span className="kbd">{hub.key}</span>
-          </button>
-        </div>
-      </nav>
-
-      <p
-        id="hub-caption"
-        aria-live="polite"
-        className="pointer-events-none absolute top-[calc(58%+8.5rem)] left-1/2 w-[min(34rem,90vw)] -translate-x-1/2 text-center text-lead leading-snug text-fg"
-      >
-        {caption}
-      </p>
+        <p id="hub-caption" aria-live="polite" className="h-[2.7em] max-w-[34rem] text-center text-lead text-fg">
+          {hint ? hint.says : 'Press a key on the keypad, a number on the keyboard, or click.'}
+        </p>
+      </div>
 
       {extras && <div className="absolute bottom-8 left-8 w-[22rem] space-y-3">{extras}</div>}
 
-      <footer className="glass absolute bottom-8 left-1/2 flex -translate-x-1/2 items-center gap-5 rounded-full px-6 py-3 text-body whitespace-nowrap text-fg-muted">
-        <span>
-          {info?.hotkeyOk ? (
-            <>
-              <span className="kbd">Ctrl</span> <span className="kbd">Alt</span> <span className="kbd">Space</span> shows or
-              hides this layer
-            </>
-          ) : (
-            'Esc hides this layer'
-          )}
-        </span>
+      <footer className="absolute bottom-8 left-1/2 flex -translate-x-1/2 items-center gap-6 text-body whitespace-nowrap text-fg-muted">
+        {info?.hotkeyOk ? (
+          <span>
+            <span className="kbd">Ctrl</span> <span className="kbd">Alt</span> <span className="kbd">Space</span> shows or hides
+          </span>
+        ) : (
+          <span>
+            <span className="kbd">Esc</span> hides
+          </span>
+        )}
         {info?.keypadConnected && (
-          <span className="flex items-center gap-2 text-fg-muted">
-            <Icon name="keypad" size={20} /> MX Keypad ready
+          <span className="flex items-center gap-2 text-fg">
+            <Icon name="keypad" size={20} /> MX Keypad connected
           </span>
         )}
         {failedKeys.length > 0 && (
@@ -122,36 +123,6 @@ export function Hub({
           </button>
         )}
       </footer>
-    </div>
-  )
-}
-
-function ToolOrb({ mode, onChoose, onHint }: { mode: Mode; onChoose: (id: ModeId) => void; onHint: (m: Mode | null) => void }) {
-  return (
-    <div className="relative" style={{ '--accent': mode.accent } as CSSProperties}>
-      <button
-        type="button"
-        aria-disabled={!mode.ready}
-        aria-keyshortcuts={mode.key}
-        aria-describedby="hub-caption"
-        onClick={() => mode.ready && onChoose(mode.id)}
-        onMouseEnter={() => onHint(mode)}
-        onMouseLeave={() => onHint(null)}
-        onFocus={() => onHint(mode)}
-        onBlur={() => onHint(null)}
-        className="orb size-[8rem]"
-      >
-        <Icon name={mode.icon} size={48} />
-        <span className="sr-only">{mode.title}</span>
-      </button>
-      <span className="pointer-events-none absolute top-[calc(100%+0.6rem)] left-1/2 flex -translate-x-1/2 flex-col items-center gap-1 text-center whitespace-nowrap">
-        <span className="text-body leading-tight font-bold">{mode.title}</span>
-        {mode.ready ? (
-          <span className="kbd">{mode.key}</span>
-        ) : (
-          <span className="text-meta text-fg-muted">Coming soon</span>
-        )}
-      </span>
     </div>
   )
 }
