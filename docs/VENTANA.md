@@ -1,54 +1,54 @@
-# La ventana de la app: formas, jerarquía y quién decide
+# The app's window: shapes, hierarchy and who decides
 
-**Léelo antes de tocar** `app_window.go`, `app_overlay.go`, `app_summary.go`, `web/src/app/overlay/gestureHost.ts` o cualquier cosa que muestre, oculte o cambie el tamaño de la ventana. Arreglo R5 (Pau, 2026-11-22; ficha `docs/arreglos/R5.md`).
+**Read this before touching** `app_window.go`, `app_overlay.go`, `app_summary.go`, `web/src/app/overlay/gestureHost.ts` or anything that shows, hides or resizes the window. Fix R5 (Pau, 2026-11-22; sheet `docs/arreglos/R5.md`).
 
-## El problema que había
-La app es **una sola ventana de Wails** que toma varias formas. Antes, seis funciones la movían cada una por su cuenta (`SetLayer`, `SetCompact`, `SetScreenOverlay`, `HideOverlay`, la burbuja de AI Summary y el atajo), con banderas sueltas (`visible`, `compact`, `screen`, `bubble`, `layer`). Ninguna sabía qué forma tocaba al terminar, y el resultado era un caos de ventanas que se abrían, se encogían y se cerraban:
-- **Menú del puño:** al cerrarlo, la ventana quedaba siempre en 960×680 centrada, aunque antes fuera la capa a pantalla completa.
-- **Modo cursor:** encogía el overlay a la burbuja y, al quitarlo, lo volvía a abrir.
-- **Cerrar AI Summary:** dejaba la ventana a 960×680 sin mirar en qué forma estaba.
+## The problem there was
+The app is **a single Wails window** that takes several shapes. Before, six functions moved it each on their own (`SetLayer`, `SetCompact`, `SetScreenOverlay`, `HideOverlay`, the AI Summary bubble and the shortcut), with loose flags (`visible`, `compact`, `screen`, `bubble`, `layer`). None of them knew which shape was due when they finished, and the result was a chaos of windows opening, shrinking and closing:
+- **Fist menu:** when closed, the window always ended up at 960×680 centred, even if before it was the full-screen layer.
+- **Cursor mode:** it shrank the overlay to the bubble and, when turned off, opened it again.
+- **Closing AI Summary:** it left the window at 960×680 without looking at which shape it was in.
 
-## El modelo actual
-Las piezas **solo dicen lo que quieren** (`windowInputs` en `app_window.go`) y **una sola función decide y aplica la forma** (`desiredShape` + `applyShape`, una transición cada vez).
+## The current model
+The pieces **only say what they want** (`windowInputs` in `app_window.go`) and **a single function decides and applies the shape** (`desiredShape` + `applyShape`, one transition at a time).
 
-| Entrada | Quién la cambia | Significa |
+| Input | Who changes it | Means |
 |---|---|---|
-| `open` | El atajo (Ctrl+Alt+Espacio), el keypad, Esc o «Hide» (`HideOverlay`), «Shrink to a camera bubble» y el doble clic en la burbuja (`SetCompact`) | La persona quiere ver el overlay |
-| `layer` | La vista (`SetLayer`, desde `Overlay.tsx`) | `true`: capa a pantalla completa (menú y herramientas de lectura); `false`: ventana normal (la página de Gesture Control, para que sus clics lleguen a los programas de debajo) |
-| `gestures` | `SetGesturesActive` (`gestureHost.ts`) | El motor de gestos usa la cámara (siempre desde N1; PDF Scanner lo pausa) |
-| `gestureScreen` | `SetScreenOverlay` (la página de gestos) | El menú del puño o el control de volumen/brillo está abierto (temporal) |
-| `summary` | AI Summary (`showBubble`, `CloseSummary`) | La burbuja del resumen está abierta (temporal) |
+| `open` | The shortcut (Ctrl+Alt+Space), the keypad, Esc or «Hide» (`HideOverlay`), «Shrink to a camera bubble» and double-clicking the bubble (`SetCompact`) | The person wants to see the overlay |
+| `layer` | The view (`SetLayer`, from `Overlay.tsx`) | `true`: full-screen layer (menu and reading tools); `false`: normal window (the Gesture Control page, so that its clicks reach the programs underneath) |
+| `gestures` | `SetGesturesActive` (`gestureHost.ts`) | The gesture engine is using the camera (always since N1; PDF Scanner pauses it) |
+| `gestureScreen` | `SetScreenOverlay` (the gesture page) | The fist menu or the volume/brightness control is open (temporary) |
+| `summary` | AI Summary (`showBubble`, `CloseSummary`) | The summary bubble is open (temporary) |
 
-**Jerarquía** (`desiredShape`; manda la primera que se cumple):
-1. `summary` → **burbuja de AI Summary** junto al puntero.
-2. `gestureScreen` (con los gestos activos) → **pantalla de gestos**: transparente a pantalla completa, con la cámara en una esquina.
-3. `open` y `layer` → **capa** a pantalla completa.
-4. `open` → **ventana** centrada de 960×680.
-5. `gestures` → **burbuja de cámara** en una esquina (el overlay está oculto, pero los gestos siguen).
-6. Nada → **oculta**.
+**Hierarchy** (`desiredShape`; the first one that holds wins):
+1. `summary` → **AI Summary bubble** next to the pointer.
+2. `gestureScreen` (with the gestures active) → **gesture screen**: transparent and full screen, with the camera in a corner.
+3. `open` and `layer` → full-screen **layer**.
+4. `open` → centred 960×680 **window**.
+5. `gestures` → **camera bubble** in a corner (the overlay is hidden, but the gestures carry on).
+6. Nothing → **hidden**.
 
-Como la forma sale siempre de las entradas, **al acabar algo temporal** (menú del puño o resumen) **la ventana vuelve exactamente a lo que había**, sin que nadie lo recuerde a mano.
+Since the shape always comes from the inputs, **when something temporary ends** (fist menu or summary) **the window goes back to exactly what was there**, without anyone remembering it by hand.
 
-## Reglas de convivencia (decididas con Pau)
-- **El overlay manda; los gestos conviven.** Gesture Control nunca abre, cierra ni encoge el overlay: solo pone su menú encima un momento.
-- **Modo cursor:** no toca la ventana. Con el overlay abierto, el cursor de la mano puede pulsar sus botones; con el overlay oculto, la burbuja se queda.
-- **Ocultar** (Esc en el menú, «Hide», el atajo con el overlay delante): con los gestos activos va a la burbuja; sin gestos, se oculta. Si no hay ningún atajo que funcione ni gestos, solo se minimiza, para que la ventana no se pierda.
-- **El atajo:** con el overlay delante, lo oculta. Oculto, en la burbuja o tapado por otra ventana, lo trae al frente tal como estaba.
-- **El keypad:** trae el overlay tal como estaba y hace la acción. Si estaba abierto el resumen, lo cierra.
-- **Al cerrar AI Summary**, el overlay se oculta (a la burbuja si hay gestos) y el foco vuelve al programa del que salió el texto.
+## Coexistence rules (decided with Pau)
+- **The overlay rules; the gestures coexist.** Gesture Control never opens, closes or shrinks the overlay: it only puts its menu on top for a moment.
+- **Cursor mode:** does not touch the window. With the overlay open, the hand cursor can press its buttons; with the overlay hidden, the bubble stays.
+- **Hide** (Esc in the menu, «Hide», the shortcut with the overlay in front): with the gestures active it goes to the bubble; without gestures, it hides. If there is no working shortcut and no gestures, it only minimises, so that the window is not lost.
+- **The shortcut:** with the overlay in front, it hides it. Hidden, in the bubble or covered by another window, it brings it to the front as it was.
+- **The keypad:** brings the overlay back as it was and does the action. If the summary was open, it closes it.
+- **When closing AI Summary**, the overlay hides (to the bubble if there are gestures) and the focus goes back to the program the text came from.
 
-## Cómo comprobarlo
-- **Cada cambio de forma queda en el log:** `window: layer -> gesture-screen` en `build/bin/lauzhack.log`.
-- **Tests:** `go test -run Shape .`, que prueba la jerarquía y que las formas temporales vuelven a la de antes.
-- **Recorrido con el `.exe`** (2026-11-22): arranque → capa · Ctrl+Alt+Espacio → burbuja · otra vez → capa · tecla 8 → ventana · tecla 4 → capa · menú del puño → `gesture-screen` → capa · Esc → burbuja.
+## How to check it
+- **Every shape change is in the log:** `window: layer -> gesture-screen` in `build/bin/lauzhack.log`.
+- **Tests:** `go test -run Shape .`, which tests the hierarchy and that the temporary shapes go back to the previous one.
+- **Run with the `.exe`** (2026-11-22): startup → layer · Ctrl+Alt+Space → bubble · again → layer · key 8 → window · key 4 → layer · fist menu → `gesture-screen` → layer · Esc → bubble.
 
-## Si añades algo que cambia la ventana
-1. **No llames a `wruntime.Window*` desde una función nueva.** Añade, si hace falta, una entrada a `windowInputs` y su sitio en `desiredShape`.
-2. Cambia las entradas con `a.setWindow(func(in *windowInputs) { … }, raise)`. `raise=true` trae la ventana al frente aunque la forma no cambie.
-3. Añade el caso a `app_window_test.go`.
-4. **La página se entera por eventos** (no los cambies sin mirar `gestureHost.ts` y `Overlay.tsx`):
-   - `overlay:expanded`: capa o ventana;
-   - `overlay:compact`: burbuja;
-   - `overlay:screen`: pantalla de gestos;
+## If you add something that changes the window
+1. **Do not call `wruntime.Window*` from a new function.** Add, if needed, an input to `windowInputs` and its place in `desiredShape`.
+2. Change the inputs with `a.setWindow(func(in *windowInputs) { … }, raise)`. `raise=true` brings the window to the front even if the shape does not change.
+3. Add the case to `app_window_test.go`.
+4. **The page finds out through events** (do not change them without looking at `gestureHost.ts` and `Overlay.tsx`):
+   - `overlay:expanded`: layer or window;
+   - `overlay:compact`: bubble;
+   - `overlay:screen`: gesture screen;
    - `overlay:hidden`;
-   - `overlay:shown`: la página toma el foco del teclado.
+   - `overlay:shown`: the page takes the keyboard focus.

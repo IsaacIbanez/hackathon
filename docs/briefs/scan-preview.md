@@ -1,43 +1,43 @@
-# Brief: PDF Scanner con vista previa del PDF (Didac)
-Confirmado por Didac el 2026-11-22. Rama `feature/didac-scan-preview`.
+# Brief: PDF Scanner with a PDF preview (Didac)
+Confirmed by Didac on 2026-11-22. Branch `feature/didac-scan-preview`.
 
-## Estado (2026-11-22)
-**⚠ Aún no funciona bien.** El código está en `main` (tests en verde), pero el escaneo todavía no es como la primera versión que hicimos: un PDF buscable y un PDF digital a partir de la foto. La vista previa nueva **no se ha probado con la cámara en el `.exe`**. Pendiente:
-- probarlo de punta a punta con el `.exe` y la cámara (cerrar antes cualquier `scanner/service.py` viejo en el puerto 8770, o la app lo reutiliza y no encuentra las rutas nuevas);
-- volver a dejarlo como la primera versión.
+## Status (2026-11-22)
+**⚠ It does not work well yet.** The code is in `main` (tests green), but the scan is still not like the first version we made: a searchable PDF and a digital PDF from the photo. The new preview **has not been tested with the camera in the `.exe`**. Pending:
+- test it end to end with the `.exe` and the camera (first close any old `scanner/service.py` on port 8770, or the app reuses it and does not find the new routes);
+- bring it back to how the first version was.
 
-## Objetivo
-Que el resultado del PDF Scanner vuelva a ser **el PDF**: tras la foto, la app enseña la vista previa del PDF generado y un botón para leerlo en voz alta. Hoy se salta el PDF y lee el texto en voz alta nada más escanear (`GuidedReader` con `autoPlay` en `DocumentsMode.tsx`).
+## Goal
+That PDF Scanner's result is **the PDF** again: after the photo, the app shows the preview of the generated PDF and a button to read it aloud. Today it skips the PDF and reads the text aloud right after scanning (`GuidedReader` with `autoPlay` in `DocumentsMode.tsx`).
 
-## Estado actual (leído en el repo)
-- El servicio de lectura sigue haciendo el PDF buscable (`scan-….pdf`) en `scanner/pdf/output/<scan>/`. Desde N3 responde en cuanto acaba el OCR y termina los PDF en segundo plano, así que la app no se entera de cuándo están.
-- El PDF digital (modelo de visión de pago, ~0,002 $ por página) está desactivado por defecto desde R3 (`SCANNER_DIGITAL=1` para activarlo).
-- El visor de N4 (`web/src/document/PdfViewer.tsx`) ya enseña la página y lee el PDF entero con un botón (no arranca solo).
+## Current status (read in the repo)
+- The reading service still makes the searchable PDF (`scan-….pdf`) in `scanner/pdf/output/<scan>/`. Since N3 it answers as soon as the OCR is done and finishes the PDFs in the background, so the app does not find out when they are ready.
+- The digital PDF (paid vision model, ~$0.002 per page) is off by default since R3 (`SCANNER_DIGITAL=1` to turn it on).
+- The N4 viewer (`web/src/document/PdfViewer.tsx`) already shows the page and reads the whole PDF with a button (it does not start on its own).
 
-## Qué se verá en la demo
-La persona sostiene el papel, la guía de voz le dice cuándo está quieto, la app hace la foto y dice «Ya está». Aparece el PDF en el visor; con **Espacio** o el botón lo lee en voz alta. Con **Make digital PDF** sale la versión digital, que también se puede ver y leer.
+## What the demo will show
+The person holds the paper, the voice guide tells them when it is still, the app takes the photo and says «Done». The PDF appears in the viewer; with **Space** or the button it reads it aloud. With **Make digital PDF** the digital version comes out, which can also be seen and read.
 
-## Alcance
-- Servicio de lectura: un identificador por escaneo (`X-Scan-Id`), `GET /scan/<id>/pdf?kind=searchable|digital` (espera a que el PDF esté y lo abre como los de N4) y `POST /scan/<id>/digital` (hace el PDF digital solo cuando se pide).
-- Go: el cliente (`backend/scanner`) y tres bindings nuevos en un archivo propio (`app_scanpdf.go`): `ScanPaper`, `ScanPDF` y `MakeDigitalPDF`.
-- PDF Scanner (`DocumentsMode.tsx`): tras la foto, espera al PDF y lo abre en `PdfViewer`, con pestañas «Scanned PDF» / «Digital PDF» y el botón «Make digital PDF». Sin lectura automática.
-- Se mantiene la guía de encuadre por voz y los avisos («un momento…», «no encuentro la hoja»). Al acabar dice: «Ya está. Pulsa Espacio para escucharlo».
-- Si no hay PDF (por ejemplo, con `SCANNER_URL=fixture`), se ve el texto con el lector guiado, sin autoPlay.
+## Scope
+- Reading service: an identifier per scan (`X-Scan-Id`), `GET /scan/<id>/pdf?kind=searchable|digital` (waits until the PDF is ready and opens it like N4's) and `POST /scan/<id>/digital` (makes the digital PDF only when asked).
+- Go: the client (`backend/scanner`) and three new bindings in their own file (`app_scanpdf.go`): `ScanPaper`, `ScanPDF` and `MakeDigitalPDF`.
+- PDF Scanner (`DocumentsMode.tsx`): after the photo, it waits for the PDF and opens it in `PdfViewer`, with «Scanned PDF» / «Digital PDF» tabs and the «Make digital PDF» button. No automatic reading.
+- The voice framing guide and the notices («one moment…», «I can't find the page») stay. When done it says: «Done. Press Space to listen to it».
+- If there is no PDF (for example, with `SCANNER_URL=fixture`), the text is shown with the guided reader, without autoPlay.
 
-## Fuera de alcance
-- Pasar la pantalla Developer o Transcribe a Halo (R1, aparcado).
-- Cambiar el contrato (`api/`): las rutas nuevas son del servicio de lectura y de los bindings, no del contrato de mensajes.
-- Volver a activar el PDF digital por defecto.
+## Out of scope
+- Moving the Developer screen or Transcribe to Halo (R1, parked).
+- Changing the contract (`api/`): the new routes belong to the reading service and to the bindings, not to the message contract.
+- Turning the digital PDF back on by default.
 
-## Criterios de «hecho»
-- [ ] Escanear un papel con el `.exe` enseña el PDF en el visor y no suena el contenido hasta pulsar Espacio o el botón.
-- [ ] «Make digital PDF» genera el digital y se puede ver y leer en su pestaña.
-- [ ] Tests del servicio (`scanner/test_service*.py`) y `task check` en verde.
+## «Done» criteria
+- [ ] Scanning a paper with the `.exe` shows the PDF in the viewer and the content is not spoken until Space or the button is pressed.
+- [ ] «Make digital PDF» generates the digital one and it can be seen and read in its tab.
+- [ ] Service tests (`scanner/test_service*.py`) and `task check` green.
 
-## Carpetas que toca
-- Propias: `scanner/service.py`, sus tests, `docs/briefs/scan-preview.md`.
-- De Isaac (aviso en el PR): `backend/scanner/` (cliente), `app_scanpdf.go` (archivo nuevo en la raíz), `web/src/app/overlay/DocumentsMode.tsx` y `desktop.ts`.
+## Folders it touches
+- Own: `scanner/service.py`, its tests, `docs/briefs/scan-preview.md`.
+- Isaac's (noted in the PR): `backend/scanner/` (client), `app_scanpdf.go` (new file in the root), `web/src/app/overlay/DocumentsMode.tsx` and `desktop.ts`.
 
-## Riesgos
-- El PDF digital con modelo tarda ~15-30 s y cuesta dinero: solo con el botón, y el aviso lo dice.
-- Esperar al PDF añade ~1 s tras el OCR (la capa de texto y la validación).
+## Risks
+- The digital PDF with the model takes ~15-30 s and costs money: only with the button, and the notice says so.
+- Waiting for the PDF adds ~1 s after the OCR (the text layer and the validation).

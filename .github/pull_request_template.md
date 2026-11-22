@@ -1,10 +1,10 @@
-## Tarea
-ID (T#) y agente (P#-C / P#-G):
+## Task
+ID (R#, N#…) and agent (P#-C / P#-G):
 
-## Que se hizo
+## What was done
 
-## Que falta
+## What is missing
 
-## Decisiones tomadas
+## Decisions made
 
-## Como probarlo
+## How to test it

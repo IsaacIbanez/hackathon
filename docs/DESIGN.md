@@ -1,131 +1,131 @@
-# Diseño del overlay
+# Overlay design
 
-**Léelo antes de tocar cualquier pantalla.**
-- Sustituye a «Halo» (Isaac, 2026-11-22). La versión anterior está en `docs/historial/DISENO_halo.md` y en el historial de git.
-- Tokens y clases: `web/src/index.css`. Componentes: `web/src/app/overlay/ui.tsx`.
+**Read this before touching any screen.**
+- Replaces «Halo» (Isaac, 2026-11-22). The previous version is in `docs/historial/DISENO_halo.md` and in the git history.
+- Tokens and classes: `web/src/index.css`. Components: `web/src/app/overlay/ui.tsx`.
 
-## Principio: es un overlay, no una app
-- **Encima del contenido, no en su lugar.** Nada de cabeceras grandes, barras laterales, rejillas de tarjetas ni paneles de dashboard.
-- **Pocas cosas siempre visibles.** El resto aparece cuando hace falta y se va rápido.
-- **Cada pieza ocupa y molesta lo mínimo.**
-- **Para personas con baja visión:** la legibilidad manda sobre la estética. Contraste AA como mínimo, sobre cualquier fondo.
+## Principle: it is an overlay, not an app
+- **On top of the content, not in its place.** No large headers, side bars, card grids or dashboard panels.
+- **Few things always visible.** The rest appears when needed and goes away quickly.
+- **Each piece takes up and gets in the way as little as possible.**
+- **For people with low vision:** legibility rules over aesthetics. AA contrast at least, over any background.
 
-## Dirección: «letra grande»
-- **El menú es una página de letra grande.** Cada tecla del MX Keypad es una línea de texto, en orden del 1 al 8 (la 9 es el propio menú), todas del mismo tamaño y con su número en una columna fija.
-- **Elegir es como leer.** La línea bajo el puntero, la mano o el foco se marca con la banda del subrayador (`mark`), la misma marca que la línea que se está leyendo.
-- **Una paleta, Night:** tinta azul verdosa (`#101A1F`) con amarillo subrayador (`#F2C94C`). Sus 10 colores base (`--t-*` en `index.css`) alimentan todos los roles. Se probaron cinco paletas (Night, Day, Magnifier, Contrast y Warm; commit `55953a0`) y se desactivaron: otra paleta es un bloque de 10 colores.
-- **Orden suizo:** una columna alineada a la izquierda, a la derecha del panel de la cámara, y pasos de letra claros.
-- **Skills aplicadas:**
-  - instaladas en `~/.claude/skills`: Impeccable, UI/UX Pro Max, Taste Skill, avoid-ai-design y web-design-guidelines;
-  - además, el plugin frontend-design.
+## Direction: «large print»
+- **The menu is a large-print page.** Each MX Keypad key is a line of text, in order from 1 to 8 (9 is the menu itself), all the same size and with their number in a fixed column.
+- **Choosing is like reading.** The line under the pointer, the hand or the focus is marked with the highlighter band (`mark`), the same mark as the line being read.
+- **One palette, Night:** a blue-green ink (`#101A1F`) with highlighter yellow (`#F2C94C`). Its 10 base colours (`--t-*` in `index.css`) feed every role. Five palettes were tried (Night, Day, Magnifier, Contrast and Warm; commit `55953a0`) and disabled: another palette is a block of 10 colours.
+- **Swiss order:** a single left-aligned column, to the right of the camera panel, and clear type steps.
+- **Skills applied:**
+  - installed in `~/.claude/skills`: Impeccable, UI/UX Pro Max, Taste Skill, avoid-ai-design and web-design-guidelines;
+  - plus the frontend-design plugin.
 
-## Piezas
-| Pieza | Dónde | Cómo se ve |
+## Pieces
+| Piece | Where | How it looks |
 |---|---|---|
-| Capa | `.halo-layer` (`index.css`) | La pantalla oscurecida (`layer`); el escritorio se sigue viendo detrás |
-| Menú | `Hub.tsx`, `.print-line` | Lista de líneas del 1 al 8 (número, nombre e icono), en `text-display`, con el subrayador al señalar. Una frase debajo dice qué hace la línea señalada |
-| Panel de herramienta | `Panel` (`ui.tsx`) | Cristal (`surface`) con borde de 1 px. Cabecera: volver, icono neutro, nombre y una frase |
-| Cámara | `CameraPanel` (`Overlay.tsx`), burbuja y página de gestos (`web/src/input/desktop`) | Borde de 1–2 px, sin sombra ni aros de color. La mano se dibuja en el color del texto; el amarillo es lo que se señala |
-| Menú del puño | `gestureControl.css`, `menuView.ts` | Las nueve posiciones alrededor de la mano. Cada opción lleva icono, nombre y estado si es un interruptor. Al mantener el gesto se llena de un amarillo suave; al elegirla, del subrayador. «Close app» va con el icono y el borde en rojo |
-| Lectores | `DocumentsMode`, `GuidedReader`, `ReadFileMode`, `PdfViewer` | La línea que se lee, en amarillo (`.reading-mark`). La página del PDF, en `paper` |
-| AI Summary | `SummarizeMode.tsx` | Una burbuja de cristal junto al cursor |
-| Transcribe | `LiveCaptions.tsx` | Botones base: empezar es `btn-primary` y parar es `btn-danger`. Idioma en `Tag` |
-| Avisos | `VoiceBanner`, `Status`, mensajes de la página de gestos | Píldora de cristal. Al grabar, el icono del micro en amarillo; con error, borde `warn` |
-| Developer | `App.tsx`, `Gestures.tsx`, `DictationPanel.tsx` | Mismos tokens (pantalla de pruebas, fuera de la demo) |
+| Layer | `.halo-layer` (`index.css`) | The dimmed screen (`layer`); the desktop can still be seen behind it |
+| Menu | `Hub.tsx`, `.print-line` | A list of lines from 1 to 8 (number, name and icon), in `text-display`, with the highlighter when pointed at. A sentence below says what the pointed line does |
+| Tool panel | `Panel` (`ui.tsx`) | Glass (`surface`) with a 1 px border. Header: back, neutral icon, name and a sentence |
+| Camera | `CameraPanel` (`Overlay.tsx`), the bubble and the gesture page (`web/src/input/desktop`) | 1–2 px border, no shadow or coloured rings. The hand is drawn in the text colour; yellow is what is pointed at |
+| Fist menu | `gestureControl.css`, `menuView.ts` | The nine positions around the hand. Each option has an icon, a name and a state if it is a toggle. Holding the gesture fills it with a soft yellow; choosing it, with the highlighter. «Close app» has its icon and border in red |
+| Readers | `DocumentsMode`, `GuidedReader`, `ReadFileMode`, `PdfViewer` | The line being read, in yellow (`.reading-mark`). The PDF page, in `paper` |
+| AI Summary | `SummarizeMode.tsx` | A glass bubble next to the cursor |
+| Transcribe | `LiveCaptions.tsx` | Base buttons: start is `btn-primary` and stop is `btn-danger`. Language in a `Tag` |
+| Notices | `VoiceBanner`, `Status`, the gesture page's messages | A glass pill. While recording, the mic icon in yellow; on error, a `warn` border |
+| Developer | `App.tsx`, `Gestures.tsx`, `DictationPanel.tsx` | The same tokens (test screen, out of the demo) |
 
-## Tokens (`@theme static` en `index.css`)
-| Grupo | Tokens | Regla |
+## Tokens (`@theme static` in `index.css`)
+| Group | Tokens | Rule |
 |---|---|---|
-| Texto | `fg`, `fg-muted`, `on-accent` (clases `text-fg`, `text-fg-muted`, `text-on-accent`) | `fg-muted` solo para lo secundario, nunca para acciones |
-| Acento (uno) | `accent` (`#FFD84D`) | Ver «Dirección» |
-| Estados | `warn`, `danger` | Siempre con un icono o con palabras, nunca solo el color |
-| Superficies | `layer`, `surface`, `surface-solid`, `surface-opaque`, `scrim`, `scrim-light`, `backing`, `paper` | Ver «Transparencias» |
-| Rellenos | `fill`, `fill-strong`, `fill-hover`, `edge`, `highlight` | Controles y bordes de 1 px |
-| Tipo | `text-meta` · `text-body` · `text-lead` · `text-title` · `text-display` | Solo estos 5 tamaños, en 400 y 700, con Atkinson Hyperlegible |
-| Radios | `rounded-chip` · `rounded-field` · `rounded-card` · `rounded-panel` · `rounded-full` | Se elige el radio según el tamaño de la pieza, no uno para todo |
-| Elevación | `shadow-edge` (luz de 1 px) | Sin sombras grandes |
-| Movimiento | `--duration-fast` (150 ms), `--duration-base` (200 ms), `ease-soft` | Ver «Movimiento» |
-| Tamaño mínimo | `--target-min` (52 px al 125 %) | Nada clicable más pequeño |
-| Espaciado | la escala de Tailwind: 1, 2, 3, 4, 6, 8 y 12 | Sin valores sueltos |
+| Text | `fg`, `fg-muted`, `on-accent` (classes `text-fg`, `text-fg-muted`, `text-on-accent`) | `fg-muted` only for secondary things, never for actions |
+| Accent (one) | `accent` (`#FFD84D`) | See «Direction» |
+| States | `warn`, `danger` | Always with an icon or with words, never colour alone |
+| Surfaces | `layer`, `surface`, `surface-solid`, `surface-opaque`, `scrim`, `scrim-light`, `backing`, `paper` | See «Transparencies» |
+| Fills | `fill`, `fill-strong`, `fill-hover`, `edge`, `highlight` | Controls and 1 px borders |
+| Type | `text-meta` · `text-body` · `text-lead` · `text-title` · `text-display` | Only these 5 sizes, in 400 and 700, with Atkinson Hyperlegible |
+| Radii | `rounded-chip` · `rounded-field` · `rounded-card` · `rounded-panel` · `rounded-full` | The radius is chosen by the piece's size, not one for everything |
+| Elevation | `shadow-edge` (1 px light) | No large shadows |
+| Motion | `--duration-fast` (150 ms), `--duration-base` (200 ms), `ease-soft` | See «Motion» |
+| Minimum size | `--target-min` (52 px at 125 %) | Nothing clickable smaller |
+| Spacing | the Tailwind scale: 1, 2, 3, 4, 6, 8 and 12 | No loose values |
 
-- **Prohibido en componentes:**
-  - colores sueltos (`#…`, `rgb(…)`, `text-sky-300`, `bg-white/8`);
-  - tamaños y radios sueltos (`rounded-[1.25rem]`, `text-[17px]`).
-- **Si falta algo,** se añade un token aquí y en `index.css`.
-- **Excepciones:**
-  - la geometría del menú (posiciones y tamaños de los círculos);
-  - el canvas de la cámara, que necesita valores fijos: los copia de los tokens en `HALO` (`web/src/input/overlay.ts`).
-- **Nombres antiguos:** el primer bloque de `@theme` (`ink`, `snow`, `mist`, `line`, `mark`…) se queda por compatibilidad; el código nuevo usa los nombres de arriba.
+- **Forbidden in components:**
+  - loose colours (`#…`, `rgb(…)`, `text-sky-300`, `bg-white/8`);
+  - loose sizes and radii (`rounded-[1.25rem]`, `text-[17px]`).
+- **If something is missing,** a token is added here and in `index.css`.
+- **Exceptions:**
+  - the menu's geometry (positions and sizes of the circles);
+  - the camera canvas, which needs fixed values: it copies them from the tokens in `HALO` (`web/src/input/overlay.ts`).
+- **Old names:** the first `@theme` block (`ink`, `snow`, `mist`, `line`, `mark`…) stays for compatibility; new code uses the names above.
 
-## Transparencias (se conservan tal cual)
-Contraste medido con la superficie encima de un escritorio blanco (el peor caso) y de uno negro:
+## Transparencies (kept as they are)
+Contrast measured with the surface over a white desktop (the worst case) and a black one:
 
-| Token | Valor | Dónde | `fg` | `fg-muted` |
+| Token | Value | Where | `fg` | `fg-muted` |
 |---|---|---|---|---|
-| `layer` | negro azulado al 82 % y un centro más claro | La capa de pantalla completa | 11,1 / 18,5 | 6,5 / 10,9 |
-| `surface` | `rgb(16 24 50 / .9)`, desenfoque de 18 px | Paneles (la única superficie) | 12,2 / 16,6 | 7,2 / 9,8 |
-| `surface-solid` | lo mismo al 96 % | Barras fijas que pasan por encima del contenido | — | — |
-| `scrim` | negro azulado al 62 % | Menú del puño sobre la cámara | 5,2 / 18,7 | 3,1 / 11,0 |
-| `scrim-light` | negro azulado al 40 % | Menú del puño sobre el escritorio | 2,5 / 19,0 | 1,5 / 11,2 |
+| `layer` | bluish black at 82 % and a lighter centre | The full-screen layer | 11.1 / 18.5 | 6.5 / 10.9 |
+| `surface` | `rgb(16 24 50 / .9)`, 18 px blur | Panels (the only surface) | 12.2 / 16.6 | 7.2 / 9.8 |
+| `surface-solid` | the same at 96 % | Fixed bars that pass over the content | — | — |
+| `scrim` | bluish black at 62 % | Fist menu over the camera | 5.2 / 18.7 | 3.1 / 11.0 |
+| `scrim-light` | bluish black at 40 % | Fist menu over the desktop | 2.5 / 19.0 | 1.5 / 11.2 |
 
-- **El desenfoque** va solo en la superficie de arriba (paneles y barras) y nunca apilado: en el WebView de Windows cuesta GPU y la cámara tiene que ir fluida. Las opciones del menú del puño y las tarjetas de la página de gestos no llevan desenfoque: al 90 % de opacidad casi no se notaba.
-- **Texto sobre `scrim` o `scrim-light`:** va siempre dentro de una superficie o con `.backing`, una placa suave detrás del texto (al 72 %). El centro del menú del puño sobre el escritorio ya la lleva. No se sube la opacidad de todo.
-- **Relleno de lo que se mantiene** (gesto sostenido, nivel de volumen): amarillo al 38 %, con el texto claro encima a 3:1 o más (texto grande y en negrita).
-- **Clic a través:** solo la capa y los paneles capturan el ratón. La pantalla de gestos deja pasar los clics (`docs/VENTANA.md`).
+- **The blur** goes only on the top surface (panels and bars) and is never stacked: in the Windows WebView it costs GPU and the camera has to run smoothly. The fist menu's options and the gesture page's cards have no blur: at 90 % opacity it was barely noticeable.
+- **Text over `scrim` or `scrim-light`:** always inside a surface or with `.backing`, a soft plate behind the text (at 72 %). The centre of the fist menu over the desktop already has it. The opacity of everything is not raised.
+- **Fill of what is being held** (a sustained gesture, the volume level): yellow at 38 %, with the light text on top at 3:1 or more (large, bold text).
+- **Click-through:** only the layer and the panels capture the mouse. The gesture screen lets clicks through (`docs/VENTANA.md`).
 
-## Componentes
-| Pieza | Clase o componente | Estados |
+## Components
+| Piece | Class or component | States |
 |---|---|---|
-| Botón | `.btn`, `.btn-primary` (acento), `.btn-danger` (parar o borrar), `.btn-quiet` (sin relleno) | hover, foco, activo, desactivado (`disabled` o `aria-disabled`), cargando (`aria-busy`) |
-| Botón de icono | `IconButton` (`.btn-icon`), con `label` obligatorio; también el botón de volver | Los mismos |
-| Interruptor | `Switch` (`.switch`, `role="switch"`), con su texto al lado | Encendido, apagado, desactivado |
-| Etiqueta | `Tag` (`.tag`), con `tone` `warn` o `danger` | — |
+| Button | `.btn`, `.btn-primary` (accent), `.btn-danger` (stop or delete), `.btn-quiet` (no fill) | hover, focus, active, disabled (`disabled` or `aria-disabled`), loading (`aria-busy`) |
+| Icon button | `IconButton` (`.btn-icon`), with a mandatory `label`; also the back button | The same |
+| Toggle | `Switch` (`.switch`, `role="switch"`), with its text next to it | On, off, disabled |
+| Tag | `Tag` (`.tag`), with `tone` `warn` or `danger` | — |
 | Panel | `Panel` (`.glass`) | — |
-| Estado | `Status` | info, aviso |
-| Atajo | `.kbd` | — |
-| Texto sobre velo | `.backing` | — |
-| Iconos | `Icon`: una sola familia (rejilla de 24, trazo de 1,8, puntas redondas) | Sin emojis como iconos |
+| Status | `Status` | info, warning |
+| Shortcut | `.kbd` | — |
+| Text over a scrim | `.backing` | — |
+| Icons | `Icon`: a single family (24 grid, 1.8 stroke, round caps) | No emojis as icons |
 
-## Contra el aspecto «hecho por IA»
-Lo resumen las skills consultadas (abajo):
+## Against the «made by AI» look
+Summed up by the skills consulted (below):
 - **No:**
-  - degradados morados o azules, ni texto con degradado;
-  - brillos de neón, ni vidrio en todo;
-  - tarjetas idénticas con sombra, ni tarjetas dentro de tarjetas;
-  - un icono en un cuadrado sobre cada título;
-  - etiquetas en mayúsculas espaciadas;
-  - numeración decorativa;
-  - una palabra destacada en el título;
-  - flechas en los botones;
-  - textos genéricos («Seamless», «Get started»);
-  - animaciones que rebotan.
-- **Sí:**
-  - cada borde, número o etiqueta dice algo;
-  - el radio y la elevación se eligen para cada pieza;
-  - los textos son concretos: el verbo de la acción, y los errores dicen qué pasó y qué hacer.
-- **Prueba del «por defecto»:** si una decisión aparecería en cualquier otra app parecida, se revisa antes de escribir el código.
+  - purple or blue gradients, nor gradient text;
+  - neon glows, nor glass on everything;
+  - identical cards with a shadow, nor cards inside cards;
+  - an icon in a square over every title;
+  - spaced-out uppercase labels;
+  - decorative numbering;
+  - a highlighted word in the title;
+  - arrows on buttons;
+  - generic copy («Seamless», «Get started»);
+  - bouncing animations.
+- **Yes:**
+  - every border, number or label says something;
+  - the radius and the elevation are chosen for each piece;
+  - the copy is concrete: the verb of the action, and errors say what happened and what to do.
+- **The «default» test:** if a decision would appear in any other similar app, it is reviewed before writing the code.
 
-## Movimiento
-- **Duración:** de 150 a 200 ms, con `ease-soft` y sin rebote, solo como respuesta a algo que hace la persona.
-- **Lo que se mueve solo:** nada. Al abrir la capa, las líneas del menú entran desde la izquierda una sola vez, y el subrayador recorre la línea al señalarla.
-- **Con «reducir movimiento»:** no se anima nada.
-- **Una interacción rápida puede cortar la animación,** pero el estado final y el foco tienen que quedar bien.
+## Motion
+- **Duration:** from 150 to 200 ms, with `ease-soft` and no bounce, only in response to something the person does.
+- **What moves on its own:** nothing. When the layer opens, the menu lines slide in from the left once, and the highlighter runs along the line when it is pointed at.
+- **With «reduce motion»:** nothing is animated.
+- **A fast interaction can cut the animation short,** but the final state and the focus have to end up right.
 
-## Accesibilidad (condición, no extra)
-- **Foco:** anillo amarillo de 4 px, separado 3 px, siempre visible.
-- **Contraste:** AA como mínimo para el texto, medido sobre fondo blanco y negro. El texto de lectura es grande (`html` al 125 %, líneas en `text-display`).
-- **Uso con el ratón:** todo se puede hacer solo con el ratón, y lo clicable mide al menos `--target-min`.
+## Accessibility (a condition, not an extra)
+- **Focus:** a 4 px yellow ring, 3 px apart, always visible.
+- **Contrast:** AA at least for text, measured over a white and a black background. The reading text is large (`html` at 125 %, lines in `text-display`).
+- **Mouse use:** everything can be done with the mouse alone, and anything clickable measures at least `--target-min`.
 
-## Añadir una herramienta
-1. **Una entrada en `MODES`** (`modes.ts`), con `accent: 'var(--color-accent)'`.
-2. **Su vista, dentro de `Panel`.** Usa los componentes y los tokens de arriba; nada de colores sueltos.
-3. **Si el keypad debe abrirla,** su acción en `keypad.ts` (`docs/KEYPAD.md`).
+## Adding a tool
+1. **An entry in `MODES`** (`modes.ts`), with `accent: 'var(--color-accent)'`.
+2. **Its view, inside `Panel`.** Use the components and the tokens above; no loose colours.
+3. **If the keypad should open it,** its action in `keypad.ts` (`docs/KEYPAD.md`).
 
-## De dónde sale
-- **Skills de diseño** (leídas como referencia, no instaladas):
+## Where it comes from
+- **Design skills** (read as a reference, not installed):
   - `anthropics/skills` frontend-design;
   - Impeccable (`pbakaus/impeccable`);
   - UI/UX Pro Max (`nextlevelbuilder/ui-ux-pro-max-skill`);
   - Taste Skill (`Leonxlnx/taste-skill`);
   - avoid-ai-design (`funboy322/avoid-ai-design`).
-- **Los vídeos no se pudieron ver:** el agente no reproduce vídeo.
+- **The videos could not be watched:** the agent does not play video.

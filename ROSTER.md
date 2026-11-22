@@ -1,22 +1,22 @@
-# ROSTER.md — Personas y agentes
+# ROSTER.md — People and agents
 
-Cada persona tiene una cuenta de Claude Pro y una de Gemini Plus. Cada cuenta es un agente: un slot y una rama de trabajo. (Los archivos de estado por agente están ahora en `docs/historial/estado/`.)
+Each person has a Claude Pro account and a Gemini Plus account. Each account is an agent: a slot and a working branch. (The per-agent status files now live in `docs/historial/estado/`.)
 
-Nombres confirmados. Los roles (A, B1, B2, C) están descritos en `AGENTS.md`.
+Names confirmed. The roles (A, B1, B2, C) are described in `AGENTS.md`.
 
-| Persona | Rol | Agente Claude (Pro) | Agente Gemini (Plus) |
+| Person | Role | Claude agent (Pro) | Gemini agent (Plus) |
 |---------|-----|---------------------|----------------------|
 | P1 — Isaac | A | `P1-C` | `P1-G` |
-| P2 — Didac | B (B1 o B2) | `P2-C` | `P2-G` |
+| P2 — Didac | B (B1 or B2) | `P2-C` | `P2-G` |
 | P3 — Nil | C | `P3-C` | `P3-G` |
-| P4 — Pau | B (B1 o B2) | `P4-C` | `P4-G` |
+| P4 — Pau | B (B1 or B2) | `P4-C` | `P4-G` |
 
-## Reglas de uso
-- Cada persona usa solo sus propias cuentas. Nadie inicia sesión en la cuenta de otro.
-- Cada agente trabaja en una tarea a la vez.
-- Cada persona supervisa un agente principal (Claude); Gemini queda de apoyo o para revisar PRs.
-- El reparto de tareas se redefinirá tras la lluvia de ideas (`docs/historial/ideas/`); `TAREAS.md` es ahora un tablero único sin responsables.
-- Herramientas: Claude Code para los agentes `-C`, Gemini CLI para los `-G`. Ambas leen `AGENTS.md` desde la carpeta del repositorio.
+## Usage rules
+- Each person uses only their own accounts. Nobody logs into someone else's account.
+- Each agent works on one task at a time.
+- Each person supervises one main agent (Claude); Gemini is for support or for reviewing PRs.
+- The task split will be redefined after the brainstorm (`docs/historial/ideas/`); `TAREAS.md` is now a single board without owners.
+- Tools: Claude Code for the `-C` agents, Gemini CLI for the `-G` ones. Both read `AGENTS.md` from the repository folder.
 
-## Límites
-Cada cuenta tiene sus propios límites de uso. Antes de asignar tareas, comprueben cuántas sesiones puede sostener cada cuenta, y que el uso encaja con las reglas de la hackathon.
+## Limits
+Each account has its own usage limits. Before assigning tasks, check how many sessions each account can sustain, and that the usage fits the hackathon rules.

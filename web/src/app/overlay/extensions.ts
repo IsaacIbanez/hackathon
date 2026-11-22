@@ -1,5 +1,5 @@
 // Buttons and panels of the overlay, as lists: to add one, add an entry (docs/OVERLAY.md,
-// «Añadir un botón o un panel»). Overlay.tsx draws them; nothing else needs changing.
+// «Adding a button or a panel»). Overlay.tsx draws them; nothing else needs changing.
 import type { ComponentType } from 'react'
 import { desktop, inDesktopApp } from './desktop.ts'
 import type { ModeId } from './modes.ts'

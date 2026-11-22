@@ -1,32 +1,32 @@
-# demo_app/ — APP PROVISIONAL (solo para probar)
+# demo_app/ — PROVISIONAL APP (for testing only)
 
-**No es parte del producto.** Sirve para probar captura + PDF desde el navegador mientras no existe
-la integración real en la app (Wails). Se puede borrar esta carpeta entera sin afectar a nada:
-usa `scan.scan()`, `scan.scan_live()`, `scan.convert_png()` y `capturar.CamaraViva`
-(para la vista previa lee su último frame, un atributo interno: aceptable solo aquí).
+**It is not part of the product.** It is used to test capture + PDF from the browser while the real
+integration in the app (Wails) does not exist. This whole folder can be deleted without affecting anything:
+it uses `scan.scan()`, `scan.scan_live()`, `scan.convert_png()` and `capturar.CamaraViva`
+(for the preview it reads its last frame, an internal attribute: acceptable only here).
 
-## Arrancar
+## Starting it
 ```
 scanner\pdf\.venv\Scripts\python scanner\demo_app\server.py      # Windows
 scanner/pdf/.venv/bin/python scanner/demo_app/server.py             # Linux/macOS
 ```
-Abre http://localhost:8780 (solo escucha en 127.0.0.1; `--port` para cambiarlo, `--no-browser` para no
-abrir el navegador). No usa el 8765 (app Wails) ni el 8766 (`capturar.py --servidor`). Requisitos: los de
-`scanner/pdf` (`scanner/pdf/scripts/install.*`) y, en Windows, `ffmpeg` para ver los nombres de las cámaras.
+Open http://localhost:8780 (it only listens on 127.0.0.1; `--port` to change it, `--no-browser` to not
+open the browser). It does not use 8765 (Wails app) or 8766 (`capturar.py --servidor`). Requirements: those of
+`scanner/pdf` (`scanner/pdf/scripts/install.*`) and, on Windows, `ffmpeg` to see the cameras' names.
 
-## Qué permite
-- Elegir cámara (por defecto la MX Brio si está), **Open camera** (usa `capturar.CamaraViva` de Pau: vista previa
-  y captura comparten la cámara, ~0,4 s por captura) y **Scan**. Con la cámara cerrada hace una captura única.
-- **Contorno en directo** sobre la vista previa (verde = documento detectado) con pistas para encuadrar:
-  mejor sobre fondo oscuro, el documento entero y a 30–40 cm (más cerca, la cámara no enfoca).
-- **PDF digital** (casilla «Also create a digital PDF»): documento reconstruido con texto real, y la lista de
-  palabras que conviene revisar.
-- **Send to the app**: envía el `document` a la app Go (`POST /message`, puerto 8765).
-- **Adjust corners**: tras escanear, arrastrar las 4 esquinas sobre la captura y regenerar el PDF.
-- Arrastrar una imagen (PNG; también JPG del móvil, que se pasa a PNG solo aquí).
-- Ver el PDF (probar Ctrl+F y copiar), la página con las cajas del mensaje `document`, la detección,
-  el texto con su confianza y el JSON completo.
+## What it allows
+- Choosing a camera (by default the MX Brio if it is there), **Open camera** (it uses Pau's `capturar.CamaraViva`: the preview
+  and the capture share the camera, ~0.4 s per capture) and **Scan**. With the camera closed it makes a single capture.
+- **Live outline** over the preview (green = document detected) with framing hints:
+  better on a dark background, the whole document and at 30–40 cm (closer, the camera does not focus).
+- **Digital PDF** («Also create a digital PDF» checkbox): the document rebuilt with real text, and the list of
+  words worth reviewing.
+- **Send to the app**: sends the `document` to the Go app (`POST /message`, port 8765).
+- **Adjust corners**: after scanning, drag the 4 corners over the capture and regenerate the PDF.
+- Dragging an image in (PNG; also a phone JPG, which is converted to PNG only here).
+- Viewing the PDF (try Ctrl+F and copying), the page with the boxes of the `document` message, the detection,
+  the text with its confidence and the full JSON.
 
-Capturas en `scanner/capturas/` y PDF en `scanner/pdf/output/`; ambas carpetas están en `.gitignore`.
-La interfaz está en inglés (regla «Idioma» de `AGENTS.md`); las claves que vienen de `capturar.py`
-(`nitidez`, `resolucion_entregada`...) siguen en español porque son de Pau.
+Captures in `scanner/capturas/` and PDFs in `scanner/pdf/output/`; both folders are in `.gitignore`.
+The interface is in English (the «Language» rule of `AGENTS.md`); the keys that come from `capturar.py`
+(`nitidez`, `resolucion_entregada`...) stay in Spanish because they are Pau's data format.

@@ -1,30 +1,30 @@
-# Guia de instalacion y login (cada persona, en su PC)
+# Install and login guide (each person, on their own PC)
 
-Necesitas: cuenta de GitHub con acceso al repo, cuenta de Claude Pro y cuenta de Google con Gemini Plus.
+You need: a GitHub account with access to the repo, a Claude Pro account and a Google account with Gemini Plus.
 
 ## Windows
-1. PowerShell: `winget install --id Git.Git -e`. Cierra y abre PowerShell.
-2. `git clone https://github.com/IsaacIbanez/hackathon.git` (inicia sesion en GitHub en el navegador cuando lo pida) y `cd hackathon`.
-3. `powershell -ExecutionPolicy Bypass -File scripts\setup-windows.ps1` (si instala Node, reabre PowerShell y repite).
-4. Login: `claude` (cuenta Claude Pro) y `gemini` (cuenta Google con Gemini Plus).
+1. PowerShell: `winget install --id Git.Git -e`. Close and reopen PowerShell.
+2. `git clone https://github.com/IsaacIbanez/hackathon.git` (log into GitHub in the browser when asked) and `cd hackathon`.
+3. `powershell -ExecutionPolicy Bypass -File scripts\setup-windows.ps1` (if it installs Node, reopen PowerShell and run it again).
+4. Login: `claude` (Claude Pro account) and `gemini` (Google account with Gemini Plus).
 
-## Linux (Debian, tambien Bedrock con estrato Debian)
-1. Abre una terminal dentro del estrato Debian. En Bedrock: `strat debian bash` (o `brl which $$` para ver en cual estas).
+## Linux (Debian, also Bedrock with a Debian stratum)
+1. Open a terminal inside the Debian stratum. On Bedrock: `strat debian bash` (or `brl which $$` to see which one you are in).
 2. `sudo apt update && sudo apt install -y git curl`
-3. Clona: `git clone https://github.com/IsaacIbanez/hackathon.git && cd hackathon`
-   Para un repo privado, usa un token (Settings > Developer settings > Personal access tokens, permiso `repo`) como contrasena, o `gh auth login`.
-4. `bash scripts/setup-linux.sh` (instala nvm, Node LTS, Claude Code y Gemini CLI en tu usuario).
-5. Abre una terminal NUEVA y, dentro de `hackathon`:
-   - `claude` -> login con Claude Pro.
-   - `gemini` -> login con Google (Gemini Plus).
-   Si no se abre el navegador (en Bedrock puede estar en otro estrato), copia la URL que muestra, abrela a mano y pega el codigo de vuelta.
+3. Clone: `git clone https://github.com/IsaacIbanez/hackathon.git && cd hackathon`
+   For a private repo, use a token (Settings > Developer settings > Personal access tokens, `repo` scope) as the password, or `gh auth login`.
+4. `bash scripts/setup-linux.sh` (installs nvm, Node LTS, Claude Code and Gemini CLI for your user).
+5. Open a NEW terminal and, inside `hackathon`:
+   - `claude` -> log in with Claude Pro.
+   - `gemini` -> log in with Google (Gemini Plus).
+   If the browser does not open (on Bedrock it may live in another stratum), copy the URL it shows, open it by hand and paste the code back.
 
-## Comprobacion (todos)
-- `bash scripts/ver-estado.sh` muestra los 8 agentes en `libre`.
-- Dentro de `hackathon`, escribe en `claude` o `gemini`: "Lee AGENTS.md y dime las reglas". Deben resumirlas.
-- Identidad de git, una vez: `git config --global user.name "Tu nombre"` y `git config --global user.email "tu@correo"`.
+## Check (everyone)
+- `bash scripts/ver-estado.sh` shows the 8 agents as `libre` (free).
+- Inside `hackathon`, type in `claude` or `gemini`: "Read AGENTS.md and tell me the rules". They should summarise them.
+- Git identity, once: `git config --global user.name "Your name"` and `git config --global user.email "you@example.com"`.
 
-## Problemas tipicos
-- `claude: command not found` en Linux: abre una terminal nueva (nvm se carga al iniciar la shell).
-- `EACCES` al instalar con npm: no uses sudo; el script usa nvm precisamente para evitarlo.
-- Limites de uso: comprobad cuantos mensajes permite vuestro plan en la herramienta de terminal antes de repartir tareas.
+## Common problems
+- `claude: command not found` on Linux: open a new terminal (nvm loads when the shell starts).
+- `EACCES` when installing with npm: do not use sudo; the script uses nvm precisely to avoid that.
+- Usage limits: check how many messages your plan allows in the terminal tool before splitting tasks.
