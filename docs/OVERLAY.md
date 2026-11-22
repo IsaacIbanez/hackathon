@@ -8,7 +8,7 @@ La app de escritorio deja de ser una ventana normal y pasa a ser un **overlay**:
 |---|---|---|---|
 | **1** | Gestos con la mano | Nil (C) | Arranca y para **Gesture Control** (`adapters/desktop`): la cámara ve la mano y controla el ordenador |
 | **2** | Leer un papel | Pau (B1) y Didac (B2) | Cámara con la guía de encuadre por voz → foto automática → servicio de lectura → **lectura guiada** en voz alta |
-| **3** | Leer un archivo | Didac (B2) | Pide un documento del PC (PDF, texto o imagen) y lo lee en voz alta línea a línea (**lectura guiada**) |
+| **3** | Leer un archivo | Didac (B2) | Pide un documento del PC. Un **PDF** se abre en un **visor** con las páginas de verdad y un botón «Read the whole PDF» que lo lee entero, página a página y sin límite (N4, `docs/briefs/N4.md`). El texto y las imágenes se leen línea a línea (**lectura guiada**) |
 
 Las tres opciones son **locales y gratuitas**: ninguna llama a un modelo de IA.
 
@@ -50,6 +50,19 @@ Variables opcionales:
 - **Opción 1:** al entrar arranca los gestos; **Intro** los para o los vuelve a arrancar. Siguen funcionando con el overlay oculto.
 - **Opción 2:** la foto se hace sola cuando el papel está quieto (a los 8 s, la mejor que haya); **Intro** la hace en el momento. Si no hay hoja, lo dice en voz alta e **Intro** lo reintenta.
 - **Opción 3:** se abre el diálogo de archivos; **O** abre otro archivo.
+  - Con un **PDF**, **Espacio** (o el botón amarillo) lo lee entero.
+  - Teclas del visor:
+
+    | Acción | Teclas |
+    |---|---|
+    | Línea anterior / siguiente | ← → |
+    | Repetir | R |
+    | Parar | S |
+    | Más rápido / más lento (0,75× a 1,5×) | + / − |
+    | Página anterior / siguiente | RePág / AvPág |
+    | Ir a una página | G |
+
+  - Al empezar cada página dice «Página N de M».
 
 **MX Keypad:** en Logi Options+, asigna a una tecla la combinación Ctrl+Alt+Espacio y, si quieres, a otras teclas «1», «2» y «3» (o Num 1–3) y las de la lectura guiada (Num 4, 5, 6 y 8). No hace falta cambiar nada en la app. *Sin probar todavía con el keypad real.*
 
