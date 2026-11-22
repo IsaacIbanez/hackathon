@@ -60,6 +60,10 @@ export function useVoiceCommand(run: (action: KeypadAction) => void) {
         speaker.speak({ text: 'No te he oído.', lang: LANG })
       } else if (!action) {
         speaker.speak({ text: `No sé hacer: ${text}`, lang: LANG })
+      } else if (action === 'volume-up' || action === 'volume-down') {
+        // The system volume, one step of 10 % (Windows shows its own indicator).
+        await desktop().ChangeVolume(action === 'volume-up')
+        speaker.speak({ text: action === 'volume-up' ? 'Volumen subido.' : 'Volumen bajado.', lang: LANG })
       } else if (action === 'delete-selection') {
         // Only now, after a command that is clearly "delete", is anything deleted, and only text
         // that is really selected (Go checks it first).

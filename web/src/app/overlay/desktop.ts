@@ -72,6 +72,8 @@ interface GoBindings {
   ReadSelection(): Promise<string>
   /** Deletes the text selected in the program in front (only if there is a selection). */
   DeleteSelection(): Promise<number>
+  /** Raises (true) or lowers the system volume by 10 %. */
+  ChangeVolume(up: boolean): Promise<void>
   OpenFileForReading(): Promise<string>
   PDFPage(id: string, page: number): Promise<string>
   SummarizeSelection(): Promise<string>

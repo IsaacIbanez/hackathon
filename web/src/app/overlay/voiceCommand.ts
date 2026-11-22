@@ -15,9 +15,11 @@ export function normalize(text: string): string {
     .trim()
 }
 
-// Checked in order: the first pattern that matches wins (more specific ones first). Deleting goes
-// first, so "borra el texto del archivo" deletes and does not open a file.
+// Checked in order: the first pattern that matches wins (more specific ones first). The volume and
+// deleting go first, so "borra el texto del archivo" deletes and does not open a file.
 const RULES: { action: KeypadAction; pattern: RegExp }[] = [
+  { action: 'volume-up', pattern: /\b(sube|subir|subelo|aumenta|aumentar|apuja|puja|mas alto|mes alt|louder|volume up|turn it up|turn up)\b/ },
+  { action: 'volume-down', pattern: /\b(baja|bajar|bajalo|disminuye|reduce|baixa|baixar|mas bajo|mes baix|quieter|softer|volume down|turn it down|turn down)\b/ },
   { action: 'delete-selection', pattern: /\b(borra|borrar|borralo|borrala|elimina|eliminar|suprime|suprimir|esborra|esborrar|suprimeix|delete|erase)\b/ },
   { action: 'summarize', pattern: /\b(resum\w*|summar\w*)\b/ },
   { action: 'read-file', pattern: /\b(archivo|fichero|fitxer|file|pdf)\b/ },

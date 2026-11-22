@@ -29,6 +29,22 @@ test('voice: sentences become keypad actions', () => {
   for (const [text, want] of cases) assert.equal(voiceAction(text), want, text)
 })
 
+test('voice: the system volume goes up and down', () => {
+  const cases: [string, string | null][] = [
+    ['Sube el volumen', 'volume-up'],
+    ['Más alto', 'volume-up'],
+    ['Puja el volum', 'volume-up'],
+    ['Volume up', 'volume-up'],
+    ['Louder', 'volume-up'],
+    ['Baja el volumen', 'volume-down'],
+    ['Más bajo', 'volume-down'],
+    ['Baixa el volum', 'volume-down'],
+    ['Volume down', 'volume-down'],
+    ['Turn it down', 'volume-down'],
+  ]
+  for (const [text, want] of cases) assert.equal(voiceAction(text), want, text)
+})
+
 test('voice: delete the selected text only when the sentence says so', () => {
   const cases: [string, string | null][] = [
     ['Borra el texto', 'delete-selection'],
