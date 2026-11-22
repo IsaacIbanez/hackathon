@@ -15,7 +15,7 @@ Nombres confirmados. Los roles (A, B1, B2, C) están descritos en `AGENTS.md`.
 - Cada persona usa solo sus propias cuentas. Nadie inicia sesión en la cuenta de otro.
 - Cada agente trabaja en una tarea a la vez.
 - Cada persona supervisa un agente principal (Claude); Gemini queda de apoyo o para revisar PRs.
-- El reparto de tareas se redefinirá tras la lluvia de ideas (`docs/ideas/`); `TAREAS.md` es ahora un tablero único sin responsables.
+- El reparto de tareas se redefinirá tras la lluvia de ideas (`docs/historial/ideas/`); `TAREAS.md` es ahora un tablero único sin responsables.
 - Herramientas: Claude Code para los agentes `-C`, Gemini CLI para los `-G`. Ambas leen `AGENTS.md` desde la carpeta del repositorio.
 
 ## Límites

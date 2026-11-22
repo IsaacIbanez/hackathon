@@ -1,6 +1,6 @@
 # Overlay: una app que junta las funcionalidades
 
-Rama `overlay`, creada el 2026-11-21. Brief de Isaac: `docs/briefs/isaac.md`.
+Rama `overlay`, creada el 2026-11-21. Brief de Isaac: `docs/historial/briefs/isaac.md`.
 
 La app de escritorio deja de ser una ventana normal y pasa a ser un **overlay**: una ventana siempre encima de las demás que se abre desde cualquier programa con **Ctrl+Alt+Espacio**. El **MX Keypad** de Logitech también puede abrirla si en Logi Options+ se asigna esa combinación a una de sus teclas. El overlay ofrece las funcionalidades del equipo como opciones.
 
@@ -137,7 +137,7 @@ Procesos que arranca la app (y que para al cerrarla, con sus hijos):
 10. **Log:** primero el archivo y después stderr, y los fallos graves (panic) también van al log. Antes, `build/bin/lauzhack.log` se quedaba vacío porque una app sin consola no tiene stderr válido.
 
 ## Opción 4: resumir el texto seleccionado
-Añadida el 2026-11-22. Funcionalidad de Didac; su brief está en `docs/briefs/didac.md`.
+Añadida el 2026-11-22. Funcionalidad de Didac; su brief está en `docs/historial/briefs/didac.md`.
 - Se hizo en la rama `feature/didac-resumir-seleccion` y se fusionó en `main` el 2026-11-22. Entraron solo los commits de Didac, sin `feature/T6-overlay-unified` de Nil, que aún no estaba en `main`.
 - Por decisión de Isaac y Didac, **esta es la implementación del resumen que se queda**: sustituye a la N7 de Isaac. La N7 se había fusionado (#48) y se retiró de `main` al fusionar esto (revert de de357f8). Su brief se conserva en `docs/briefs/N7.md` como historial.
 - La N7 resumía además el documento abierto en las opciones 2 y 3. Eso queda pendiente; se puede hacer llamando a `backend/summary` con el texto del documento.

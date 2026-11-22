@@ -1,6 +1,6 @@
 # Briefs por persona
 
-Cada agente guarda aquí, en `docs/briefs/<persona>.md` (`isaac`, `didac`, `pau` o `nil`), el brief que su persona confirmó tras la entrevista de `docs/arranque/<persona>.md`. En una sesión nueva, el agente lee el brief y trabaja con él, sin repetir la entrevista.
+Cada agente guarda aquí, en `docs/briefs/<persona>.md` (`isaac`, `didac`, `pau` o `nil`), el brief que su persona confirmó tras la entrevista de `docs/historial/arranque/<persona>.md`. En una sesión nueva, el agente lee el brief y trabaja con él, sin repetir la entrevista.
 
 Reglas:
 - Un brief por persona. Lo escribe su agente y solo se guarda cuando la persona lo confirma.

@@ -1,6 +1,6 @@
 # Subtítulos en directo (`web/src/captions` + `backend/captions`)
 
-Dueño: Pau (P4, rol B1). Brief: `docs/briefs/pau.md`. Contrato: `GET /captions` en `api/openapi.yaml` (0.7).
+Dueño: Pau (P4, rol B1). Brief: `docs/briefs/subtitulos.md`. Contrato: `GET /captions` en `api/openapi.yaml` (0.7).
 
 Muestra subtítulos de lo que se oye por el micrófono y, si se quiere, del audio de una pestaña o una llamada. Dice quién habla, traduce cada frase al idioma elegido y guarda la transcripción en un `.txt`. El historial no desaparece: la lista crece y se puede descargar.
 

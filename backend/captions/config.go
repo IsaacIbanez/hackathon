@@ -1,5 +1,5 @@
 // Package captions serves GET /captions: live captions of the microphone or a call, with
-// speakers and translation (role B1, Pau; brief in docs/briefs/pau.md).
+// speakers and translation (role B1, Pau; brief in docs/briefs/subtitulos.md).
 //
 // The browser streams raw PCM (s16le, 16 kHz, mono) over a WebSocket. Go relays it to a
 // streaming speech-to-text service (Together AI realtime), labels speakers with a batch

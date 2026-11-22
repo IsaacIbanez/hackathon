@@ -19,4 +19,4 @@ git fetch --all --quiet || true
 git worktree add -b "$RAMA" "$RUTA" main
 echo "Rama: $RAMA"
 echo "Carpeta de trabajo: $RUTA"
-echo "Siguiente paso: cd $RUTA y lanza tu agente (ver INSTRUCCIONES_ARRANQUE.md)."
+echo "Siguiente paso: cd $RUTA y lanza tu agente (ver docs/historial/INSTRUCCIONES_ARRANQUE.md)."

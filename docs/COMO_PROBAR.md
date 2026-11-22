@@ -7,7 +7,7 @@ Movido desde `AGENTS.md` el 2026-11-22 (resumen allí).
    OPENROUTER_API_KEY=sk-or-v1-...
    LLM_PROFILE=dev
    ```
-   `LLM_PROFILE=dev` pone primero modelos **gratuitos** (a veces lentos o saturados), pero **no garantiza 0 $**: el nivel caro es Haiku (de pago) y `/transcribe` prueba antes Gemini. Para no gastar nada, fija `LLM_CHEAP_MODEL`, `LLM_EXPENSIVE_MODEL` y `LLM_TRANSCRIBE_MODELS` solo con modelos `:free` (ver `docs/ESTADO_PROYECTO.md` §4).
+   `LLM_PROFILE=dev` pone primero modelos **gratuitos** (a veces lentos o saturados), pero **no garantiza 0 $**: el nivel caro es Haiku (de pago) y `/transcribe` prueba antes Gemini. Para no gastar nada, fija `LLM_CHEAP_MODEL`, `LLM_EXPENSIVE_MODEL` y `LLM_TRANSCRIBE_MODELS` solo con modelos `:free` (ver `docs/historial/ESTADO_PROYECTO.md` §4).
 2. **Servidor:**
    - `task server` → lógica real (sesión + modelos) en `127.0.0.1:8765` (`/ws`, `POST /message`, `POST /scan`, `/health`). Sin el servicio de lectura de Didac, arráncalo con `SCANNER_URL=fixture` y `/scan` responderá con el formulario de ejemplo (con `pageCorners`).
    - `task mock` → respuestas fijas en `localhost:8080`, sin clave ni coste.

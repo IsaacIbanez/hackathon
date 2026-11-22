@@ -9,3 +9,4 @@ Información del trabajo por agente anterior a la integración del 2026-11-21, c
 | `plan_por_agente.md` | «Siguiente tarea de cada uno», la tarea T19 de Pau con su estado y el plan de voz T17/T18 | subsecciones de «Plan actual» en `AGENTS.md`, trasladadas sin cambios |
 
 El estado real del proyecto está en `docs/ESTADO_PROYECTO.md` y el tablero único en `TAREAS.md`.
+- `AGENTS_2026-11-22-arreglos.md`, `ESTADO_PROYECTO.md`, `INSTRUCCIONES_ARRANQUE.md`, `PRUEBA_WAILS.md`, `arranque/`, `ideas/` y `briefs/`: archivados al reorganizar el contexto (2026-11-22).

@@ -1,12 +1,17 @@
 # Decisiones del proyecto
 
-Registro completo, de la más nueva a la más antigua. Movido desde `AGENTS.md` el 2026-11-22 para ahorrar tokens: `AGENTS.md` solo resume las vigentes. **Si tomas una decisión que cambia una interfaz o el contrato, añádela aquí arriba** (una entrada corta) y, si afecta al trabajo diario, una línea en «Decisiones vigentes» de `AGENTS.md`.
+Registro completo, de la más nueva a la más antigua. Movido desde `AGENTS.md` el 2026-11-22 para ahorrar tokens: `docs/ESTADO.md` resume las vigentes. **Si tomas una decisión que cambia una interfaz o el contrato, añádela aquí arriba** (una entrada corta) y, si afecta al trabajo diario, una línea en «Decisiones vigentes» de `docs/ESTADO.md`.
 
+- 2026-11-22 — **Contexto para las IA reorganizado** (Pau, a petición del equipo):
+  - `AGENTS.md` pasa de 12 KB a ~3 KB: qué es, dónde estamos, qué leer según la tarea y 10 reglas. Se carga en cada petición.
+  - Tres documentos nuevos: `docs/ESTADO.md` (dónde estamos y adónde vamos; mantenerlo al día), `docs/MAPA.md` (carpetas, dueños, puertos y flujos) y `docs/TRABAJAR.md` (ciclo de trabajo, `.exe`, trampas de Windows, ahorro de tokens).
+  - `scanner/AGENTS.md` pasa de 15,6 KB a ~2,5 KB y se borra su copia `AGENTS_B.md`.
+  - Al historial: `ESTADO_PROYECTO.md`, `INSTRUCCIONES_ARRANQUE.md`, `arranque/`, `ideas/`, `PRUEBA_WAILS.md` y los briefs por persona de Didac e Isaac; el de los subtítulos pasa a `docs/briefs/subtitulos.md`.
 - 2026-11-22 — **Escaneo medido y mejorado (N3, Pau; `docs/medidas/N3.md`):**
   - El servicio de lectura responde en cuanto el `document` está listo; el PDF buscable y el PDF digital se terminan en segundo plano.
   - El PDF digital va **desactivado** por defecto, porque usa un modelo de pago en cada escaneo (arreglo R3). Se activa con `?digital=1` o `SCANNER_DIGITAL=1`.
   - Sin hoja detectada pero con texto sobre papel, el servicio devuelve el `document` sin `pageCorners` (opcional en el contrato) en vez de 422.
-- 2026-11-22 — **Subtítulos en directo (Pau; brief `docs/briefs/pau.md`, `web/src/captions/README.md`):**
+- 2026-11-22 — **Subtítulos en directo (Pau; brief `docs/briefs/subtitulos.md`, `web/src/captions/README.md`):**
   - El navegador manda el audio (PCM 16 kHz) a Go por `GET /captions` (WebSocket); Go lo pasa a Together AI: subtítulos en directo y diarización por lotes con Parakeet v3; idioma, barbarismos entre comillas y traducción con Qwen3.5-9B (sin razonamiento).
   - Contrato 0.8, solo añade: `GET /captions`, `CaptionsEvent` (con `revise`), `speakers`.
   - Carpetas de Pau: `backend/captions/` (de Isaac solo se toca el registro de la ruta en `mux.go`) y `web/src/captions/`.
@@ -50,9 +55,9 @@ Registro completo, de la más nueva a la más antigua. Movido desde `AGENTS.md` 
   - Motivo: juntar las funcionalidades en un solo ejecutable.
 - 2026-11-21 — **Arranque por persona:** no se reparten más tareas cerradas.
   - Cada persona trabaja con su agente en lo que decida: Nil, en la cámara y su entorno (voz, cara, manos, teclado); Didac y Pau, en una funcionalidad grande y distinta cada uno; Isaac decide entre el backend, una funcionalidad o ayudar a otra persona.
-  - El agente entrevista primero a su persona (`docs/arranque/<persona>.md`) y deja un brief confirmado en `docs/briefs/<persona>.md`.
+  - El agente entrevista primero a su persona (`docs/historial/arranque/<persona>.md`) y deja un brief confirmado en `docs/briefs/<persona>.md`.
   - Motivo: más autonomía. Con el brief por escrito, las sesiones nuevas no repiten la entrevista.
-- 2026-11-21 — **Proyecto unificado:** todas las ramas integradas en `integration/proyecto-unificado` (merges normales, ver `docs/ESTADO_PROYECTO.md`); las tareas por agente se disuelven: `TAREAS.md` pasa a ser un tablero único sin responsables y el estado y el plan por agente se guardan en `docs/historial/`. El reparto se redefinirá tras la lluvia de ideas (`docs/ideas/`).
+- 2026-11-21 — **Proyecto unificado:** todas las ramas integradas en `integration/proyecto-unificado` (merges normales, ver `docs/historial/ESTADO_PROYECTO.md`); las tareas por agente se disuelven: `TAREAS.md` pasa a ser un tablero único sin responsables y el estado y el plan por agente se guardan en `docs/historial/`. El reparto se redefinirá tras la lluvia de ideas (`docs/historial/ideas/`).
 - 2026-11-21 — **API local protegida** (`ws.Guard`): solo responde a `Host` 127.0.0.1 o localhost (sin DNS rebinding) y a los orígenes de la app (Vite, Wails), con CORS para ellos; `POST /message` solo acepta JSON. Los procesos locales (el scanner) no mandan `Origin` y siguen funcionando. Sin esto, cualquier web abierta podía enviarnos documentos o preguntas y gastar IA.
 - 2026-11-21 — **Respaldo de voz hecho (T18):** `POST /transcribe` (WAV → texto, contrato 0.6) con Gemini 2.5 Flash Lite y un respaldo gratuito; `transcribeRemote()` en `web/src/app/transcribe.ts` para el rol C.
 - 2026-11-21 — **Contrato 0.5:** `document.pageCorners` (esquinas de la hoja en la foto: arriba-izq, arriba-der, abajo-der, abajo-izq de la hoja tal como se lee) y `POST /scan` (la app envía la foto; Go la pasa al servicio de lectura en `SCANNER_URL`, por defecto `127.0.0.1:8770/scan`, y dice en voz alta lo que pasa). `SCANNER_URL=fixture` permite probarlo todo sin el servicio.

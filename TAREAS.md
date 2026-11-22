@@ -1,6 +1,6 @@
 # TAREAS.md — Tablero
 
-Tareas acordadas el 2026-11-22. Las anteriores (T1–T19) son historial: `docs/historial/TAREAS_ANTERIORES.md`. Cada tarea tiene su ficha en `docs/tareas/<ID>.md` con el objetivo, el estado actual, las preguntas abiertas, a quién preguntar, los criterios de «hecho» y los riesgos. Antes de empezar, lee «Al coger una tarea» en `AGENTS.md`.
+Tareas acordadas el 2026-11-22. Las anteriores (T1–T19) son historial: `docs/historial/TAREAS_ANTERIORES.md`. Cada tarea tiene su ficha en `docs/tareas/<ID>.md` con el objetivo, el estado actual, las preguntas abiertas, a quién preguntar, los criterios de «hecho» y los riesgos. Antes de empezar, lee `docs/TRABAJAR.md`.
 
 Los agentes no editan este archivo: lo actualiza un humano al fusionar.
 
