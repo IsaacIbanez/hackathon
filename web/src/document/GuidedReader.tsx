@@ -108,7 +108,7 @@ export function GuidedReader({
   }, [keyboard])
 
   if (!doc || state.lines.length === 0) {
-    return <p className="text-2xl text-slate-300">Scan a document first.</p>
+    return <p className="text-2xl text-[var(--color-mist)]">Scan a document first.</p>
   }
 
   const { lines, index, status } = state
@@ -118,28 +118,28 @@ export function GuidedReader({
       type="button"
       onClick={() => run(action)}
       aria-keyshortcuts={ARIA_KEYS[action]}
-      className={`flex min-w-32 flex-col items-center rounded-xl border-2 border-yellow-300 px-4 py-3 text-2xl font-bold ${extra}`}
+      className={`btn text-xl ${extra}`}
     >
       {label}
-      <span className="text-sm font-normal opacity-80">{KEY_HINTS[action]}</span>
+      <span className="kbd">{KEY_HINTS[action]}</span>
     </button>
   )
 
   return (
     <section aria-label="Guided reading" className="space-y-4">
-      <div className="sticky top-0 z-10 flex flex-wrap items-center gap-3 bg-slate-900/95 py-3">
-        {button('previous', '⏮ Previous')}
-        {button('toggle', status === 'playing' ? '⏸ Pause' : '▶ Read', 'bg-yellow-300 text-slate-900')}
-        {button('next', 'Next ⏭')}
-        {button('repeat', '↻ Repeat')}
-        <p className="ml-2 text-xl text-slate-200">
-          {STATUS_TEXT[status]} · {position}
+      <div className="sticky top-0 z-10 -mx-1 flex flex-wrap items-center gap-2 rounded-2xl bg-[rgb(16_24_50/0.96)] p-2">
+        {button('previous', 'Previous line')}
+        {button('toggle', status === 'playing' ? 'Pause' : 'Read', 'btn-primary')}
+        {button('next', 'Next line')}
+        {button('repeat', 'Repeat')}
+        <p className="ml-2 text-lg text-[var(--color-mist)]">
+          <strong className="text-[var(--color-snow)]">{STATUS_TEXT[status]}</strong> {position}
         </p>
       </div>
       <p role="status" aria-live="polite" className="sr-only">
         {STATUS_TEXT[status]}. {position}.
       </p>
-      {note && <p className="text-xl text-amber-300">{note}</p>}
+      {note && <p className="text-xl text-[var(--color-scan)]">{note}</p>}
       <ol aria-label="Document" className="space-y-3 text-3xl leading-snug">
         {lines.map((l, i) => {
           const on = i === index
@@ -151,12 +151,12 @@ export function GuidedReader({
               onClick={() => reader.goTo(i)}
               className={
                 on
-                  ? 'cursor-pointer rounded-lg bg-yellow-300 px-3 py-2 font-bold text-slate-900'
-                  : 'cursor-pointer rounded-lg px-3 py-2'
+                  ? 'reading-mark cursor-pointer rounded-xl px-3 py-2 font-bold'
+                  : 'cursor-pointer rounded-xl px-3 py-2 hover:bg-white/8'
               }
             >
               {l.text}
-              {l.unclear && <span className="ml-3 text-xl font-normal italic opacity-80">(unclear)</span>}
+              {l.unclear && <span className="ml-3 text-xl font-normal opacity-75">(unclear)</span>}
             </li>
           )
         })}

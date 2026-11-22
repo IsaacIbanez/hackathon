@@ -5,9 +5,11 @@ export function CloseSummary():Promise<void>;
 
 export function EnsureReadingService():Promise<string>;
 
-export function GesturesRunning():Promise<boolean>;
+export function GestureCall(arg1:string,arg2:string,arg3:string):Promise<string>;
 
 export function HideOverlay():Promise<void>;
+
+export function MoveBubble():Promise<void>;
 
 export function OpenAndReadFile():Promise<string>;
 
@@ -23,9 +25,13 @@ export function ReadPhoto(arg1:string):Promise<string>;
 
 export function ReportDiagnostics(arg1:string):Promise<void>;
 
-export function StartGestures():Promise<void>;
+export function SetCompact(arg1:boolean):Promise<void>;
 
-export function StopGestures():Promise<void>;
+export function SetGesturesActive(arg1:boolean):Promise<void>;
+
+export function SetLayer(arg1:boolean):Promise<void>;
+
+export function SetScreenOverlay(arg1:boolean):Promise<void>;
 
 export function SummarizeSelection():Promise<string>;
 

@@ -10,12 +10,16 @@ export function EnsureReadingService() {
   return window['go']['main']['App']['EnsureReadingService']();
 }
 
-export function GesturesRunning() {
-  return window['go']['main']['App']['GesturesRunning']();
+export function GestureCall(arg1, arg2, arg3) {
+  return window['go']['main']['App']['GestureCall'](arg1, arg2, arg3);
 }
 
 export function HideOverlay() {
   return window['go']['main']['App']['HideOverlay']();
+}
+
+export function MoveBubble() {
+  return window['go']['main']['App']['MoveBubble']();
 }
 
 export function OpenAndReadFile() {
@@ -46,12 +50,20 @@ export function ReportDiagnostics(arg1) {
   return window['go']['main']['App']['ReportDiagnostics'](arg1);
 }
 
-export function StartGestures() {
-  return window['go']['main']['App']['StartGestures']();
+export function SetCompact(arg1) {
+  return window['go']['main']['App']['SetCompact'](arg1);
 }
 
-export function StopGestures() {
-  return window['go']['main']['App']['StopGestures']();
+export function SetGesturesActive(arg1) {
+  return window['go']['main']['App']['SetGesturesActive'](arg1);
+}
+
+export function SetLayer(arg1) {
+  return window['go']['main']['App']['SetLayer'](arg1);
+}
+
+export function SetScreenOverlay(arg1) {
+  return window['go']['main']['App']['SetScreenOverlay'](arg1);
 }
 
 export function SummarizeSelection() {

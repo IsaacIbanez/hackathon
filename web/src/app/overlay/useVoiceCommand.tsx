@@ -95,9 +95,20 @@ export function VoiceBanner({ status }: { status: VoiceStatus }) {
     heard: status.phase === 'heard' ? `Heard: “${status.text}”${status.understood ? '' : ' (not a command I know)'}` : '',
     error: status.phase === 'error' ? status.message : '',
   }[status.phase]
-  const color = status.phase === 'recording' ? 'border-red-400 text-red-200' : status.phase === 'error' ? 'border-amber-300 text-amber-200' : 'border-sky-300 text-sky-100'
+  const color =
+    status.phase === 'recording'
+      ? 'var(--color-voice)'
+      : status.phase === 'error'
+        ? 'var(--color-scan)'
+        : 'var(--color-read)'
   return (
-    <p role="status" aria-live="assertive" className={`mb-4 rounded-xl border-2 px-4 py-2 text-2xl ${color}`}>
+    <p
+      role="status"
+      aria-live="assertive"
+      className="glass fixed top-6 left-1/2 z-50 flex max-w-[90vw] -translate-x-1/2 items-center gap-3 rounded-full px-6 py-3 text-xl"
+      style={{ borderColor: color, animation: 'rise .2s ease-out' }}
+    >
+      <span className="size-3 shrink-0 rounded-full" style={{ background: color }} aria-hidden="true" />
       {text}
     </p>
   )
