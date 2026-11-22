@@ -1,20 +1,20 @@
-"""Captura un frame completo de la webcam (pensado para la Logitech MX Brio).
+"""Captures a full frame from the webcam (meant for the Logitech MX Brio).
 
-Uso:
-    python scanner/capturar.py                 # busca una cámara "Brio" y guarda una captura
-    python scanner/capturar.py --listar        # lista las cámaras que ve el sistema
-    python scanner/capturar.py --camara 0      # usa la cámara con índice 0
-    python scanner/capturar.py --camara acer   # usa la primera cámara cuyo nombre contenga "acer"
-    python scanner/capturar.py --probar        # hace la captura completa, pero no guarda nada
-    python scanner/capturar.py --servidor      # deja la cámara abierta; cada captura con
+Usage (the flags keep their original Spanish names, other scripts use them):
+    python scanner/capturar.py                 # looks for a "Brio" camera and saves a capture
+    python scanner/capturar.py --listar        # lists the cameras the system sees
+    python scanner/capturar.py --camara 0      # uses the camera with index 0
+    python scanner/capturar.py --camara acer   # uses the first camera whose name contains "acer"
+    python scanner/capturar.py --probar        # does the full capture, but saves nothing
+    python scanner/capturar.py --servidor      # keeps the camera open; each capture with
                                                #   curl http://127.0.0.1:8766/captura
 
-Guarda el frame tal cual (sin recortar ni procesar, a la resolución máxima) en PNG sin pérdida y,
-al lado, un JSON con los metadatos de la captura (cámara, resolución, formato, nitidez...).
-La última línea de la salida es la ruta del PNG (o un JSON con --json).
+Saves the frame as it is (no cropping or processing, at the maximum resolution) as a lossless PNG and,
+next to it, a JSON with the capture's metadata (camera, resolution, format, sharpness...).
+The last line of the output is the PNG's path (or a JSON with --json).
 
-Calidad: no se elige un frame cualquiera. Se espera a que el autoenfoque termine de ajustarse
-(la MX Brio lo reajusta ~1 s después de abrir) y se guarda el más nítido de los últimos frames.
+Quality: not just any frame is chosen. It waits for the autofocus to finish adjusting
+(the MX Brio readjusts it ~1 s after opening) and saves the sharpest of the last frames.
 """
 
 from __future__ import annotations
@@ -38,11 +38,11 @@ import cv2
 
 CARPETA_POR_DEFECTO = Path(__file__).resolve().parent / "capturas"
 PREFERENCIA_POR_DEFECTO = "brio"
-PUERTO_POR_DEFECTO = 8766  # 8765 lo usa la app Wails (WebSocket)
-# Una nitidez por debajo de esta fracción de la de referencia indica que el autoenfoque reajusta.
+PUERTO_POR_DEFECTO = 8766  # 8765 is used by the Wails app (WebSocket)
+# A sharpness below this fraction of the reference one means the autofocus is readjusting.
 UMBRAL_CAIDA = 0.65
 
-# Códigos de salida
+# Exit codes
 OK = 0
 ERR_CAMARA_NO_ENCONTRADA = 2
 ERR_NO_ABRE = 3
@@ -61,15 +61,15 @@ class ErrorCaptura(Exception):
         self.codigo = codigo
 
 
-# ---------- Listado de cámaras ----------
+# ---------- Listing the cameras ----------
 
 _RE_DSHOW_VIDEO = re.compile(r'"(?P<nombre>[^"]+)"\s+\(video\)')
 
 
 def parsear_dshow(salida_ffmpeg: str) -> list[Camara]:
-    """Extrae las cámaras de vídeo de `ffmpeg -list_devices true -f dshow -i dummy`.
+    """Extracts the video cameras from `ffmpeg -list_devices true -f dshow -i dummy`.
 
-    El orden de ffmpeg (DirectShow) coincide con el índice de OpenCV con CAP_DSHOW.
+    ffmpeg's order (DirectShow) matches OpenCV's index with CAP_DSHOW.
     """
     nombres = [m.group("nombre") for m in _RE_DSHOW_VIDEO.finditer(salida_ffmpeg)]
     return [Camara(i, n) for i, n in enumerate(nombres)]
@@ -102,7 +102,7 @@ def _listar_linux() -> list[Camara]:
 
 
 def listar_camaras() -> list[Camara]:
-    """Cámaras con nombre. Lista vacía si el sistema no permite saber los nombres."""
+    """Cameras with a name. An empty list if the system does not let us know the names."""
     sistema = platform.system()
     if sistema == "Windows":
         return _listar_windows()
@@ -112,9 +112,9 @@ def listar_camaras() -> list[Camara]:
 
 
 def elegir_camara(camaras: list[Camara], preferencia: str | None) -> Camara:
-    """Elige por índice ("0"), por parte del nombre ("brio") o, sin preferencia, la Brio.
+    """Picks by index ("0"), by part of the name ("brio") or, with no preference, the Brio.
 
-    Nunca cae en silencio en otra cámara: si no encuentra la pedida, falla.
+    It never silently falls back to another camera: if it does not find the requested one, it fails.
     """
     pref = PREFERENCIA_POR_DEFECTO if preferencia is None else preferencia.strip()
     if pref.isdigit():
@@ -123,35 +123,35 @@ def elegir_camara(camaras: list[Camara], preferencia: str | None) -> Camara:
             if c.indice == indice:
                 return c
         if not camaras:
-            # Sin nombres disponibles (macOS, ffmpeg ausente...) se acepta el índice a ciegas.
-            return Camara(indice, "(nombre desconocido)")
+            # No names available (macOS, no ffmpeg...): the index is accepted blindly.
+            return Camara(indice, "(unknown name)")
     else:
         for c in camaras:
             if pref.lower() in c.nombre.lower():
                 return c
-    disponibles = ", ".join(f"{c.indice}: {c.nombre}" for c in camaras) or "ninguna con nombre"
+    disponibles = ", ".join(f"{c.indice}: {c.nombre}" for c in camaras) or "none with a name"
     raise ErrorCaptura(
-        f'No encuentro ninguna cámara que contenga "{pref}". Disponibles: {disponibles}. '
-        f"Conecta la MX Brio o usa --camara <índice>.",
+        f'No camera contains "{pref}". Available: {disponibles}. '
+        f"Connect the MX Brio or use --camara <index>.",
         ERR_CAMARA_NO_ENCONTRADA,
     )
 
 
-# ---------- Calidad: nitidez y estabilización (lógica pura, testeable sin cámara) ----------
+# ---------- Quality: sharpness and settling (pure logic, testable without a camera) ----------
 
 @dataclass
 class Muestra:
-    t: float          # segundos (time.monotonic)
-    brillo: float     # media de gris, 0-255
-    nitidez: float    # varianza del laplaciano (más alto = más nítido)
+    t: float          # seconds (time.monotonic)
+    brillo: float     # mean grey, 0-255
+    nitidez: float    # variance of the Laplacian (higher = sharper)
     frame: object = field(default=None, repr=False)
 
 
 def metricas(frame) -> tuple[float, float]:
-    """(brillo, nitidez) sobre una versión reducida del frame: ~5 ms en 4K."""
+    """(brightness, sharpness) on a reduced version of the frame: ~5 ms at 4K."""
     alto, ancho = frame.shape[:2]
     peque = frame
-    if ancho > 960:  # solo se reduce; ampliar no aporta nada
+    if ancho > 960:  # only shrink; enlarging adds nothing
         peque = cv2.resize(frame, (960, max(1, round(alto * 960 / ancho))), interpolation=cv2.INTER_AREA)
     gris = cv2.cvtColor(peque, cv2.COLOR_BGR2GRAY) if peque.ndim == 3 else peque
     return float(gris.mean()), float(cv2.Laplacian(gris, cv2.CV_64F).var())
@@ -162,16 +162,16 @@ def mas_nitida(muestras: list[Muestra]) -> Muestra:
 
 
 class Estabilizador:
-    """Decide cuándo la imagen ya es buena tras abrir la cámara.
+    """Decides when the image is good after opening the camera.
 
-    Medido en la MX Brio: el brillo es estable desde el primer frame, pero el autoenfoque
-    reajusta entre 1,1 y 1,25 s después del primer frame (la nitidez cae a un ~35 % unos 4 frames
-    y vuelve) cuando la escena ha cambiado; si ya estaba enfocada, no hay reajuste grande.
-    Antes de ese reajuste el foco puede ser el de la sesión anterior (malo si el papel se movió).
+    Measured on the MX Brio: the brightness is stable from the first frame, but the autofocus
+    readjusts between 1.1 and 1.25 s after the first frame (the sharpness drops to ~35 % for about 4 frames
+    and comes back) when the scene has changed; if it was already in focus, there is no big readjustment.
+    Before that readjustment the focus may be the previous session's (bad if the paper moved).
 
-    Está "listo" cuando, pasado `min_s`, se ha visto el reajuste (una caída de nitidez) y los
-    últimos `ventana` frames posteriores son estables en brillo y nitidez. Si el reajuste no llega
-    en `max_s`, se da por "agotado" y se usa el frame más nítido reciente.
+    It is "listo" (ready) when, after `min_s`, the readjustment (a drop in sharpness) has been seen and the
+    last `ventana` frames after it are stable in brightness and sharpness. If the readjustment does not come
+    within `max_s`, it is "agotado" (timed out) and the sharpest recent frame is used.
     """
 
     def __init__(self, min_s: float = 0.3, max_s: float = 1.4, ventana: int = 4,
@@ -181,7 +181,7 @@ class Estabilizador:
         self.muestras: deque[Muestra] = deque(maxlen=ventana * 2)
         self.t0: float | None = None
         self.maxima = 0.0
-        self.indice_caida: int | None = None  # nº de muestra donde se vio el reajuste
+        self.indice_caida: int | None = None  # number of the sample where the readjustment was seen
         self.n = 0
 
     def agregar(self, m: Muestra) -> str:
@@ -199,11 +199,11 @@ class Estabilizador:
 
     def _ventana_estable(self) -> bool:
         if self.indice_caida is None or self.n - self.indice_caida < self.ventana:
-            return False  # la ventana tiene que ser entera posterior a la caída
+            return False  # the whole window has to come after the drop
         v = self._ultimas()
         nit = [m.nitidez for m in v]
         bri = [m.brillo for m in v]
-        tol = max(self.tol_nitidez * max(nit), 2.0)  # suelo absoluto para escenas sin textura
+        tol = max(self.tol_nitidez * max(nit), 2.0)  # an absolute floor for scenes without texture
         return max(nit) - min(nit) <= tol and max(bri) - min(bri) <= self.tol_brillo
 
     def estado(self) -> str:
@@ -222,7 +222,7 @@ class Estabilizador:
         return mas_nitida(list(self.muestras))
 
 
-# ---------- Cámara ----------
+# ---------- Camera ----------
 
 def fourcc_a_texto(valor: float) -> str:
     v = int(valor)
@@ -245,16 +245,16 @@ def _backend():
 
 
 def abrir(camara: Camara, ancho: int, alto: int):
-    """Abre la cámara a la resolución pedida en MJPG. Devuelve (cap, nombre_backend)."""
+    """Opens the camera at the requested resolution in MJPG. Returns (cap, backend_name)."""
     backend, nombre_backend = _backend()
-    # MJPG es el formato que permite resoluciones altas por USB (YUY2 a 4K va a ~5 fps).
-    # Se pasan al abrir: con cap.set() cada ajuste reinicia el stream (~1 s cada uno en la
-    # MX Brio) y, si el formato va antes que el tamaño, se queda en YUY2 (comprobado).
+    # MJPG is the format that allows high resolutions over USB (YUY2 at 4K runs at ~5 fps).
+    # They are passed when opening: with cap.set() each setting restarts the stream (~1 s each on the
+    # MX Brio) and, if the format goes before the size, it stays in YUY2 (verified).
     params = [cv2.CAP_PROP_FRAME_WIDTH, ancho, cv2.CAP_PROP_FRAME_HEIGHT, alto,
               cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG")]
     cap = cv2.VideoCapture(camara.indice, backend, params)
     if not cap.isOpened():
-        raise ErrorCaptura(f"No se puede abrir la cámara {camara.indice} ({camara.nombre}).", ERR_NO_ABRE)
+        raise ErrorCaptura(f"Cannot open camera {camara.indice} ({camara.nombre}).", ERR_NO_ABRE)
     return cap, nombre_backend
 
 
@@ -288,10 +288,10 @@ def metadatos_camara(cap, camara: Camara, backend: str, ancho: int, alto: int, f
 
 
 def capturar(camara: Camara, ancho: int, alto: int, espera_max_s: float):
-    """Captura única: abre, espera a que el enfoque se asiente y devuelve (frame, metadatos, cierre).
+    """Single capture: opens, waits for the focus to settle and returns (frame, metadata, closer).
 
-    `cierre` es un hilo que ya está liberando la cámara: en DirectShow cap.release() tarda ~0,9 s,
-    así que se hace en paralelo con el guardado. Hay que hacer cierre.join() antes de salir.
+    `closer` is a thread that is already releasing the camera: on DirectShow cap.release() takes ~0.9 s,
+    so it is done in parallel with the saving. Call closer.join() before exiting.
     """
     cap, backend = abrir(camara, ancho, alto)
     try:
@@ -302,8 +302,8 @@ def capturar(camara: Camara, ancho: int, alto: int, espera_max_s: float):
             m = leer_muestra(cap)
             if m is None:
                 if time.monotonic() - t_abierta > espera_max_s + 3:
-                    raise ErrorCaptura("La cámara se abrió pero no entregó ningún frame.", ERR_SIN_FRAME)
-                time.sleep(0.02)  # sin pausa, un read() que falla al instante ocuparía una CPU
+                    raise ErrorCaptura("The camera opened but delivered no frame.", ERR_SIN_FRAME)
+                time.sleep(0.02)  # without a pause, a read() that fails instantly would take a whole CPU
                 continue
             estado = est.agregar(m)
         mejor = est.mejor()
@@ -311,7 +311,7 @@ def capturar(camara: Camara, ancho: int, alto: int, espera_max_s: float):
         duracion = est.muestras[-1].t - est.t0
         metadatos["modo"] = "unica"
         metadatos["seleccion"] = {
-            "estado": estado,  # "listo" (enfoque asentado) o "agotado" (se usó el tiempo máximo)
+            "estado": estado,  # "listo" (focus settled) or "agotado" (the maximum time was used)
             "enfoque_reajustado": est.indice_caida is not None,
             "segundos_desde_primer_frame": round(duracion, 3),
             "frames_leidos": est.n,
@@ -331,11 +331,11 @@ def guardar(frame, metadatos: dict, carpeta: Path, momento: datetime) -> Path:
     carpeta.mkdir(parents=True, exist_ok=True)
     base = carpeta / nombre_captura(momento)
     ruta_png = base.with_suffix(".png")
-    # Compresión 1: sigue siendo sin pérdida, pero mucho más rápida a 4K.
+    # Compression 1: still lossless, but much faster at 4K.
     ok, datos = cv2.imencode(".png", frame, [cv2.IMWRITE_PNG_COMPRESSION, 1])
     if not ok:
-        raise ErrorCaptura("No se pudo codificar el frame como PNG.", ERR_SIN_FRAME)
-    # Se escribe con write_bytes para que funcionen rutas con acentos en Windows.
+        raise ErrorCaptura("Could not encode the frame as PNG.", ERR_SIN_FRAME)
+    # Written with write_bytes so that paths with accents work on Windows.
     ruta_png.write_bytes(datos.tobytes())
     metadatos = {**metadatos, "momento": momento.isoformat(timespec="milliseconds"),
                  "archivo": ruta_png.name, "bytes": ruta_png.stat().st_size}
@@ -343,17 +343,17 @@ def guardar(frame, metadatos: dict, carpeta: Path, momento: datetime) -> Path:
     return ruta_png
 
 
-# ---------- Modo servidor: cámara siempre abierta ----------
+# ---------- Server mode: camera always open ----------
 
 class CamaraViva:
-    """Mantiene la cámara abierta y leyendo, para que cada captura sea casi inmediata."""
+    """Keeps the camera open and reading, so that each capture is almost immediate."""
 
     def __init__(self, camara: Camara, ancho: int, alto: int, espera_max_s: float):
         self.camara, self.ancho, self.alto = camara, ancho, alto
         self.cap, self.backend = abrir(camara, ancho, alto)
-        # Con frame: ~25 MB cada uno a 4K. 6 (~0,2 s) bastan para elegir entre los `frescos`.
+        # With the frame: ~25 MB each at 4K. 6 (~0.2 s) are enough to choose among the `frescos`.
         self.recientes: deque[Muestra] = deque(maxlen=6)
-        self.historial: deque[tuple[float, float]] = deque(maxlen=60)  # (t, nitidez), ~3 s
+        self.historial: deque[tuple[float, float]] = deque(maxlen=60)  # (t, sharpness), ~3 s
         self.cond = threading.Condition()
         self.parar = False
         self.error: str | None = None
@@ -369,7 +369,7 @@ class CamaraViva:
                 fallos += 1
                 if fallos > 50:
                     with self.cond:
-                        self.error = "la cámara ha dejado de entregar frames"
+                        self.error = "the camera has stopped delivering frames"
                         self.cond.notify_all()
                     return
                 time.sleep(0.02)
@@ -387,7 +387,7 @@ class CamaraViva:
         with self.cond:
             while est.estado() == "esperando":
                 if self.error or time.monotonic() > limite:
-                    raise ErrorCaptura("La cámara se abrió pero no entregó frames.", ERR_SIN_FRAME)
+                    raise ErrorCaptura("The camera opened but delivered no frames.", ERR_SIN_FRAME)
                 self.cond.wait(0.2)
                 nuevas = [m for m in self.recientes if m.t > visto]
                 for m in nuevas:
@@ -395,11 +395,11 @@ class CamaraViva:
                     visto = m.t
 
     def capturar(self, frescos: int = 3, espera_max_s: float = 1.0):
-        """Mejor frame tomado DESPUÉS de la orden (así el papel ya está donde toca).
+        """The best frame taken AFTER the command (so the paper is already where it should be).
 
-        Espera `frescos` frames nuevos (~0,15 s) y coge el más nítido. Si en ese momento el
-        autoenfoque está reajustando (nitidez muy por debajo de la de los últimos 3 s), espera
-        hasta `espera_max_s` a que se recupere.
+        Waits for `frescos` new frames (~0.15 s) and takes the sharpest. If at that moment the
+        autofocus is readjusting (sharpness well below that of the last 3 s), it waits
+        up to `espera_max_s` for it to recover.
         """
         t_orden = time.monotonic()
         limite = t_orden + espera_max_s
@@ -415,7 +415,7 @@ class CamaraViva:
                     if enfocada or time.monotonic() >= limite:
                         break
                 elif time.monotonic() >= limite + 2.0:
-                    raise ErrorCaptura("No llegan frames nuevos de la cámara.", ERR_SIN_FRAME)
+                    raise ErrorCaptura("No new frames are arriving from the camera.", ERR_SIN_FRAME)
                 self.cond.wait(0.1)
         metadatos = metadatos_camara(self.cap, self.camara, self.backend, self.ancho, self.alto, mejor.frame)
         metadatos["modo"] = "servidor"
@@ -466,17 +466,17 @@ def servir(viva: CamaraViva, carpeta: Path, puerto: int):
                     return self._responder(500, {"ok": False, "error": str(e), "codigo": e.codigo})
                 res = metadatos["resolucion_entregada"]
                 segundos = time.monotonic() - t
-                print(f"Captura {png.name} ({segundos:.2f} s)", file=sys.stderr, flush=True)
+                print(f"Capture {png.name} ({segundos:.2f} s)", file=sys.stderr, flush=True)
                 return self._responder(200, {"ok": True, "png": str(png), "json": str(png.with_suffix(".json")),
                                              **res, "segundos": round(segundos, 3)})
-            self._responder(404, {"ok": False, "error": "rutas: /captura, /estado"})
+            self._responder(404, {"ok": False, "error": "routes: /captura, /estado"})
 
-        def log_message(self, *args):  # sin ruido por cada petición
+        def log_message(self, *args):  # no noise for every request
             pass
 
-    # Solo en 127.0.0.1: no se expone la cámara a la red.
+    # Only on 127.0.0.1: the camera is not exposed to the network.
     servidor = HTTPServer(("127.0.0.1", puerto), Manejador)
-    print(f"Listo. Captura con: curl http://127.0.0.1:{puerto}/captura  (Ctrl+C para salir)",
+    print(f"Ready. Capture with: curl http://127.0.0.1:{puerto}/captura  (Ctrl+C to quit)",
           file=sys.stderr, flush=True)
     try:
         servidor.serve_forever()
@@ -489,32 +489,32 @@ def servir(viva: CamaraViva, carpeta: Path, puerto: int):
 # ---------- CLI ----------
 
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(description="Captura un frame completo de la webcam (MX Brio).")
-    p.add_argument("--listar", action="store_true", help="lista las cámaras y sale")
-    p.add_argument("--camara", help='índice ("0") o parte del nombre ("brio"). Por defecto: "brio"')
-    p.add_argument("--ancho", type=int, default=3840, help="ancho pedido (la cámara puede entregar otro)")
-    p.add_argument("--alto", type=int, default=2160, help="alto pedido (la cámara puede entregar otro)")
+    p = argparse.ArgumentParser(description="Captures a full frame from the webcam (MX Brio).")
+    p.add_argument("--listar", action="store_true", help="list the cameras and exit")
+    p.add_argument("--camara", help='index ("0") or part of the name ("brio"). Default: "brio"')
+    p.add_argument("--ancho", type=int, default=3840, help="requested width (the camera may deliver another)")
+    p.add_argument("--alto", type=int, default=2160, help="requested height (the camera may deliver another)")
     p.add_argument("--calentamiento", type=float, default=1.4,
-                   help="espera máxima (s) a que se asiente el enfoque tras abrir (por defecto 1.4)")
-    p.add_argument("--salida", type=Path, default=CARPETA_POR_DEFECTO, help="carpeta de salida")
-    p.add_argument("--probar", action="store_true", help="captura pero no guarda (comprueba la cámara)")
+                   help="maximum wait (s) for the focus to settle after opening (default 1.4)")
+    p.add_argument("--salida", type=Path, default=CARPETA_POR_DEFECTO, help="output folder")
+    p.add_argument("--probar", action="store_true", help="capture but do not save (checks the camera)")
     p.add_argument("--servidor", action="store_true",
-                   help="deja la cámara abierta y captura con GET http://127.0.0.1:<puerto>/captura")
-    p.add_argument("--puerto", type=int, default=PUERTO_POR_DEFECTO, help="puerto del modo servidor")
-    p.add_argument("--json", action="store_true", help="imprime el resultado como JSON")
+                   help="keep the camera open and capture with GET http://127.0.0.1:<port>/captura")
+    p.add_argument("--puerto", type=int, default=PUERTO_POR_DEFECTO, help="server mode port")
+    p.add_argument("--json", action="store_true", help="print the result as JSON")
     args = p.parse_args(argv)
 
     try:
         camaras = listar_camaras()
         if args.listar:
             if not camaras:
-                print("No puedo obtener nombres de cámaras en este sistema; usa --camara <índice>.")
+                print("Cannot get camera names on this system; use --camara <index>.")
             for c in camaras:
                 print(f"{c.indice}: {c.nombre}")
             return OK
 
         camara = elegir_camara(camaras, args.camara)
-        print(f"Cámara {camara.indice}: {camara.nombre}", file=sys.stderr, flush=True)
+        print(f"Camera {camara.indice}: {camara.nombre}", file=sys.stderr, flush=True)
 
         if args.servidor:
             viva = CamaraViva(camara, args.ancho, args.alto, args.calentamiento)
@@ -528,17 +528,17 @@ def main(argv: list[str] | None = None) -> int:
         frame, metadatos, cierre = capturar(camara, args.ancho, args.alto, args.calentamiento)
         try:
             res, sel = metadatos["resolucion_entregada"], metadatos["seleccion"]
-            print(f"Frame {res['ancho']}x{res['alto']} ({metadatos['formato'] or 'formato desconocido'}), "
-                  f"nitidez {sel['nitidez']}, "
-                  f"{'tras reajustar el enfoque' if sel['enfoque_reajustado'] else 'enfoque sin reajuste'} "
+            print(f"Frame {res['ancho']}x{res['alto']} ({metadatos['formato'] or 'unknown format'}), "
+                  f"sharpness {sel['nitidez']}, "
+                  f"{'after the focus readjusted' if sel['enfoque_reajustado'] else 'focus without readjustment'} "
                   f"({sel['segundos_desde_primer_frame']} s)", file=sys.stderr)
 
             if args.probar:
                 print(json.dumps({"ok": True, **metadatos}, ensure_ascii=False) if args.json
-                      else "Prueba correcta (no se guarda nada).")
+                      else "Test OK (nothing is saved).")
                 return OK
 
-            ruta = guardar(frame, metadatos, args.salida, momento)  # mientras se cierra la cámara
+            ruta = guardar(frame, metadatos, args.salida, momento)  # while the camera closes
             print(json.dumps({"ok": True, "png": str(ruta), "json": str(ruta.with_suffix(".json")),
                               **res}, ensure_ascii=False) if args.json else ruta, flush=True)
             return OK
@@ -553,9 +553,9 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    # Por código y no con OPENCV_LOG_LEVEL: esa variable ya no se lee tras importar cv2 (comprobado).
+    # In code and not with OPENCV_LOG_LEVEL: that variable is no longer read after importing cv2 (verified).
     cv2.utils.logging.setLogLevel(cv2.utils.logging.LOG_LEVEL_ERROR)
-    # En una tubería (Git Bash, el agente...) Windows usaría cp1252 y rompería los acentos.
+    # In a pipe (Git Bash, the agent...) Windows would use cp1252 and break the accents.
     for flujo in (sys.stdout, sys.stderr):
         if not flujo.isatty():
             flujo.reconfigure(encoding="utf-8")

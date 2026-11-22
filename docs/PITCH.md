@@ -1,77 +1,77 @@
-# Pitch y demo (T10)
+# Pitch and demo (T10)
 
-Guion de la presentación y de la demo. Cifras medidas el 2026-11-21 (ver «Cifras»); lo que aún no funciona está marcado con ⏳ y **no se promete en el escenario**.
+Script of the presentation and of the demo. Figures measured on 2026-11-21 (see «Figures»); what does not work yet is marked with ⏳ and **is not promised on stage**.
 
-## La idea en una frase
-Una persona con baja visión pone una carta o un formulario delante de la cámara; la app le dice qué es y qué tiene que rellenar, le lee el campo que señala con el dedo y le responde lo que pregunta, en lenguaje sencillo y casi sin coste de IA.
+## The idea in one sentence
+A person with low vision holds a letter or a form in front of the camera; the app tells them what it is and what they have to fill in, reads them the field they point at with their finger and answers what they ask, in plain language and at almost no AI cost.
 
-## Guion (3 minutos)
-| Tiempo | Quién | Qué se dice / se hace |
+## Script (3 minutes)
+| Time | Who | What is said / done |
 |---|---|---|
-| 0:00–0:30 | Isaac | **El problema.** Cartas del seguro, del banco, de la administración: para una persona con baja visión cada papel es una barrera y depende de que alguien se lo lea. |
-| 0:30–0:45 | Isaac | **La solución.** La webcam de Logitech como ojos de la IA, la mano como puntero y la voz como interfaz. |
-| 0:45–2:15 | Demo (ver abajo) | Papel delante de la cámara → explicación → señalar un campo → preguntar → coste en pantalla. |
-| 2:15–2:45 | Isaac | **Cómo es frugal (AXA).** Lo local primero: encuadre, lectura del campo señalado y gestos no gastan IA. El modelo barato explica; el caro solo si el barato duda. El coste se ve en pantalla. |
-| 2:45–3:00 | Isaac | **Impacto (IMC) y cierre.** Pensado con y para organizaciones de personas con discapacidad visual; funciona en local, en un portátil con una webcam. |
+| 0:00–0:30 | Isaac | **The problem.** Letters from the insurer, the bank, the administration: for a person with low vision every paper is a barrier and depends on someone reading it to them. |
+| 0:30–0:45 | Isaac | **The solution.** The Logitech webcam as the AI's eyes, the hand as a pointer and the voice as the interface. |
+| 0:45–2:15 | Demo (see below) | Paper in front of the camera → explanation → point at a field → ask → cost on screen. |
+| 2:15–2:45 | Isaac | **How it is frugal (AXA).** Local first: framing, reading the pointed field and gestures spend no AI. The cheap model explains; the expensive one only if the cheap one is unsure. The cost is shown on screen. |
+| 2:45–3:00 | Isaac | **Impact (IMC) and close.** Designed with and for organisations of people with visual impairments; it runs locally, on a laptop with a webcam. |
 
-## La demo, paso a paso
-Preparación: ver «Checklist». Pantalla: izquierda explicación + gestos + coste; derecha el documento en letra grande.
+## The demo, step by step
+Preparation: see «Checklist». Screen: on the left the explanation + gestures + cost; on the right the document in large type.
 
-1. **Enseñar el formulario** (declaración de siniestro) a la MX Brio. ⏳ *Depende del scanner de B (`POST /message`).*
-   La app dice en ~2 s: «Este documento es una declaración de siniestro de AXA Seguros… Debe escribir su nombre y apellidos, y la fecha del siniestro… Después tiene que firmar…». En pantalla se resaltan los campos.
-2. **Señalar con el dedo** el campo de la fecha → la app lo lee al instante («Fecha del siniestro»), **sin IA**.
-3. **Mantener el dedo quieto** (o preguntar «¿Qué tengo que poner aquí?» ⏳ *dictado por voz, rol C*) → «Aquí tiene que escribir la fecha en que ocurrió el siniestro… día, mes y año».
-4. **Palma abierta** → se calla. **👍** → resume el documento.
-5. **Señalar el recuadro de coste**: «todo esto ha costado 0,0003 $».
+1. **Show the form** (an insurance claim) to the MX Brio. ⏳ *Depends on B's scanner (`POST /message`).*
+   In ~2 s the app says: «This document is an AXA Seguros insurance claim… You must write your full name and the date of the incident… Then you have to sign…». The fields are highlighted on screen.
+2. **Point with the finger** at the date field → the app reads it instantly («Date of the incident»), **without AI**.
+3. **Hold the finger still** (or ask «What do I have to put here?» ⏳ *voice dictation, role C*) → «Here you have to write the date on which the incident happened… day, month and year».
+4. **Open palm** → it goes quiet. **👍** → it summarises the document.
+5. **Point at the cost box**: «all of this cost $0.0003».
 
-### Plan B (si algo falla en directo)
-| Falla | Qué hacer |
+### Plan B (if something fails live)
+| Fails | What to do |
 |---|---|
-| El scanner o la cámara del papel | «Developer tools» → **Send sample document** (mismo formulario); o `python api/examples/send_message.py api/fixtures/document.json` |
-| Los gestos | Seguir con el resto; el puntero también se puede contar con la pantalla |
-| Internet / OpenRouter | Quitar la clave del `.env` y reiniciar: la app responde con las respuestas de ejemplo (fixtures). Avisarlo con naturalidad («modo sin conexión») |
-| El modelo gratis da 429 | No usar `LLM_PROFILE=dev` en la demo (ver Checklist) |
+| The scanner or the paper camera | «Developer tools» → **Send sample document** (same form); or `python api/examples/send_message.py api/fixtures/document.json` |
+| The gestures | Carry on with the rest; the pointer can also be explained with the screen |
+| Internet / OpenRouter | Remove the key from the `.env` and restart: the app answers with the sample answers (fixtures). Mention it naturally («offline mode») |
+| The free model returns 429 | Do not use `LLM_PROFILE=dev` in the demo (see Checklist) |
 
-## Cómo encaja cada challenge
-| Challenge | Qué valoran | Qué enseñamos (verificable) |
+## How each challenge fits
+| Challenge | What they value | What we show (verifiable) |
 |---|---|---|
-| **Logitech** | Webcam como ojos y oídos de la IA, entradas multimodales, flujos con contexto | MX Brio para el documento (captura 4K, frame más nítido, `scanner/`); manos con MediaPipe (`web/src/input`); el contexto se comparte: lo que se señala da sentido a lo que se pregunta («¿qué pongo **aquí**?») |
-| **IMC Tech for Good** | Utilidad real, calidad técnica, impacto social, presentación; ONG de educación, inclusión o comunidad | Accesibilidad desde el diseño: letra grande, alto contraste, foco visible, todo por voz, confirmación de cada gesto (`aria-live`), lectura de líneas dudosas marcada como «(unclear)» |
-| **AXA** | App real (no notebook), frugalidad, reto técnico propio, trabajo en equipo, presentación; se resta por «AI slop» | App de escritorio real (Wails + Go + React); enrutado barato → caro solo con duda; respuestas locales sin IA; caché; coste visible en pantalla; documento de seguros real como caso de uso |
+| **Logitech** | Webcam as the AI's eyes and ears, multimodal inputs, context-aware flows | MX Brio for the document (4K capture, sharpest frame, `scanner/`); hands with MediaPipe (`web/src/input`); the context is shared: what is pointed at gives meaning to what is asked («what do I put **here**?») |
+| **IMC Tech for Good** | Real usefulness, technical quality, social impact, presentation; an NGO in education, inclusion or community | Accessibility by design: large type, high contrast, visible focus, everything by voice, confirmation of every gesture (`aria-live`), doubtful lines read out marked as «(unclear)» |
+| **AXA** | A real app (not a notebook), frugality, own technical challenge, teamwork, presentation; «AI slop» is penalised | A real desktop app (Wails + Go + React); cheap → expensive routing only when in doubt; local answers without AI; cache; cost visible on screen; a real insurance document as the use case |
 
-**ONG para IMC (por confirmar por el equipo):** una federación de personas ciegas y con baja visión (por ejemplo, en Suiza la Fédération suisse des aveugles et malvoyants, o la ONCE en España). Comprobar el nombre exacto antes de citarla.
+**NGO for IMC (to be confirmed by the team):** a federation of blind and low-vision people (for example, in Switzerland the Fédération suisse des aveugles et malvoyants, or ONCE in Spain). Check the exact name before citing it.
 
-## Cifras (medidas, no estimadas)
-| Qué | Valor | Cómo se midió |
+## Figures (measured, not estimated)
+| What | Value | How it was measured |
 |---|---|---|
-| Explicar el formulario con Haiku (barato, de pago) | **1,8 s · 0,00012 $** | servidor real, `api/fixtures/document.json`, 2026-11-21 |
-| Responder «¿Qué tengo que poner aquí?» | **1,7 s · 0,00017 $** | ídem |
-| Leer el campo señalado | **instantáneo · 0 $** (local) | ídem |
-| Lo mismo con modelos gratuitos (`LLM_PROFILE=dev`) | 2–4 s · 0 $ | nemotron, varias pruebas |
-| Presupuesto de 10 $ | ≈ **70.000** explicaciones o preguntas con Haiku | 10 $ ÷ ~0,00014 $ |
-| Captura de la MX Brio | 4K, ~0,4 s en modo servidor | `scanner/README.md` (Pau) |
-| Tests automáticos | 49 del frontend + Go (sesión, cliente, WebSocket, contrato) | `task check`, CI en verde |
+| Explaining the form with Haiku (cheap, paid) | **1.8 s · $0.00012** | real server, `api/fixtures/document.json`, 2026-11-21 |
+| Answering «What do I have to put here?» | **1.7 s · $0.00017** | same |
+| Reading the pointed field | **instant · $0** (local) | same |
+| The same with free models (`LLM_PROFILE=dev`) | 2–4 s · $0 | nemotron, several tests |
+| A $10 budget | ≈ **70,000** explanations or questions with Haiku | $10 ÷ ~$0.00014 |
+| MX Brio capture | 4K, ~0.4 s in server mode | `scanner/README.md` (Pau) |
+| Automated tests | 49 frontend + Go (session, client, WebSocket, contract) | `task check`, CI green |
 
-## Preguntas difíciles (y respuesta corta)
-- **¿Y si la IA se equivoca?** Solo explica lo que el OCR ha leído y no inventa contenido (está en las instrucciones al modelo); marca las líneas dudosas; si la respuesta barata no es válida, escala al modelo caro.
-- **¿Privacidad?** Cámara, gestos y OCR en local; los servidores solo escuchan en 127.0.0.1; al modelo solo va el texto del documento, no la imagen. La clave nunca está en el repositorio.
-- **¿Por qué no mandar la foto a un modelo grande y ya?** Coste y latencia: con nuestro enrutado, señalar y encuadrar no cuestan nada y explicar cuesta 0,0001 $. Es el criterio de AXA.
-- **¿Funciona sin internet?** El encuadre, la lectura del campo señalado y los gestos sí; la explicación necesita el modelo. Con un modelo local se podría (no lo hemos hecho).
-- **¿Qué habéis construido vosotros?** Contrato y servidor en Go con sesión compartida, enrutado frugal con caché y contador, captura 4K con selección del frame más nítido, OCR a PDF buscable (⏳ en la rama de Didac), módulo de gestos con MediaPipe, puente gestos → IA. Ver `AGENTS.md` y los PRs.
+## Hard questions (and a short answer)
+- **What if the AI gets it wrong?** It only explains what the OCR has read and does not invent content (it is in the model's instructions); it marks doubtful lines; if the cheap answer is not valid, it escalates to the expensive model.
+- **Privacy?** Camera, gestures and OCR run locally; the servers only listen on 127.0.0.1; only the document's text goes to the model, not the image. The key is never in the repository.
+- **Why not just send the photo to a large model?** Cost and latency: with our routing, pointing and framing cost nothing and explaining costs $0.0001. It is AXA's criterion.
+- **Does it work without internet?** Framing, reading the pointed field and the gestures do; the explanation needs the model. With a local model it could (we have not done it).
+- **What did you build yourselves?** A contract and a Go server with a shared session, frugal routing with a cache and a meter, 4K capture picking the sharpest frame, OCR to a searchable PDF (⏳ on Didac's branch), a gesture module with MediaPipe, a gestures → AI bridge. See `AGENTS.md` and the PRs.
 
-## Checklist antes de presentar
-- [ ] `git pull` en `main` y `task check` en verde en el portátil de la demo; `wails build` y abrir `build/bin/lauzhack.exe`.
-- [ ] «Developer tools»: voces en español y cámara en «yes»; si algo falla, mirar `build/bin/lauzhack.log`.
-- [ ] `.env` con la clave y **sin** `LLM_PROFILE=dev` (Haiku: más rápido y sin 429; coste de la demo < 0,01 $).
-- [ ] MX Brio conectada y probada; webcam para las manos si se usan dos cámaras (decisión pendiente).
-- [ ] Formulario impreso en grande, buena luz, sin reflejos.
-- [ ] Volumen del portátil alto; voz en español instalada en el sistema.
-- [ ] Ensayo completo cronometrado (3 min) al menos dos veces.
-- [ ] Plan B probado: «Send sample document» y modo sin clave.
+## Checklist before presenting
+- [ ] `git pull` on `main` and `task check` green on the demo laptop; `wails build` and open `build/bin/lauzhack.exe`.
+- [ ] «Developer tools»: Spanish voices and camera at «yes»; if something fails, look at `build/bin/lauzhack.log`.
+- [ ] `.env` with the key and **without** `LLM_PROFILE=dev` (Haiku: faster and no 429; demo cost < $0.01).
+- [ ] MX Brio connected and tested; a webcam for the hands if two cameras are used (decision pending).
+- [ ] The form printed large, good light, no glare.
+- [ ] Laptop volume high; a Spanish voice installed on the system.
+- [ ] A full timed rehearsal (3 min) at least twice.
+- [ ] Plan B tested: «Send sample document» and keyless mode.
 
-## Pendiente (equipo)
-- ⏳ Scanner de B enviando `document` con `POST /message` (guía: `docs/INTEGRACION_SCANNER.md`).
-- ⏳ Decidir quién usa cada cámara.
-- ⏳ Dictado por voz (rol C, hook `onDictate` listo).
-- ⏳ Elegir y confirmar la ONG para IMC.
-- ⏳ Repartir quién habla en cada parte del guion.
+## Pending (team)
+- ⏳ B's scanner sending `document` with `POST /message` (guide: `docs/INTEGRACION_SCANNER.md`).
+- ⏳ Decide who uses each camera.
+- ⏳ Voice dictation (role C, `onDictate` hook ready).
+- ⏳ Choose and confirm the NGO for IMC.
+- ⏳ Split who speaks in each part of the script.

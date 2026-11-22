@@ -1,36 +1,36 @@
-# scanner/ — lectura de documentos (Python)
+# scanner/ — document reading (Python)
 
-Contexto general: `AGENTS.md` y `docs/ESTADO.md` en la raíz. Dueño: **Didac** (pipeline y servicio); de **Pau**: `capturar.py` y `benchmark/`. Detalle técnico: `scanner/README.md`, `scanner/pdf/README.md` y `scanner/ENTREGA.md`.
+General context: `AGENTS.md` and `docs/ESTADO.md` in the root. Owner: **Didac** (pipeline and service); **Pau**'s: `capturar.py` and `benchmark/`. Technical details: `scanner/README.md`, `scanner/pdf/README.md` and `scanner/ENTREGA.md`.
 
-## Qué hace
-Foto (o archivo) → detecta la hoja → endereza y orienta → mejora la luz → OCR local con Tesseract (español, catalán, inglés) → `document` del contrato (líneas con caja, `pageCorners`) y PDF buscable.
+## What it does
+Photo (or file) → detects the page → straightens and orients it → improves the lighting → local OCR with Tesseract (Spanish, Catalan, English) → the contract's `document` (lines with a box, `pageCorners`) and a searchable PDF.
 
-| Pieza | Qué es |
+| Piece | What it is |
 |---|---|
-| `service.py` | **Servicio de lectura** en 127.0.0.1:8770: `POST /scan` (foto → `document`), `POST /document` (archivo del PC → líneas), `GET /health`. Lo llama Go (`backend/scanner`) |
-| `pdf/src/scanner_pdf/` | El pipeline (`convert`): `geometry.py` (hoja), `ocr.py` (orientación y OCR), `image.py`, `pdf.py`, `digital.py` y `vision.py` (PDF digital con IA) |
-| `documents.py` | Lectura de archivos (PDF con o sin texto, imágenes) |
-| `capturar.py` | Captura de la MX Brio a 4K (Pau) |
-| `benchmark/` | Medida del escaneo con fotos reales, antes y después de cada cambio (Pau) |
-| `scan.py`, `demo_app/` | Conector por línea de comandos y app de prueba (8780), fuera del recorrido de la demo |
+| `service.py` | **Reading service** on 127.0.0.1:8770: `POST /scan` (photo → `document`), `POST /document` (PC file → lines), `GET /health`. Go calls it (`backend/scanner`) |
+| `pdf/src/scanner_pdf/` | The pipeline (`convert`): `geometry.py` (page), `ocr.py` (orientation and OCR), `image.py`, `pdf.py`, `digital.py` and `vision.py` (digital PDF with AI) |
+| `documents.py` | Reading files (PDF with or without text, images) |
+| `capturar.py` | MX Brio capture at 4K (Pau) |
+| `benchmark/` | Measuring the scan with real photos, before and after each change (Pau) |
+| `scan.py`, `demo_app/` | Command-line connector and test app (8780), off the demo route |
 
-## Comportamiento acordado (no cambiar sin avisar)
-- **Responde en cuanto el `document` está listo**; el PDF buscable y el digital se terminan en segundo plano (cabecera `X-Scan-Folder`).
-- **422 «no sheet found»** solo si no hay hoja **ni** texto sobre papel; con texto y sin hoja, `document` sin `pageCorners`.
-- **PDF digital con IA, desactivado** por defecto (es de pago): `?digital=1` o `SCANNER_DIGITAL=1`.
-- Todo lo demás es **local y gratis**. Las fotos y los resultados son documentos reales: **nunca al repositorio** (`capturas/`, `pdf/output/`, `benchmark/results/` están ignorados).
+## Agreed behaviour (do not change without telling the team)
+- **It answers as soon as the `document` is ready**; the searchable PDF and the digital one are finished in the background (`X-Scan-Folder` header).
+- **422 «no sheet found»** only if there is no page **and** no text on paper; with text and without a page, a `document` without `pageCorners`.
+- **Digital PDF with AI, off** by default (it is paid): `?digital=1` or `SCANNER_DIGITAL=1`.
+- Everything else is **local and free**. The photos and the results are real documents: **never into the repository** (`capturas/`, `pdf/output/`, `benchmark/results/` are ignored).
 
-## Instalar y probar
+## Install and test
 ```powershell
-powershell -ExecutionPolicy Bypass -File scanner\pdf\scripts\install.ps1   # .venv, Tesseract e idiomas (una vez)
-scanner\pdf\.venv\Scripts\python -m pip install pypdfium2              # aún no está en requirements.txt
+powershell -ExecutionPolicy Bypass -File scanner\pdf\scripts\install.ps1   # .venv, Tesseract and languages (once)
+scanner\pdf\.venv\Scripts\python -m pip install pypdfium2              # not in requirements.txt yet
 cd scanner\pdf; .venv\Scripts\python -m pytest -q                       # pipeline
 cd scanner;     pdf\.venv\Scripts\python -m unittest test_service test_scan test_capturar
-scanner\pdf\.venv\Scripts\python scanner\service.py                     # el servicio, a mano
+scanner\pdf\.venv\Scripts\python scanner\service.py                     # the service, by hand
 ```
-Si cambias la detección, la orientación o el OCR, **mídelo** con `benchmark/` (mismas fotos antes y después) y apúntalo en `docs/medidas/`.
+If you change the detection, the orientation or the OCR, **measure it** with `benchmark/` (the same photos before and after) and write it down in `docs/medidas/`.
 
-## Reglas de este directorio
-- Cambios pequeños y locales; no toques Go ni la web desde aquí (si hace falta otra interfaz, pídesela a su dueño).
-- Sin búsquedas por todo el repositorio: lee los archivos de esta carpeta que necesites.
-- Los modelos de pago solo cuando el usuario los activa.
+## Rules of this directory
+- Small, local changes; do not touch Go or the web from here (if another interface is needed, ask its owner).
+- No repo-wide searches: read the files of this folder that you need.
+- Paid models only when the user turns them on.

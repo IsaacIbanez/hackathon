@@ -1,5 +1,5 @@
 @AGENTS.md
 
-# Notas para Claude Code
-- Al empezar: `docs/ESTADO.md` y tu ficha (`docs/arreglos/R<n>.md` o `docs/tareas/N<n>.md`). No leas `docs/historial/` salvo que la tarea lo pida.
-- Responde al equipo en español. Código, comentarios, identificadores, commits y títulos de PR, en inglés.
+# Notes for Claude Code
+- When you start: `docs/ESTADO.md` and your sheet (`docs/arreglos/R<n>.md` or `docs/tareas/N<n>.md`). Do not read `docs/historial/` unless the task asks for it.
+- Answer the team in Spanish. Everything written to the repo (code, comments, identifiers, docs, commits and PR titles) is in English.

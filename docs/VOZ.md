@@ -1,35 +1,35 @@
-# Reconocimiento de voz: qué usar (T17, T18)
+# Speech recognition: what to use (T17, T18)
 
-Problema: el dictado entiende mal. Hoy usa `whisper-tiny` (el Whisper más pequeño, 39 M parámetros) en la CPU, y en el navegador intenta antes el reconocedor del sistema.
+Problem: dictation understands badly. Today it uses `whisper-tiny` (the smallest Whisper, 39 M parameters) on the CPU, and in the browser it tries the system recogniser first.
 
-## Medición (2026-11-21)
-Misma frase en español, generada con la voz «Helena» de Windows (audio **limpio**: con micro real y ruido, las diferencias crecen):
-«¿Qué tengo que poner aquí, en la fecha del siniestro? ¿Y dónde firmo?»
+## Measurement (2026-11-21)
+The same Spanish sentence, generated with the Windows «Helena» voice (**clean** audio: with a real mic and noise, the differences grow):
+«¿Qué tengo que poner aquí, en la fecha del siniestro? ¿Y dónde firmo?» (What do I have to put here, in the date of the claim? And where do I sign?)
 
-### En local (transformers.js 3.8.1, `q8`, CPU, Node en un portátil Windows)
-| Modelo | Descarga | Carga | Transcribir | Resultado |
+### Local (transformers.js 3.8.1, `q8`, CPU, Node on a Windows laptop)
+| Model | Download | Load | Transcribe | Result |
 |---|---|---|---|---|
-| `onnx-community/whisper-tiny` (lo de hoy) | ~40 MB | 23 s | 0,4 s | «que tengo que poner aquí en la fecha del siniestro. Y donde **firma**.» ❌ |
-| `onnx-community/whisper-base` | ~80 MB | 38 s | 0,6 s | «…Y donde **firmó**?» ❌ |
-| **`onnx-community/whisper-small`** | ~250 MB | 108 s (solo la 1.ª vez; luego, caché) | **1,1 s** | «que tengo que poner aquí, en la fecha del siniestro. **¿Y dónde firmo?**» ✅ |
-| `onnx-community/whisper-large-v3-turbo` | ~560 MB (q4f16, WebGPU) | — | — | no medido; el mejor, pero pesado |
+| `onnx-community/whisper-tiny` (today's) | ~40 MB | 23 s | 0.4 s | «que tengo que poner aquí en la fecha del siniestro. Y donde **firma**.» ❌ |
+| `onnx-community/whisper-base` | ~80 MB | 38 s | 0.6 s | «…Y donde **firmó**?» ❌ |
+| **`onnx-community/whisper-small`** | ~250 MB | 108 s (first time only; then, cache) | **1.1 s** | «que tengo que poner aquí, en la fecha del siniestro. **¿Y dónde firmo?**» ✅ |
+| `onnx-community/whisper-large-v3-turbo` | ~560 MB (q4f16, WebGPU) | — | — | not measured; the best, but heavy |
 
-### En la nube (OpenRouter, mensaje con `input_audio` en WAV)
-| Modelo | Tiempo | Coste | Resultado |
+### Cloud (OpenRouter, message with `input_audio` in WAV)
+| Model | Time | Cost | Result |
 |---|---|---|---|
-| **`google/gemini-2.5-flash-lite`** | **2,3 s** | **0,00006 $** | «Que tengo que poner aquí, en la fecha del siniestro y dónde firmo.» ✅ (solo puntuación). A veces da 429: hay que tener respaldo |
-| `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` | 7,1 s | 0 $ | correcta ✅, lenta (razona) |
-| `qwen/qwen3.8-omni-flash` | 7,0 s | 0,00006 $ | exacta ✅, lenta |
-| `mistralai/voxtral-small-24b-2507` | 7,5 s | 0,00056 $ | ❌ cambia palabras («debo» en vez de «tengo») |
+| **`google/gemini-2.5-flash-lite`** | **2.3 s** | **$0.00006** | «Que tengo que poner aquí, en la fecha del siniestro y dónde firmo.» ✅ (punctuation only). Sometimes returns 429: a fallback is needed |
+| `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` | 7.1 s | $0 | correct ✅, slow (it reasons) |
+| `qwen/qwen3.8-omni-flash` | 7.0 s | $0.00006 | exact ✅, slow |
+| `mistralai/voxtral-small-24b-2507` | 7.5 s | $0.00056 | ❌ changes words («debo» instead of «tengo») |
 
-## Respaldo en la nube: hecho (T18, 2026-11-21)
-- **Go:** `POST /transcribe?lang=es-ES` con el audio en `audio/wav` → `{"text", "model", "costUsd", "latencyMs"}`; el coste sale en el contador (`stats`). Modelos: `LLM_TRANSCRIBE_MODELS` (por defecto `google/gemini-2.5-flash-lite,nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free`).
-- **Probado** con la frase de arriba: «que tengo que poner aquí en la fecha del siniestro y dónde firmo», 2,3 s, 0,00006 $.
-- **Para Nil:** en `web/src/app/transcribe.ts` está `transcribeRemote(samples, sampleRate, lang, wsUrl)`: codifica el audio en WAV, busca el servidor a partir de la URL del WebSocket (`resolveWsUrl()`) y devuelve el texto. Llamadla solo si el reconocimiento local falla o sale vacío.
+## Cloud fallback: done (T18, 2026-11-21)
+- **Go:** `POST /transcribe?lang=es-ES` with the audio as `audio/wav` → `{"text", "model", "costUsd", "latencyMs"}`; the cost shows up in the meter (`stats`). Models: `LLM_TRANSCRIBE_MODELS` (by default `google/gemini-2.5-flash-lite,nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free`).
+- **Tested** with the sentence above: «que tengo que poner aquí en la fecha del siniestro y dónde firmo», 2.3 s, $0.00006.
+- **For Nil:** `web/src/app/transcribe.ts` has `transcribeRemote(samples, sampleRate, lang, wsUrl)`: it encodes the audio as WAV, finds the server from the WebSocket URL (`resolveWsUrl()`) and returns the text. Call it only if local recognition fails or comes out empty.
 
-## Decisión
-1. **Local primero (Nil, T17):** `whisper-small`. Con WebGPU si la ventana lo tiene; si no, WASM `q8`. Idioma forzado (`spanish`). **Precargar el modelo al abrir la app**, con un aviso «preparando la voz…», para no hacer esperar en la primera pregunta. `whisper-tiny` solo como último recurso en equipos lentos.
-2. **Nube como respaldo (Isaac, T18):** `POST /transcribe` en Go (cuerpo: audio WAV 16 kHz mono) → `{"text": "..."}` con `google/gemini-2.5-flash-lite` y, si falla, `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free`. Se usa **solo** si el local falla, sale vacío o el usuario lo activa. El coste sale en el contador (`stats`).
-3. **Mejoras baratas del audio** (Nil): remuestreo a 16 kHz con `OfflineAudioContext` en vez del lineal; probar `autoGainControl: true`; revisar los umbrales del detector de voz (`vad.ts`) con el micro real.
+## Decision
+1. **Local first (Nil, T17):** `whisper-small`. With WebGPU if the window has it; otherwise, WASM `q8`. Forced language (`spanish`). **Preload the model when the app opens**, with a «preparing the voice…» notice, so the first question does not have to wait. `whisper-tiny` only as a last resort on slow machines.
+2. **Cloud as a fallback (Isaac, T18):** `POST /transcribe` in Go (body: 16 kHz mono WAV audio) → `{"text": "..."}` with `google/gemini-2.5-flash-lite` and, if it fails, `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free`. Used **only** if local fails, comes out empty or the user turns it on. The cost shows up in the meter (`stats`).
+3. **Cheap audio improvements** (Nil): resampling to 16 kHz with `OfflineAudioContext` instead of the linear one; try `autoGainControl: true`; review the voice detector's thresholds (`vad.ts`) with the real mic.
 
-**Para la demo:** con Hugging Face bloqueado o sin red, el modelo local no se puede descargar. Hay que descargarlo antes (queda en la caché del navegador) o servirlo en local, igual que MediaPipe (T15).
+**For the demo:** with Hugging Face blocked or without a network, the local model cannot be downloaded. It has to be downloaded beforehand (it stays in the browser's cache) or served locally, just like MediaPipe (T15).

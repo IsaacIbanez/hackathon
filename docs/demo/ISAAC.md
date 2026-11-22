@@ -1,68 +1,69 @@
-# Demo · Isaac: arranque, overlay, voz e integración
+# Demo · Isaac: startup, overlay, voice and integration
 
-Responsable: **Isaac**. Plan común y reglas: `docs/demo/README.md`. Isaac también hace el **ensayo general**. Cada agente fusiona su propio PR a `main` (`docs/demo/README.md`).
+Owner: **Isaac**. Common plan and rules: `docs/demo/README.md`. Isaac also runs the **dress rehearsal**. Each agent merges its own PR into `main` (`docs/demo/README.md`).
 
-## Qué revisas
-| Pieza | Dónde |
+## What you review
+| Piece | Where |
 |---|---|
-| Arranque: `.env`, servicios auxiliares, atajos, keypad por USB | `main.go`, `app.go`, `app_overlay.go`, `backend/overlay/` (`procs.go`, `keypad*.go`, `hotkey*.go`) |
-| Servidor local y modelos | `backend/session/`, `backend/llm/`, `backend/ws/` |
-| Overlay: menú, paneles, keypad y órdenes de voz | `web/src/app/overlay/` (`Overlay.tsx`, `Hub.tsx`, `keypad.ts`, `useVoiceCommand.tsx`, `recorder.ts`, `voiceCommand.ts`) |
-| AI Summary (de Didac: avísale) | `backend/summary/`, `app_summary.go`, `SummarizeMode.tsx` |
-| Read Text y visor de PDF (de Didac: avísale) | `ReadFileMode.tsx`, `web/src/document/`, `app_pdf.go`, `scanner/pdf_pages.py` |
-| Guion de la demo | `docs/PITCH.md`, `docs/COMO_PROBAR.md` |
+| Startup: `.env`, helper services, shortcuts, USB keypad | `main.go`, `app.go`, `app_overlay.go`, `backend/overlay/` (`procs.go`, `keypad*.go`, `hotkey*.go`) |
+| Local server and models | `backend/session/`, `backend/llm/`, `backend/ws/` |
+| Overlay: menu, panels, keypad and voice commands | `web/src/app/overlay/` (`Overlay.tsx`, `Hub.tsx`, `keypad.ts`, `useVoiceCommand.tsx`, `recorder.ts`, `voiceCommand.ts`) |
+| AI Summary (Didac's: tell them) | `backend/summary/`, `app_summary.go`, `SummarizeMode.tsx` |
+| Read Text and the PDF viewer (Didac's: tell them) | `ReadFileMode.tsx`, `web/src/document/`, `app_pdf.go`, `scanner/pdf_pages.py` |
+| Demo script | `docs/PITCH.md`, `docs/COMO_PROBAR.md` |
 
-## Qué tiene que funcionar en la demo
-1. **El arranque:**
-   - con el `.exe` y el `.env` del portátil de la demo, el log dice `MX Keypad read directly: connected=true` y no hay errores;
-   - si falta algo (claves, entorno del escáner, Tesseract), el menú lo **avisa al arrancar**.
-2. **Tecla 1:** abre y cierra el menú desde cualquier programa. Las líneas 1–8 del menú hacen lo mismo que las teclas.
-3. **Órdenes de voz (tecla 7):** «sube el volumen», «baja el volumen» y «borra el texto», esta última solo con texto seleccionado. Las de herramientas, como «lee el papel» o «resume», también.
-4. **AI Summary (tecla 4):** resume el texto seleccionado en otro programa, en la burbuja junto al cursor.
-5. **Read Text (tecla 3):** abre un PDF o una imagen y lo lee línea a línea; tecla 8 lee y pausa.
-6. **El guion de la demo** está al día con lo que hace la app hoy, y cada paso tiene su plan B.
+## What has to work in the demo
+1. **Startup:**
+   - with the `.exe` and the demo laptop's `.env`, the log says `MX Keypad read directly: connected=true` and there are no errors;
+   - if something is missing (keys, the scanner's environment, Tesseract), the menu **warns about it at startup**.
+2. **Key 1:** opens and closes the menu from any program. Lines 1–8 of the menu do the same as the keys.
+3. **Voice commands (key 7):** «sube el volumen» (volume up), «baja el volumen» (volume down) and «borra el texto» (delete the text), the last one only with text selected. The tool ones, like «lee el papel» (read the paper) or «resume» (summarise), too.
+4. **AI Summary (key 4):** summarises the text selected in another program, in the bubble next to the cursor.
+5. **Read Text (key 3):** opens a PDF or an image and reads it line by line; key 8 reads and pauses.
+6. **The demo script** is up to date with what the app does today, and each step has its plan B.
 
-## Fallos y riesgos conocidos
-- **PR #54 sin fusionar:** borrar por voz, volumen por voz, la grabación con `MediaRecorder` y el aviso de micro silenciado.
-  - Probarlo con una voz real y fusionar.
-  - Cada intento deja líneas `ui: voice:` y `transcribe:` en el log.
-- **Avisos al arrancar** (con Pau):
-  - si no hay `TOGETHER_API_KEY`, Transcribe no puede funcionar;
-  - si no existe `scanner\pdf\.venv`, `pythonCommand` (`backend/overlay/procs.go`) cae al Python del sistema y el servicio muere sin que la pantalla diga qué hacer. Avisar con el comando exacto (`install.ps1`).
-- **Una sola copia de la app:** si se abre dos veces, la segunda no consigue el puerto 8765 ni los atajos. Hay que avisarlo (pendiente de R4).
-- **Versión visible:** el commit y la fecha en el log y en el menú, para saber qué `.exe` está abierto (R4).
-- **`LLM_PROFILE=dev`** usa modelos gratis que pueden dar 429. En la demo no se usa (`docs/PITCH.md`).
-- **`docs/PITCH.md` está viejo:** promete pasos con ⏳ (dictado, señalar un campo). Hay que reescribirlo con las herramientas reales (1–8) y el plan B de cada una.
-- **Pantalla Developer** (tecla D): fuera de la demo.
+## Known bugs and risks
+- **PR #54 unmerged:** deleting by voice, volume by voice, recording with `MediaRecorder` and the muted-mic warning.
+  - Test it with a real voice and merge it.
+  - Each attempt leaves `ui: voice:` and `transcribe:` lines in the log.
+- **Warnings at startup** (with Pau):
+  - if there is no `TOGETHER_API_KEY`, Transcribe cannot work;
+  - if `scanner\pdf\.venv` does not exist, `pythonCommand` (`backend/overlay/procs.go`) falls back to the system Python and the service dies without the screen saying what to do. Warn with the exact command (`install.ps1`).
+- **A single copy of the app:** if it is opened twice, the second one does not get port 8765 nor the shortcuts. It has to warn about it (pending in R4).
+- **Visible version:** the commit and the date in the log and in the menu, to know which `.exe` is open (R4).
+- **`LLM_PROFILE=dev`** uses free models that can return 429. It is not used in the demo (`docs/PITCH.md`).
+- **`docs/PITCH.md` is out of date:** it promises steps marked ⏳ (dictation, pointing at a field). It has to be rewritten with the real tools (1–8) and the plan B for each.
+- **Developer screen** (key D): out of the demo.
 
-## Cómo probar
+## How to test
 - **App:** `task overlay` → `build/bin/lauzhack.exe`. Log: `build/bin/lauzhack.log`.
-- **Tests:** `task check`. Sin ventana: `task server` (lógica real en 8765) o `task mock`.
+- **Tests:** `task check`. Without a window: `task server` (real logic on 8765) or `task mock`.
 
-## Hecho cuando
-- [x] PR #54 probado con voz real y en `main`.
-- [x] El menú avisa al arrancar de cada cosa que falte, con qué hacer.
-- [x] La segunda copia de la app avisa en vez de fallar en silencio.
-- [ ] `docs/PITCH.md` reescrito y ensayado dos veces seguidas con el `.exe` de `main`.
+## Done when
+- [x] PR #54 tested with a real voice and in `main`.
+- [x] The menu warns at startup about everything missing, with what to do.
+- [x] The second copy of the app warns instead of failing silently.
+- [ ] `docs/PITCH.md` rewritten and rehearsed twice in a row with the `.exe` from `main`.
 
-## Prompt para tu agente
+## Prompt for your agent
 ```
-Lee AGENTS.md, docs/demo/README.md y docs/demo/ISAAC.md. Trabajas para Isaac en la fase de pulido para la
-demo: no añadas funcionalidades, haz robusto lo que hay. Revisa el arranque (main.go, app*.go,
-backend/overlay, backend/session), el overlay y las órdenes de voz (web/src/app/overlay), AI Summary y
-Read Text, con los puntos de «Qué tiene que funcionar» y «Fallos y riesgos». Empieza por los avisos al
-arrancar (claves que faltan, entorno del escáner) y por la segunda copia de la app. Reproduce con el .exe
-y el log antes de cambiar nada. Un arreglo = un commit en una rama demo/isaac-<tema>, con su línea en el
-Registro de docs/demo/ISAAC.md. Las carpetas de Didac, Nil o Pau: pregúntame antes de tocarlas.
-Para cada arreglo escribe o actualiza sus tests, pasa task check (y los tests de tu parte) y
-pruébalo con el .exe; abre un PR y, con el CI en verde, fusiónalo tú mismo a main
-(gh pr merge <n> --merge). Nadie revisa lo de otros.
+Read AGENTS.md, docs/demo/README.md and docs/demo/ISAAC.md. You work for Isaac in the demo polish phase:
+do not add features, make what exists robust. Review startup (main.go, app*.go, backend/overlay,
+backend/session), the overlay and the voice commands (web/src/app/overlay), AI Summary and Read Text,
+against the points in «What has to work» and «Known bugs and risks». Start with the startup warnings
+(missing keys, the scanner's environment) and with the second copy of the app. Reproduce with the .exe
+and the log before changing anything. One fix = one commit on a demo/isaac-<topic> branch, with its line
+in the Log of docs/demo/ISAAC.md. Didac's, Nil's or Pau's folders: ask me before touching them.
+For each fix write or update its tests, run task check (and the tests of your part) and
+test it with the .exe; open a PR and, with green CI, merge it yourself into main
+(gh pr merge <n> --merge). Nobody reviews other people's work.
 ```
 
-## Registro (lo rellena el agente)
-Por cada fallo: síntoma → cómo reproducirlo → causa → arreglo → cómo se ha comprobado (con el `.exe`).
-- 2026-11-22, avisos al arrancar: si faltaba una clave, el entorno del escáner o Tesseract, la app no lo decía hasta que la herramienta fallaba (Transcribe reintentaba cada segundo; el servicio moría con `No module named cv2`) → reproducido con el `.exe` y el `.env` sin `TOGETHER_API_KEY` → `backend/overlay/checks.go` (`StartupProblems`, función pura con tests) y `app_checks.go`: cada problema sale en el log (`startup:`) y en el menú, en color de aviso, con qué hacer (por ejemplo, el comando exacto de `install.ps1`). Comprobado con el `.exe`: avisa de `TOGETHER_API_KEY`.
-- 2026-11-22, segunda copia: con dos copias abiertas, la segunda se iba a otro puerto en silencio y las dos se peleaban por el keypad y la cámara → reproducido abriendo dos `.exe` → mutex de Windows `Local\LauzHackOverlay` (`instance_windows.go`): la segunda copia lo dice en el log y en el menú. Comprobado con dos `.exe` a la vez.
-- 2026-11-22, órdenes de voz: «baja el volumen» funciona con la voz de Isaac. El aviso «Heard: …» tapaba toda la burbuja de la cámara y no se iba hasta la siguiente orden → reproducido por Isaac con la cámara en pequeño → el aviso se quita solo (4 s; los errores, 7 s), en una ventana pequeña es una franja fina abajo y nunca bloquea clics (`useVoiceCommand.tsx`).
-- 2026-11-22, versión visible y `task setup` (traído del PR #51, que chocaba con `main` y repetía lo del #57): `task overlay` graba el commit en el `.exe` (`overlay.StampedCommit`), y el log (`version:`) y el pie del menú lo dicen; `task setup` instala el escáner y las dependencias web. Comprobado con el `.exe`: `version: 54f0589+ (built 2026-11-22 09:13)`.
-**Aviso de Nil (2026-11-22):** he tocado `web/src/app/overlay/gestureHost.ts` y `Overlay.tsx`. «Close gestures» pasa a ser «Main menu»: el host lanza el evento `gestures:main-menu` (`MAIN_MENU_EVENT`), `Overlay.tsx` lo escucha y vuelve a `view = "menu"`, y desde la burbuja se llama a `SetCompact(false)`. Los gestos siguen activos. `turnGesturesOn()` ahora despierta los gestos con `handle.wakeGestures()`. Detalle en el Registro de `docs/demo/NIL.md`.
+## Log (filled in by the agent)
+For each bug: symptom → how to reproduce it → cause → fix → how it was checked (with the `.exe`).
+- 2026-11-22, startup warnings: if a key, the scanner's environment or Tesseract was missing, the app did not say so until the tool failed (Transcribe retried every second; the service died with `No module named cv2`) → reproduced with the `.exe` and a `.env` without `TOGETHER_API_KEY` → `backend/overlay/checks.go` (`StartupProblems`, a pure function with tests) and `app_checks.go`: each problem shows up in the log (`startup:`) and in the menu, in the warning colour, with what to do (for example, the exact `install.ps1` command). Checked with the `.exe`: it warns about `TOGETHER_API_KEY`.
+- 2026-11-22, second copy: with two copies open, the second one silently moved to another port and both fought over the keypad and the camera → reproduced by opening two `.exe` → Windows mutex `Local\LauzHackOverlay` (`instance_windows.go`): the second copy says so in the log and in the menu. Checked with two `.exe` at once.
+- 2026-11-22, voice commands: «baja el volumen» works with Isaac's voice. The «Heard: …» notice covered the whole camera bubble and did not go away until the next command → reproduced by Isaac with the small camera → the notice goes away on its own (4 s; errors, 7 s), in a small window it is a thin strip at the bottom and it never blocks clicks (`useVoiceCommand.tsx`).
+- 2026-11-22, visible version and `task setup` (brought over from PR #51, which clashed with `main` and repeated what #57 did): `task overlay` stamps the commit into the `.exe` (`overlay.StampedCommit`), and the log (`version:`) and the menu footer show it; `task setup` installs the scanner and the web dependencies. Checked with the `.exe`: `version: 54f0589+ (built 2026-11-22 09:13)`.
+
+**Note from Nil (2026-11-22):** I have touched `web/src/app/overlay/gestureHost.ts` and `Overlay.tsx`. «Close gestures» becomes «Main menu»: the host fires the `gestures:main-menu` event (`MAIN_MENU_EVENT`), `Overlay.tsx` listens to it and goes back to `view = "menu"`, and from the bubble `SetCompact(false)` is called. The gestures stay active. `turnGesturesOn()` now wakes the gestures with `handle.wakeGestures()`. Details in the Log of `docs/demo/NIL.md`.

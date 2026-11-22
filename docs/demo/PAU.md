@@ -1,97 +1,98 @@
-# Demo · Pau: leer papel y Transcribe
+# Demo · Pau: reading paper and Transcribe
 
-Responsable: **Pau**. Plan común y reglas: `docs/demo/README.md`. Parte del código es de Didac (`scanner/`, `web/src/document`): avísale antes de cambiarlo.
+Owner: **Pau**. Common plan and rules: `docs/demo/README.md`. Part of the code is Didac's (`scanner/`, `web/src/document`): tell them before changing it.
 
-## Qué revisas
-| Pieza | Dónde |
+## What you review
+| Piece | Where |
 |---|---|
-| Servicio de lectura (Python, puerto 8770): foto → hoja → OCR → PDF escaneado y versión con IA | `scanner/service.py`, `scanner/pdf/src/scanner_pdf/` |
-| Cliente Go del servicio y bindings de PDF Scanner | `backend/scanner/`, `app_scanpdf.go` (de Isaac: avísale) |
-| Pantalla de PDF Scanner | `web/src/app/overlay/DocumentsMode.tsx` (de Isaac: avísale) |
-| Cámara | `web/src/camera/` |
+| Reading service (Python, port 8770): photo → page → OCR → scanned PDF and AI version | `scanner/service.py`, `scanner/pdf/src/scanner_pdf/` |
+| Go client of the service and PDF Scanner bindings | `backend/scanner/`, `app_scanpdf.go` (Isaac's: tell them) |
+| PDF Scanner screen | `web/src/app/overlay/DocumentsMode.tsx` (Isaac's: tell them) |
+| Camera | `web/src/camera/` |
 | Transcribe | `backend/captions/`, `web/src/captions/` |
-| La forma de la ventana (R5) | `app_window.go` |
+| The window's shape (R5) | `app_window.go` |
 
-## Qué tiene que funcionar en la demo
-1. **PDF Scanner (tecla 2):**
-   1. Se ve la cámara.
-   2. La foto se hace **solo** al pulsar «Take photo», con Enter o con el cursor de la mano.
-   3. Primero sale el **PDF escaneado** y, unos 15–30 s después, la **versión con IA**.
-   4. Se cambia entre los dos con «Scanned PDF» y «AI version», y Espacio los lee.
-2. **Cinco escaneos seguidos** con la MX Brio sin reiniciar la app, con «Read another paper».
-3. **Transcribe (tecla 5):** subtítulos en directo del micro, quién habla y el `.txt` guardado.
-4. **La ventana** no se queda en una forma rara al pasar de una herramienta a otra.
+## What has to work in the demo
+1. **PDF Scanner (key 2):**
+   1. The camera is visible.
+   2. The photo is taken **only** when you press «Take photo», with Enter or with the hand cursor.
+   3. The **scanned PDF** comes out first and, some 15–30 s later, the **AI version**.
+   4. You switch between the two with «Scanned PDF» and «AI version», and Space reads them.
+2. **Five scans in a row** with the MX Brio without restarting the app, with «Read another paper».
+3. **Transcribe (key 5):** live captions of the mic, who is speaking and the saved `.txt`.
+4. **The window** is not left in an odd shape when going from one tool to another.
 
-## Fallos y riesgos conocidos
-- **Transcribe no funciona: falta `TOGETHER_API_KEY`** en el `.env` del portátil de la demo. Añádela (nunca en el repo ni en un chat). Además:
-  - **Sin clave**, el log repite `captions: no_key` **cada segundo**: el cliente reintenta sin pausa. Tiene que decirlo una vez en pantalla y dejar de reintentar.
-  - **Si Together falla o no hay red**, tiene que decirlo y no colgarse.
-- **El servicio de lectura necesita su entorno** (`scanner\pdf\scripts\install.ps1`, una vez por equipo). Sin él, la app arranca el Python del sistema y el servicio muere con `No module named cv2`. La pantalla solo dice «The reading service did not start». Que diga qué hacer (coordínalo con Isaac, que mira el aviso al arrancar).
-- **Bordes de la hoja:** con la webcam no los encuentra (`page_not_detected` en `result.json`). Funciona igual, pero sin corregir la luz.
-  - Didac tiene sin subir `60070a2` y cambios en `service.py` que buscan las esquinas con IA (`ai_corners`). Pídele que los suba y revísalos antes de la demo.
-- **Versión con IA:** tarda 15–30 s y cuesta ~0,03 $ (presupuesto del equipo: 10 €).
-  - El umbral de «papel claro» ya es 150 (antes 200, que rechazaba las fotos de webcam).
-  - Comprueba qué pasa si falla OpenRouter: tiene que quedar el PDF escaneado y un mensaje.
-- **Timeouts:** `ScanPDF` tiene 75 s y `MakeDigitalPDF` 160 s. Que ninguna espera se quede sin límite y que «Read another paper» corte la anterior.
-- **Cámara compartida con los gestos** (con Nil): PDF Scanner pausa los gestos. Comprueba que la cámara no llega a 640×360 cuando Gesture Control la tenía abierta.
-- **Puerto 8770 ocupado** por un `service.py` viejo: la app lo reutiliza sin las rutas nuevas. Detéctalo o documéntalo en `docs/COMO_PROBAR.md`.
+## Known bugs and risks
+- **Transcribe does not work: `TOGETHER_API_KEY` is missing** from the demo laptop's `.env`. Add it (never in the repo nor in a chat). Also:
+  - **Without a key**, the log repeats `captions: no_key` **every second**: the client retries without a pause. It has to say so once on screen and stop retrying.
+  - **If Together fails or there is no network**, it has to say so and not hang.
+- **The reading service needs its environment** (`scanner\pdf\scripts\install.ps1`, once per machine). Without it, the app starts the system Python and the service dies with `No module named cv2`. The screen only says «The reading service did not start». It should say what to do (coordinate with Isaac, who looks at the startup warning).
+- **Page edges:** with the webcam it does not find them (`page_not_detected` in `result.json`). It works anyway, but without correcting the lighting.
+  - Didac has `60070a2` unpushed and changes in `service.py` that look for the corners with AI (`ai_corners`). Ask them to push them and review them before the demo.
+- **AI version:** it takes 15–30 s and costs ~$0.03 (team budget: €10).
+  - The «light paper» threshold is already 150 (it was 200, which rejected webcam photos).
+  - Check what happens if OpenRouter fails: the scanned PDF has to remain, with a message.
+- **Timeouts:** `ScanPDF` has 75 s and `MakeDigitalPDF` 160 s. No wait may be left without a limit, and «Read another paper» must cut off the previous one.
+- **Camera shared with the gestures** (with Nil): PDF Scanner pauses the gestures. Check that the camera does not end up at 640×360 when Gesture Control had it open.
+- **Port 8770 taken** by an old `service.py`: the app reuses it without the new routes. Detect it or document it in `docs/COMO_PROBAR.md`.
 
-## Cómo probar
-- **App:** `task overlay` → `build/bin/lauzhack.exe`. Logs: `build/bin/lauzhack.log` y `build/bin/reading-service.log`. Resultados de cada escaneo: `scanner/pdf/output/scan-*/` (`result.json`, `original.png`).
+## How to test
+- **App:** `task overlay` → `build/bin/lauzhack.exe`. Logs: `build/bin/lauzhack.log` and `build/bin/reading-service.log`. Results of each scan: `scanner/pdf/output/scan-*/` (`result.json`, `original.png`).
 - **Tests:**
   - `cd scanner/pdf && .venv/Scripts/python -m pytest -q` (81);
   - `cd scanner && pdf/.venv/Scripts/python -m unittest discover -s .`;
   - `task check`.
 
-## Hecho cuando
-- [ ] Cinco escaneos seguidos con la MX Brio, cada uno con los dos PDF.
-- [ ] Transcribe funciona con la clave y, sin ella, lo dice una vez y no reintenta en bucle.
-- [ ] Sin el entorno del escáner, la pantalla dice exactamente qué comando pasar.
-- [ ] Ninguna espera sin límite y ningún error sin mensaje.
+## Done when
+- [ ] Five scans in a row with the MX Brio, each one with both PDFs.
+- [ ] Transcribe works with the key and, without it, says so once and does not retry in a loop.
+- [ ] Without the scanner's environment, the screen says exactly which command to run.
+- [ ] No wait without a limit and no error without a message.
 
-## Prompt para tu agente
+## Prompt for your agent
 ```
-Lee AGENTS.md, docs/demo/README.md y docs/demo/PAU.md. Trabajas para Pau en la fase de pulido para la
-demo: no añadas funcionalidades, haz robusto lo que hay. Revisa PDF Scanner (scanner/, backend/scanner,
-DocumentsMode.tsx, web/src/camera), Transcribe (backend/captions, web/src/captions) y app_window.go, con
-los puntos de «Qué tiene que funcionar» y «Fallos y riesgos». Empieza por el reintento en bucle de
-Transcribe sin TOGETHER_API_KEY. Reproduce cada fallo con el .exe y los logs antes de cambiar nada. Un
-arreglo = un commit en una rama demo/pau-<tema>, con su línea en el Registro de docs/demo/PAU.md. Las
-carpetas de Didac (scanner/, web/src/document) y los archivos de Isaac: pregúntame antes de tocarlos.
-Nunca imprimas ni subas claves.
-Para cada arreglo escribe o actualiza sus tests, pasa task check (y los tests de tu parte) y
-pruébalo con el .exe; abre un PR y, con el CI en verde, fusiónalo tú mismo a main
-(gh pr merge <n> --merge). Nadie revisa lo de otros.
+Read AGENTS.md, docs/demo/README.md and docs/demo/PAU.md. You work for Pau in the demo polish phase:
+do not add features, make what exists robust. Review PDF Scanner (scanner/, backend/scanner,
+DocumentsMode.tsx, web/src/camera), Transcribe (backend/captions, web/src/captions) and app_window.go,
+against the points in «What has to work» and «Known bugs and risks». Start with Transcribe's retry loop
+without TOGETHER_API_KEY. Reproduce each bug with the .exe and the logs before changing anything. One
+fix = one commit on a demo/pau-<topic> branch, with its line in the Log of docs/demo/PAU.md. Didac's
+folders (scanner/, web/src/document) and Isaac's files: ask me before touching them.
+Never print or push keys.
+For each fix write or update its tests, run task check (and the tests of your part) and
+test it with the .exe; open a PR and, with green CI, merge it yourself into main
+(gh pr merge <n> --merge). Nobody reviews other people's work.
 ```
 
-## Registro (lo rellena el agente)
-Por cada fallo: síntoma → cómo reproducirlo → causa → arreglo → cómo se ha comprobado (con el `.exe`).
+## Log (filled in by the agent)
+For each bug: symptom → how to reproduce it → cause → fix → how it was checked (with the `.exe`).
 
-- **Transcribe sin clave reintentaba en bucle.**
-  - **Síntoma:** sin `TOGETHER_API_KEY`, el log repetía `captions: no_key` cada segundo.
-  - **Reproducir:** un servidor sin `.env` (`backend/cmd/server` desde una carpeta vacía) y dos conexiones a `/captions`: cada una recibe `no_key` (`retryable: false`) y se cierra.
-  - **Causa:** el cliente (`LiveCaptions.tsx`) tomaba ese cierre por una caída y reconectaba al cabo de 1 s, y ponía el contador de reintentos a 0 en cada conexión, así que nunca llegaba al límite de 3.
-  - **Arreglo:** `web/src/captions/reconnect.ts` (función pura y con tests).
-    - Un error definitivo (`no_key`, clave rechazada, tope de coste) no se reintenta: se para el micro, Go cierra la sesión y guarda el `.txt`, y se dice una sola vez qué hacer.
-    - El contador solo vuelve a 0 con `ready`: 3 reintentos (1, 2 y 4 s) y después se ofrece Whisper local.
-  - **Comprobado:**
-    - tests de `reconnect.ts` (200 en verde);
-    - con el `.exe` y una clave no válida: **un solo** `captions:` en el log en 10 s (antes, uno por segundo), el aviso «Together AI refused the key. Check TOGETHER_API_KEY…» y el botón «Use local Whisper»;
-    - el caso sin clave no se puede montar con el `.exe` (Windows no admite una variable vacía y la app lee el `.env`), así que se comprobó con el servidor y los tests.
-- **El servicio de lectura no decía qué hacer** (archivos de Isaac, `backend/overlay/procs.go`, y de Didac, `scanner/service.py`, con permiso de Pau).
-  - **Síntomas:**
-    - sin `scanner/pdf/.venv`, la app arrancaba el Python del sistema, que moría con `No module named cv2`, y la pantalla solo decía «exited on start (see …log)»;
-    - un `service.py` viejo en el 8770 se daba por bueno, aunque le faltaban las rutas nuevas.
-  - **Reproducir:** un servidor de prueba en el 8770 que contesta a `/health` sin versión (como uno viejo) → `.exe` → tecla 2.
-  - **Causa:** `Healthy` aceptaba cualquier servicio que contestara a `/health`, y `Ensure` no miraba ni el entorno ni el log.
-  - **Arreglo:**
-    - `/health` dice su versión de rutas (`"api": 3`), y la app rechaza un servicio más viejo, explicando cómo cerrarlo; nunca lo mata, porque no es suyo;
-    - sin `scanner/pdf/.venv` (y sin `LAUZHACK_PYTHON`), no arranca el Python del sistema y da el comando de instalación;
-    - si el servicio muere al arrancar, lee el final de `reading-service.log`: `No module named …` → el comando de instalación; puerto ocupado → cerrarlo.
-  - **Comprobado:**
-    - tests de Go (`procs_test.go`: versión buena, servicio viejo, motivos de la caída, entorno) y de Python (`/health` con `api`), 42 en verde;
-    - con el `.exe` y el servicio falso en el 8770: PDF Scanner muestra «an older reading service is answering on port 8770… Close it… then try again».
+- **Transcribe without a key retried in a loop.**
+  - **Symptom:** without `TOGETHER_API_KEY`, the log repeated `captions: no_key` every second.
+  - **Reproduce:** a server without a `.env` (`backend/cmd/server` from an empty folder) and two connections to `/captions`: each one gets `no_key` (`retryable: false`) and is closed.
+  - **Cause:** the client (`LiveCaptions.tsx`) took that close for a drop and reconnected after 1 s, and it reset the retry counter to 0 on every connection, so it never reached the limit of 3.
+  - **Fix:** `web/src/captions/reconnect.ts` (a pure function, with tests).
+    - A final error (`no_key`, key rejected, cost cap) is not retried: the mic stops, Go closes the session and saves the `.txt`, and it says once what to do.
+    - The counter only goes back to 0 on `ready`: 3 retries (1, 2 and 4 s) and then local Whisper is offered.
+  - **Checked:**
+    - tests of `reconnect.ts` (200 green);
+    - with the `.exe` and an invalid key: **a single** `captions:` in the log in 10 s (before, one per second), the notice «Together AI refused the key. Check TOGETHER_API_KEY…» and the «Use local Whisper» button;
+    - the no-key case cannot be set up with the `.exe` (Windows does not allow an empty variable and the app reads the `.env`), so it was checked with the server and the tests.
+- **The reading service did not say what to do** (Isaac's files, `backend/overlay/procs.go`, and Didac's, `scanner/service.py`, with Pau's permission).
+  - **Symptoms:**
+    - without `scanner/pdf/.venv`, the app started the system Python, which died with `No module named cv2`, and the screen only said «exited on start (see …log)»;
+    - an old `service.py` on 8770 was taken as good, even though it lacked the new routes.
+  - **Reproduce:** a test server on 8770 that answers `/health` without a version (like an old one) → `.exe` → key 2.
+  - **Cause:** `Healthy` accepted any service that answered `/health`, and `Ensure` looked at neither the environment nor the log.
+  - **Fix:**
+    - `/health` states its route version (`"api": 3`), and the app rejects an older service, explaining how to close it; it never kills it, because it is not its own;
+    - without `scanner/pdf/.venv` (and without `LAUZHACK_PYTHON`), it does not start the system Python and gives the install command;
+    - if the service dies at startup, it reads the end of `reading-service.log`: `No module named …` → the install command; port taken → close it.
+  - **Checked:**
+    - Go tests (`procs_test.go`: good version, old service, reasons for the crash, environment) and Python tests (`/health` with `api`), 42 green;
+    - with the `.exe` and the fake service on 8770: PDF Scanner shows «an older reading service is answering on port 8770… Close it… then try again».
+- **Everything in English** (2026-11-22, asked for by Pau): `README.md` rewritten in English, every live `*.md` (all but `docs/historial/`) translated keeping its file name, and Spanish comments, logs and interface text in the code translated. Spanish data that is there on purpose (test sentences, language detection, prompts) stays. The language rule in `AGENTS.md`, `CLAUDE.md` and `GEMINI.md` now says everything in the repo is in English.
 
-- **Visto de paso (pendiente):**
-  - En una pantalla de 1536 px **los paneles del overlay** (Transcribe, PDF Scanner…) se salen por la derecha y cortan texto y botones: es del diseño del overlay (Isaac).
-  - Un `server.exe` viejo (`go run ./backend/cmd/server`) ocupaba el 8765: la app usa otro puerto, pero las pruebas a mano contra el 8765 hablaban con el código viejo.
+- **Seen in passing (pending):**
+  - On a 1536 px screen **the overlay's panels** (Transcribe, PDF Scanner…) overflow on the right and cut off text and buttons: it belongs to the overlay's design (Isaac).
+  - An old `server.exe` (`go run ./backend/cmd/server`) was holding 8765: the app uses another port, but the manual tests against 8765 were talking to the old code.

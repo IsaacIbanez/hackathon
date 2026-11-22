@@ -1,20 +1,20 @@
-# Integración del scanner (rol B) con la app
+# Integrating the scanner (role B) with the app
 
-Cómo llega lo que lee el scanner (Python, `scanner/`) a la pantalla y a la voz de la app.
+How what the scanner reads (Python, `scanner/`) reaches the app's screen and voice.
 
-## Resumen
-1. La app (o `task server` sin ventana) escucha en `127.0.0.1:8765`.
-2. El scanner, cuando tiene una página leída, hace **`POST /message`** con un mensaje `document`.
-3. Go explica el documento (modelo barato; caro si duda) y envía `speak` + `stats` a la **interfaz**, que lo lee en voz alta y resalta los bloques.
-4. A partir de ahí, señalar con el dedo y preguntar por voz funcionan sobre **ese** documento (la sesión es compartida).
+## Summary
+1. The app (or `task server` without a window) listens on `127.0.0.1:8765`.
+2. The scanner, once it has a page read, makes a **`POST /message`** with a `document` message.
+3. Go explains the document (cheap model; expensive if in doubt) and sends `speak` + `stats` to the **interface**, which reads it aloud and highlights the blocks.
+4. From there on, pointing with the finger and asking by voice work on **that** document (the session is shared).
 
-No hace falta ninguna librería: `urllib` de la biblioteca estándar basta.
+No library is needed: the standard library's `urllib` is enough.
 
-## El mensaje `document`
+## The `document` message
 ```json
 {
   "type": "document",
-  "id": "doc-<único>",
+  "id": "doc-<unique>",
   "ts": 1795262400000,
   "payload": {
     "blocks": [
@@ -25,68 +25,68 @@ No hace falta ninguna librería: `urllib` de la biblioteca estándar basta.
   }
 }
 ```
-- **Bloques:** mejor por **línea** (no por palabra): la app lee un bloque entero cuando se señala.
-- **Cajas normalizadas** a [0, 1] sobre la **página recortada** (después de corregir la perspectiva), origen arriba a la izquierda: `x = left / ancho`, `y = top / alto`, etc.
-- **`confidence`** del OCR en [0, 1] (Tesseract da 0–100: dividir entre 100).
-- **`quality.score`** en [0, 1] y **`issues`** de `blurry`, `dark`, `glare`, `cropped`, `tilted`, `too_far`. Si `score` < 0,5, la app **no gasta IA**: da en voz alta un consejo de encuadre («la imagen está borrosa…»). Usad la nitidez que ya mide `capturar.py`.
-- `id` de los bloques estables dentro del documento (`b1`, `b2`…).
+- **Blocks:** better per **line** (not per word): the app reads a whole block when it is pointed at.
+- **Boxes normalised** to [0, 1] over the **cropped page** (after correcting the perspective), origin at the top left: `x = left / width`, `y = top / height`, etc.
+- **`confidence`** of the OCR in [0, 1] (Tesseract gives 0–100: divide by 100).
+- **`quality.score`** in [0, 1] and **`issues`** from `blurry`, `dark`, `glare`, `cropped`, `tilted`, `too_far`. If `score` < 0.5, the app **does not spend AI**: it gives framing advice aloud («the image is blurry…»). Use the sharpness that `capturar.py` already measures.
+- Block `id`s stable within the document (`b1`, `b2`…).
 
-Si un cliente escucha el WebSocket (no hace falta para el scanner, que usa `POST`), recibirá también el `document` reenviado: subid su límite de tamaño de mensaje (en Go, `conn.SetReadLimit(4 << 20)`; el navegador no tiene límite).
+If a client listens to the WebSocket (not needed for the scanner, which uses `POST`), it will also receive the forwarded `document`: raise its message size limit (in Go, `conn.SetReadLimit(4 << 20)`; the browser has no limit).
 
-## Ejemplo
-`api/examples/send_message.py` tiene `document_from_ocr_lines(...)` (de líneas de OCR en píxeles al mensaje) y `post(...)`:
+## Example
+`api/examples/send_message.py` has `document_from_ocr_lines(...)` (from OCR lines in pixels to the message) and `post(...)`:
 ```
-task server                                              # terminal 1 (necesita .env con la clave)
-python api/examples/send_message.py --demo-ocr           # terminal 2: simula el scanner
-python api/examples/send_message.py mi_documento.json    # o un sobre ya hecho
+task server                                              # terminal 1 (needs a .env with the key)
+python api/examples/send_message.py --demo-ocr           # terminal 2: simulates the scanner
+python api/examples/send_message.py my_document.json     # or a ready-made envelope
 ```
-Para ver lo que oye la interfaz: `npm run dev` en `web/` con `VITE_WS_URL=ws://127.0.0.1:8765/ws`.
+To see what the interface hears: `npm run dev` in `web/` with `VITE_WS_URL=ws://127.0.0.1:8765/ws`.
 
-Probado el 2026-11-21: `--demo-ocr` → la interfaz oye «Este documento es una declaración de siniestro de AXA Seguros. Debe escribir su nombre y apellidos… También debe escribir su número de póliza…», con los 3 bloques resaltados. Coste: 0 $ (`LLM_PROFILE=dev`).
+Tested on 2026-11-21: `--demo-ocr` → the interface hears «Este documento es una declaración de siniestro de AXA Seguros. Debe escribir su nombre y apellidos… También debe escribir su número de póliza…» (This document is an AXA Seguros insurance claim. You must write your full name… You must also write your policy number…), with the 3 blocks highlighted. Cost: $0 (`LLM_PROFILE=dev`).
 
-## `scanner/scan.py` (Didac): envío hecho
-Revisado en la rama `feature/B-contexto-scanner` (2026-11-21): `Result.document()` **cumple el contrato** (bloques por línea, cajas normalizadas sobre la página recortada, `confidence` en [0, 1], `issues` con los valores del contrato, `lang` en BCP-47). El envío ya está implementado en `scan.send_to_app(result)` (POST /message, devuelve `True` con 202 y `False` si la app no está abierta) y en la CLI con `--send`:
-
-```
-scanner\pdf\.venv\Scripts\python scanner\scan.py --send                  # captura + PDF + envío
-scanner\pdf\.venv\Scripts\python scanner\scan.py --png captura.png --send
-```
-
-Nombres en inglés desde el 2026-11-21 (antes `escanear.py`, `enviar_a_app`, `Resultado.documento()`, paquete `escaner_pdf`). Detalle completo en `scanner/ENTREGA.md`. Notas:
-- La app **no gasta IA** si `quality.score` < 0,5: da un consejo de encuadre en voz alta. Con vuestras penalizaciones, solo «borroso» deja 0,65 y sí se explica; ajustad si queréis que «borroso» corte antes.
-- El `id` del sobre debe ser único por escaneo; los `id` de los bloques (`b1`, `b2`…) solo tienen que ser estables dentro del documento.
-- El documento digital con modelo de visión (`vision.py`) gasta del mismo presupuesto de OpenRouter, pero su coste no sale en el contador de la app; el envío a la app usa solo el OCR local (0 $).
-- Pendiente de decidir en equipo: **qué dispara el escaneo** en la demo (botón o tecla en vuestra app, escaneo automático cuando la hoja está quieta, o un gesto). Si queréis un gesto, hace falta un mensaje nuevo en el contrato: avisad.
-
-## Servicio de lectura para la app (T13, Didac): lo que Go espera
-Desde el contrato 0.5, la app manda la foto a Go (`POST /scan`) y **Go se la pasa a vuestro servicio**:
+## `scanner/scan.py` (Didac): sending done
+Reviewed on the `feature/B-contexto-scanner` branch (2026-11-21): `Result.document()` **meets the contract** (blocks per line, boxes normalised over the cropped page, `confidence` in [0, 1], `issues` with the contract's values, `lang` in BCP-47). Sending is already implemented in `scan.send_to_app(result)` (POST /message, returns `True` with 202 and `False` if the app is not open) and in the CLI with `--send`:
 
 ```
-POST http://127.0.0.1:8770/scan        (Go lo lee de SCANNER_URL)
+scanner\pdf\.venv\Scripts\python scanner\scan.py --send                  # capture + PDF + send
+scanner\pdf\.venv\Scripts\python scanner\scan.py --png capture.png --send
+```
+
+Names in English since 2026-11-21 (formerly `escanear.py`, `enviar_a_app`, `Resultado.documento()`, package `escaner_pdf`). Full details in `scanner/ENTREGA.md`. Notes:
+- The app **does not spend AI** if `quality.score` < 0.5: it gives framing advice aloud. With your penalties, only «blurry» leaves 0.65 and does get explained; adjust it if you want «blurry» to cut off earlier.
+- The envelope's `id` must be unique per scan; the block `id`s (`b1`, `b2`…) only have to be stable within the document.
+- The digital document with the vision model (`vision.py`) spends from the same OpenRouter budget, but its cost does not show up in the app's meter; sending to the app only uses the local OCR ($0).
+- To be decided as a team: **what triggers the scan** in the demo (a button or key in your app, an automatic scan when the page is still, or a gesture). If you want a gesture, a new message is needed in the contract: let us know.
+
+## Reading service for the app (T13, Didac): what Go expects
+Since contract 0.5, the app sends the photo to Go (`POST /scan`) and **Go passes it to your service**:
+
+```
+POST http://127.0.0.1:8770/scan        (Go reads it from SCANNER_URL)
 Content-Type: image/jpeg | image/png | image/webp
-<bytes de la foto, hasta 40 MB>
+<the photo's bytes, up to 40 MB>
 
-200  application/json   → un DocumentPayload (lo de Result.document()) + pageCorners
-422  {"error": "..."}   → no hay hoja en la foto (Go le dice al usuario «No encuentro la hoja…»)
-otro                     → error (Go dice «No he podido leer el documento»)
+200  application/json   → a DocumentPayload (what Result.document() gives) + pageCorners
+422  {"error": "..."}   → there is no page in the photo (Go tells the user «I can't find the page…»)
+other                    → error (Go says «I could not read the document»)
 ```
 
-**`pageCorners`** (nuevo, opcional): las 4 esquinas de la hoja **en la foto recibida**, normalizadas a [0, 1] sobre esa foto (`x / ancho_foto`, `y / alto_foto`), en este orden: **arriba-izquierda, arriba-derecha, abajo-derecha, abajo-izquierda de la hoja tal como se lee** (después de orientarla). Si giráis la hoja 90° o 180° para leerla, rotad también el orden de las esquinas: el puntero las usa para saber qué parte del papel señala el dedo. Si no se detectó la hoja (se usó la foto entera), no lo pongáis.
+**`pageCorners`** (new, optional): the 4 corners of the page **in the received photo**, normalised to [0, 1] over that photo (`x / photo_width`, `y / photo_height`), in this order: **top-left, top-right, bottom-right, bottom-left of the page as it reads** (after orienting it). If you rotate the page 90° or 180° to read it, rotate the order of the corners too: the pointer uses them to know which part of the paper the finger points at. If the page was not detected (the whole photo was used), leave it out.
 
-Ejemplo: `api/fixtures/document.json` (`"pageCorners": [{"x":0.31,"y":0.07}, {"x":0.70,"y":0.09}, {"x":0.72,"y":0.94}, {"x":0.29,"y":0.92}]`).
+Example: `api/fixtures/document.json` (`"pageCorners": [{"x":0.31,"y":0.07}, {"x":0.70,"y":0.09}, {"x":0.72,"y":0.94}, {"x":0.29,"y":0.92}]`).
 
-**Cómo probarlo de punta a punta:** vuestro servicio en 8770 + `task server` (o `task dev`) + `curl -X POST -H "Content-Type: image/png" --data-binary @foto.png http://127.0.0.1:8765/scan`. La interfaz oye «Un momento, estoy leyendo el documento», recibe el documento y lo explica.
+**How to test it end to end:** your service on 8770 + `task server` (or `task dev`) + `curl -X POST -H "Content-Type: image/png" --data-binary @photo.png http://127.0.0.1:8765/scan`. The interface hears «One moment, I'm reading the document», receives the document and explains it.
 
-**Mientras el servicio no existe**, el resto del equipo prueba con `SCANNER_URL=fixture`: Go responde a cada foto con el formulario de ejemplo (con esquinas).
+**While the service does not exist**, the rest of the team tests with `SCANNER_URL=fixture`: Go answers each photo with the sample form (with corners).
 
-## Puertos
-| Puerto | Quién | Para qué |
+## Ports
+| Port | Who | What for |
 |---|---|---|
-| 8765 | app Go (`task dev` / `task server`) | `/ws`, `POST /message`, `/health` |
+| 8765 | Go app (`task dev` / `task server`) | `/ws`, `POST /message`, `/health` |
 | 8766 | `scanner/capturar.py --servidor` (Pau) | `GET /captura` |
-| 8770 | servicio de lectura (Didac, T13) | `POST /scan`: foto → `document` con `pageCorners` |
-| 8780 | `scanner/demo_app` (Didac, provisional) | vista previa y escaneo |
-| 8080 | `task mock` | respuestas de ejemplo |
+| 8770 | reading service (Didac, T13) | `POST /scan`: photo → `document` with `pageCorners` |
+| 8780 | `scanner/demo_app` (Didac, provisional) | preview and scan |
+| 8080 | `task mock` | sample answers |
 
-## Pendiente de decidir (equipo)
-Quién usa la cámara: si el scanner tiene la MX Brio, los gestos (navegador) deben usar otra cámara (la del portátil). Ver `estado/P1-C.md`.
+## To be decided (team)
+Who uses the camera: if the scanner has the MX Brio, the gestures (browser) must use another camera (the laptop's). See `estado/P1-C.md`.

@@ -1,91 +1,91 @@
-# Lectura guiada (rol B2, Didac)
+# Guided reading (role B2, Didac)
 
-Lee en voz alta el documento escaneado **línea a línea**, sin ayuda de nadie:
-- La línea que suena se resalta en letra grande y se mantiene centrada en pantalla.
-- La lectura es **local y gratuita**: usa la voz del sistema (Web Speech API) y ningún modelo. No envía nada a Go.
+Reads the scanned document aloud **line by line**, without anyone's help:
+- The line being spoken is highlighted in large type and kept centred on the screen.
+- Reading is **local and free**: it uses the system's voice (Web Speech API) and no model. It sends nothing to Go.
 
 Brief: `docs/historial/briefs/didac.md`.
 
-## Uso
+## Usage
 ```tsx
 import { GuidedReader } from '../document'
 
 <GuidedReader doc={doc} />
 ```
-- `doc`: el `DocumentPayload` actual. Al llegar uno nuevo, el lector vuelve a la primera línea y no habla hasta que se le pide.
-- `voice`: opcional. Si no se pasa, usa la voz del sistema; sin síntesis de voz, solo mueve el resaltado.
-- `autoPlay`: empieza a leer en cuanto llega el documento (lo usan las opciones del overlay). Desactivado por defecto.
-- `keyboard`: atajos globales. Están activos por defecto y se ignoran mientras se escribe en un campo.
+- `doc`: the current `DocumentPayload`. When a new one arrives, the reader goes back to the first line and does not speak until asked.
+- `voice`: optional. If it is not passed, it uses the system's voice; without speech synthesis, it only moves the highlight.
+- `autoPlay`: starts reading as soon as the document arrives (the overlay options use it). Off by default.
+- `keyboard`: global shortcuts. On by default and ignored while typing in a field.
 
-| Acción | Teclas | Botón |
+| Action | Keys | Button |
 |---|---|---|
-| Leer / pausa | Espacio · Num 5 | ▶ Read / ⏸ Pause |
-| Anterior | ← · Num 4 | ⏮ Previous |
-| Siguiente | → · Num 6 | Next ⏭ |
-| Repetir | R · Num 8 | ↻ Repeat |
+| Read / pause | Space · Num 5 | ▶ Read / ⏸ Pause |
+| Previous | ← · Num 4 | ⏮ Previous |
+| Next | → · Num 6 | Next ⏭ |
+| Repeat | R · Num 8 | ↻ Repeat |
 
-Además, hacer clic en una línea la lee y sigue desde ahí. Las teclas del teclado numérico son las que podrá emitir el keypad de Logitech más adelante.
+Also, clicking a line reads it and carries on from there. The numeric keypad keys are the ones the Logitech keypad will be able to send later on.
 
-## Comportamiento
-- **Orden de lectura:** de arriba abajo y de izquierda a derecha, igual que `DocumentText`. Las líneas vacías se saltan.
-- **Líneas dudosas** (`confidence` < 0,6): se leen igualmente, precedidas de «No se lee bien:», y se marcan con «(unclear)».
-- **Final:** al acabar, el lector dice «Fin del documento.». Pulsar «Read» de nuevo empieza otra vez desde el principio.
-- **Otra voz:** si la app habla mientras tanto (por ejemplo, el `speak` de Go con la respuesta), el lector se pausa en su línea y no habla a la vez. Para seguir, pulsa «Read».
-- **Idioma:** las frases del lector van en el idioma del documento (`lang`: es, ca o en). Si no hay voz de ese idioma, usa la voz por defecto y lo avisa en pantalla.
+## Behaviour
+- **Reading order:** top to bottom and left to right, just like `DocumentText`. Empty lines are skipped.
+- **Doubtful lines** (`confidence` < 0.6): they are read anyway, preceded by «Unclear:», and marked with «(unclear)».
+- **End:** when done, the reader says «End of the document.». Pressing «Read» again starts over from the beginning.
+- **Another voice:** if the app speaks meanwhile (for example, Go's `speak` with the answer), the reader pauses on its line and does not speak at the same time. To carry on, press «Read».
+- **Language:** the reader's phrases are in the document's language (`lang`: es, ca or en; in Spanish, for example, «No se lee bien:» and «Fin del documento.»). If there is no voice for that language, it uses the default voice and says so on screen.
 
-## Página de prueba (sin Go)
-Desde `web/`:
+## Test page (without Go)
+From `web/`:
 ```
 npx vite src/document --config vite.config.ts
 ```
-Abre http://localhost:5173/demo/. Carga la carta inventada de `scanner/pdf/samples/print/01-carta-renovacion.pdf`, leída con el pipeline del escáner (20 líneas). La casilla convierte la línea 11 en dudosa, para oír cómo se anuncia.
+Open http://localhost:5173/demo/. It loads the made-up letter from `scanner/pdf/samples/print/01-carta-renovacion.pdf`, read with the scanner's pipeline (20 lines). The checkbox turns line 11 into a doubtful one, to hear how it is announced.
 
-Medido en Chrome con la voz Microsoft Helena (es-ES):
-- cada tecla cambia de línea en menos de 20 ms;
-- la carta se lee entera hasta «Fin del documento.»;
-- una voz que interrumpe deja el lector en pausa;
-- leerla no llama a ningún modelo.
+Measured in Chrome with the Microsoft Helena voice (es-ES):
+- each key changes line in under 20 ms;
+- the letter is read all the way to «Fin del documento.»;
+- an interrupting voice leaves the reader paused;
+- reading it calls no model.
 
-## Visor de PDF: leer todo el PDF (N4)
-`PdfViewer` (`PdfViewer.tsx`) y su lógica `PdfPageReader` (`pdfReader.ts`). Brief: `docs/briefs/N4.md`.
+## PDF viewer: read the whole PDF (N4)
+`PdfViewer` (`PdfViewer.tsx`) and its logic `PdfPageReader` (`pdfReader.ts`). Brief: `docs/briefs/N4.md`.
 
 ```tsx
 <PdfViewer pdf={{ id, name, pages, lang }} loadPage={(n) => desktop().PDFPage(id, n)} />
 ```
 
-**Qué hace:**
-- **Páginas:** enseña cada página del PDF (la imagen la da el servicio de lectura) con un recuadro amarillo sobre la línea que suena. Esa misma línea aparece abajo en letra muy grande, como un subtítulo.
-- **Botón «Read the whole PDF»** (o Espacio): lee de principio a fin con la voz local, a 0 $. Al empezar cada página dice «Página N de M» y pide la siguiente página mientras suena la actual.
-- **Sin límite de páginas.**
-  - Si una página escaneada aún no está lista (pasa por OCR), dice «Preparando la página N».
-  - Las páginas vacías se anuncian.
-  - Las líneas dudosas van precedidas de «No se lee bien:».
-- **Teclas:**
+**What it does:**
+- **Pages:** shows each page of the PDF (the reading service provides the image) with a yellow box over the line being spoken. That same line appears below in very large type, like a subtitle.
+- **«Read the whole PDF» button** (or Space): reads from start to end with the local voice, at $0. At the start of each page it says «Page N of M» and asks for the next page while the current one plays.
+- **No page limit.**
+  - If a scanned page is not ready yet (it goes through OCR), it says «Preparing page N».
+  - Empty pages are announced.
+  - Doubtful lines are preceded by «Unclear:».
+- **Keys:**
 
-  | Acción | Teclas |
+  | Action | Keys |
   |---|---|
-  | Leer / pausa | Espacio · Num 5 |
-  | Línea anterior / siguiente | ← → · Num 4 / Num 6 |
-  | Repetir | R · Num 8 |
-  | Parar (vuelve al principio) | X |
-  | Velocidad 0,75× a 1,5× | + / − · Num + / Num − |
-  | Página anterior / siguiente | RePág / AvPág |
-  | Ir a una página | G |
+  | Read / pause | Space · Num 5 |
+  | Previous / next line | ← → · Num 4 / Num 6 |
+  | Repeat | R · Num 8 |
+  | Stop (back to the start) | X |
+  | Speed 0.75× to 1.5× | + / − · Num + / Num − |
+  | Previous / next page | PgUp / PgDn |
+  | Go to a page | G |
 
-- **Idioma:** las frases y la voz van en es, ca o en, según el idioma detectado en el PDF.
+- **Language:** the phrases and the voice are in es, ca or en, depending on the language detected in the PDF.
 
-## Archivos
-| Archivo | Contenido |
+## Files
+| File | Contents |
 |---|---|
-| `reader.ts` | Lógica pura, sin interfaz: `LineReader`, el orden de lectura, los atajos y las frases |
-| `voice.ts` | La voz del sistema (`webSpeechVoice`) y la alternativa sin síntesis de voz (`silentVoice`) |
-| `GuidedReader.tsx` | La vista |
-| `pdfReader.ts` | Lógica pura del visor de PDF (`PdfPageReader`): páginas, controles, avisos y teclas |
-| `PdfViewer.tsx` | El visor de PDF |
-| `demo/` | La página de prueba |
-| `test/` | Los tests (`npm test`) |
+| `reader.ts` | Pure logic, no interface: `LineReader`, the reading order, the shortcuts and the phrases |
+| `voice.ts` | The system's voice (`webSpeechVoice`) and the alternative without speech synthesis (`silentVoice`) |
+| `GuidedReader.tsx` | The view |
+| `pdfReader.ts` | Pure logic of the PDF viewer (`PdfPageReader`): pages, controls, notices and keys |
+| `PdfViewer.tsx` | The PDF viewer |
+| `demo/` | The test page |
+| `test/` | The tests (`npm test`) |
 
-## Montarlo en la app (para Isaac, `web/src/app/App.tsx`)
+## Mounting it in the app (for Isaac, `web/src/app/App.tsx`)
 ```diff
 +import { GuidedReader } from '../document'
  ...
@@ -94,4 +94,4 @@ Medido en Chrome con la voz Microsoft Helena (es-ES):
 +          <GuidedReader doc={doc} />
          </section>
 ```
-Si `DocumentText` se mantiene para el dictado de formularios (`values` y `draft`), las dos vistas pueden convivir, por ejemplo con una pestaña «Read» y otra «Fill in». Esa decisión es de Isaac.
+If `DocumentText` is kept for form dictation (`values` and `draft`), the two views can coexist, for example with a «Read» tab and a «Fill in» one. That decision is Isaac's.
