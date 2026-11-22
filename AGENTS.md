@@ -210,6 +210,12 @@ Relación con lo anterior:
 - Las secciones «Plan actual» y «Roles y carpetas» describen el reparto anterior: **úsalas solo como mapa de quién conoce cada parte.** El reparto vigente es el de `TAREAS.md`.
 
 ## Decisiones
+- 2026-11-22 — **Diseño final del overlay, «Halo»** (Didac, `docs/DISENO.md`).
+  - Una capa a pantalla completa y sin marco, como Xbox Game Bar.
+  - Gesture Control en el círculo grande del centro, y PDF Scanner, Read Text, AI Summary y Transcribe (*Coming soon*) en un arco por encima.
+  - Cada herramienta abre un panel de cristal con la misma cabecera.
+  - Tipografía Atkinson Hyperlegible, un color por herramienta y el amarillo para lo que se lee y el foco.
+  - Las pantallas nuevas usan los tokens y los componentes de `index.css` y `web/src/app/overlay/ui.tsx`.
 - 2026-11-22 — **MX Keypad (N2, Isaac; `docs/KEYPAD.md`, brief `docs/briefs/N2.md`):**
   - **Lectura directa por USB, sin Logi Options+ ni SDK:** el keypad (VID 046D, PID C354) envía `13 ff 02 00 <contador> 01 <tecla>` en una colección HID del fabricante. Comprobado con el keypad real.
   - **Respaldo:** la tecla N tiene el atajo global Ctrl+Alt+Shift+N.

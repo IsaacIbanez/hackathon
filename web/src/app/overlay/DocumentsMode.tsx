@@ -4,6 +4,7 @@ import { captureStill, openCamera, startFramingGuide, type FramingGuide } from '
 import { GuidedReader } from '../../document/index.ts'
 import { Speaker } from '../../input/voice/speaker.ts'
 import { blobToDataURL, desktop, errorText } from './desktop.ts'
+import { Status } from './ui.tsx'
 
 // Option 2 (Pau B1 + Didac B2): the camera with the spoken framing guide takes the photo on its own
 // when the paper is still (Enter takes it now), the reading service reads it and the guided reader
@@ -46,12 +47,12 @@ export function DocumentsMode() {
       speaker.stop()
       setDoc(result)
       setPhase('done')
-      setMessage(`${result.blocks.length} lines read.`)
+      setMessage(`Done: ${result.blocks.length} lines. Listen below, or read another paper.`)
     } catch (e) {
       const text = errorText(e)
       const noPage = text.startsWith('no_page')
       setPhase('error')
-      setMessage(noPage ? 'No sheet found. Press Enter to try again.' : `Could not read it: ${text}. Press Enter to try again.`)
+      setMessage(noPage ? 'No sheet found. Hold the whole page flat in front of the camera, then try again.' : `The paper could not be read (${text}). Try again.`)
       speaker.speak({ text: noPage ? SAY.noPage : SAY.failed, lang: LANG })
     }
   }
@@ -75,20 +76,20 @@ export function DocumentsMode() {
         video.srcObject = stream
         await video.play()
         setPhase('framing')
-        setMessage('Hold the paper still in front of the camera (Enter = take the photo now).')
+        setMessage('Hold the paper still in front of the camera. The photo is taken on its own.')
         speaker.speak({ text: SAY.start, lang: LANG })
         guideRef.current = startFramingGuide(video, {
           lang: LANG,
           onHint: (_hint, text) => speaker.speak({ text, lang: LANG }),
           onCapture: (still) => void readRef.current(still),
-          onError: (err) => setMessage(`Framing guide stopped: ${errorText(err)}. Press Enter to take the photo.`),
+          onError: (err) => setMessage(`The automatic photo stopped (${errorText(err)}). Take the photo with the button.`),
         })
       } catch (e) {
         setPhase('error')
-        setMessage(`No camera: ${errorText(e)}`)
+        setMessage(`No camera found (${errorText(e)}). Connect one and try again.`)
       }
       const problem = await service
-      if (problem && !cancelled) setMessage((m) => `${m} — Reading service: ${problem}`)
+      if (problem && !cancelled) setMessage((m) => `${m} The reading service did not start: ${problem}`)
     })()
     return () => {
       cancelled = true
@@ -97,36 +98,62 @@ export function DocumentsMode() {
     }
   }, [attempt, speaker])
 
-  // Enter: take the photo now (framing) or try again (error / done).
+  // Take the photo now (while framing) or start again (after an error or a read paper).
+  const takeNow = async () => {
+    if (phase !== 'framing' || !videoRef.current) return
+    guideRef.current?.stop()
+    void readRef.current(await captureStill(videoRef.current))
+  }
+  const again = () => {
+    setDoc(null)
+    setPhase('starting')
+    setMessage('Starting the camera…')
+    setAttempt((a) => a + 1)
+  }
+  const actions = useRef({ takeNow, again })
   useEffect(() => {
-    const onKey = async (e: KeyboardEvent) => {
+    actions.current = { takeNow, again }
+  })
+
+  // Enter does the same as the button on screen.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
       if (e.code !== 'Enter' && e.code !== 'NumpadEnter') return
       e.preventDefault()
-      if (phase === 'framing' && videoRef.current) {
-        guideRef.current?.stop()
-        void readRef.current(await captureStill(videoRef.current))
-      } else if (phase === 'error' || phase === 'done') {
-        setDoc(null)
-        setPhase('starting')
-        setMessage('Starting the camera…')
-        setAttempt((a) => a + 1)
-      }
+      if (phase === 'framing') void actions.current.takeNow()
+      else if (phase === 'error' || phase === 'done') actions.current.again()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [phase])
 
   return (
-    <div className="space-y-4">
-      <p role="status" aria-live="polite" className="text-2xl">
-        {message}
-      </p>
+    <div className="flex h-full flex-col gap-4">
+      <Status tone={phase === 'error' ? 'warn' : 'info'}>{message}</Status>
       {(phase === 'starting' || phase === 'framing') && (
-        <video ref={videoRef} muted playsInline className="max-h-[50vh] w-full rounded-xl bg-black object-contain" />
+        <div className="relative min-h-[18rem] flex-1 overflow-hidden rounded-[1.5rem] border border-[var(--color-line)] bg-black">
+          <video ref={videoRef} muted playsInline className="h-full w-full object-contain" />
+          {phase === 'framing' && (
+            <button type="button" onClick={() => void takeNow()} className="btn btn-primary absolute bottom-5 left-1/2 -translate-x-1/2 text-xl">
+              Take the photo now <span className="kbd">Enter</span>
+            </button>
+          )}
+        </div>
+      )}
+      {phase === 'error' && (
+        <div>
+          <button type="button" onClick={again} className="btn btn-primary text-xl">
+            Try again <span className="kbd">Enter</span>
+          </button>
+        </div>
       )}
       {phase === 'done' && (
         <>
-          <p className="text-lg text-slate-400">Enter = read another paper.</p>
+          <div>
+            <button type="button" onClick={again} className="btn">
+              Read another paper <span className="kbd">Enter</span>
+            </button>
+          </div>
           <GuidedReader doc={doc} autoPlay />
         </>
       )}

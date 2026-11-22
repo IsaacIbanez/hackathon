@@ -21,8 +21,8 @@ import (
 
 // Size of the summary bubble (logical pixels, like the rest of the window sizes).
 const (
-	bubbleWidth  = 540
-	bubbleHeight = 420
+	bubbleWidth  = 600
+	bubbleHeight = 480
 )
 
 // SummaryResult is what option 4 shows: the summary plus whether it was copied.
@@ -66,6 +66,9 @@ func (a *App) showBubble() {
 	a.overlay.visible = true
 	a.overlay.bubble = true
 	a.overlay.mu.Unlock()
+	if wruntime.WindowIsFullscreen(ctx) {
+		wruntime.WindowUnfullscreen(ctx) // out of the full-screen layer, into a bubble
+	}
 	wruntime.WindowShow(ctx)
 	wruntime.WindowSetAlwaysOnTop(ctx, true)
 	where, placed := overlay.PlaceNearCursor(bubbleWidth, bubbleHeight)

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DocumentPayload } from '../../api'
 import { GuidedReader, PdfViewer, type PdfSource } from '../../document/index.ts'
 import { desktop, errorText } from './desktop.ts'
+import { Status } from './ui.tsx'
 
 // Option 3 (Didac, B2): choose a file on the computer and listen to it. A PDF opens in the PDF
 // viewer, which shows the real pages and reads the whole PDF with one button, page by page (task N4,
@@ -67,17 +68,10 @@ export function ReadFileMode({ onCancel }: { onCancel: () => void }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-4">
-        <p role="status" aria-live="polite" className="text-2xl">
-          {busy ? 'Choose a document… (a scanned PDF or an image takes a few seconds per page)' : message}
-        </p>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => void open()}
-          className="rounded-xl border-2 border-yellow-300 px-4 py-2 text-xl font-bold disabled:opacity-50"
-        >
-          Open another file <span className="text-base font-normal opacity-80">(O)</span>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <Status>{busy ? 'Choose a document. A scanned PDF or an image takes a few seconds per page.' : message}</Status>
+        <button type="button" disabled={busy} onClick={() => void open()} className="btn">
+          Open another file <span className="kbd">O</span>
         </button>
       </div>
       {pdf && <PdfViewer key={pdf.id} pdf={pdf} loadPage={(n) => desktop().PDFPage(pdf.id, n)} />}

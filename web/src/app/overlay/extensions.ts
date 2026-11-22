@@ -27,14 +27,14 @@ export interface ToolbarButton {
 export const TOOLBAR: ToolbarButton[] = [
   {
     id: 'developer',
-    label: '🛠 Developer screen',
+    label: 'Developer screen',
     key: 'D',
     show: (ctx) => ctx.view === 'menu',
     run: (ctx) => ctx.setView('developer'),
   },
   {
     id: 'hide',
-    label: '↘ Hide',
+    label: 'Hide',
     key: 'Esc',
     // With the gestures running, Go shrinks the window to the camera bubble instead of hiding it.
     show: () => inDesktopApp(),
@@ -42,7 +42,7 @@ export const TOOLBAR: ToolbarButton[] = [
   },
   {
     id: 'quit',
-    label: '✕ Quit',
+    label: 'Quit',
     key: 'Q',
     show: () => inDesktopApp(),
     run: () => void desktop().Quit(),

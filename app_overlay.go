@@ -56,6 +56,9 @@ type overlayState struct {
 	// so the gestures' keys (Enter, shortcuts) go to it and not to this window.
 	before uintptr
 	bubble bool // shrunk to the summary bubble next to the pointer (option 4, app_summary.go)
+	// layer: the overlay covers the whole screen as a see-through layer (the menu and the reading
+	// options, docs/DISENO.md); false for Gesture Control, whose clicks must reach the programs below.
+	layer bool
 }
 
 // startOverlay registers the shortcut; the window starts visible so the person sees it once.
@@ -192,11 +195,42 @@ func (a *App) toggleOverlay(ctx context.Context) {
 }
 
 func (a *App) showOverlay(ctx context.Context) {
+	a.overlay.mu.Lock()
+	layer := a.overlay.layer && !a.overlay.compact && !a.overlay.bubble
+	a.overlay.mu.Unlock()
 	wruntime.WindowShow(ctx)
 	wruntime.WindowUnminimise(ctx)
-	wruntime.WindowCenter(ctx)
+	if layer {
+		wruntime.WindowFullscreen(ctx)
+	} else {
+		wruntime.WindowCenter(ctx)
+	}
 	wruntime.WindowSetAlwaysOnTop(ctx, true)
 	wruntime.EventsEmit(ctx, "overlay:shown")
+}
+
+// SetLayer makes the overlay a see-through layer over the whole screen (true: the menu and the
+// reading options, like Xbox Game Bar) or a normal window (false: Gesture Control, whose clicks
+// must reach the programs below, and its camera bubble). The UI calls it when the view changes.
+func (a *App) SetLayer(on bool) {
+	o := &a.overlay
+	o.mu.Lock()
+	o.layer = on
+	apply := o.visible && !o.compact && !o.bubble && !o.screen
+	o.mu.Unlock()
+	if !apply {
+		return // applied the next time the window is shown
+	}
+	ctx := a.ctx
+	if on {
+		wruntime.WindowFullscreen(ctx)
+		return
+	}
+	if wruntime.WindowIsFullscreen(ctx) {
+		wruntime.WindowUnfullscreen(ctx)
+	}
+	wruntime.WindowSetSize(ctx, overlayWidth, overlayHeight)
+	wruntime.WindowCenter(ctx)
 }
 
 // OverlayInfo tells the UI how the overlay is opened.
@@ -435,7 +469,8 @@ func (a *App) setCompact(ctx context.Context, on bool) {
 	wasScreen := o.screen
 	o.screen = false
 	o.mu.Unlock()
-	if wasScreen {
+	// Out of the full-screen gesture menu or of the full-screen layer (docs/DISENO.md).
+	if wasScreen || wruntime.WindowIsFullscreen(ctx) {
 		wruntime.WindowUnfullscreen(ctx)
 	}
 	wruntime.WindowShow(ctx)
@@ -449,6 +484,12 @@ func (a *App) setCompact(ctx context.Context, on bool) {
 	}
 	wruntime.WindowSetSize(ctx, overlayWidth, overlayHeight)
 	wruntime.WindowCenter(ctx)
+	o.mu.Lock()
+	layer := o.layer
+	o.mu.Unlock()
+	if layer { // back to the full-screen layer of the screen that was open
+		wruntime.WindowFullscreen(ctx)
+	}
 	wruntime.EventsEmit(ctx, "overlay:expanded")
 	wruntime.EventsEmit(ctx, "overlay:shown")
 }

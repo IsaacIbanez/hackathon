@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { Speaker } from '../../input/voice/speaker.ts'
 import { desktop, errorText, inDesktopApp, type SummaryResult } from './desktop.ts'
+import { Icon } from './ui.tsx'
 
 // Option 4 (Didac, B2): summarize the text selected in another program. Go copies the selection
 // (the program that was in front when the overlay opened), summarizes it with the cheap model
@@ -66,42 +67,79 @@ export function SummarizeMode({ onClose }: { onClose: () => void }) {
     return () => window.removeEventListener('keydown', onKey, { capture: true })
   }, [speaker, onClose, state])
 
+  const close = () => {
+    speaker.stop()
+    onClose()
+    if (inDesktopApp()) void desktop().CloseSummary()
+  }
+
+  // While Go copies and summarizes, the window is still the full-screen layer: a card in the middle.
+  if (state.phase === 'working') {
+    return (
+      <div className="halo-layer grid place-items-center" style={{ '--accent': 'var(--color-ai)' } as CSSProperties}>
+        <div className="glass flex items-center gap-4 rounded-full px-8 py-5" style={{ animation: 'rise .2s ease-out' }}>
+          <span className="grid size-12 place-items-center rounded-full bg-[color-mix(in_oklab,var(--color-ai)_22%,transparent)] text-[var(--color-ai)]">
+            <Icon name="ai" size={26} />
+          </span>
+          <p role="status" aria-live="polite" className="text-2xl">
+            Summarizing the selected text…
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // The bubble next to the pointer: the whole (small) window.
   return (
-    <section aria-label="Summary" className="flex h-full flex-col gap-3">
-      {state.phase === 'working' && (
-        <p role="status" aria-live="polite" className="text-2xl">
-          Summarizing the selected text…
-        </p>
-      )}
-      {state.phase === 'done' && (
+    <section
+      aria-label="AI Summary"
+      className="glass flex h-screen flex-col gap-3 rounded-[1.75rem] p-5"
+      style={{ '--accent': 'var(--color-ai)' } as CSSProperties}
+    >
+      <header className="flex items-center gap-3" style={{ '--wails-draggable': 'drag' } as CSSProperties}>
+        <span className="grid size-10 place-items-center rounded-full bg-[color-mix(in_oklab,var(--color-ai)_22%,transparent)] text-[var(--color-ai)]">
+          <Icon name="ai" size={22} />
+        </span>
+        <h1 className="flex-1 text-lg font-bold text-[var(--color-mist)]">AI Summary</h1>
+        <button type="button" onClick={close} className="btn min-h-0 py-1.5 text-base" style={{ '--wails-draggable': 'no-drag' } as CSSProperties}>
+          Close <span className="kbd">Esc</span>
+        </button>
+      </header>
+      {state.phase === 'done' ? (
         <>
-          <p role="status" aria-live="polite" className="overflow-auto text-xl leading-snug font-semibold">
+          <p role="status" aria-live="polite" className="min-h-0 flex-1 overflow-auto text-xl leading-snug font-bold [text-wrap:pretty]">
             {state.result.summary}
           </p>
-          <p className="text-sm text-slate-400">{details(state.result)}</p>
+          <ul className="flex flex-wrap gap-2 text-sm text-[var(--color-mist)]" aria-label="About this summary">
+            {details(state.result).map((d) => (
+              <li key={d} className="rounded-full bg-white/8 px-3 py-1">
+                {d}
+              </li>
+            ))}
+            <li className="rounded-full bg-white/8 px-3 py-1">
+              <span className="kbd">R</span> repeats
+            </li>
+          </ul>
         </>
-      )}
-      {state.phase === 'error' && (
-        <p role="alert" className="text-xl text-amber-300">
+      ) : (
+        <p role="alert" className="flex-1 text-xl leading-snug text-[var(--color-scan)]">
           {state.message}
         </p>
       )}
-      <p className="mt-auto text-sm text-slate-500">{state.phase === 'done' ? 'Esc closes · R repeats' : 'Esc closes'}</p>
     </section>
   )
 }
 
-function details(r: SummaryResult): string {
-  const parts = [r.copied ? '✓ Copied' : 'Not copied']
+function details(r: SummaryResult): string[] {
+  const parts = [r.copied ? 'Copied to the clipboard' : 'Not copied']
   if (r.source === 'cloud') {
-    parts.push(`summarized in the cloud${r.model ? ` (${r.model})` : ''}`)
-    parts.push(r.cached ? 'cached, 0 $' : `${r.costUsd.toFixed(5)} $`)
+    parts.push(r.cached ? 'From the cache, 0 $' : `Cloud AI, ${r.costUsd.toFixed(5)} $`)
     parts.push(`${(r.latencyMs / 1000).toFixed(1)} s`)
   } else if (r.source === 'local') {
-    parts.push('summarized on this computer, 0 $')
+    parts.push('On this computer, 0 $')
   } else {
-    parts.push('short text, read as it is')
+    parts.push('Short text, read as it is')
   }
-  if (r.truncated) parts.push(`only the first part of ${r.chars} characters`)
-  return parts.join(' · ')
+  if (r.truncated) parts.push(`Only the start of ${r.chars} characters`)
+  return parts
 }

@@ -1,14 +1,24 @@
-// The overlay's options. To add one (docs/OVERLAY.md, «Añadir una opción»): add an entry here and a
-// component in Overlay.tsx's MODE_VIEWS. `ready: false` shows it as "coming soon" without breaking.
+// The overlay's tools (docs/OVERLAY.md and the design, docs/DISENO.md). The hub in the middle is
+// Gesture Control; the others sit on an arc above it. To add one: add an entry here (with its icon,
+// colour and place on the arc) and its view in Overlay.tsx. `ready: false` shows it as "Coming soon".
 
-export type ModeId = 'gestures' | 'documents' | 'read-file' | 'summarize'
+import type { IconName } from './ui.tsx'
+
+export type ModeId = 'gestures' | 'documents' | 'read-file' | 'summarize' | 'transcribe'
 
 export interface Mode {
   id: ModeId
   /** Digit that opens it (also on the numeric keypad, so the MX Keypad can send it). */
   key: string
+  /** Name on the hub and on the panel. */
   title: string
+  /** What it does, in a few words, from the person's point of view. */
   description: string
+  icon: IconName
+  /** CSS colour of the tool (index.css). */
+  accent: string
+  /** 'hub' is the big circle in the middle; 'arc' tools go on the arc above it, left to right. */
+  place: 'hub' | 'arc'
   /** Owner (person and role), for whoever maintains it. */
   owner: string
   ready: boolean
@@ -18,34 +28,57 @@ export const MODES: Mode[] = [
   {
     id: 'gestures',
     key: '1',
-    title: 'Hand gestures',
-    description: 'Control the computer with your hands through the camera (Gesture Control).',
+    title: 'Gesture Control',
+    description: 'Use the computer with your hands, through the camera.',
+    icon: 'hand',
+    accent: 'var(--color-hand)',
+    place: 'hub',
     owner: 'Nil (C)',
     ready: true,
   },
   {
     id: 'documents',
     key: '2',
-    title: 'Read a paper document',
-    description: 'Hold the paper in front of the camera: it is photographed on its own and read aloud.',
+    title: 'PDF Scanner',
+    description: 'Hold a paper in front of the camera. It is photographed and read to you.',
+    icon: 'scan',
+    accent: 'var(--color-scan)',
+    place: 'arc',
     owner: 'Pau (B1) and Didac (B2)',
     ready: true,
   },
   {
     id: 'read-file',
     key: '3',
-    title: 'Read a file aloud',
-    description: 'Choose a PDF, text file or image from the computer and listen to it line by line.',
+    title: 'Read Text',
+    description: 'Open a PDF, text file or image and listen to it, line by line.',
+    icon: 'read',
+    accent: 'var(--color-read)',
+    place: 'arc',
     owner: 'Didac (B2)',
     ready: true,
   },
   {
     id: 'summarize',
     key: '4',
-    title: 'Summarize the selected text',
-    description: 'Select text in any program, open this window and press 4: a short summary, said aloud and copied.',
+    title: 'AI Summary',
+    description: 'Select text in any program, then press 4. You hear a short summary.',
+    icon: 'ai',
+    accent: 'var(--color-ai)',
+    place: 'arc',
     owner: 'Didac (B2)',
     ready: true,
+  },
+  {
+    id: 'transcribe',
+    key: '5',
+    title: 'Transcribe',
+    description: 'Live captions of what people around you say.',
+    icon: 'voice',
+    accent: 'var(--color-voice)',
+    place: 'arc',
+    owner: 'Pau (B1)',
+    ready: false,
   },
 ]
 

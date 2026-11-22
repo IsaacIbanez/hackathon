@@ -24,15 +24,11 @@ export function GesturesMode() {
   }
   return (
     <div className="space-y-3">
-      <p className="text-lg text-slate-400">
-        <button
-          type="button"
-          onClick={() => void desktop().SetCompact(true)}
-          className="mr-2 rounded-lg border border-slate-500 px-3 py-1 text-slate-100"
-        >
-          Shrink to a camera bubble (M)
+      <p className="flex flex-wrap items-center gap-3 text-lg text-[var(--color-mist)]">
+        <button type="button" onClick={() => void desktop().SetCompact(true)} className="btn btn-primary">
+          Shrink to a camera bubble <span className="kbd">M</span>
         </button>
-        The gestures keep working while it is small; the shortcut or a double click brings this window back.
+        Gestures keep working while it is small. The shortcut or a double click brings this window back.
       </p>
       <GestureSlot variant="full" />
     </div>

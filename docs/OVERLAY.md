@@ -2,14 +2,17 @@
 
 Rama `overlay`, creada el 2026-11-21. Brief de Isaac: `docs/briefs/isaac.md`.
 
-La app de escritorio deja de ser una ventana normal y pasa a ser un **overlay**: una ventana siempre encima de las demás que se abre desde cualquier programa con **Ctrl+Alt+Espacio**. El **MX Keypad** de Logitech también puede abrirla si en Logi Options+ se asigna esa combinación a una de sus teclas. El overlay ofrece las funcionalidades del equipo como opciones:
+La app de escritorio deja de ser una ventana normal y pasa a ser un **overlay**: una ventana siempre encima de las demás que se abre desde cualquier programa con **Ctrl+Alt+Espacio**. El **MX Keypad** de Logitech también puede abrirla si en Logi Options+ se asigna esa combinación a una de sus teclas. El overlay ofrece las funcionalidades del equipo como opciones.
+
+**Diseño (2026-11-22):** una capa a pantalla completa, al estilo Xbox Game Bar. Gesture Control va en un círculo grande en el centro y las demás herramientas en un arco por encima, con los nombres en inglés que aparecen entre paréntesis. Todo sigue el sistema «Halo», descrito en `docs/DISENO.md`.
 
 | Tecla | Opción | De quién | Qué hace |
 |---|---|---|---|
-| **1** | Gestos con la mano | Nil (C) | **Gesture Control** dentro de la propia ventana: la cámara ve la mano y controla el ordenador (ratón, volumen, brillo, micrófono, apps, apagado, videollamada) |
-| **2** | Leer un papel | Pau (B1) y Didac (B2) | Cámara con la guía de encuadre por voz → foto automática → servicio de lectura → **lectura guiada** en voz alta |
-| **3** | Leer un archivo | Didac (B2) | Pide un documento del PC. Un **PDF** se abre en un **visor** con las páginas de verdad y un botón «Read the whole PDF» que lo lee entero, página a página y sin límite (N4, `docs/briefs/N4.md`). El texto y las imágenes se leen línea a línea (**lectura guiada**) |
-| **4** | Resumir el texto seleccionado | Didac (B2) | Resume en 2–3 frases sencillas el texto seleccionado en **cualquier programa**: lo dice en voz alta, lo copia al portapapeles y lo enseña en una burbuja junto al cursor (sección «Opción 4») |
+| **1** | Gestos con la mano (*Gesture Control*, centro) | Nil (C) | **Gesture Control** dentro de la propia ventana: la cámara ve la mano y controla el ordenador (ratón, volumen, brillo, micrófono, apps, apagado, videollamada) |
+| **2** | Leer un papel (*PDF Scanner*) | Pau (B1) y Didac (B2) | Cámara con la guía de encuadre por voz → foto automática → servicio de lectura → **lectura guiada** en voz alta |
+| **3** | Leer un archivo (*Read Text*) | Didac (B2) | Pide un documento del PC. Un **PDF** se abre en un **visor** con las páginas de verdad y un botón «Read the whole PDF» que lo lee entero, página a página y sin límite (N4, `docs/briefs/N4.md`). El texto y las imágenes se leen línea a línea (**lectura guiada**) |
+| **4** | Resumir el texto seleccionado (*AI Summary*) | Didac (B2) | Resume en 2–3 frases sencillas el texto seleccionado en **cualquier programa**: lo dice en voz alta, lo copia al portapapeles y lo enseña en una burbuja junto al cursor (sección «Opción 4») |
+| 5 | Subtítulos en directo (*Transcribe*) | Pau (B1) | Aún no está en `main`: el círculo dice «Coming soon» |
 
 Las opciones 1 a 3 son **locales y gratuitas**: no llaman a ningún modelo de IA. La 4 usa el **modelo barato**: unos 0,0001 $ por resumen, con el coste a la vista. Sin clave, resume en local.
 
