@@ -79,7 +79,7 @@ func (a *App) startOverlay(ctx context.Context) {
 		if i == 0 {
 			a.toggleOverlay(ctx)
 		} else {
-			a.keypadPressed(ctx, pad[i-1].Action)
+			a.keypadPressed(ctx, i, pad[i-1].Action)
 		}
 	})
 	o.stopKey = stop
@@ -103,7 +103,7 @@ func (a *App) startOverlay(ctx context.Context) {
 		// The keypad itself, read over USB without Logi Options+: key n does row n of the table.
 		o.stopPad = overlay.ListenKeypad(func(n int) {
 			if act, ok := overlay.KeypadActionForKey(n); ok {
-				a.keypadPressed(ctx, act)
+				a.keypadPressed(ctx, n, act)
 			}
 		}, func(on bool) {
 			o.mu.Lock()
@@ -120,7 +120,11 @@ func (a *App) startOverlay(ctx context.Context) {
 
 // keypadPressed runs an MX Keypad action: it shows the overlay if needed and tells the UI, which
 // does the action (web/src/app/overlay/keypad.ts). It works while another program has the focus.
-func (a *App) keypadPressed(ctx context.Context, action overlay.KeypadAction) {
+func (a *App) keypadPressed(ctx context.Context, key int, action overlay.KeypadAction) {
+	log.Printf("overlay: keypad key %d -> %s", key, action)
+	if action == overlay.KeypadOff {
+		return // turned off: it does not even show the overlay
+	}
 	// Like the shortcut: remember the program in front before the overlay takes the focus, so
 	// option 4 (summarize the selection) copies from it.
 	overlay.RememberTarget()
@@ -434,17 +438,18 @@ func (a *App) SetScreenOverlay(on bool) {
 	a.setWindow(func(in *windowInputs) { in.gestureScreen = on }, false)
 }
 
-// placeBubble puts the bubble above the taskbar, in the bottom-right or bottom-left corner.
+// placeBubble puts the camera bubble in the top-left corner (top right after it dodged the gesture
+// cursor). Isaac, 2026-11-22: small, top left, and it only moves when the hand's cursor is on it.
 func (a *App) placeBubble(ctx context.Context) {
 	a.window.mu.Lock()
-	left := a.window.leftCorner
+	left := !a.window.rightCorner
 	a.window.mu.Unlock()
 	// On Windows, in real pixels: Wails sizes windows scaled by the display scaling but positions
 	// them unscaled, so with 125 % or 150 % scaling its corner is not the corner.
-	if overlay.PlaceInCorner(windowTitle, left, compactMargin) {
+	if overlay.PlaceInCorner(windowTitle, left, true, compactMargin) {
 		return
 	}
-	sw, sh := currentScreen(ctx)
+	sw, _ := currentScreen(ctx)
 	if sw == 0 {
 		return
 	}
@@ -452,10 +457,10 @@ func (a *App) placeBubble(ctx context.Context) {
 	if left {
 		x = compactMargin
 	}
-	wruntime.WindowSetPosition(ctx, x, sh-compactHeight-3*compactMargin)
+	wruntime.WindowSetPosition(ctx, x, compactMargin)
 }
 
-// MoveBubble moves the camera bubble to the other bottom corner. The page calls it when the gesture
+// MoveBubble moves the camera bubble to the other top corner. The page calls it when the gesture
 // cursor comes near the bubble: clicks on it would go to this window instead of the program below.
 func (a *App) MoveBubble() {
 	w := &a.window
@@ -464,7 +469,7 @@ func (a *App) MoveBubble() {
 		w.mu.Unlock()
 		return
 	}
-	w.leftCorner = !w.leftCorner
+	w.rightCorner = !w.rightCorner
 	w.mu.Unlock()
 	a.placeBubble(a.ctx)
 }

@@ -1,4 +1,4 @@
-// Voice commands for the overlay (keypad keys 2 and 3: start and stop recording, docs/KEYPAD.md).
+// Voice commands for the overlay (keypad key 7: press to record, again to stop, docs/KEYPAD.md).
 // The recording is transcribed by Go (POST /transcribe) and this turns the text into one of the
 // actions the keypad already has. Spanish, Catalan and English; pure, tested without a browser.
 

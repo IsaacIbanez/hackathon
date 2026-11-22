@@ -23,7 +23,7 @@ func OtherForeground() uintptr { return 0 }
 func RestoreForeground(uintptr) {}
 
 // PlaceInCorner is only implemented on Windows (the caller falls back to Wails' positioning).
-func PlaceInCorner(string, bool, int) bool { return false }
+func PlaceInCorner(string, bool, bool, int) bool { return false }
 
 // ListenAll is only implemented on Windows: every hotkey fails.
 func ListenAll(keys []Hotkey, _ func(int)) (stop func(), errs []error) {

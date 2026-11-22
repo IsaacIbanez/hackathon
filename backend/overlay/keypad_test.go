@@ -15,7 +15,7 @@ func TestKeypadFromEnv(t *testing.T) {
 		if !h.Ctrl || !h.Alt || !h.Shift || h.Win {
 			t.Errorf("%s: want ctrl+alt+shift, got %s", k.Action, h)
 		}
-		if seen[h.Text] || actions[k.Action] {
+		if seen[h.Text] || (actions[k.Action] && k.Action != KeypadOff) {
 			t.Errorf("duplicate shortcut or action: %s %s", h, k.Action)
 		}
 		seen[h.Text], actions[k.Action] = true, true
@@ -28,8 +28,13 @@ func TestKeypadFromEnv(t *testing.T) {
 			t.Errorf("key %d: fallback must be ctrl+alt+shift+%d, got %s", i+1, i+1, k.Hotkey)
 		}
 	}
-	if keys[0].Action != KeypadToggle || keys[1].Action != KeypadRecord || keys[2].Action != KeypadStopRec {
-		t.Errorf("keys 1-3 must open the app and start/stop recording: %+v", keys[:3])
+
+	want := []KeypadAction{KeypadToggle, KeypadDocument, KeypadReadFile, KeypadSummary, KeypadTranscribe,
+		KeypadGestures, KeypadRecToggle, KeypadPlay, KeypadMenu}
+	for i, k := range keys {
+		if k.Action != want[i] {
+			t.Errorf("key %d: got %s, want %s (docs/KEYPAD.md)", i+1, k.Action, want[i])
+		}
 	}
 
 	t.Setenv("LAUZHACK_KEYPAD", "Off")

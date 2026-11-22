@@ -71,21 +71,33 @@
 .gc #action:empty { display: none; }
 .gc #action.error { background: var(--bad); color: var(--ink); }
 
-/* Fist menu: glass tiles around the hand; the one pointed at gets the tool's colour, the chosen one
-   is filled in yellow (what is chosen, like what is being read). */
+/* Fist menu (docs/DESIGN.md): nine places around the hand, as before; each option is a compact
+   sheet with a drawn icon, its name and, for toggles, its state. Holding fills it with the
+   highlighter (the same mark as the line being read); the chosen one stays highlighted. */
 .gc #menu { position: absolute; inset: 0; display: grid; background: var(--scrim);
   grid-template: "ul up ur" 1fr "left center right" 1fr "dl down dr" 1fr / 1fr 1fr 1fr; }
 .gc #menu[hidden] { display: none; }
-.gc #menu .op { --p: 0; margin: 10px; display: flex; align-items: center; justify-content: center; text-align: center;
-  border-radius: 1.5rem; font-size: clamp(13px, 3.6cqw, 48px); font-weight: 700; line-height: 1.15; padding: .2em;
-  background: var(--glass); border: 1px solid var(--line);
-  background-image: linear-gradient(90deg, var(--dwell) calc(var(--p) * 100%), transparent 0); }
+.gc #menu .op { --p: 0; place-self: center; width: min(86%, 15em); min-height: 4.6em; display: grid;
+  grid-template: "icon name" auto "icon state" auto / auto 1fr; align-content: center; column-gap: .6em;
+  padding: .55em .8em; border-radius: 1rem; text-align: left; font-size: clamp(12px, 2.6cqw, 34px);
+  font-weight: 700; line-height: 1.12; color: var(--text); background-color: var(--glass);
+  border: 2px solid var(--line); box-shadow: 0 12px 28px -12px rgb(0 0 0 / 0.5);
+  background-image: linear-gradient(var(--dwell), var(--dwell)); background-repeat: no-repeat;
+  background-size: calc(var(--p) * 100%) 100%; transition: border-color .14s, transform .14s; }
 .gc #menu .op:empty { visibility: hidden; }
-.gc #menu .op.active { border: 4px solid var(--hand); color: var(--text); }
-.gc #menu .op.chosen { background: var(--mark); color: var(--ink); border-color: var(--mark); }
-.gc #menu .center { grid-area: center; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  text-align: center; color: var(--muted); font-size: clamp(11px, 2cqw, 26px); }
-.gc #menu .center strong { font-size: clamp(14px, 3.2cqw, 40px); color: var(--text); }
+.gc #menu .op .op-icon { grid-area: icon; width: 1.6em; height: 1.6em; color: var(--muted); }
+.gc #menu .op .op-name { grid-area: name; align-self: end; }
+.gc #menu .op .op-state { grid-area: state; align-self: start; font-size: .68em; font-weight: 400; color: var(--muted); }
+.gc #menu .op .op-name:only-of-type { grid-row: 1 / 3; align-self: center; }
+/* Pointed at: a strong edge and a little lift; the icon takes the text colour. */
+.gc #menu .op.active { border-color: var(--mark); transform: scale(1.04); }
+.gc #menu .op.active .op-icon { color: var(--text); }
+/* While held, a soft band fills it (the words stay readable); once chosen, the full highlighter. */
+.gc #menu .op.chosen { background-image: linear-gradient(var(--mark), var(--mark)); background-size: 100% 100%; border-color: var(--mark); }
+.gc #menu .op.chosen, .gc #menu .op.chosen .op-icon, .gc #menu .op.chosen .op-state { color: var(--ink); }
+.gc #menu .center { grid-area: center; place-self: center; display: flex; flex-direction: column; align-items: center;
+  gap: .25em; padding: .7em 1em; text-align: center; color: var(--muted); font-size: clamp(11px, 1.9cqw, 24px); line-height: 1.3; }
+.gc #menu .center strong { font-size: clamp(16px, 3.6cqw, 46px); line-height: 1.05; color: var(--text); margin-bottom: .15em; }
 
 /* Wake-up hint: glass pill that fills while the open palm is held. */
 .gc #sleep { --p: 0; position: absolute; top: 14px; left: 50%; transform: translateX(-50%); white-space: nowrap;
@@ -129,7 +141,7 @@
 .gc.compact .stage { border-radius: 1.25rem; height: 100vh; border: 2px solid var(--line); box-shadow: none; }
 .gc.compact canvas { height: 100%; width: 100%; object-fit: cover; aspect-ratio: auto; }
 .gc.compact #action, .gc.compact #sleep { padding: .15em .6em; }
-.gc.compact #menu .op { margin: 4px; border-radius: .75rem; }
+.gc.compact #menu .op { width: 92%; min-height: 0; padding: .35em .5em; border-radius: .6rem; }
 
 /* Volume / brightness while adjusting: the value, large, and a bar that fills while the hand holds still. */
 .gc #level { --p: 0; position: absolute; top: 14px; left: 50%; transform: translateX(-50%); white-space: nowrap;
@@ -150,10 +162,10 @@ html.gc-see-through .gc.screen { visibility: visible; }
 .gc.screen canvas { position: absolute; right: 24px; bottom: 24px; width: min(28vw, 360px); height: auto; aspect-ratio: 16 / 9;
   border-radius: 1.25rem; box-shadow: 0 0 0 2px var(--line); }
 .gc.screen #menu { background: var(--scrim-light); }
-/* Over the desktop the scrim is light: the words in the middle get a soft plate (AA on white). */
-.gc.screen #menu .center { background: var(--backing); border-radius: .75rem; padding: .4em .8em; }
-.gc.screen #menu .op { margin: 2vmin; background: var(--glass); }
-.gc.screen #menu .center { background: var(--glass); border: 1px solid var(--line); border-radius: 1.5rem; margin: 2vmin; }
+/* Over the desktop the scrim is light: the middle gets a sheet of its own (AA on a white desktop). */
+.gc.screen #menu .op { width: min(80%, 16em); }
+.gc.screen #menu .center { background: var(--glass); border: 2px solid var(--line); border-radius: 1.25rem;
+  box-shadow: 0 12px 28px -12px rgb(0 0 0 / 0.5); }
 .gc #dryrun { position: absolute; left: 0; right: 0; bottom: 0; z-index: 5; text-align: center; font-weight: 700;
   font-size: clamp(14px, 2.8cqw, 34px); padding: .3em; color: var(--ink); background: var(--warn); }
 .gc #dryrun[hidden] { display: none; }
@@ -181,9 +193,11 @@ html.gc-see-through .gc.screen { visibility: visible; }
   .gc *, .gc *::before, .gc *::after { transition: none !important; animation: none !important; }
 }
 
-/* "Close app" quits the whole assistant: red, so it is not taken for "Close gestures". */
-.gc #menu .op.danger, .gc.screen #menu .op.danger { background: color-mix(in oklab, var(--bad) 28%, transparent); border-color: var(--bad); color: var(--text); }
-.gc #menu .op.danger.active { border: 4px solid var(--bad); }
-.gc #menu .op.danger.chosen { background: var(--bad); color: var(--ink); }
+/* "Close app" quits the whole assistant: its icon and edge in red, so it is not taken for "Close gestures". */
+.gc #menu .op.danger { border-color: color-mix(in oklab, var(--bad) 70%, transparent); }
+.gc #menu .op.danger .op-icon { color: var(--bad); }
+.gc #menu .op.danger.active { border-color: var(--bad); }
+.gc #menu .op.danger.chosen { background-image: linear-gradient(var(--bad), var(--bad)); }
+.gc #menu .op.danger.chosen, .gc #menu .op.danger.chosen .op-icon { color: var(--ink); }
 /* After "Close gestures": the message over the camera view is a button that turns them on again. */
 .gc #nocam.restart { cursor: pointer; }

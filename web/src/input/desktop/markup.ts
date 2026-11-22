@@ -24,7 +24,7 @@ export const MARKUP = `
         <div class="op" data-s="up" style="grid-area: up"></div>
         <div class="op" data-s="up_right" style="grid-area: ur"></div>
         <div class="op" data-s="left" style="grid-area: left"></div>
-        <div class="center"><strong id="menuTitle">Menu</strong>Point at an option and tap<br />middle finger on thumb · closes</div>
+        <div class="center"><strong id="menuTitle">Menu</strong><span>Point at an option and tap</span><span>Middle finger on thumb closes</span></div>
         <div class="op" data-s="right" style="grid-area: right"></div>
         <div class="op" data-s="down_left" style="grid-area: dl"></div>
         <div class="op" data-s="down" style="grid-area: down"></div>

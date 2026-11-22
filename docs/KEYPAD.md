@@ -7,23 +7,25 @@ El **MX Keypad** (MX Creative Console) controla la app **sin instalar nada**: se
 **Respaldo:** cada acción tiene también un atajo **Ctrl+Alt+Shift + tecla**, registrado en Windows de forma global. Sirve con Logi Options+, con el keypad por Bluetooth o por el receptor Bolt (sin probar), o con un teclado normal.
 
 ## Teclas (página 1)
-Decidido por Isaac el 2026-11-22. El atajo de respaldo de la tecla N es siempre **Ctrl+Alt+Shift+N**.
+Decidido de nuevo por Isaac, tecla a tecla, el 2026-11-22 (antes estaban en otro orden). El atajo de respaldo de la tecla N es siempre **Ctrl+Alt+Shift+N**.
 
 | Tecla | Acción | Qué hace en la app |
 |---|---|---|
 | 1 | **Abrir/cerrar la app** | muestra u oculta el overlay desde cualquier programa (como Ctrl+Alt+Espacio) |
-| 2 | **Empezar a grabar** una orden de voz | pitido de inicio y aviso rojo «Recording…» |
-| 3 | **Parar la grabación** | pitido de fin; se transcribe (unos 2 s) y la app hace la orden |
-| 4 | Leer papel | abre la opción 2 (cámara) |
-| 5 | Leer archivo | abre la opción 3 (PDF, imagen, texto) |
-| 6 | Leer/pausa | `Espacio` en el lector abierto |
-| 7 | Resumir la selección | opción 4: resume el texto seleccionado en el programa de delante |
-| 8 | Gestos | abre la opción 1 |
+| 2 | PDF Scanner (leer papel) | abre la opción 2 (cámara) |
+| 3 | Read Text (leer archivo) | abre la opción 3 (PDF, imagen, texto) |
+| 4 | AI Summary | opción 4: resume el texto seleccionado en el programa de delante |
+| 5 | Transcribe | abre la opción 5 (subtítulos en directo) |
+| 6 | Gesture Control | abre la opción 1 |
+| 7 | **Orden de voz** | primera pulsación: pitido y aviso rojo «Recording…»; segunda: pitido de fin, se transcribe (unos 2 s) y la app hace la orden |
+| 8 | Leer/pausa | `Espacio` en el lector abierto |
 | 9 | Volver al menú | vuelve al menú (no oculta la ventana) |
 
-## Órdenes de voz (teclas 2 y 3)
+Las teclas 2–5 coinciden con los números de las opciones en pantalla; Gesture Control es la opción 1 en pantalla y la tecla 6 en el keypad. Una tecla con la acción `off` no hace nada (ni muestra el overlay); cada pulsación sale en el log como `overlay: keypad key N -> acción`.
+
+## Órdenes de voz (tecla 7)
 - **Cómo funciona:**
-  - pulsa la 2, di la orden y pulsa la 3;
+  - pulsa la 7, di la orden y vuelve a pulsar la 7;
   - Go la transcribe (`POST /transcribe`, el modelo de audio barato: unos 2 s y 0,00006 $; en `LLM_PROFILE=dev`, el mismo orden de modelos de `LLM_TRANSCRIBE_MODELS`);
   - la frase se convierte en una acción del keypad.
 - **La app responde siempre:**
@@ -48,7 +50,7 @@ Las frases están en `web/src/app/overlay/voiceCommand.ts`, con tests.
 ## Usarlo
 1. Enchufa el MX Keypad por USB.
 2. Arranca la app (`task overlay` → `build/bin/lauzhack.exe`). En el log (`build/bin/lauzhack.log`) debe salir `MX Keypad read directly: connected=true`; se puede enchufar también con la app abierta (lo busca cada 2 s).
-3. Prueba: con otro programa delante, pulsa la tecla 4 (leer papel). El overlay debe aparecer en esa opción. Después, tecla 2, di «abre un archivo» y tecla 3.
+3. Prueba: con otro programa delante, pulsa la tecla 2 (leer papel). El overlay debe aparecer en esa opción. Después, tecla 7, di «abre un archivo» y otra vez tecla 7.
 
 **Comprobado el 2026-11-22 con el keypad real, sin Options+:** las 9 teclas llegaron con su acción, dos rondas seguidas (con la tabla anterior; las teclas físicas son las mismas). **Sin probar todavía:** las órdenes de voz con micrófono real. Sin keypad se puede probar con las combinaciones de respaldo desde el teclado.
 

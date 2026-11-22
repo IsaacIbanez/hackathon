@@ -16,6 +16,7 @@ import { latestOnly, OS_ACTIONS, toScreen, type ActionOptions, type CallAppId, t
 import { MARKUP } from "./markup.ts";
 import "./gestureControl.css";
 import { cellsOf, menuPage, powerLabel, type DesktopContext, type Launcher, type MenuPage } from "./menu.ts";
+import { optionHtml } from "./menuView.ts";
 
 export interface GestureControlOptions {
   /** Status text when the helper can't be reached. */
@@ -34,6 +35,11 @@ export interface GestureControlOptions {
   onQuit?: () => void;
   /** "Close gestures" turned Gesture Control off (false), or a click on the camera view back on (true). */
   onGestures?: (on: boolean) => void;
+  /**
+   * If given, "Close gestures" calls it instead of turning the gestures and the camera off: the
+   * desktop app uses it to go back to the overlay while the camera keeps running.
+   */
+  onCloseGestures?: () => void;
   /** Three fingers: read the text selected in the program in front aloud (the app does it). */
   onReadSelection?: () => void;
   /** Called when cursor mode is turned on or off (the desktop app moves out of the way when on). */
@@ -274,7 +280,8 @@ export function mountGestureControl(
         else toast("Close the window to quit", true);
         break;
       case "gestures_off":
-        setGestures(false);
+        if (options.onCloseGestures) options.onCloseGestures();
+        else setGestures(false);
         break;
       case "cursor":
         setCursor(!mouseOn());
@@ -434,7 +441,11 @@ export function mountGestureControl(
       const s = op.dataset.s as MenuSector;
       const text = open ? options[s]?.label : shownChoice?.sector === s ? shownChoice.label : undefined;
       op.style.visibility = text ? "visible" : "hidden";
-      op.textContent = text ?? "";
+      // Icon, name and state (menuView.ts); rebuilt only when the option changes (this runs every frame).
+      if (op.dataset.label !== (text ?? "")) {
+        op.dataset.label = text ?? "";
+        op.innerHTML = text ? optionHtml(open ? options[s] : undefined, text) : "";
+      }
       op.classList.toggle("active", open?.sector === s);
       op.classList.toggle("chosen", shownChoice?.sector === s);
       op.classList.toggle("danger", !!text && options[s]?.kind === "quit");
