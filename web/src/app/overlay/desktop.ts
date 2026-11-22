@@ -19,6 +19,21 @@ export type OpenedFile =
   | { cancelled: false; name: string; kind: 'pdf'; pdf: PdfSource }
   | { cancelled: false; name: string; kind: 'lines'; lines: FileDocument }
 
+/** Option 4's answer (app_summary.go, backend/summary). */
+export interface SummaryResult {
+  summary: string
+  lang: string
+  chars: number
+  truncated: boolean
+  source: 'cloud' | 'local' | 'short'
+  note?: string
+  model?: string
+  costUsd: number
+  latencyMs: number
+  cached: boolean
+  copied: boolean
+}
+
 export interface FileDocument {
   name: string
   cancelled: boolean
@@ -38,12 +53,17 @@ interface GoBindings {
   StartGestures(): Promise<void>
   StopGestures(): Promise<void>
   GesturesRunning(): Promise<boolean>
+  SummarizeSelection(): Promise<string>
+  CloseSummary(): Promise<void>
+  TriggerSummary(): Promise<void>
 }
 
-interface GoApp extends Omit<GoBindings, 'OverlayInfo' | 'ReadPhoto' | 'OpenAndReadFile' | 'OpenFileForReading' | 'PDFPage'> {
+interface GoApp
+  extends Omit<GoBindings, 'OverlayInfo' | 'ReadPhoto' | 'OpenAndReadFile' | 'OpenFileForReading' | 'PDFPage' | 'SummarizeSelection'> {
   OpenFileForReading(): Promise<OpenedFile>
   PDFPage(id: string, page: number): Promise<PdfPageData>
   OverlayInfo(): Promise<OverlayInfo>
+  SummarizeSelection(): Promise<SummaryResult>
   ReadPhoto(photo: string): Promise<DocumentPayload>
   OpenAndReadFile(): Promise<FileDocument>
 }
@@ -66,6 +86,7 @@ export function desktop(): GoApp {
     OpenAndReadFile: async () => JSON.parse(await app.OpenAndReadFile()) as FileDocument,
     OpenFileForReading: async () => JSON.parse(await app.OpenFileForReading()) as OpenedFile,
     PDFPage: async (id, page) => JSON.parse(await app.PDFPage(id, page)) as PdfPageData,
+    SummarizeSelection: async () => JSON.parse(await app.SummarizeSelection()) as SummaryResult,
   }
 }
 

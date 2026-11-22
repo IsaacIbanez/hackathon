@@ -1,7 +1,7 @@
 // The overlay's options. To add one (docs/OVERLAY.md, «Añadir una opción»): add an entry here and a
 // component in Overlay.tsx's MODE_VIEWS. `ready: false` shows it as "coming soon" without breaking.
 
-export type ModeId = 'gestures' | 'documents' | 'read-file'
+export type ModeId = 'gestures' | 'documents' | 'read-file' | 'summarize'
 
 export interface Mode {
   id: ModeId
@@ -36,6 +36,14 @@ export const MODES: Mode[] = [
     key: '3',
     title: 'Read a file aloud',
     description: 'Choose a PDF, text file or image from the computer and listen to it line by line.',
+    owner: 'Didac (B2)',
+    ready: true,
+  },
+  {
+    id: 'summarize',
+    key: '4',
+    title: 'Summarize the selected text',
+    description: 'Select text in any program, open this window and press 4: a short summary, said aloud and copied.',
     owner: 'Didac (B2)',
     ready: true,
   },

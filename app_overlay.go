@@ -28,6 +28,12 @@ import (
 // (Ctrl+Alt+Space, or an MX Keypad key mapped to it) shows and hides. It offers the team's
 // features as options; see docs/OVERLAY.md. These are the bindings the overlay UI calls.
 
+// Size of the full overlay window (main.go opens it with this size; the summary bubble restores it).
+const (
+	overlayWidth  = 960
+	overlayHeight = 680
+)
+
 type overlayState struct {
 	mu       sync.Mutex
 	visible  bool
@@ -39,6 +45,7 @@ type overlayState struct {
 	padOn    bool   // keypad plugged in and read directly
 	reading  *overlay.ReadingService
 	gestures *overlay.GestureControl
+	bubble   bool // shrunk to the summary bubble next to the pointer (option 4, app_summary.go)
 }
 
 // startOverlay registers the shortcut; the window starts visible so the person sees it once.
@@ -140,8 +147,16 @@ func (a *App) stopOverlay() {
 }
 
 func (a *App) toggleOverlay(ctx context.Context) {
+	// Remember the program in front before the overlay takes the focus: option 4 copies its
+	// selected text.
+	overlay.RememberTarget()
 	o := &a.overlay
 	o.mu.Lock()
+	if o.bubble { // the summary bubble is open: the shortcut closes it
+		o.mu.Unlock()
+		a.CloseSummary()
+		return
+	}
 	// Open but covered by another window: bring it to the front instead of hiding it.
 	show := !o.visible || !overlay.ForegroundIsOurs()
 	o.visible = show

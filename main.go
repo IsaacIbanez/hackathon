@@ -25,8 +25,8 @@ func main() {
 	err := wails.Run(&options.App{
 		// Overlay (docs/OVERLAY.md): always on top; Ctrl+Alt+Space (or an MX Keypad key) shows and hides it.
 		Title:       "LauzHack overlay",
-		Width:       960,
-		Height:      680,
+		Width:       overlayWidth,
+		Height:      overlayHeight,
 		AlwaysOnTop: true,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
