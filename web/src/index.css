@@ -4,148 +4,228 @@
 @import "@fontsource/atkinson-hyperlegible/700.css";
 
 /*
- * Overlay design system, "Keypad" (docs/DESIGN.md). Two ideas, both from the people it is for:
- * - the colours of an electronic magnifier's high-contrast mode: signal yellow and white on cobalt
- *   blue, inverted (black on yellow) under the pointer, like the magnifier's inverse mode;
- * - the MX Keypad itself: the menu is the 3x3 keypad, and every control is a key with a solid edge
- *   under it that sinks when it is pressed.
- * Solid plates, no glass, no blur, no gradients. Everything goes through these tokens.
+ * Overlay design system, "Large print" (docs/DESIGN.md).
+ * - The menu is a page of large print: tools are lines of type, and the line under the pointer gets
+ *   the highlighter band, the same mark as the line being read. Choosing looks like reading.
+ * - Five palettes, the colour modes people with low vision already use on magnifiers and readers:
+ *   Night, Day, Magnifier (yellow on blue), Contrast (yellow on black) and Warm (little blue light).
+ *   Each theme sets ten base colours (--t-*); every role below is built from them.
+ * - Swiss order: one left-aligned column, a fixed column for key numbers, clear type steps.
  */
+
+/* Night (default): deep ink-teal, warm highlighter yellow. */
+:root {
+  --t-bg: #101a1f;
+  --t-raised: #182831;
+  --t-fg: #eef3f1;
+  --t-muted: #a9bdb8;
+  --t-accent: #f2c94c;
+  --t-on-accent: #101a1f;
+  --t-mark: #f2c94c;
+  --t-on-mark: #101a1f;
+  --t-veil: rgb(6 12 15 / 0.84);
+  --t-warn: #f5a35c;
+  --t-danger: #ff8a80;
+  --t-shadow: rgb(0 0 0 / 0.45);
+}
+/* Day: paper white, ink text, blue for actions, yellow highlighter for what is read. */
+:root[data-theme="day"] {
+  --t-bg: #f5f6f3;
+  --t-raised: #ffffff;
+  --t-fg: #15191c;
+  --t-muted: #4a5258;
+  --t-accent: #1e4fd8;
+  --t-on-accent: #ffffff;
+  --t-mark: #ffe066;
+  --t-on-mark: #15191c;
+  --t-veil: rgb(236 238 234 / 0.9);
+  --t-warn: #8a4500;
+  --t-danger: #b3261e;
+  --t-shadow: rgb(20 30 40 / 0.18);
+  color-scheme: light;
+}
+/* Magnifier: the yellow-on-blue mode of electronic magnifiers. */
+:root[data-theme="magnifier"] {
+  --t-bg: #0a35b8;
+  --t-raised: #0b2c8f;
+  --t-fg: #ffffff;
+  --t-muted: #d2dcff;
+  --t-accent: #ffe14a;
+  --t-on-accent: #000000;
+  --t-mark: #ffe14a;
+  --t-on-mark: #000000;
+  --t-veil: rgb(3 10 40 / 0.84);
+  --t-warn: #ffd08a;
+  --t-danger: #ffb4a8;
+  --t-shadow: rgb(0 0 20 / 0.5);
+}
+/* Contrast: the strongest mode, yellow and white on black. */
+:root[data-theme="contrast"] {
+  --t-bg: #000000;
+  --t-raised: #1a1a1a;
+  --t-fg: #ffffff;
+  --t-muted: #e6e6e6;
+  --t-accent: #ffff00;
+  --t-on-accent: #000000;
+  --t-mark: #ffff00;
+  --t-on-mark: #000000;
+  --t-veil: rgb(0 0 0 / 0.9);
+  --t-warn: #ffb000;
+  --t-danger: #ff7070;
+  --t-shadow: rgb(0 0 0 / 0);
+}
+/* Warm: amber on deep brown, little blue light for the evening or for light sensitivity. */
+:root[data-theme="warm"] {
+  --t-bg: #2a1810;
+  --t-raised: #3a2419;
+  --t-fg: #ffe9c7;
+  --t-muted: #e3c49c;
+  --t-accent: #ffb347;
+  --t-on-accent: #2a1810;
+  --t-mark: #ffb347;
+  --t-on-mark: #2a1810;
+  --t-veil: rgb(20 10 5 / 0.86);
+  --t-warn: #ffd27a;
+  --t-danger: #ff9c8a;
+  --t-shadow: rgb(0 0 0 / 0.5);
+}
+
 @theme static {
   --font-sans: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
 
-  /* The palette (5 colours + black). */
-  --color-cobalt: #0a35b8; /* plates: panels, keys */
-  --color-deep: #06227a; /* key bodies at rest, header strips, wells */
-  --color-floor: #031552; /* the solid edge under a key */
-  --color-signal: #ffe14a; /* the one accent: numbers, focus, what is read, the pointed key */
-  --color-paper: #ffffff; /* body text, and the page of a PDF */
+  /* Roles: use these in components (text-fg, bg-surface, border-edge…). */
+  --color-fg: var(--t-fg);
+  --color-fg-muted: var(--t-muted);
+  --color-accent: var(--t-accent);
+  --color-on-accent: var(--t-on-accent);
+  --color-mark: var(--t-mark);
+  --color-on-mark: var(--t-on-mark);
+  --color-warn: var(--t-warn);
+  --color-danger: var(--t-danger);
 
-  /* Roles (use these in components). */
-  --color-fg: #ffffff;
-  --color-fg-muted: #c9d6ff; /* 7:1 on cobalt */
-  --color-on-accent: #000000;
-  --color-accent: var(--color-signal);
-  --color-warn: #ffd08a;
-  --color-danger: #ffa79e;
-
-  --color-layer: rgb(0 0 0 / 0.8); /* the desktop, dimmed */
-  --color-layer-glow: rgb(0 0 0 / 0);
-  --color-surface: var(--color-cobalt);
-  --color-surface-solid: var(--color-cobalt);
-  --color-surface-opaque: var(--color-cobalt);
-  --color-scrim: rgb(0 0 0 / 0.62);
-  --color-scrim-light: rgb(0 0 0 / 0.45);
-  --color-backing: var(--color-cobalt);
-  --color-fill: var(--color-deep);
-  --color-fill-strong: var(--color-deep);
-  --color-fill-hover: rgb(255 255 255 / 0.16);
-  --color-edge: rgb(201 214 255 / 0.45);
-  --color-highlight: rgb(255 255 255 / 0);
+  --color-layer: var(--t-veil);
+  --color-layer-glow: transparent;
+  --color-surface: var(--t-bg);
+  --color-surface-solid: var(--t-bg);
+  --color-surface-opaque: var(--t-bg);
+  --color-deep: var(--t-raised);
+  --color-scrim: color-mix(in oklab, var(--t-bg) 62%, transparent);
+  --color-scrim-light: color-mix(in oklab, var(--t-bg) 45%, transparent);
+  --color-backing: var(--t-bg);
+  --color-fill: color-mix(in oklab, var(--t-fg) 7%, transparent);
+  --color-fill-strong: color-mix(in oklab, var(--t-fg) 12%, transparent);
+  --color-fill-hover: color-mix(in oklab, var(--t-fg) 16%, transparent);
+  --color-edge: color-mix(in oklab, var(--t-fg) 22%, transparent);
+  --color-highlight: transparent;
+  --color-paper: #ffffff; /* the page of a PDF is white in every theme */
+  --color-ink: #000000; /* behind the camera image */
   --blur-surface: 0px;
 
-  /* Older names, kept for the code that still reads them. */
-  --color-ink: #000000;
-  --color-snow: #ffffff;
-  --color-mist: #c9d6ff;
-  --color-line: rgb(201 214 255 / 0.45);
-  --color-mark: var(--color-signal);
+  /* Older names, kept for code that still reads them. */
+  --color-snow: var(--t-fg);
+  --color-mist: var(--t-muted);
+  --color-line: color-mix(in oklab, var(--t-fg) 22%, transparent);
 
-  /* Type: one family, bold for anything you can press; five sizes (html is at 125 %). */
+  /* Type: five sizes (html is at 125 %). The menu uses display; reading lines too. */
   --text-meta: 0.875rem;
   --text-meta--line-height: 1.35;
   --text-body: 1.125rem;
   --text-body--line-height: 1.5;
-  --text-lead: 1.25rem;
-  --text-lead--line-height: 1.35;
-  --text-title: 1.625rem;
+  --text-lead: 1.3rem;
+  --text-lead--line-height: 1.4;
+  --text-title: 1.75rem;
   --text-title--line-height: 1.15;
-  --text-display: 2.5rem;
-  --text-display--line-height: 1.1;
+  --text-display: 2.6rem;
+  --text-display--line-height: 1.08;
 
-  /* Radii: keycaps, not pills. */
-  --radius-chip: 0.4rem;
-  --radius-field: 0.9rem;
-  --radius-card: 1.1rem;
-  --radius-panel: 1.4rem;
-  --radius-pill: 0.9rem;
+  --radius-chip: 0.375rem;
+  --radius-field: 0.625rem;
+  --radius-card: 1rem;
+  --radius-panel: 1.25rem;
+  --radius-pill: 999px;
 
-  /* Depth is a solid edge under the key, never a soft shadow. */
-  --shadow-edge: 0 5px 0 var(--color-floor);
-  --shadow-float: 0 5px 0 var(--color-floor);
-  --shadow-panel: 0 8px 0 var(--color-floor);
+  /* Depth: offset and soft blur, from the theme's shadow colour. */
+  --shadow-edge: 0 1px 2px var(--t-shadow);
+  --shadow-float: 0 12px 28px -12px var(--t-shadow);
+  --shadow-panel: 0 28px 60px -24px var(--t-shadow);
 
-  --ease-soft: cubic-bezier(0.2, 0, 0, 1);
+  --ease-soft: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 :root {
-  --duration-fast: 120ms;
-  --duration-base: 180ms;
+  --duration-fast: 140ms;
+  --duration-base: 220ms;
   --focus-width: 4px;
   --focus-offset: 3px;
-  --target-min: 2.8rem;
-  --key-depth: 5px;
+  --target-min: 2.75rem;
+  color-scheme: dark;
 }
 
 @layer base {
   html {
     font-size: 125%;
-    color-scheme: dark;
   }
-  /* The desktop window is transparent (main.go): each view paints its own layer or plate. */
+  /* The desktop window is transparent (main.go): each view paints its own layer or sheet. */
   body {
     background: transparent;
     color: var(--color-fg);
     font-family: var(--font-sans);
+    font-variant-numeric: tabular-nums;
     -webkit-font-smoothing: antialiased;
+    caret-color: var(--color-accent);
   }
-  /* Yellow ring with a black halo: visible on cobalt, on yellow and on any desktop. */
   :focus-visible {
-    outline: var(--focus-width) solid var(--color-signal);
+    outline: var(--focus-width) solid var(--color-accent);
     outline-offset: var(--focus-offset);
-    box-shadow: 0 0 0 calc(var(--focus-offset) + var(--focus-width) + 3px) #000;
   }
   ::selection {
-    background: var(--color-signal);
-    color: #000;
+    background: var(--color-mark);
+    color: var(--color-on-mark);
+  }
+  /* Browser surfaces carry the palette too. */
+  * {
+    scrollbar-color: var(--color-edge) transparent;
+  }
+  a {
+    text-underline-offset: 0.2em;
   }
 }
 
 @layer components {
-  /* The desktop, dimmed. Nothing else is see-through. */
+  /* The desktop, behind a veil in the theme's colour. */
   .halo-layer {
     position: fixed;
     inset: 0;
     background: var(--color-layer);
   }
 
-  /* Plate: the only surface. Solid cobalt, no border, a hard edge underneath. */
+  /* Sheet: the only surface. */
   .glass {
-    background: var(--color-cobalt);
+    background: var(--color-surface);
+    color: var(--color-fg);
+    border: 1px solid var(--color-edge);
     box-shadow: var(--shadow-panel);
   }
 
-  /* Every control is a key: a deep-blue cap on a solid edge. Pointer or focus inverts it
-     (black on yellow), pressing sinks it. */
   .btn,
   .btn-icon {
-    position: relative;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 0.5em;
     min-height: var(--target-min);
-    padding: 0.5em 1.1em;
+    padding: 0.5em 1.05em;
     border-radius: var(--radius-field);
-    border: 0;
-    background: var(--color-deep);
+    border: 1px solid var(--color-edge);
+    background: var(--color-fill);
     color: var(--color-fg);
     font-weight: 700;
     line-height: 1.1;
-    box-shadow: var(--shadow-edge);
+    cursor: pointer;
     transition:
-      transform var(--duration-fast) var(--ease-soft),
-      box-shadow var(--duration-fast) var(--ease-soft);
+      background-color var(--duration-fast) var(--ease-soft),
+      color var(--duration-fast) var(--ease-soft),
+      transform var(--duration-fast) var(--ease-soft);
   }
   .btn-icon {
     flex-shrink: 0;
@@ -153,16 +233,12 @@
     padding: 0;
   }
   .btn:hover,
-  .btn-icon:hover,
-  .btn:focus-visible,
-  .btn-icon:focus-visible {
-    background: var(--color-signal);
-    color: #000;
+  .btn-icon:hover {
+    background: var(--color-fill-hover);
   }
   .btn:active,
   .btn-icon:active {
-    transform: translateY(var(--key-depth));
-    box-shadow: 0 0 0 var(--color-floor);
+    transform: scale(0.97);
   }
   .btn:disabled,
   .btn[aria-disabled="true"],
@@ -175,74 +251,79 @@
     cursor: progress;
     opacity: 0.75;
   }
-  /* The main action: already yellow; under the pointer it turns white. */
   .btn-primary {
-    background: var(--accent, var(--color-signal));
-    color: #000;
+    background: var(--color-accent);
+    border-color: transparent;
+    color: var(--color-on-accent);
   }
-  .btn-primary:hover,
-  .btn-primary:focus-visible {
-    background: var(--color-paper);
-    color: #000;
+  .btn-primary:hover {
+    background: color-mix(in oklab, var(--color-accent) 88%, var(--color-fg));
   }
   .btn-danger {
     background: var(--color-danger);
-    color: #000;
+    border-color: transparent;
+    color: var(--t-bg);
   }
-  .btn-danger:hover,
-  .btn-danger:focus-visible {
-    background: var(--color-paper);
-    color: #000;
+  .btn-danger:hover {
+    background: color-mix(in oklab, var(--color-danger) 88%, var(--color-fg));
   }
   .btn-quiet {
+    border-color: transparent;
     background: transparent;
-    box-shadow: none;
+  }
+  .btn-quiet:hover {
+    background: var(--color-fill-hover);
   }
 
-  /* A key name next to its action: a tiny black keycap with a yellow number. */
   .kbd {
     display: inline-grid;
     place-items: center;
     min-width: 1.6em;
     height: 1.6em;
     padding: 0 0.35em;
-    border-radius: 0.35em;
-    background: #000;
-    color: var(--color-signal);
-    font-size: 0.75em;
+    border-radius: var(--radius-chip);
+    border: 1px solid var(--color-edge);
+    color: var(--color-fg-muted);
+    font-size: 0.72em;
     font-weight: 700;
     line-height: 1;
-    box-shadow: 0 2px 0 var(--color-floor);
+  }
+  .btn-primary .kbd,
+  .btn-danger .kbd {
+    border-color: currentColor;
+    color: inherit;
   }
 
   .switch {
     position: relative;
     display: inline-block;
     flex-shrink: 0;
-    width: 3.4rem;
-    height: 2rem;
-    border-radius: var(--radius-chip);
-    background: var(--color-deep);
-    box-shadow: inset 0 0 0 2px var(--color-edge);
+    width: 3.25rem;
+    height: 1.9rem;
+    border-radius: var(--radius-pill);
+    background: var(--color-fill-strong);
+    border: 1px solid var(--color-edge);
+    cursor: pointer;
+    transition: background-color var(--duration-fast) var(--ease-soft);
   }
   .switch::after {
     content: "";
     position: absolute;
-    top: 0.25rem;
-    left: 0.25rem;
-    width: 1.5rem;
-    height: 1.5rem;
-    border-radius: 0.25rem;
+    top: 0.2rem;
+    left: 0.2rem;
+    width: 1.4rem;
+    height: 1.4rem;
+    border-radius: var(--radius-pill);
     background: var(--color-fg);
     transition: transform var(--duration-fast) var(--ease-soft);
   }
   .switch[aria-checked="true"] {
-    background: var(--color-signal);
-    box-shadow: none;
+    background: var(--color-accent);
+    border-color: transparent;
   }
   .switch[aria-checked="true"]::after {
-    background: #000;
-    transform: translateX(1.4rem);
+    background: var(--color-on-accent);
+    transform: translateX(1.35rem);
   }
   .switch:disabled {
     opacity: 0.4;
@@ -252,9 +333,9 @@
     display: inline-flex;
     align-items: center;
     gap: 0.35em;
-    padding: 0.1em 0.5em;
+    padding: 0.1em 0.55em;
     border-radius: var(--radius-chip);
-    background: var(--color-deep);
+    background: var(--color-fill-strong);
     color: var(--color-fg-muted);
     font-size: var(--text-meta);
     font-weight: 700;
@@ -270,107 +351,96 @@
   .backing {
     padding: 0.1em 0.45em;
     border-radius: var(--radius-chip);
-    background: var(--color-cobalt);
+    background: var(--color-surface);
     -webkit-box-decoration-break: clone;
     box-decoration-break: clone;
   }
 
-  /* What is being read right now: black on signal yellow, like a highlighter. */
+  /* What is being read: the highlighter. */
   .reading-mark {
-    background: var(--color-signal);
-    color: #000;
+    background: var(--color-mark);
+    color: var(--color-on-mark);
   }
 }
 
-/* The menu is the MX Keypad (Hub.tsx): nine keys in the order of the real ones. */
+/* The menu (Hub.tsx): a page of large print. */
 @layer components {
-  .pad {
-    display: grid;
-    grid-template-columns: repeat(3, var(--key));
-    gap: 0.9rem;
-    padding: 1rem 1rem calc(1rem + var(--key-depth));
-    border-radius: var(--radius-panel);
-    background: #000;
-    --key: clamp(7.5rem, 17vmin, 10rem);
-  }
-  .key {
-    position: relative;
+  .print-list {
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
-    width: var(--key);
-    height: var(--key);
-    padding: 0.7rem 0.8rem 0.8rem;
+  }
+  .print-line {
+    display: grid;
+    grid-template-columns: 2.2ch auto 1fr;
+    align-items: center;
+    column-gap: 0.9rem;
+    width: 100%;
+    padding: 0.18em 0.45em 0.22em 0.35em;
     border-radius: var(--radius-field);
-    background: var(--color-cobalt);
     color: var(--color-fg);
+    font-size: var(--text-display);
+    font-weight: 700;
+    line-height: 1.12;
     text-align: left;
-    box-shadow: var(--shadow-edge);
+    letter-spacing: -0.01em;
+    cursor: pointer;
+    background: linear-gradient(var(--color-mark), var(--color-mark)) no-repeat left / 0% 100%;
     transition:
-      transform var(--duration-fast) var(--ease-soft),
-      box-shadow var(--duration-fast) var(--ease-soft);
-    animation: key-in var(--duration-base) var(--ease-soft) backwards;
+      background-size var(--duration-base) var(--ease-soft),
+      color var(--duration-fast) var(--ease-soft);
   }
-  .key-top {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-  }
-  .key-num {
-    font-size: 2.6rem;
-    font-weight: 700;
-    line-height: 0.9;
-    color: var(--color-signal);
-  }
-  .key-name {
-    font-size: var(--text-body);
-    font-weight: 700;
-    line-height: 1.15;
-  }
-  .key-sub {
-    display: block;
-    font-size: var(--text-meta);
-    font-weight: 400;
+  .print-num {
+    justify-self: end;
+    font-size: 0.5em;
     color: var(--color-fg-muted);
+    transition: color var(--duration-fast) var(--ease-soft);
   }
-  .key:hover,
-  .key:focus-visible {
-    background: var(--color-signal);
-    color: #000;
-  }
-  .key:hover .key-num,
-  .key:focus-visible .key-num,
-  .key:hover .key-sub,
-  .key:focus-visible .key-sub {
-    color: #000;
-  }
-  .key:active {
-    transform: translateY(var(--key-depth));
-    box-shadow: 0 0 0 var(--color-floor);
-  }
-  /* The key you are on (9, the menu): sunk and quiet. */
-  .key[aria-current="page"] {
-    background: var(--color-deep);
-    box-shadow: none;
-    transform: translateY(var(--key-depth));
-    cursor: default;
-  }
-  .key[aria-current="page"]:hover {
-    background: var(--color-deep);
-    color: var(--color-fg);
-  }
-  .key[aria-current="page"]:hover .key-num {
-    color: var(--color-signal);
-  }
-  .key[aria-current="page"]:hover .key-sub {
+  .print-icon {
     color: var(--color-fg-muted);
+    transition: color var(--duration-fast) var(--ease-soft);
+  }
+  /* The highlighter sweeps across the line under the pointer, the hand or the focus. */
+  .print-line:hover,
+  .print-line:focus-visible {
+    background-size: 100% 100%;
+    color: var(--color-on-mark);
+  }
+  .print-line:hover .print-num,
+  .print-line:focus-visible .print-num,
+  .print-line:hover .print-icon,
+  .print-line:focus-visible .print-icon {
+    color: var(--color-on-mark);
+  }
+
+  /* Palette picker: each swatch is the theme itself, its background with its highlighter. */
+  .swatch {
+    display: grid;
+    place-items: center;
+    width: 2.4rem;
+    height: 2.4rem;
+    border-radius: var(--radius-pill);
+    border: 2px solid var(--color-edge);
+    cursor: pointer;
+    transition: transform var(--duration-fast) var(--ease-soft);
+  }
+  .swatch:hover {
+    transform: scale(1.08);
+  }
+  .swatch[aria-pressed="true"] {
+    border-color: var(--color-fg);
+    box-shadow: 0 0 0 3px var(--color-accent);
+  }
+  .swatch span {
+    width: 0.9rem;
+    height: 0.9rem;
+    border-radius: var(--radius-pill);
   }
 }
 
-/* One moment of motion: the keys drop in, 1 to 9, when the layer opens. */
-@keyframes key-in {
+/* One authored moment: when the layer opens, the lines of the menu settle in from the left. */
+@keyframes line-in {
   from {
-    transform: translateY(-0.6rem);
+    transform: translateX(-0.75rem);
     opacity: 0;
   }
 }

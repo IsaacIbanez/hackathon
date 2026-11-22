@@ -2,20 +2,15 @@ import { useState, type CSSProperties, type ReactNode } from 'react'
 import type { OverlayInfo } from './desktop.ts'
 import type { KeypadAction } from './keypad.ts'
 import { MODES, type ModeId } from './modes.ts'
+import { applyTheme, savedTheme, THEMES, type ThemeId } from './theme.ts'
 import { Icon, type IconName } from './ui.tsx'
 
-// The layer's home (docs/DESIGN.md): the MX Keypad drawn on the screen. Nine keys in the order of
-// the real ones (docs/KEYPAD.md), each doing what the physical key does, so what you see is what
-// you press. Under the pad, one line says what the key under the pointer (or focus) does.
+// The layer's home (docs/DESIGN.md): a page of large print over the dimmed desktop. Each tool is a
+// line of type with its key number (the MX Keypad key and the keyboard digit) in a fixed column;
+// the line under the pointer, the hand or the focus gets the highlighter, the same mark as the line
+// being read. Under the list, one sentence says what that line does.
 
-type PadKey = {
-  n: string
-  name: string
-  icon: IconName
-  says: string
-  /** What a click does; none for the key you are on (9, the menu). */
-  press?: () => void
-}
+type Line = { n: string; name: string; icon: IconName; says: string; press: () => void }
 
 export function Hub({
   info,
@@ -34,72 +29,86 @@ export function Hub({
   /** Extra panels of the menu (extensions.ts, MENU_PANELS), in the bottom-left corner. */
   extras?: ReactNode
 }) {
-  const [hint, setHint] = useState<PadKey | null>(null)
+  const [hint, setHint] = useState<string | null>(null)
+  const [theme, setTheme] = useState<ThemeId>(savedTheme)
   const failedKeys = (info?.keypad ?? []).filter((k) => !k.ok)
 
-  const tools: PadKey[] = MODES.filter((m) => m.ready).map((m) => ({
-    n: m.key,
-    name: m.title,
-    icon: m.icon,
-    says: m.description,
-    press: () => onChoose(m.id),
-  }))
-  const keys: PadKey[] = [
-    { n: '1', name: 'Hide', icon: 'hide' as const, says: 'Hide this layer. Key 1 brings it back.', press: onHide },
-    ...tools,
-    {
-      n: '7',
-      name: 'Voice command',
-      icon: 'mic' as const,
-      says: 'Press, say what you want (for example “read the paper”), press again.',
-      press: () => onKey?.('record-toggle'),
-    },
-    { n: '8', name: 'Read / pause', icon: 'play' as const, says: 'Start or pause the reading that is open.', press: () => onKey?.('play') },
-    { n: '9', name: 'Menu', icon: 'keypad' as const, says: 'You are here.' },
-  ].sort((a, b) => Number(a.n) - Number(b.n))
+  const tools: Line[] = MODES.filter((m) => m.ready)
+    .map((m) => ({ n: m.key, name: m.title, icon: m.icon, says: m.description, press: () => onChoose(m.id) }))
+    .sort((a, b) => Number(a.n) - Number(b.n))
+  const more: Line[] = [
+    { n: '7', name: 'Voice command', icon: 'mic', says: 'Press 7, say what you want, press 7 again.', press: () => onKey?.('record-toggle') },
+    { n: '8', name: 'Read or pause', icon: 'play', says: 'Start or pause the reading that is open.', press: () => onKey?.('play') },
+    { n: '1', name: 'Hide', icon: 'hide', says: 'Hide this layer. Key 1 brings it back.', press: onHide },
+  ]
+  const hover = (l: Line) => ({
+    onMouseEnter: () => setHint(l.says),
+    onMouseLeave: () => setHint(null),
+    onFocus: () => setHint(l.says),
+    onBlur: () => setHint(null),
+  })
 
   return (
     // A click on the empty layer hides it, like a click outside a menu.
-    <div className="halo-layer grid place-items-center" onClick={(e) => e.target === e.currentTarget && onHide()}>
-      <div className="flex flex-col items-center gap-6">
-        <nav aria-label="Keypad" className="pad">
-          {keys.map((k, i) => (
+    <div className="halo-layer" onClick={(e) => e.target === e.currentTarget && onHide()}>
+      <main className="absolute top-1/2 left-[max(3rem,9vw)] w-[min(40rem,80vw)] -translate-y-1/2">
+        <nav aria-label="Tools" className="print-list">
+          {tools.map((l, i) => (
             <button
-              key={k.n}
+              key={l.n}
               type="button"
-              className="key"
-              style={{ animationDelay: `${i * 25}ms` } as CSSProperties}
-              aria-current={k.press ? undefined : 'page'}
-              aria-keyshortcuts={k.n}
+              className="print-line"
+              style={{ animation: `line-in var(--duration-base) var(--ease-soft) ${i * 35}ms backwards` } as CSSProperties}
+              aria-keyshortcuts={l.n}
               aria-describedby="hub-caption"
-              onClick={() => k.press?.()}
-              onMouseEnter={() => setHint(k)}
-              onMouseLeave={() => setHint(null)}
-              onFocus={() => setHint(k)}
-              onBlur={() => setHint(null)}
+              onClick={l.press}
+              {...hover(l)}
             >
-              <span className="key-top">
-                <span className="key-num" aria-hidden="true">
-                  {k.n}
-                </span>
-                <Icon name={k.icon} size={30} />
-              </span>
-              <span className="key-name">
-                {k.name}
-                {!k.press && <span className="key-sub">You are here</span>}
-              </span>
+              <span className="print-num">{l.n}</span>
+              <span>{l.name}</span>
+              <Icon name={l.icon} size={34} className="print-icon justify-self-end" />
             </button>
           ))}
         </nav>
 
-        <p id="hub-caption" aria-live="polite" className="h-[2.7em] max-w-[34rem] text-center text-lead text-fg">
-          {hint ? hint.says : 'Press a key on the keypad, a number on the keyboard, or click.'}
+        <p id="hub-caption" aria-live="polite" className="mt-6 min-h-[2.8em] max-w-[32rem] pl-[calc(2.2ch*1.3+0.9rem)] text-lead text-fg-muted">
+          {hint ?? 'Point at a line, press its number, or click it.'}
         </p>
-      </div>
 
-      {extras && <div className="absolute bottom-8 left-8 w-[22rem] space-y-3">{extras}</div>}
+        <div className="mt-4 flex flex-wrap gap-3 pl-[calc(2.2ch*1.3+0.9rem)]">
+          {more.map((l) => (
+            <button key={l.n} type="button" className="btn text-body" aria-keyshortcuts={l.n} onClick={l.press} {...hover(l)}>
+              <span className="kbd">{l.n}</span>
+              <Icon name={l.icon} size={20} />
+              {l.name}
+            </button>
+          ))}
+        </div>
+      </main>
 
-      <footer className="absolute bottom-8 left-1/2 flex -translate-x-1/2 items-center gap-6 text-body whitespace-nowrap text-fg-muted">
+      {extras && <div className="absolute right-8 bottom-28 w-[22rem] space-y-3">{extras}</div>}
+
+      <footer className="absolute right-8 bottom-8 left-[max(3rem,9vw)] flex flex-wrap items-center gap-x-8 gap-y-3 text-body text-fg-muted">
+        <div role="group" aria-label="Colours" className="flex items-center gap-2">
+          {THEMES.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              className="swatch"
+              style={{ background: t.bg }}
+              aria-pressed={theme === t.id}
+              aria-label={`${t.name} colours`}
+              title={`${t.name} colours`}
+              onClick={() => {
+                applyTheme(t.id)
+                setTheme(t.id)
+              }}
+            >
+              <span style={{ background: t.mark }} />
+            </button>
+          ))}
+          <span className="ml-2 text-fg">{THEMES.find((t) => t.id === theme)?.name}</span>
+        </div>
         {info?.hotkeyOk ? (
           <span>
             <span className="kbd">Ctrl</span> <span className="kbd">Alt</span> <span className="kbd">Space</span> shows or hides
@@ -110,15 +119,13 @@ export function Hub({
           </span>
         )}
         {info?.keypadConnected && (
-          <span className="flex items-center gap-2 text-fg">
+          <span className="flex items-center gap-2">
             <Icon name="keypad" size={20} /> MX Keypad connected
           </span>
         )}
-        {failedKeys.length > 0 && (
-          <span className="text-warn">Keypad shortcuts {failedKeys.map((k) => k.shortcut).join(', ')} are taken</span>
-        )}
+        {failedKeys.length > 0 && <span className="text-warn">Keypad shortcuts {failedKeys.map((k) => k.shortcut).join(', ')} are taken</span>}
         {onQuit && (
-          <button type="button" onClick={onQuit} className="btn min-h-0 py-1.5 text-body">
+          <button type="button" onClick={onQuit} className="btn btn-quiet ml-auto min-h-0 py-1.5 text-body">
             <Icon name="power" size={18} /> Quit <span className="kbd">Q</span>
           </button>
         )}

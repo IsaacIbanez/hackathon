@@ -12,6 +12,10 @@ import { pauseCamera, resumeCamera, turnGesturesOn } from './gestureHost.ts'
 import { keypadCommand, pressKey, type KeypadAction } from './keypad.ts'
 import { Hub } from './Hub.tsx'
 import { MODES, modeForKey, type ModeId } from './modes.ts'
+import { applyTheme, savedTheme } from './theme.ts'
+
+// The palette chosen last time (docs/DESIGN.md), before the first paint.
+applyTheme(savedTheme())
 import { Icon, Panel } from './ui.tsx'
 import { useVoiceCommand, VoiceBanner } from './useVoiceCommand.tsx'
 
