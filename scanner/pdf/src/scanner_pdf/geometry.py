@@ -24,6 +24,11 @@ CANNY_LOW, CANNY_HIGH = 40, 120   # fixed thresholds: thresholds derived from th
 MAX_DARK_HOLE = 0.15       # share of a light quadrilateral covered by large dark areas. A sheet only has
                            # letters and thin lines; a quad that took in the dark jacket next to the sheet
                            # had ~45 % (N3 benchmark, MX Brio): cropping it read 2-6 % of the words
+MIN_PAPER_TEXT = 0.35     # share of the photo's printed text (letters on light paper) a sheet must hold.
+                           # Sheet held in the hand in a busy room (real scans, 2026-11-22): the hands cut
+                           # the sheet's outline, and ceiling, window and wall frames became "sheets" with
+                           # 7-11 % of the text (OCR read 0-6 words); real sheets held 61-81 %
+MIN_PAPER_TEXT_PIXELS = 0.004  # the check needs that much printed text (fraction of the analysed image)
 MAX_SIDE_RATIO = 1.75      # longer / shorter opposite side; a sheet tilted ~45 degrees gives ~1.7.
                            # More = a clipped shape (e.g. a panel cut by a drawing or a hand)
 WEBCAM_DIAGONAL_FOV = 78.0 # degrees; focal length assumed when the perspective does not allow estimating it
@@ -70,13 +75,20 @@ def detect_page(img: np.ndarray) -> Detection:
     # (what is visible is cropped and flagged as "cropped").
     cv2.rectangle(edges, (0, 0), (edges.shape[1] - 1, edges.shape[0] - 1), 255, 2)
     # Letters: on the unblurred grey image (Gaussian blur erases small text).
-    letters = image.letter_mask(cv2.cvtColor(small, cv2.COLOR_BGR2GRAY))
+    raw = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
+    letters = image.letter_mask(raw)
+    # The printed text of the photo: a sheet must contain most of it (see MIN_PAPER_TEXT).
+    paper_text = paper_letters(raw, letters)
+    total_text = int(paper_text.sum())
+    check_text = total_text >= MIN_PAPER_TEXT_PIXELS * paper_text.size
     candidates: list[tuple[float, np.ndarray, str]] = []
     sources = (("edges", _quads(edges)), ("threshold", _quads(_threshold_mask(gray))),
                ("lines", _line_quads(canny, edges)))
     for method, quads in sources:
         for quad in quads:
             score = _score(quad, gray, edges, letters)
+            if score > 0 and check_text and _text_share(quad, paper_text, total_text) < MIN_PAPER_TEXT:
+                score = 0.0      # a frame in the background (ceiling, window, wall), not the sheet
             if score > 0:
                 candidates.append((score, quad, method))
 
@@ -290,6 +302,22 @@ def _content(quad: np.ndarray, letters: np.ndarray) -> float:
     return float(letters[inside].sum()) / n if n else 0.0
 
 
+def paper_letters(gray: np.ndarray, letters: np.ndarray | None = None) -> np.ndarray:
+    """Letters on a light background (printed paper), as a 0/1 mask. The letter detector also fires on
+    fleece, hair, chairs or a crowd behind a sheet held in the hand; the paper around real letters is
+    among the lightest parts of the photo."""
+    mask = ((image.letter_mask(gray) if letters is None else letters) > 0).astype(np.uint8)
+    background = cv2.dilate(gray, np.ones((15, 15), np.uint8))   # the paper around each letter
+    return mask & (background >= max(100.0, 0.85 * float(np.percentile(background, 85)))).astype(np.uint8)
+
+
+def _text_share(quad: np.ndarray, paper_text: np.ndarray, total: int) -> float:
+    """Share of the photo's printed text inside the quadrilateral."""
+    inside = np.zeros(paper_text.shape, np.uint8)
+    cv2.fillConvexPoly(inside, order_corners(quad).astype(np.int32), 1)
+    return float(paper_text[inside > 0].sum()) / max(total, 1)
+
+
 def _dark_hole(quad: np.ndarray, gray: np.ndarray) -> float:
     """Share of a light quadrilateral covered by large dark areas (letters and lines removed by an
     opening). 0 for dark quadrilaterals (a dark poster or a phone screen is all dark on purpose)."""
@@ -317,11 +345,10 @@ def text_region(img: np.ndarray, margin: float = 0.03) -> tuple[np.ndarray, list
     upscale the small letters (size cap); the text block alone can be upscaled to ~300 DPI.
     """
     gray, scale = image.gray_1600(img)
-    letters = (image.letter_mask(gray) > 0).astype(np.uint8)
     # Only letters on a light background (printed paper): the letter detector also fires on fleece,
     # hair or a crowd behind a sheet held in the hand (measured: the crop went to the jacket).
+    letters = paper_letters(gray)
     background = cv2.dilate(gray, np.ones((15, 15), np.uint8))   # the paper around each letter
-    letters &= (background >= max(100.0, 0.85 * float(np.percentile(background, 85)))).astype(np.uint8)
     if letters.sum() < 200:
         return img, [0, 0, img.shape[1], img.shape[0]], None
     # Already a page (a scan, a cropped photo): its border is paper as light as the paper around the

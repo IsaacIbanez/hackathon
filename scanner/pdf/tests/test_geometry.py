@@ -108,3 +108,26 @@ def test_does_not_pick_a_piece_of_empty_desk():
     d = g.detect_page(img)
     if d.found:  # if it detects something, it must be the poster, not the desk on the right
         assert np.abs(d.corners - corners).max() < 6.0
+
+
+def _held_sheet_next_to_a_framed_panel() -> np.ndarray:
+    """A sheet held against a light jacket (no outline: white on near-white) next to a framed grey panel
+    with a little print in the background (poster, window, notice board)."""
+    img = np.full((1440, 1920, 3), 232, np.uint8)
+    img[250:250 + 1075, 1050:1050 + 760] = cv2.resize(s.page(), (760, 1075))
+    cv2.rectangle(img, (120, 160), (820, 760), (35, 35, 35), -1)
+    cv2.rectangle(img, (150, 190), (790, 730), (150, 150, 150), -1)
+    for i in range(6):
+        cv2.putText(img, "AVIS IMPORTANT 2026", (190, 260 + i * 75), cv2.FONT_HERSHEY_SIMPLEX, 1.1,
+                    (20, 20, 20), 2, cv2.LINE_AA)
+    return img
+
+
+def test_a_frame_in_the_background_is_not_the_sheet():
+    # Real scans of a sheet held in the hand (2026-11-22): ceiling and window frames were taken as the
+    # sheet (the hands cut its outline) and the OCR read 0-6 words. A sheet holds most of the print.
+    img = _held_sheet_next_to_a_framed_panel()
+    assert not g.detect_page(img).found
+    crop, box, _ = g.text_region(img)
+    x0, y0, x1, y1 = box
+    assert 1000 <= x0 and x1 <= 1830 and 230 <= y0 < y1 <= 1340 and x1 - x0 > 500   # inside the held sheet
