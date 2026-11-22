@@ -108,7 +108,7 @@ export function GuidedReader({
   }, [keyboard])
 
   if (!doc || state.lines.length === 0) {
-    return <p className="text-2xl text-[var(--color-mist)]">Scan a document first.</p>
+    return <p className="text-title text-fg-muted">Scan a document first.</p>
   }
 
   const { lines, index, status } = state
@@ -118,7 +118,7 @@ export function GuidedReader({
       type="button"
       onClick={() => run(action)}
       aria-keyshortcuts={ARIA_KEYS[action]}
-      className={`btn text-xl ${extra}`}
+      className={`btn text-lead ${extra}`}
     >
       {label}
       <span className="kbd">{KEY_HINTS[action]}</span>
@@ -127,20 +127,20 @@ export function GuidedReader({
 
   return (
     <section aria-label="Guided reading" className="space-y-4">
-      <div className="sticky top-0 z-10 -mx-1 flex flex-wrap items-center gap-2 rounded-2xl bg-[rgb(16_24_50/0.96)] p-2">
+      <div className="sticky top-0 z-10 -mx-1 flex flex-wrap items-center gap-2 rounded-card bg-surface-solid p-2">
         {button('previous', 'Previous line')}
         {button('toggle', status === 'playing' ? 'Pause' : 'Read', 'btn-primary')}
         {button('next', 'Next line')}
         {button('repeat', 'Repeat')}
-        <p className="ml-2 text-lg text-[var(--color-mist)]">
-          <strong className="text-[var(--color-snow)]">{STATUS_TEXT[status]}</strong> {position}
+        <p className="ml-2 text-body text-fg-muted">
+          <strong className="text-fg">{STATUS_TEXT[status]}</strong> {position}
         </p>
       </div>
       <p role="status" aria-live="polite" className="sr-only">
         {STATUS_TEXT[status]}. {position}.
       </p>
-      {note && <p className="text-xl text-[var(--color-scan)]">{note}</p>}
-      <ol aria-label="Document" className="space-y-3 text-3xl leading-snug">
+      {note && <p className="text-lead text-warn">{note}</p>}
+      <ol aria-label="Document" className="space-y-3 text-display leading-snug">
         {lines.map((l, i) => {
           const on = i === index
           return (
@@ -151,12 +151,12 @@ export function GuidedReader({
               onClick={() => reader.goTo(i)}
               className={
                 on
-                  ? 'reading-mark cursor-pointer rounded-xl px-3 py-2 font-bold'
-                  : 'cursor-pointer rounded-xl px-3 py-2 hover:bg-white/8'
+                  ? 'reading-mark cursor-pointer rounded-field px-3 py-2 font-bold'
+                  : 'cursor-pointer rounded-field px-3 py-2 hover:bg-fill'
               }
             >
               {l.text}
-              {l.unclear && <span className="ml-3 text-xl font-normal opacity-75">(unclear)</span>}
+              {l.unclear && <span className="ml-3 text-lead font-normal opacity-75">(unclear)</span>}
             </li>
           )
         })}

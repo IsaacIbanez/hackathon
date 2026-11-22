@@ -1,7 +1,8 @@
 import type { CSSProperties, ReactNode } from 'react'
 
-// Shared pieces of the "Halo" design system (docs/DISENO.md): the tool icons, the panel every
-// tool opens in, and the round back button. Colours and buttons live in web/src/index.css.
+// Shared pieces of the overlay design system (docs/DESIGN.md): the icons (one family: 24 px grid,
+// 1.8 stroke, round caps), the panel every tool opens in, and the base controls (IconButton, Switch, Tag).
+// Tokens and the CSS classes behind them live in web/src/index.css.
 
 export type IconName = 'hand' | 'scan' | 'read' | 'ai' | 'voice' | 'back' | 'power' | 'keypad' | 'mic'
 
@@ -94,7 +95,7 @@ export function BackButton({ onBack, label = 'Back' }: { onBack: () => void; lab
       onClick={onBack}
       aria-label={`${label} (Esc)`}
       title={`${label} (Esc)`}
-      className="grid size-12 shrink-0 place-items-center rounded-full border border-[var(--color-line)] bg-white/5 transition hover:bg-white/15"
+      className="btn-icon"
       style={{ '--wails-draggable': 'no-drag' } as CSSProperties}
     >
       <Icon name="back" size={26} />
@@ -134,23 +135,23 @@ export function Panel({
     <section
       aria-label={title}
       // Filling a normal window there is no layer behind it: the panel is solid, not see-through.
-      style={fill ? { ...style, background: '#101832' } : style}
-      className={`glass flex flex-col overflow-hidden ${fill ? 'h-screen w-screen rounded-none' : 'h-full w-full max-w-6xl rounded-[2rem]'}`}
+      style={fill ? { ...style, background: 'var(--color-surface-opaque)' } : style}
+      className={`glass flex flex-col overflow-hidden ${fill ? 'h-screen w-screen rounded-none' : 'h-full w-full max-w-6xl rounded-panel'}`}
     >
       <header
-        className="flex items-center gap-4 border-b border-[var(--color-line)] px-6 py-4"
+        className="flex items-center gap-4 border-b border-edge px-6 py-4"
         style={{ '--wails-draggable': 'drag' } as CSSProperties}
       >
         <BackButton onBack={onBack} />
         <span
-          className="grid size-12 shrink-0 place-items-center rounded-full"
-          style={{ background: `color-mix(in oklab, ${accent} 22%, transparent)`, color: accent }}
+          className="grid size-12 shrink-0 place-items-center rounded-full bg-fill-strong text-fg"
+          
         >
           <Icon name={icon} size={26} />
         </span>
         <div className="min-w-0 flex-1">
-          <h1 className="text-2xl leading-tight font-bold">{title}</h1>
-          {hint && <p className="truncate text-base text-[var(--color-mist)]">{hint}</p>}
+          <h1 className="text-title leading-tight font-bold">{title}</h1>
+          {hint && <p className="truncate text-body text-fg-muted">{hint}</p>}
         </div>
         {actions}
       </header>
@@ -159,9 +160,70 @@ export function Panel({
   )
   if (fill) return sheet
   return (
-    <div className="halo-layer flex items-center justify-center p-8" style={{ animation: 'rise .25s ease-out', paddingLeft: gutterLeft ? gutterLeft + 16 : undefined }}>
+    <div className="halo-layer flex items-center justify-center p-8" style={{ animation: 'rise var(--duration-base) var(--ease-soft)', paddingLeft: gutterLeft ? gutterLeft + 16 : undefined }}>
       {sheet}
     </div>
+  )
+}
+
+/**
+ * A round button with only an icon. `label` is required: it is read aloud and shown on hover, since
+ * an icon alone is not enough for everyone.
+ */
+export function IconButton({
+  icon,
+  label,
+  onClick,
+  disabled = false,
+  size = 26,
+}: {
+  icon: IconName
+  label: string
+  onClick: () => void
+  disabled?: boolean
+  size?: number
+}) {
+  return (
+    <button type="button" onClick={onClick} disabled={disabled} aria-label={label} title={label} className="btn-icon">
+      <Icon name={icon} size={size} />
+    </button>
+  )
+}
+
+/** An on/off switch with its words next to it (the state is never shown by colour alone). */
+export function Switch({
+  checked,
+  onChange,
+  label,
+  disabled = false,
+}: {
+  checked: boolean
+  onChange: (on: boolean) => void
+  label: string
+  disabled?: boolean
+}) {
+  return (
+    <label className="inline-flex cursor-pointer items-center gap-3 text-lead">
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        disabled={disabled}
+        onClick={() => onChange(!checked)}
+        className="switch"
+      />
+      <span>{label}</span>
+      <span className="sr-only">{checked ? 'on' : 'off'}</span>
+    </label>
+  )
+}
+
+/** A short label next to something: a state, a language, a speaker. Not clickable. */
+export function Tag({ children, tone }: { children: ReactNode; tone?: 'warn' | 'danger' }) {
+  return (
+    <span className="tag" data-tone={tone}>
+      {children}
+    </span>
   )
 }
 
@@ -171,7 +233,7 @@ export function Status({ children, tone = 'info' }: { children: ReactNode; tone?
     <p
       role="status"
       aria-live="polite"
-      className={`text-2xl leading-snug ${tone === 'warn' ? 'text-[var(--color-scan)]' : 'text-[var(--color-snow)]'}`}
+      className={`text-title leading-snug ${tone === 'warn' ? 'text-warn' : 'text-fg'}`}
     >
       {children}
     </p>

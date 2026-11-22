@@ -117,7 +117,7 @@ export function PdfViewer({ pdf, loadPage, voice }: { pdf: PdfSource; loadPage: 
     <button
       type="button"
       onClick={() => run(action)}
-      className="btn text-lg"
+      className="btn text-body"
       aria-keyshortcuts={KEY_HINT[action]}
     >
       {label} <span className="kbd">{KEY_HINT[action]}</span>
@@ -126,12 +126,12 @@ export function PdfViewer({ pdf, loadPage, voice }: { pdf: PdfSource; loadPage: 
 
   return (
     <section aria-label={`PDF ${pdf.name}`} className="space-y-3">
-      <div className="sticky top-0 z-10 -mx-1 flex flex-wrap items-center gap-2 rounded-2xl bg-[rgb(16_24_50/0.96)] p-2">
+      <div className="sticky top-0 z-10 -mx-1 flex flex-wrap items-center gap-2 rounded-card bg-surface-solid p-2">
         <button
           type="button"
           onClick={() => run('toggle')}
           aria-keyshortcuts="Space"
-          className="btn btn-primary text-2xl"
+          className="btn btn-primary text-title"
         >
           {main} <span className="kbd">Space</span>
         </button>
@@ -141,7 +141,7 @@ export function PdfViewer({ pdf, loadPage, voice }: { pdf: PdfSource; loadPage: 
         {button('repeat', 'Repeat')}
         {button('previousPage', 'Previous page')}
         {button('nextPage', 'Next page')}
-        <form onSubmit={submitGoTo} className="flex items-center gap-1 text-lg">
+        <form onSubmit={submitGoTo} className="flex items-center gap-1 text-body">
           <label htmlFor="pdf-go-to">Go to page (G)</label>
           <input
             id="pdf-go-to"
@@ -150,35 +150,35 @@ export function PdfViewer({ pdf, loadPage, voice }: { pdf: PdfSource; loadPage: 
             value={goTo}
             onChange={(e) => setGoTo(e.target.value.replace(/\D/g, ''))}
             onKeyDown={(e) => e.key === 'Escape' && (e.currentTarget.blur(), e.preventDefault())}
-            className="w-20 rounded-full border border-[var(--color-line)] bg-white/5 px-3 py-1.5 text-center"
+            className="w-20 rounded-full border border-edge bg-fill px-3 py-1.5 text-center"
             placeholder={`1–${pdf.pages}`}
           />
         </form>
-        <span className="flex items-center gap-1 text-lg">
+        <span className="flex items-center gap-1 text-body">
           {button('slower', '−')}
           <span aria-label="Speed">{rate.toFixed(2).replace(/0$/, '')}×</span>
           {button('faster', '+')}
         </span>
       </div>
-      <p className="text-lg text-[var(--color-mist)]">
-        <strong className="text-[var(--color-snow)]">{statusText}</strong> {position} of {pdf.name}
+      <p className="text-body text-fg-muted">
+        <strong className="text-fg">{statusText}</strong> {position} of {pdf.name}
         {data?.ocr ? '. This page was read with OCR.' : ''}
       </p>
       <p role="status" aria-live="polite" className="sr-only">
         {statusText}. {position}.
       </p>
 
-      <div className="relative mx-auto max-w-3xl overflow-hidden rounded-xl bg-white shadow-[0_30px_80px_-30px_rgb(0_0_0/0.8)]">
+      <div className="relative mx-auto max-w-3xl overflow-hidden rounded-field bg-paper shadow-edge">
         {data ? (
           <img src={data.image} alt={`Page ${page + 1} of ${pdf.name}`} className="block w-full" />
         ) : (
-          <div className="flex aspect-[210/297] items-center justify-center p-8 text-center text-2xl text-slate-700">{statusText}</div>
+          <div className="flex aspect-[210/297] items-center justify-center p-8 text-center text-title text-on-accent">{statusText}</div>
         )}
         {data && current && (
           <div
             ref={boxRef}
             aria-hidden="true"
-            className="pointer-events-none absolute rounded-sm bg-[color-mix(in_oklab,var(--color-mark)_40%,transparent)] ring-4 ring-[var(--color-mark)]"
+            className="pointer-events-none absolute rounded-chip bg-accent/40 ring-4 ring-accent"
             style={{
               left: `${current.box.x * 100 - 0.5}%`,
               top: `${current.box.y * 100 - 0.4}%`,
@@ -192,7 +192,7 @@ export function PdfViewer({ pdf, loadPage, voice }: { pdf: PdfSource; loadPage: 
       {current && (
         <p
           aria-hidden="true"
-          className="sticky bottom-0 z-20 -mx-1 rounded-2xl border border-[var(--color-line)] bg-[rgb(16_24_50/0.96)] px-6 py-4 text-center text-4xl leading-tight font-bold text-[var(--color-mark)]"
+          className="sticky bottom-0 z-20 -mx-1 rounded-card border border-edge bg-surface-solid px-6 py-4 text-center text-display leading-tight font-bold text-accent"
         >
           {current.text}
         </p>

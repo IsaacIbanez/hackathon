@@ -3,7 +3,7 @@ import type { OverlayInfo } from './desktop.ts'
 import { MODES, type Mode, type ModeId } from './modes.ts'
 import { Icon } from './ui.tsx'
 
-// The layer's home (docs/DISENO.md): the desktop dimmed behind, Gesture Control as the big circle
+// The layer's home (docs/DESIGN.md): the desktop dimmed behind, Gesture Control as the big circle
 // in the middle and the other tools fanned out on an arc above it, like a radial menu: every tool
 // is the same distance from the centre and keeps its direction, so it can be found without
 // looking. Under the hub, one line says what the tool under the pointer (or focus) does.
@@ -59,7 +59,7 @@ export function Hub({
               {
                 '--a': `${angles[i]}deg`,
                 transform: 'translate(-50%, -50%) translate(calc(cos(var(--a)) * var(--r)), calc(sin(var(--a)) * var(--r)))',
-                animation: `orb-out .45s cubic-bezier(.2,.9,.3,1.2) ${0.04 * i}s backwards`,
+                animation: `orb-out var(--duration-base) var(--ease-soft) ${0.03 * i}s backwards`,
               } as CSSProperties
             }
           >
@@ -80,8 +80,8 @@ export function Hub({
             className="orb hub-orb relative size-[13rem] flex-col gap-1"
           >
             <span className="hub-halo" aria-hidden="true" />
-            <Icon name={hub.icon} size={68} className="text-[var(--color-hand)]" />
-            <span className="text-xl leading-tight font-bold">{hub.title}</span>
+            <Icon name={hub.icon} size={68} />
+            <span className="text-lead leading-tight font-bold">{hub.title}</span>
             <span className="kbd">{hub.key}</span>
           </button>
         </div>
@@ -90,14 +90,14 @@ export function Hub({
       <p
         id="hub-caption"
         aria-live="polite"
-        className="pointer-events-none absolute top-[calc(58%+8.5rem)] left-1/2 w-[min(34rem,90vw)] -translate-x-1/2 text-center text-xl leading-snug text-[var(--color-snow)]"
+        className="pointer-events-none absolute top-[calc(58%+8.5rem)] left-1/2 w-[min(34rem,90vw)] -translate-x-1/2 text-center text-lead leading-snug text-fg"
       >
         {caption}
       </p>
 
       {extras && <div className="absolute bottom-8 left-8 w-[22rem] space-y-3">{extras}</div>}
 
-      <footer className="glass absolute bottom-8 left-1/2 flex -translate-x-1/2 items-center gap-5 rounded-full px-6 py-3 text-base whitespace-nowrap text-[var(--color-mist)]">
+      <footer className="glass absolute bottom-8 left-1/2 flex -translate-x-1/2 items-center gap-5 rounded-full px-6 py-3 text-body whitespace-nowrap text-fg-muted">
         <span>
           {info?.hotkeyOk ? (
             <>
@@ -109,15 +109,15 @@ export function Hub({
           )}
         </span>
         {info?.keypadConnected && (
-          <span className="flex items-center gap-2 text-[var(--color-hand)]">
+          <span className="flex items-center gap-2 text-fg-muted">
             <Icon name="keypad" size={20} /> MX Keypad ready
           </span>
         )}
         {failedKeys.length > 0 && (
-          <span className="text-[var(--color-scan)]">Keypad shortcuts {failedKeys.map((k) => k.shortcut).join(', ')} are taken</span>
+          <span className="text-warn">Keypad shortcuts {failedKeys.map((k) => k.shortcut).join(', ')} are taken</span>
         )}
         {onQuit && (
-          <button type="button" onClick={onQuit} className="btn min-h-0 py-1.5 text-base">
+          <button type="button" onClick={onQuit} className="btn min-h-0 py-1.5 text-body">
             <Icon name="power" size={18} /> Quit <span className="kbd">Q</span>
           </button>
         )}
@@ -145,11 +145,11 @@ function ToolOrb({ mode, onChoose, onHint }: { mode: Mode; onChoose: (id: ModeId
         <span className="sr-only">{mode.title}</span>
       </button>
       <span className="pointer-events-none absolute top-[calc(100%+0.6rem)] left-1/2 flex -translate-x-1/2 flex-col items-center gap-1 text-center whitespace-nowrap">
-        <span className="text-lg leading-tight font-bold">{mode.title}</span>
+        <span className="text-body leading-tight font-bold">{mode.title}</span>
         {mode.ready ? (
           <span className="kbd">{mode.key}</span>
         ) : (
-          <span className="text-sm text-[var(--color-mist)]">Coming soon</span>
+          <span className="text-meta text-fg-muted">Coming soon</span>
         )}
       </span>
     </div>

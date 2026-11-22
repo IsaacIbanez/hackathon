@@ -1,5 +1,7 @@
 # Diseño del overlay: «Halo»
 
+> **Se está sustituyendo por `docs/DESIGN.md`** (2026-11-22). Para piezas nuevas o migradas manda `DESIGN.md`; este documento describe las pantallas que aún no se han migrado y pasará a `docs/historial/` al acabar.
+
 Diseño final del overlay, decidido por Didac el 2026-11-22 (rama `feature/didac-diseno-overlay`). Todo lo que se añada al overlay debe seguir este sistema, para que todas las pantallas se vean iguales.
 
 ## Idea

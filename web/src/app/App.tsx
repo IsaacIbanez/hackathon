@@ -70,17 +70,17 @@ export default function App() {
   const { status, send, url } = useSocket(onMessage)
 
   return (
-    <main className="min-h-screen bg-slate-900 p-8 text-slate-50">
+    <main className="min-h-screen bg-surface-solid p-8 text-fg">
       <header className="flex flex-wrap items-baseline justify-between gap-4">
-        <h1 className="text-4xl font-bold">LauzHack project</h1>
-        <p className="text-lg" role="status">
-          Server: <strong>{status}</strong> <span className="text-slate-400">({url ?? '…'})</span>
+        <h1 className="text-display font-bold">LauzHack project</h1>
+        <p className="text-body" role="status">
+          Server: <strong>{status}</strong> <span className="text-fg-muted">({url ?? '…'})</span>
         </p>
       </header>
 
       <div className="mt-8 grid gap-8 lg:grid-cols-2">
         <section aria-label="Explanation">
-          <p aria-live="polite" className="text-4xl leading-relaxed">
+          <p aria-live="polite" className="text-display leading-relaxed">
             {last?.text ?? (doc ? 'Reading the document…' : '')}
           </p>
           <Gestures
@@ -96,16 +96,16 @@ export default function App() {
           <Cost stats={stats} />
         </section>
 
-        <section aria-label="Document view" className="rounded-2xl border border-slate-700 p-6">
+        <section aria-label="Document view" className="rounded-card border border-edge p-6">
           <DocumentText doc={doc} highlight={last?.highlightBlockIds ?? []} values={values} draft={draft} />
         </section>
       </div>
 
-      <details className="mt-10 text-lg text-slate-400">
+      <details className="mt-10 text-body text-fg-muted">
         <summary>Developer tools</summary>
         <button
           type="button"
-          className="mt-4 rounded-xl bg-yellow-400 px-6 py-3 text-xl font-bold text-slate-900 disabled:opacity-50"
+          className="mt-4 rounded-field bg-accent px-6 py-3 text-lead font-bold text-on-accent disabled:opacity-50"
           disabled={status !== 'connected'}
           onClick={() => send(sampleDocument())}
         >

@@ -361,17 +361,17 @@ export function Gestures({ send, voice, lang, doc, highlight, values = NO_VALUES
     <section aria-label="Hand gestures" className="mt-8">
       <button
         type="button"
-        className="rounded-xl border-2 border-yellow-400 px-6 py-3 text-xl font-bold"
+        className="rounded-field border border-accent px-6 py-3 text-lead font-bold"
         aria-pressed={on}
         onClick={() => setOn((v) => !v)}
       >
         {on ? 'Turn off hand gestures' : 'Turn on hand gestures'}
       </button>
-      <label className="ml-4 inline-flex items-center gap-2 text-xl">
+      <label className="ml-4 inline-flex items-center gap-2 text-lead">
         <input type="checkbox" className="h-6 w-6" checked={askByVoice} onChange={(e) => setAskByVoice(e.target.checked)} />
         Ask with my voice
       </label>
-      <label className="ml-4 inline-flex items-center gap-2 text-xl">
+      <label className="ml-4 inline-flex items-center gap-2 text-lead">
         <input
           type="checkbox"
           className="h-6 w-6"
@@ -384,12 +384,12 @@ export function Gestures({ send, voice, lang, doc, highlight, values = NO_VALUES
         Fill in a form
       </label>
       {voiceStatus && (
-        <p role="status" className={`mt-2 text-lg ${voiceStatus === 'Voice ready.' ? 'text-emerald-300' : 'text-amber-200'}`}>
-          🎙️ {voiceStatus}
+        <p role="status" className={`mt-2 text-body ${voiceStatus === 'Voice ready.' ? 'text-fg' : 'text-warn'}`}>
+          {voiceStatus}
         </p>
       )}
       {fillMode && draft === null && (
-        <p className="mt-2 text-lg text-emerald-200">
+        <p className="mt-2 text-body text-fg">
           {fields.length
             ? `${fields.length} fields found. Point at one and hold, or press the button, then say or spell the answer.`
             : 'No form fields yet: show a form to the camera (or Developer tools → Send sample document).'}
@@ -412,26 +412,26 @@ export function Gestures({ send, voice, lang, doc, highlight, values = NO_VALUES
       )}
       {on && (
         <>
-          <p className="mt-2 text-lg text-slate-300">{status}</p>
+          <p className="mt-2 text-body text-fg-muted">{status}</p>
           {listening && (
-            <div role="status" className="mt-3 rounded-xl border-2 border-sky-400 bg-sky-950 p-4">
-              <p className="text-3xl font-bold text-sky-200">🎙️ Listening… speak now</p>
-              <p className="mt-1 text-lg text-sky-300">Using {listener.name}</p>
+            <div role="status" className="mt-3 rounded-field border border-accent bg-surface-solid p-4">
+              <p className="text-display font-bold text-fg">Listening… speak now</p>
+              <p className="mt-1 text-body text-fg">Using {listener.name}</p>
               {micLevel >= 0 ? (
-                <div aria-hidden="true" className="mt-3 h-5 w-full max-w-md overflow-hidden rounded-full bg-slate-700">
-                  <div className="h-full bg-sky-400 transition-[width] duration-75" style={{ width: `${Math.round(micLevel * 100)}%` }} />
+                <div aria-hidden="true" className="mt-3 h-5 w-full max-w-md overflow-hidden rounded-full bg-fill-strong">
+                  <div className="h-full bg-accent transition-[width] duration-75" style={{ width: `${Math.round(micLevel * 100)}%` }} />
                 </div>
               ) : (
-                <p className="mt-2 text-lg text-red-300">Can't read the microphone level.</p>
+                <p className="mt-2 text-body text-danger">Can't read the microphone level.</p>
               )}
               {/* While filling a field, the field panel shows the text and the buttons. */}
-              {!dictating && heard?.text && <p className="mt-3 text-2xl text-white">{heard.text}</p>}
+              {!dictating && heard?.text && <p className="mt-3 text-title text-fg">{heard.text}</p>}
               {!dictating && (
                 <>
-                  <p className="mt-3 text-lg text-sky-300">Done? Show an open palm ✋ or press the button.</p>
+                  <p className="mt-3 text-body text-fg">Done? Show an open palm or press the button.</p>
                   <button
                     type="button"
-                    className="mt-2 rounded-xl border-2 border-sky-300 px-5 py-2 text-xl font-bold text-sky-100"
+                    className="mt-2 rounded-field border border-accent px-5 py-2 text-lead font-bold text-fg"
                     onClick={() => voiceInput.finish()}
                   >
                     I'm done talking
@@ -441,19 +441,19 @@ export function Gestures({ send, voice, lang, doc, highlight, values = NO_VALUES
             </div>
           )}
           {heard && !listening && heard.text && (
-            <p aria-live="polite" className={`mt-2 text-2xl ${heard.phase === 'error' ? 'text-red-300' : 'text-sky-300'}`}>
+            <p aria-live="polite" className={`mt-2 text-title ${heard.phase === 'error' ? 'text-danger' : 'text-fg'}`}>
               {heard.phase === 'heard' ? '✅ ' : ''}
               {heard.text}
             </p>
           )}
-          <p aria-live="assertive" className="mt-2 text-2xl font-bold text-yellow-300">
+          <p aria-live="assertive" className="mt-2 text-title font-bold text-accent">
             {lastAction}
           </p>
           <PointingStatus pointer={pointer} hovered={hovered} field={hoveredField} />
           {/* The video is mirrored (it feels like a mirror); the boxes are drawn in document
               coordinates, which match what the user sees (WHOLE_FRAME_AS_SEEN). The canvas on top
               draws the hand skeleton, the detected pose and the quick menu. */}
-          <div className="relative mt-4 w-full max-w-2xl overflow-hidden rounded-xl" style={{ aspectRatio: ASPECT }}>
+          <div className="relative mt-4 w-full max-w-2xl overflow-hidden rounded-field" style={{ aspectRatio: ASPECT }}>
             <video ref={videoRef} muted playsInline className="absolute inset-0 h-full w-full -scale-x-100 object-cover" />
             <svg aria-hidden="true" viewBox="0 0 1 1" preserveAspectRatio="none" className="absolute inset-0 h-full w-full">
               {doc?.blocks.map((b) => {
@@ -511,7 +511,7 @@ function PointingStatus({
   if (pointer && !hovered) text = '☝️ Pointing — move onto a box.'
   if (hovered) text = `☝️ ${hovered.text} — hold still to ask.`
   if (field) text = `✍️ ${field.label} — hold still to write here.`
-  return <p className={`mt-3 text-2xl font-semibold ${field ? 'text-emerald-300' : 'text-sky-200'}`}>{text}</p>
+  return <p className={`mt-3 text-title font-bold ${field ? 'text-fg' : 'text-fg'}`}>{text}</p>
 }
 
 /** A ring around the pointer that closes as the dwell selection completes (SVG, 0–1 units). */

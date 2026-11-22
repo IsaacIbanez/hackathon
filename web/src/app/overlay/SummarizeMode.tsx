@@ -76,12 +76,12 @@ export function SummarizeMode({ onClose }: { onClose: () => void }) {
   // While Go copies and summarizes, the window is still the full-screen layer: a card in the middle.
   if (state.phase === 'working') {
     return (
-      <div className="halo-layer grid place-items-center" style={{ '--accent': 'var(--color-ai)' } as CSSProperties}>
+      <div className="halo-layer grid place-items-center" style={{ '--accent': 'var(--color-accent)' } as CSSProperties}>
         <div className="glass flex items-center gap-4 rounded-full px-8 py-5" style={{ animation: 'rise .2s ease-out' }}>
-          <span className="grid size-12 place-items-center rounded-full bg-[color-mix(in_oklab,var(--color-ai)_22%,transparent)] text-[var(--color-ai)]">
+          <span className="grid size-12 place-items-center rounded-full bg-fill-strong text-accent">
             <Icon name="ai" size={26} />
           </span>
-          <p role="status" aria-live="polite" className="text-2xl">
+          <p role="status" aria-live="polite" className="text-title">
             Summarizing the selected text…
           </p>
         </div>
@@ -93,36 +93,36 @@ export function SummarizeMode({ onClose }: { onClose: () => void }) {
   return (
     <section
       aria-label="AI Summary"
-      className="glass flex h-screen flex-col gap-3 rounded-[1.75rem] p-5"
-      style={{ '--accent': 'var(--color-ai)' } as CSSProperties}
+      className="glass flex h-screen flex-col gap-3 rounded-panel p-5"
+      style={{ '--accent': 'var(--color-accent)' } as CSSProperties}
     >
       <header className="flex items-center gap-3" style={{ '--wails-draggable': 'drag' } as CSSProperties}>
-        <span className="grid size-10 place-items-center rounded-full bg-[color-mix(in_oklab,var(--color-ai)_22%,transparent)] text-[var(--color-ai)]">
+        <span className="grid size-10 place-items-center rounded-full bg-fill-strong text-accent">
           <Icon name="ai" size={22} />
         </span>
-        <h1 className="flex-1 text-lg font-bold text-[var(--color-mist)]">AI Summary</h1>
-        <button type="button" onClick={close} className="btn min-h-0 py-1.5 text-base" style={{ '--wails-draggable': 'no-drag' } as CSSProperties}>
+        <h1 className="flex-1 text-body font-bold text-fg-muted">AI Summary</h1>
+        <button type="button" onClick={close} className="btn min-h-0 py-1.5 text-body" style={{ '--wails-draggable': 'no-drag' } as CSSProperties}>
           Close <span className="kbd">Esc</span>
         </button>
       </header>
       {state.phase === 'done' ? (
         <>
-          <p role="status" aria-live="polite" className="min-h-0 flex-1 overflow-auto text-xl leading-snug font-bold [text-wrap:pretty]">
+          <p role="status" aria-live="polite" className="min-h-0 flex-1 overflow-auto text-lead leading-snug font-bold [text-wrap:pretty]">
             {state.result.summary}
           </p>
-          <ul className="flex flex-wrap gap-2 text-sm text-[var(--color-mist)]" aria-label="About this summary">
+          <ul className="flex flex-wrap gap-2 text-meta text-fg-muted" aria-label="About this summary">
             {details(state.result).map((d) => (
-              <li key={d} className="rounded-full bg-white/8 px-3 py-1">
+              <li key={d} className="rounded-full bg-fill px-3 py-1">
                 {d}
               </li>
             ))}
-            <li className="rounded-full bg-white/8 px-3 py-1">
+            <li className="rounded-full bg-fill px-3 py-1">
               <span className="kbd">R</span> repeats
             </li>
           </ul>
         </>
       ) : (
-        <p role="alert" className="flex-1 text-xl leading-snug text-[var(--color-scan)]">
+        <p role="alert" className="flex-1 text-lead leading-snug text-warn">
           {state.message}
         </p>
       )}

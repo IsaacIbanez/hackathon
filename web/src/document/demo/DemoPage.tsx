@@ -14,9 +14,9 @@ export function DemoPage() {
   }, [unclear])
 
   return (
-    <main className="min-h-screen bg-slate-900 p-8 text-slate-50">
-      <h1 className="mb-2 text-4xl font-bold">Guided reading — test page</h1>
-      <label className="mb-4 flex items-center gap-3 text-xl">
+    <main className="min-h-screen bg-surface-solid p-8 text-fg">
+      <h1 className="mb-2 text-display font-bold">Guided reading — test page</h1>
+      <label className="mb-4 flex items-center gap-3 text-lead">
         <input type="checkbox" checked={unclear} onChange={(e) => setUnclear(e.target.checked)} />
         Simulate an unclear line (line 11)
       </label>

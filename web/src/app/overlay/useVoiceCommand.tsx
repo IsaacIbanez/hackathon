@@ -5,6 +5,7 @@ import { transcribeRemote } from '../transcribe.ts'
 import { desktop, errorText, inDesktopApp } from './desktop.ts'
 import type { KeypadAction } from './keypad.ts'
 import { MicRecorder } from './recorder.ts'
+import { Icon } from './ui.tsx'
 import { DONE_SPEECH, voiceAction } from './voiceCommand.ts'
 
 // Voice commands (docs/KEYPAD.md): keypad key 7 starts recording and the same key stops it. Go transcribes
@@ -93,25 +94,29 @@ export function useVoiceCommand(run: (action: KeypadAction) => void) {
 export function VoiceBanner({ status }: { status: VoiceStatus }) {
   if (status.phase === 'idle') return null
   const text = {
-    recording: '🎙 Recording… press key 7 to stop.',
+    recording: 'Recording… press key 7 to stop.',
     transcribing: 'Understanding what you said…',
     heard: status.phase === 'heard' ? `Heard: “${status.text}”${status.understood ? '' : ' (not a command I know)'}` : '',
     error: status.phase === 'error' ? status.message : '',
   }[status.phase]
   const color =
     status.phase === 'recording'
-      ? 'var(--color-voice)'
+      ? 'var(--color-accent)'
       : status.phase === 'error'
-        ? 'var(--color-scan)'
-        : 'var(--color-read)'
+        ? 'var(--color-warn)'
+        : 'var(--color-edge)'
   return (
     <p
       role="status"
       aria-live="assertive"
-      className="glass fixed top-6 left-1/2 z-50 flex max-w-[90vw] -translate-x-1/2 items-center gap-3 rounded-full px-6 py-3 text-xl"
-      style={{ borderColor: color, animation: 'rise .2s ease-out' }}
+      className="glass fixed top-6 left-1/2 z-50 flex max-w-[90vw] -translate-x-1/2 items-center gap-3 rounded-full px-6 py-3 text-lead"
+      style={{ borderColor: color, animation: 'rise var(--duration-base) var(--ease-soft)' }}
     >
-      <span className="size-3 shrink-0 rounded-full" style={{ background: color }} aria-hidden="true" />
+      {status.phase === 'recording' ? (
+        <Icon name="mic" size={26} className="shrink-0 text-accent" />
+      ) : (
+        <span className="size-3 shrink-0 rounded-full" style={{ background: color }} aria-hidden="true" />
+      )}
       {text}
     </p>
   )

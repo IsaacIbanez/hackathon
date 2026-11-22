@@ -15,7 +15,7 @@
 | `backend/summary` | AI Summary (resumen de la selección) | Didac | — |
 | `backend/captions` | **Transcribe**: `GET /captions` (WebSocket) → Together AI | Pau | `web/src/captions/README.md` |
 | `backend/ws`, `backend/mock`, `backend/cmd/*` | WebSocket y `ws.Guard`; servidor mock (8080); servidor real sin ventana (`task server`) | Isaac | — |
-| `web/src/app/overlay` | **El overlay**: `Overlay.tsx` (vistas), `Hub.tsx` (menú radial), `modes.ts` (herramientas), `ui.tsx` (Panel, botones, iconos), `keypad.ts` | Isaac (diseño: Didac) | `docs/DISENO.md` |
+| `web/src/app/overlay` | **El overlay**: `Overlay.tsx` (vistas), `Hub.tsx` (menú radial), `modes.ts` (herramientas), `ui.tsx` (Panel, botones, iconos), `keypad.ts` | Isaac (diseño: Didac) | `docs/DESIGN.md` |
 | `web/src/app` (resto) | Pantalla Developer (`App.tsx`, `DocumentText.tsx`, `Cost.tsx`) | Isaac | — |
 | `web/src/camera` | Cámara, foto más nítida, guía de encuadre por voz | Pau | `web/src/camera/README.md` |
 | `web/src/captions` | Pantalla de Transcribe (`LiveCaptions.tsx`) | Pau | `web/src/captions/README.md` |

@@ -6,8 +6,12 @@ import { menuFor, type Action } from "./actions.ts";
 import type { HandInteraction } from "./interaction.ts";
 import { CONNECTIONS, type Gesture, type HandFrame, type HandSide, type MenuSector, type Point } from "./types.ts";
 
-/** Halo colours (docs/DISENO.md, web/src/index.css): Gesture Control's teal, the yellow mark, ink and glass. */
-export const HALO = { ink: "#0a1128", glass: "#101832ee", mist: "#b4bfdc", mark: "#ffd84d", hand: "#49e3c4", bad: "#ff6b7a" } as const;
+/**
+ * The overlay's tokens for the canvas (docs/DESIGN.md, web/src/index.css; a canvas needs plain
+ * values): the hand is drawn in the neutral text colour so the one accent (yellow) is only what is
+ * pointed at or chosen.
+ */
+export const HALO = { ink: "#0a1128", glass: "#101832ee", mist: "#b4bfdc", mark: "#ffd84d", hand: "#f3f6ff", bad: "#ff6b7a" } as const;
 
 export const GESTURE_LABELS: Record<Gesture, string> = {
   none: "No gesture",
