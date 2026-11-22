@@ -15,3 +15,12 @@ func ForegroundIsOurs() bool { return true }
 func Listen(h Hotkey, _ func()) (stop func(), err error) {
 	return func() {}, errors.New("system-wide hotkey not implemented on " + runtime.GOOS + ": " + h.String())
 }
+
+// ListenAll is only implemented on Windows: every hotkey fails.
+func ListenAll(keys []Hotkey, _ func(int)) (stop func(), errs []error) {
+	errs = make([]error, len(keys))
+	for i, h := range keys {
+		_, errs[i] = Listen(h, nil)
+	}
+	return func() {}, errs
+}
