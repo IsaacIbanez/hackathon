@@ -169,10 +169,10 @@ export const DEFAULT_OPTIONS: InteractionOptions = {
   invertHandedness: false,
   thresholds: DEFAULT_THRESHOLDS,
   requireWake: false,
-  wakeMs: 1600,
-  wakeStraightness: 0.95,
-  wakeSpread: 0.9,
-  wakeUprightDeg: 30,
+  wakeMs: 1400,
+  wakeStraightness: 0.93,
+  wakeSpread: 0.85,
+  wakeUprightDeg: 35,
   sleepMs: 10000,
   levelZero: 0.25,
   levelFull: 1.0,
@@ -212,7 +212,7 @@ export const REDUCED_MOBILITY_PROFILE: Partial<InteractionOptions> = {
   dwellRadius: 0.045,
   swipeDistance: 0.15,
   swipeWindowMs: 700,
-  wakeMs: 2000,
+  wakeMs: 1800,
   dragMs: 450,
   doubleTapMs: 500,
   menuSelectMs: 900,
@@ -754,8 +754,16 @@ export class HandInteraction {
       [L.RING_MCP, L.RING_PIP, L.RING_DIP, L.RING_TIP],
       [L.PINKY_MCP, L.PINKY_PIP, L.PINKY_DIP, L.PINKY_TIP],
     ];
-    if (chains.some((c) => straightness(pts, c) < this.opts.wakeStraightness)) return "straight";
-    if (distance(pts[L.INDEX_TIP], pts[L.PINKY_TIP]) / handSize(pts) < this.opts.wakeSpread) return "spread";
+    // Each measure is the better of 3D and the image: MediaPipe's depth is noisy and can make
+    // straight, spread fingers look bent or together; seen from the camera they clearly are not.
+    const img = hand.points.map((q) => ({ x: q.x * aspect, y: q.y, z: 0 }));
+    const straight = (c: number[]) => Math.max(straightness(pts, c), straightness(img, c));
+    if (chains.some((c) => straight(c) < this.opts.wakeStraightness)) return "straight";
+    const spread = Math.max(
+      distance(pts[L.INDEX_TIP], pts[L.PINKY_TIP]) / handSize(pts),
+      distance(img[L.INDEX_TIP], img[L.PINKY_TIP]) / handSize(img),
+    );
+    if (spread < this.opts.wakeSpread) return "spread";
     if (palmFacesCamera(hand, this.sideOf(hand)) !== true) return "facing";
     // Upright: from the wrist to the middle knuckle, pointing up in the image.
     const w = hand.points[L.WRIST];
