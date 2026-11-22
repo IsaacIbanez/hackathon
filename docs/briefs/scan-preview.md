@@ -2,9 +2,21 @@
 Confirmado por Didac el 2026-11-22. Rama `feature/didac-scan-preview`.
 
 ## Estado (2026-11-22)
-**⚠ Aún no funciona bien.** El código está en `main` (tests en verde), pero el escaneo todavía no es como la primera versión que hicimos: un PDF buscable y un PDF digital a partir de la foto. La vista previa nueva **no se ha probado con la cámara en el `.exe`**. Pendiente:
-- probarlo de punta a punta con el `.exe` y la cámara (cerrar antes cualquier `scanner/service.py` viejo en el puerto 8770, o la app lo reutiliza y no encuentra las rutas nuevas);
-- volver a dejarlo como la primera versión.
+La vista previa está en `main`. El escaneo fallaba mucho y se ha arreglado en `feature/didac-scan-fix` (abajo, «Registro»). **Falta probarlo con el `.exe` y la cámara** (cierra antes cualquier `scanner/service.py` viejo en el puerto 8770).
+
+## Registro: por qué fallaba el lector y qué se ha cambiado
+Medido con las 8 fotos reales del 2026-11-22 (`scanner/pdf/output/scan-20261122-*`, carta en catalán sostenida con las manos en la sala), pasando cada versión del pipeline por las mismas fotos.
+
+**La primera versión (`feature/B-contexto-scanner`) fallaba igual con estas fotos**: el detector de la hoja es el mismo. Funcionaba porque se probaba con la hoja sobre la mesa y la MX Brio (`capturar.py`); con la hoja en la mano falla de la misma forma.
+
+1. **Detector de la hoja: elegía un marco del fondo.** Síntoma: con la hoja en la mano se leían 0–6 palabras. Causa: las manos cortan el contorno de la hoja, que deja de ser candidata, y los marcos del techo, las ventanas y la pared formaban rectángulos «fiables»; entre los fiables gana el más grande. Esos rectángulos contenían solo el 7–11 % del texto impreso de la foto (las hojas reales, 61–81 %). Arreglo (`geometry.py`): se descarta todo candidato con menos del 35 % del texto sobre papel claro (`MIN_PAPER_TEXT`), y se usa el recorte del bloque de texto que ya existía. Resultado: 060901 pasa de 5 a **300 palabras** y 060206 de 6 a **334**; las fotos que ya iban bien no cambian (307 y 337). Test: `test_a_frame_in_the_background_is_not_the_sheet` (la versión anterior elegía el marco con confianza 0,94).
+2. **El visor repetía el OCR.** Síntoma: tras escanear, «9 lines (OCR) in 5.6 s» en lugar de las 35 del escaneo, y voz en español para un texto en catalán. Causa: el texto invisible del PDF buscable no se extrae con pdfminer, así que el visor volvía a reconocer la imagen. Arreglo (`service.py`): el PDF del escaneo se abre con las líneas que ya leyó el escáner y su idioma. Resultado: 334 palabras al instante, en `ca-ES`.
+3. **Fotos a 640×360.** Síntoma: la 2.ª y 3.ª foto seguidas salían a 640×360 (0–17 palabras). Causa: Gesture Control abre la misma cámara a 640×360 y Chromium comparte el dispositivo dentro de la página; si el stream anterior aún se está cerrando, el nuevo sale igual. Arreglo (`DocumentsMode.tsx`): si la cámara da menos de 1920 px de ancho, se cierra y se vuelve a pedir (hasta 4 veces); si no hay manera, se avisa en pantalla.
+4. **Tiempo.** La orientación lee la página al derecho y al revés **a la vez** (5,0 → 3,3 s), y el pase de texto disperso (`psm 11`, para carteles) ya no se lanza si se han leído 60 palabras o más: costaba unos 10 s y nunca se elegía. Resultado: 060901 pasa de 18,5 a 11,1 s, 060240 de 26 a 17,4 s y 060308 de 9,1 a 5,2 s, con las mismas palabras.
+
+**Pendiente:**
+- 060240 está movida (la mitad derecha borrosa): la guía de encuadre hizo la foto con el papel en movimiento (`web/src/camera`, de Pau).
+- Pasar el benchmark de N3 (`scanner/benchmark`, las fotos están en el equipo de Pau) con este cambio.
 
 ## Objetivo
 Que el resultado del PDF Scanner vuelva a ser **el PDF**: tras la foto, la app enseña la vista previa del PDF generado y un botón para leerlo en voz alta. Hoy se salta el PDF y lee el texto en voz alta nada más escanear (`GuidedReader` con `autoPlay` en `DocumentsMode.tsx`).
