@@ -71,9 +71,9 @@ NO_PAGE_MESSAGE = "No sheet found: hold the whole page flat inside the frame, at
 def default_options(query: dict) -> Options:
     """Options for one request. No intermediates: only the photo, the PDFs and result.json are kept.
 
-    The digital PDF (vision model, ~0.002 USD a page) is on by default (task N3): it is made in the
-    background and does not delay the answer. `digital=0` or SCANNER_DIGITAL=0 turn it off."""
-    digital = query.get("digital", os.environ.get("SCANNER_DIGITAL", "1")) == "1"
+    The digital PDF uses a paid vision model (~0.002 USD a page), so it is off by default (fix R3):
+    `digital=1` or SCANNER_DIGITAL=1 turn it on. It is made in the background and never delays the answer."""
+    digital = query.get("digital", os.environ.get("SCANNER_DIGITAL", "0")) == "1"
     return Options(languages=query.get("languages", "spa+cat+eng"), digital=digital, save_intermediates=False)
 
 
