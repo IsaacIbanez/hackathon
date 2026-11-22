@@ -122,6 +122,18 @@ func (d *macDesktop) SetBrightness(v float64) error {
 	return osascript(script)
 }
 
+// Level reads the output volume (brightness has no simple reader on macOS).
+func (d *macDesktop) Level(target string) (float64, error) {
+	if target != "volume" {
+		return 0, ErrUnsupported
+	}
+	out, err := exec.Command("osascript", "-e", "output volume of (get volume settings)").Output()
+	if err != nil {
+		return 0, fmt.Errorf("osascript: %v", err)
+	}
+	return parsePercent(string(out))
+}
+
 // MicMuted: "muted" on macOS is an input volume of 0 (see ToggleMicMute).
 func (d *macDesktop) MicMuted() (bool, error) {
 	out, err := exec.Command("osascript", "-e", "input volume of (get volume settings)").Output()

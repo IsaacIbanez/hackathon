@@ -3,6 +3,7 @@ package control
 import (
 	"encoding/json"
 	"errors"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -524,5 +525,30 @@ func TestServerMicState(t *testing.T) {
 	}
 	if code, body := s.Call("GET", "/api/mic", ""); code != http.StatusOK || strings.TrimSpace(body) != `{"muted":true}` {
 		t.Fatalf("mic after: %d %s", code, body)
+	}
+}
+
+func TestServerLevel(t *testing.T) {
+	s, _ := newTestServer()
+	if code, body := s.Call("GET", "/api/level?target=volume", ""); code != http.StatusOK || strings.TrimSpace(body) != `{"value":0.5}` {
+		t.Fatalf("level before: %d %s", code, body)
+	}
+	if code, _ := s.Call("POST", "/api/action", `{"action":"volume","value":0.3}`); code != http.StatusOK {
+		t.Fatalf("volume: %d", code)
+	}
+	if code, body := s.Call("GET", "/api/level?target=volume", ""); code != http.StatusOK || strings.TrimSpace(body) != `{"value":0.3}` {
+		t.Fatalf("level after: %d %s", code, body)
+	}
+	if code, _ := s.Call("GET", "/api/level?target=nope", ""); code != http.StatusBadRequest {
+		t.Fatalf("bad target: %d", code)
+	}
+}
+
+func TestParsePercent(t *testing.T) {
+	for in, want := range map[string]float64{"40%": 0.4, "Volume: 0.40": 0.4, "intel_backlight,backlight,600,40%,1500": 0.4, "75": 0.75, "0.25": 0.25, "Front Left: Playback 26214 [40%] [on]": 0.4} {
+		got, err := parsePercent(in)
+		if err != nil || math.Abs(got-want) > 1e-9 {
+			t.Errorf("parsePercent(%q) = %v, %v; want %v", in, got, err, want)
+		}
 	}
 }

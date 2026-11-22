@@ -160,6 +160,64 @@ func runPowerShell(script string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
+// levelScript prints the default speakers' volume (0–1) through Core Audio, as micScript does for
+// the microphone.
+const levelScript = `
+$csharp = @'
+using System;
+using System.Runtime.InteropServices;
+
+[Guid("5CDF2C82-841E-4546-9722-0CF74078229A"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IAudioEndpointVolume {
+    int f1(); int f2(); int f3(); int f4(); int f5(); int f6();
+    int GetMasterVolumeLevelScalar(out float pfLevel);
+}
+
+[Guid("D666063F-1587-4E43-81F1-B948E807363F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IMMDevice {
+    int Activate(ref Guid id, int clsCtx, IntPtr activationParams, out IAudioEndpointVolume ppInterface);
+}
+
+[Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IMMDeviceEnumerator {
+    int EnumAudioEndpoints();
+    int GetDefaultAudioEndpoint(int dataFlow, int role, out IMMDevice ppDevice);
+}
+
+[ComImport, Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")]
+class MMDeviceEnumerator {}
+
+public class AudioRender {
+    public static float Level() {
+        var enumerator = (IMMDeviceEnumerator)(new MMDeviceEnumerator());
+        IMMDevice dev;
+        enumerator.GetDefaultAudioEndpoint(0, 1, out dev);
+        var iid = typeof(IAudioEndpointVolume).GUID;
+        IAudioEndpointVolume ep;
+        dev.Activate(ref iid, 23, IntPtr.Zero, out ep);
+        float level;
+        ep.GetMasterVolumeLevelScalar(out level);
+        return level;
+    }
+}
+'@
+Add-Type -TypeDefinition $csharp -ErrorAction Stop
+[AudioRender]::Level().ToString([System.Globalization.CultureInfo]::InvariantCulture)
+`
+
+// Level reads the speakers' volume or the (laptop) screen brightness, from 0 to 1.
+func (windowsDesktop) Level(target string) (float64, error) {
+	script := levelScript
+	if target == "brightness" {
+		script = "(Get-WmiObject -Namespace root/WMI -Class WmiMonitorBrightness).CurrentBrightness"
+	}
+	out, err := runPowerShell(script)
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", target, err)
+	}
+	return parsePercent(out)
+}
+
 func (windowsDesktop) SetBrightness(v float64) error {
 	pct := int(v*100 + 0.5)
 	ps := fmt.Sprintf("(Get-WmiObject -Namespace root/WMI -Class WmiMonitorBrightnessMethods).WmiSetBrightness(1, %d)", pct)

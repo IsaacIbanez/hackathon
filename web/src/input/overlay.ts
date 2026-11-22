@@ -20,6 +20,7 @@ export const GESTURE_LABELS: Record<Gesture, string> = {
   fist: "Fist (menu)",
   thumbs_up: "Thumbs up",
   thumbs_down: "Thumbs down",
+  thumbs_left: "Thumb to the left (back)",
   pinch: "Pinch",
   three: "Three fingers",
 };

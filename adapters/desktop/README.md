@@ -53,7 +53,9 @@ The detector starts **asleep** (`requireWake`) to prevent accidental gestures:
 ## Fist quick menu (✊) and pages
 The menu is shown on a 3×3 screen grid (with the centre empty):
 - **Open and close:** a ✊ fist held still ~0.5 s opens the main menu. Inside the menu, releasing the fist and showing ✊ again for ~0.5 s closes it. It also closes on its own after 5 s of inactivity.
-- **Going back (navigation):** a thumbs down 👎 held ~0.3 s or a lateral swipe ✋← goes back a page in the menu (or closes it from the main page).
+- **Going back (like Alt+← in a browser):** the fist with the thumb pointing to your left, held ~0.7 s, or a lateral swipe ✋←, goes back a page in the menu (or closes it from the main page). Thumbs down no longer does.
+  - While volume or brightness is waiting for the pinch, the thumb to the left cancels it.
+  - Outside the menu, the thumb to the left **undoes the last action** of the last 15 s: volume or brightness go back to the value before the adjustment (the helper reads it with `GET /api/level`), and the microphone or cursor mode go back to how they were. With nothing to undo it says «Nothing to undo».
 - **Main page:**
   - ↑ 🔊 Volume and ↓ 🔆 Brightness: turn on the pinch level control (🤏 opening or closing the thumb and index fingers, set by holding still).
   - ↖ Main menu: goes back to the overlay's main menu (the large options) without turning the gestures off; from the bubble, the window goes back to its size. With cursor mode an option can be chosen there.

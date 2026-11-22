@@ -210,6 +210,58 @@ func (d *linuxDesktop) SetBrightness(v float64) error {
 	return fmt.Errorf("%w: install brightnessctl, light or xrandr", ErrUnsupported)
 }
 
+func (d *linuxDesktop) Level(target string) (float64, error) {
+	out := func(name string, args ...string) (string, error) {
+		b, err := exec.Command(name, args...).Output()
+		if err != nil {
+			return "", fmt.Errorf("%s: %v", name, err)
+		}
+		return string(b), nil
+	}
+	if target == "brightness" {
+		switch {
+		case has("brightnessctl"):
+			s, err := out("brightnessctl", "-m") // device,class,current,40%,max
+			if err != nil {
+				return 0, err
+			}
+			return parsePercent(s)
+		case has("light"):
+			s, err := out("light", "-G")
+			if err != nil {
+				return 0, err
+			}
+			return parsePercent(s)
+		}
+		return 0, fmt.Errorf("%w: install brightnessctl or light", ErrUnsupported)
+	}
+	switch {
+	case has("wpctl"):
+		s, err := out("wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@") // "Volume: 0.40"
+		if err != nil {
+			return 0, err
+		}
+		var v float64
+		if _, err := fmt.Sscanf(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(s), "Volume:")), "%f", &v); err != nil {
+			return 0, fmt.Errorf("wpctl: unexpected %q", s)
+		}
+		return v, nil
+	case has("pactl"):
+		s, err := out("pactl", "get-sink-volume", "@DEFAULT_SINK@")
+		if err != nil {
+			return 0, err
+		}
+		return parsePercent(s)
+	case has("amixer"):
+		s, err := out("amixer", "sget", "Master")
+		if err != nil {
+			return 0, err
+		}
+		return parsePercent(s)
+	}
+	return 0, fmt.Errorf("%w: install wpctl, pactl or amixer", ErrUnsupported)
+}
+
 func (d *linuxDesktop) MicMuted() (bool, error) {
 	switch {
 	case has("wpctl"):

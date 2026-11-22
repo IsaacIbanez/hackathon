@@ -94,7 +94,11 @@ export function indexReach(pts: Point3D[]): number {
 }
 
 /** Hand pose. Image points are used to know which way is "up". */
-export function classifyPose(hand: Hand, aspect = 1, th: Thresholds = DEFAULT_THRESHOLDS): Gesture {
+/**
+ * @param mirror as HandInteraction's option: the frames are the camera's, unmirrored, so a thumb
+ * pointing to the right of the image points to the user's left.
+ */
+export function classifyPose(hand: Hand, aspect = 1, th: Thresholds = DEFAULT_THRESHOLDS, mirror = true): Gesture {
   const pts = shapePoints(hand, aspect);
   if (pts.length !== 21) return "none";
   const f = fingerState(pts, th);
@@ -115,18 +119,22 @@ export function classifyPose(hand: Hand, aspect = 1, th: Thresholds = DEFAULT_TH
       const d = thumbDirection(hand, aspect);
       if (d === "up") return "thumbs_up";
       if (d === "down") return "thumbs_down";
+      // Sideways: only the user's left means something (back); the other side stays a fist.
+      if (d === "image_right" ? mirror : d === "image_left" ? !mirror : false) return "thumbs_left";
     }
     return "fist";
   }
   return "none";
 }
 
-/** Where the thumb points in the image: clearly up, clearly down, or neither. */
-export function thumbDirection(hand: Hand, aspect = 1): "up" | "down" | null {
+/** Where the thumb points in the image: clearly up, down, to one side, or neither (diagonal). */
+export function thumbDirection(hand: Hand, aspect = 1): "up" | "down" | "image_left" | "image_right" | null {
   const base = hand.points[L.THUMB_MCP];
   const tip = hand.points[L.THUMB_TIP];
   const dx = (tip.x - base.x) * aspect;
   const dy = tip.y - base.y;
-  if (Math.abs(dy) <= 1.2 * Math.abs(dx)) return null;
-  return dy < 0 ? "up" : "down";
+  if (Math.abs(dy) > 1.2 * Math.abs(dx)) return dy < 0 ? "up" : "down";
+  // Sideways needs a clearly horizontal thumb: a fist's thumb often rests diagonally.
+  if (Math.abs(dx) > 2 * Math.abs(dy)) return dx > 0 ? "image_right" : "image_left";
+  return null;
 }

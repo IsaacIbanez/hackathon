@@ -578,7 +578,7 @@ export class HandInteraction {
       this.emit({ type: "hand", present: true, t });
     }
 
-    let pose = classifyPose(hand, aspect, this.opts.thresholds);
+    let pose = classifyPose(hand, aspect, this.opts.thresholds, this.opts.mirror);
     const backOfHand = pose === "palm" && palmFacesCamera(hand, this.sideOf(hand)) === false;
     if (backOfHand && this.opts.palmMustFaceCamera) pose = "none";
     const pts = shapePoints(hand, aspect);
@@ -860,6 +860,13 @@ export class HandInteraction {
     const together = diag.separation <= this.opts.levelZero && diag.reach >= this.opts.thresholds.indexOut;
     if (!this.level) {
       if (this.levelArmedAt === null) return false; // the pinch alone does nothing
+      // Thumb to the left: back, before the pinch starts. Held, it must not also undo something.
+      if (pose === "thumbs_left") {
+        this.cancelArmedLevel(t);
+        this.stableGesture = "thumbs_left";
+        this.resetCandidate(t, pose, center);
+        return true;
+      }
       if (t - this.levelArmedAt > this.opts.levelArmMs) {
         this.cancelArmedLevel(t);
         return false;
@@ -1010,13 +1017,13 @@ export class HandInteraction {
       if (this.stableGesture === "fist") this.stableGesture = pose;
     }
 
-    // Holding thumbs down (👎) goes back to the previous menu page or closes it.
-    if (pose === "thumbs_down") {
+    // Holding the thumb to the left goes back to the previous menu page or closes it (like Alt+←).
+    if (pose === "thumbs_left") {
       if (this.tMenuBack === null) this.tMenuBack = t;
       if (t - this.tMenuBack >= this.opts.menuBackMs) {
         this.tMenuBack = null;
         this.emitMenuBack(t, m);
-        this.stableGesture = "thumbs_down";
+        this.stableGesture = "thumbs_left";
         this.resetCandidate(t, pose, center);
         return;
       }
