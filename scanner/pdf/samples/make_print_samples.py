@@ -175,10 +175,62 @@ def catalan_notice(path: Path) -> None:
     c.save()
 
 
+TOPICS = [
+    ("Objeto del seguro", "El asegurador garantiza el pago de las indemnizaciones por los daños que sufran los bienes asegurados"),
+    ("Bienes asegurados", "Se consideran bienes asegurados el continente y el contenido de la vivienda descrita en las condiciones particulares"),
+    ("Incendio y explosión", "Quedan cubiertos los daños materiales causados por incendio, explosión o caída de rayo en la vivienda"),
+    ("Daños por agua", "Se cubren los daños producidos por escapes accidentales de agua de las conducciones fijas de la vivienda"),
+    ("Robo y hurto", "El seguro cubre la desaparición de los bienes por robo con violencia en las cosas o intimidación en las personas"),
+    ("Responsabilidad civil", "Se garantiza el pago de las indemnizaciones que deba satisfacer el asegurado como propietario de la vivienda"),
+    ("Exclusiones", "No quedan cubiertos los daños causados intencionadamente por el asegurado ni los derivados de la falta de mantenimiento"),
+    ("Pago de la prima", "La prima se pagará por anticipado y su importe figura en el recibo que el asegurador remite cada año"),
+    ("Comunicación del siniestro", "El asegurado deberá comunicar el siniestro en un plazo máximo de siete días desde que lo conozca"),
+    ("Duración y renovación", "El contrato tiene una duración de un año y se renueva automáticamente salvo que una de las partes se oponga"),
+]
+
+
+def long_conditions(path: Path, pages: int = 40) -> None:
+    """General conditions of a home policy, 40 pages: a long PDF with text (reading a whole PDF, task N4)."""
+    c = canvas.Canvas(str(path), pagesize=A4)
+    article = 1
+    for page in range(1, pages + 1):
+        _letterhead(c, "Seguros Lumen S.A.", f"Condiciones generales del seguro de hogar · Página {page} de {pages}")
+        y = H - 45 * mm
+        for _ in range(3):
+            title, body = TOPICS[(article - 1) % len(TOPICS)]
+            c.setFont("Helvetica-Bold", 12)
+            c.drawString(MARGIN, y, f"Artículo {article}. {title}")
+            y -= 20
+            y = _paragraph(c, f"{body}. Este artículo se aplica a la póliza número HG-2026-004512 y a sus "
+                              f"renovaciones. En caso de duda, prevalece lo dispuesto en las condiciones particulares, "
+                              f"que el asegurado ha recibido y aceptado.", y, size=10.5)
+            article += 1
+        _footer(c)
+        c.showPage()
+    c.save()
+
+
+def scanned_copy(path: Path) -> None:
+    """The three sample documents as a scanned PDF (page images, no text layer): pages go through OCR."""
+    import img2pdf
+    import pypdfium2 as pdfium
+
+    images = []
+    for name in ("01-carta-renovacion", "02-formulario-siniestro", "03-avis-rebut-ca"):
+        page = pdfium.PdfDocument(str(OUT / f"{name}.pdf"))[0]
+        img = page.render(scale=200 / 72, grayscale=True).to_pil()
+        from io import BytesIO
+        buf = BytesIO()
+        img.save(buf, "JPEG", quality=80)
+        images.append(buf.getvalue())
+    path.write_bytes(img2pdf.convert(images))
+
+
 def main() -> None:
     OUT.mkdir(exist_ok=True)
     for name, make in (("01-carta-renovacion", renewal_letter), ("02-formulario-siniestro", claim_form),
-                       ("03-avis-rebut-ca", catalan_notice)):
+                       ("03-avis-rebut-ca", catalan_notice), ("04-condiciones-40-paginas", long_conditions),
+                       ("05-escaneado-3-paginas", scanned_copy)):
         make(OUT / f"{name}.pdf")
         print(OUT / f"{name}.pdf")
 

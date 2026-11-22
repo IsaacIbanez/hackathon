@@ -29,10 +29,10 @@ export interface WebSpeechVoice extends ReaderVoice {
 export function webSpeechVoice(synth: SynthLike = window.speechSynthesis): WebSpeechVoice {
   let current: SpeechSynthesisUtterance | null = null
   return {
-    say(text, lang, events) {
+    say(text, lang, events, opts) {
       const u = new SpeechSynthesisUtterance(text)
       u.lang = lang
-      u.rate = RATE
+      u.rate = RATE * (opts?.rate ?? 1)
       const voice = chooseVoice(synth.getVoices(), lang)
       if (voice) u.voice = voice as SpeechSynthesisVoice
       u.onend = () => {
@@ -68,12 +68,12 @@ export function silentVoice(msPerChar = 55, minMs = 1200): ReaderVoice {
     timer = null
   }
   return {
-    say(text, _lang, events) {
+    say(text, _lang, events, opts) {
       clear()
       timer = setTimeout(() => {
         timer = null
         events.onEnd()
-      }, Math.max(minMs, text.length * msPerChar))
+      }, Math.max(minMs, text.length * msPerChar) / (opts?.rate ?? 1))
     },
     cancel: clear,
   }

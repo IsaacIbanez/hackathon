@@ -2,6 +2,7 @@
 // does not depend on the generated wailsjs/ (and the overlay still loads in a plain browser, where
 // every call fails with a clear message).
 import type { DocumentPayload } from '../../api'
+import type { PdfPageData, PdfSource } from '../../document/index.ts'
 
 export interface OverlayInfo {
   hotkey: string
@@ -11,6 +12,12 @@ export interface OverlayInfo {
   /** The MX Keypad is plugged in and read directly over USB (no Logi Options+ needed). */
   keypadConnected?: boolean
 }
+
+/** What option 3 opened (app_pdf.go): a PDF for the viewer, or the lines of another file. */
+export type OpenedFile =
+  | { cancelled: true; name?: string }
+  | { cancelled: false; name: string; kind: 'pdf'; pdf: PdfSource }
+  | { cancelled: false; name: string; kind: 'lines'; lines: FileDocument }
 
 export interface FileDocument {
   name: string
@@ -26,12 +33,16 @@ interface GoBindings {
   EnsureReadingService(): Promise<string>
   ReadPhoto(photo: string): Promise<string>
   OpenAndReadFile(): Promise<string>
+  OpenFileForReading(): Promise<string>
+  PDFPage(id: string, page: number): Promise<string>
   StartGestures(): Promise<void>
   StopGestures(): Promise<void>
   GesturesRunning(): Promise<boolean>
 }
 
-interface GoApp extends Omit<GoBindings, 'OverlayInfo' | 'ReadPhoto' | 'OpenAndReadFile'> {
+interface GoApp extends Omit<GoBindings, 'OverlayInfo' | 'ReadPhoto' | 'OpenAndReadFile' | 'OpenFileForReading' | 'PDFPage'> {
+  OpenFileForReading(): Promise<OpenedFile>
+  PDFPage(id: string, page: number): Promise<PdfPageData>
   OverlayInfo(): Promise<OverlayInfo>
   ReadPhoto(photo: string): Promise<DocumentPayload>
   OpenAndReadFile(): Promise<FileDocument>
@@ -53,6 +64,8 @@ export function desktop(): GoApp {
     OverlayInfo: async () => JSON.parse(await app.OverlayInfo()) as OverlayInfo,
     ReadPhoto: async (photo) => JSON.parse(await app.ReadPhoto(photo)) as DocumentPayload,
     OpenAndReadFile: async () => JSON.parse(await app.OpenAndReadFile()) as FileDocument,
+    OpenFileForReading: async () => JSON.parse(await app.OpenFileForReading()) as OpenedFile,
+    PDFPage: async (id, page) => JSON.parse(await app.PDFPage(id, page)) as PdfPageData,
   }
 }
 

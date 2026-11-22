@@ -17,9 +17,10 @@ export interface ReaderLine {
 export interface ReaderVoice {
   /**
    * Says a text, replacing whatever this voice was saying. Calls onEnd when it finishes on its own
-   * and onInterrupt when something else cut it off (another voice, an error).
+   * and onInterrupt when something else cut it off (another voice, an error). `rate` multiplies the
+   * normal speed (1 = normal; the PDF viewer offers 0.75 to 1.5).
    */
-  say(text: string, lang: string, events: { onEnd(): void; onInterrupt(): void }): void
+  say(text: string, lang: string, events: { onEnd(): void; onInterrupt(): void }, opts?: { rate?: number }): void
   /** Stops speaking. It may still call onInterrupt for the cancelled text (the reader ignores it). */
   cancel(): void
 }
