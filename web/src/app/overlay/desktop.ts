@@ -59,6 +59,8 @@ interface GoBindings {
   SummarizeSelection(): Promise<string>
   CloseSummary(): Promise<void>
   TriggerSummary(): Promise<void>
+  /** The app's WebSocket URL (app.go); its http origin serves POST /transcribe. */
+  WsURL(): Promise<string>
 }
 
 interface GoApp

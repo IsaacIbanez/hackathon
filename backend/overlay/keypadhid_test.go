@@ -27,7 +27,7 @@ func TestKeypadActionForKey(t *testing.T) {
 	if a, ok := KeypadActionForKey(1); !ok || a != KeypadToggle {
 		t.Errorf("key 1: %v %v", a, ok)
 	}
-	if a, ok := KeypadActionForKey(9); !ok || a != KeypadRepeat {
+	if a, ok := KeypadActionForKey(9); !ok || a != KeypadMenu {
 		t.Errorf("key 9: %v %v", a, ok)
 	}
 	for _, n := range []int{0, 10, -1} {

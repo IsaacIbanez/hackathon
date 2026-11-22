@@ -23,8 +23,13 @@ func TestKeypadFromEnv(t *testing.T) {
 			t.Errorf("%s reuses the overlay shortcut", k.Action)
 		}
 	}
-	if keys[0].Action != KeypadToggle || keys[6].Hotkey.Key != 0x25 || keys[7].Hotkey.Key != 0x27 {
-		t.Errorf("unexpected order or arrows: %+v", keys)
+	for i, k := range keys {
+		if k.Hotkey.Key != uint32('1'+i) {
+			t.Errorf("key %d: fallback must be ctrl+alt+shift+%d, got %s", i+1, i+1, k.Hotkey)
+		}
+	}
+	if keys[0].Action != KeypadToggle || keys[1].Action != KeypadRecord || keys[2].Action != KeypadStopRec {
+		t.Errorf("keys 1-3 must open the app and start/stop recording: %+v", keys[:3])
 	}
 
 	t.Setenv("LAUZHACK_KEYPAD", "Off")

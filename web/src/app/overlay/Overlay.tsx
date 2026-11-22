@@ -1,12 +1,13 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import App from '../App.tsx'
 import { DocumentsMode } from './DocumentsMode.tsx'
 import { GesturesMode } from './GesturesMode.tsx'
 import { ReadFileMode } from './ReadFileMode.tsx'
 import { SummarizeMode } from './SummarizeMode.tsx'
 import { desktop, inDesktopApp, onDesktopEvent, type OverlayInfo } from './desktop.ts'
-import { keypadCommand, pressKey } from './keypad.ts'
+import { keypadCommand, pressKey, type KeypadAction } from './keypad.ts'
 import { MODES, modeForKey, type ModeId } from './modes.ts'
+import { useVoiceCommand, VoiceBanner } from './useVoiceCommand.tsx'
 
 // The overlay (docs/OVERLAY.md): a menu with the team's features. Ctrl+Alt+Space (or an MX Keypad
 // key mapped to it) shows and hides the window from any program. Keys: 1–4 (or Num 1–4) choose,
@@ -34,17 +35,36 @@ export function Overlay() {
     [],
   )
 
+  // One way to run an action, for the keypad and for voice commands (docs/KEYPAD.md).
+  const voice = useVoiceCommand((action) => runAction.current(action))
+  const runAction = useRef<(action: KeypadAction) => void>(() => {})
+  const run = useCallback(
+    (action: KeypadAction) => {
+      if (action === 'toggle') {
+        // From a key Go toggles the window itself; from the voice it means "hide".
+        if (inDesktopApp()) void desktop().HideOverlay()
+        return
+      }
+      const cmd = keypadCommand(action)
+      if (!cmd) return
+      if ('voice' in cmd) {
+        void (cmd.voice === 'start' ? voice.start() : voice.stop())
+      } else if ('view' in cmd) {
+        if (cmd.view === 'summarize') setSummaryRun((n) => n + 1) // summarizes again each time
+        setView(cmd.view)
+      } else pressKey(cmd.key)
+    },
+    [voice],
+  )
+  useEffect(() => {
+    runAction.current = run
+  })
+
   // MX Keypad (docs/KEYPAD.md): Go shows the window and sends the action, even from another program.
   useEffect(
     () =>
       onDesktopEvent('overlay:keypad', (action) => {
-        const cmd = keypadCommand(action)
-        if (!cmd) return
-        if ('view' in cmd) {
-          if (cmd.view === 'summarize') setSummaryRun((n) => n + 1) // summarizes again each time
-          setView(cmd.view)
-        }
-        else pressKey(cmd.key)
+        if (typeof action === 'string' && action !== 'toggle') runAction.current(action as KeypadAction)
       }),
     [],
   )
@@ -104,11 +124,17 @@ export function Overlay() {
 
   // Option 4 lives in a small bubble next to the pointer: no menu bar.
   if (view === 'summarize') {
-    return <main className="h-screen bg-slate-900 p-4 text-slate-50">{views.summarize}</main>
+    return (
+      <main className="h-screen bg-slate-900 p-4 text-slate-50">
+        <VoiceBanner status={voice.status} />
+        {views.summarize}
+      </main>
+    )
   }
 
   return (
     <main className="min-h-screen bg-slate-900 p-6 text-slate-50">
+      <VoiceBanner status={voice.status} />
       {current ? (
         <>
           <BackBar onBack={() => setView('menu')} title={`${current.key}. ${current.title}`} />
