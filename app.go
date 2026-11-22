@@ -21,6 +21,7 @@ type App struct {
 	hub    *ws.Hub // nil when answering with fixtures
 
 	overlay overlayState // shortcut and helper processes (app_overlay.go)
+	llm     *llm.Client  // nil without an OpenRouter key (option 4 then summarizes locally)
 }
 
 func NewApp() *App {
@@ -78,6 +79,7 @@ func (a *App) newHandler() (http.Handler, error) {
 	log.Printf("app: real sessions, cheap=%s expensive=%s", client.Models[llm.Cheap], client.Models[llm.Expensive])
 	h, hub := session.NewMux(client, session.DefaultConfig())
 	a.hub = hub
+	a.llm = client
 	return h, nil
 }
 

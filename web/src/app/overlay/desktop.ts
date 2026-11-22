@@ -8,6 +8,21 @@ export interface OverlayInfo {
   hotkeyOk: boolean
 }
 
+/** Option 4's answer (app_summary.go, backend/summary). */
+export interface SummaryResult {
+  summary: string
+  lang: string
+  chars: number
+  truncated: boolean
+  source: 'cloud' | 'local' | 'short'
+  note?: string
+  model?: string
+  costUsd: number
+  latencyMs: number
+  cached: boolean
+  copied: boolean
+}
+
 export interface FileDocument {
   name: string
   cancelled: boolean
@@ -26,10 +41,14 @@ interface GoBindings {
   GestureCall(method: string, path: string, body: string): Promise<string>
   SetGesturesActive(on: boolean): Promise<void>
   SetCompact(on: boolean): Promise<void>
+  SummarizeSelection(): Promise<string>
+  CloseSummary(): Promise<void>
+  TriggerSummary(): Promise<void>
 }
 
-interface GoApp extends Omit<GoBindings, 'OverlayInfo' | 'ReadPhoto' | 'OpenAndReadFile'> {
+interface GoApp extends Omit<GoBindings, 'OverlayInfo' | 'ReadPhoto' | 'OpenAndReadFile' | 'SummarizeSelection'> {
   OverlayInfo(): Promise<OverlayInfo>
+  SummarizeSelection(): Promise<SummaryResult>
   ReadPhoto(photo: string): Promise<DocumentPayload>
   OpenAndReadFile(): Promise<FileDocument>
 }
@@ -50,6 +69,7 @@ export function desktop(): GoApp {
     OverlayInfo: async () => JSON.parse(await app.OverlayInfo()) as OverlayInfo,
     ReadPhoto: async (photo) => JSON.parse(await app.ReadPhoto(photo)) as DocumentPayload,
     OpenAndReadFile: async () => JSON.parse(await app.OpenAndReadFile()) as FileDocument,
+    SummarizeSelection: async () => JSON.parse(await app.SummarizeSelection()) as SummaryResult,
   }
 }
 

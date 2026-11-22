@@ -41,6 +41,7 @@ type overlayState struct {
 	gestures   *control.Server
 	gesturesOn bool // option 1 is showing the camera
 	compact    bool // shrunk to a camera bubble in a corner instead of hidden
+	bubble     bool // shrunk to the summary bubble next to the pointer (option 4, app_summary.go)
 }
 
 // startOverlay registers the shortcut; the window starts visible so the person sees it once.
@@ -76,8 +77,16 @@ func (a *App) stopOverlay() {
 }
 
 func (a *App) toggleOverlay(ctx context.Context) {
+	// Remember the program in front before the overlay takes the focus: option 4 copies its
+	// selected text.
+	overlay.RememberTarget()
 	o := &a.overlay
 	o.mu.Lock()
+	if o.bubble { // the summary bubble is open: the shortcut closes it
+		o.mu.Unlock()
+		a.CloseSummary()
+		return
+	}
 	if o.gesturesOn {
 		// With the gestures on, the window is never hidden (a hidden page would pause the camera):
 		// the shortcut switches between the full overlay and the camera bubble.
