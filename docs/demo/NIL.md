@@ -67,3 +67,8 @@ Por cada fallo: síntoma → cómo reproducirlo → causa → arreglo → cómo 
 - Síntoma: hacía falta volver al menú general del overlay sin desactivar los gestos por completo; el arreglo 1 los dormía.
 - Arreglo: ↖ «Main menu» muestra el menú principal del overlay (`gestures:main-menu` → `view = "menu"`) y, desde la burbuja, devuelve la ventana. Los gestos y el modo cursor siguen activos. Se quita `sleepNow`; queda `wakeNow` para la tecla 6.
 - Comprobado: tests actualizados, `tsc`, 201 tests, build web. Falta el `.exe` (Nil en Windows).
+
+**4. Pulgar a la izquierda = volver atrás y deshacer (2026-11-22, pedido por Nil)**
+- Qué: el puño con el pulgar hacia la izquierda del usuario (`thumbs_left`, en `poses.ts`) vuelve atrás en el menú del puño (el pulgar hacia abajo ya no). Si el volumen o el brillo están esperando la pinza, lo cancela. Fuera del menú deshace la última acción (15 s): volumen y brillo al valor de antes, micro y modo cursor.
+- Para restaurar el valor exacto, el ayudante lee el volumen y el brillo actuales: `GET /api/level?target=volume|brightness` (`Desktop.Level`; Windows por Core Audio y WMI, Linux con wpctl/pactl/amixer y brightnessctl/light, macOS solo el volumen).
+- Comprobado: `TestServerLevel`, `TestParsePercent` (Go), tests de pose, menú, cancelación y `level()` (web), `go vet` Linux, Windows y macOS, 209 tests, build web. Falta el `.exe` (Nil en Windows).

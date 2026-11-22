@@ -170,3 +170,15 @@ test("microphone: micMuted reads GET /api/mic, null when the helper cannot tell"
   };
   assert.equal(await new HelperClient("", failing).micMuted(), null);
 });
+
+test("level: reads GET /api/level for undo, null when the helper cannot tell", async () => {
+  const urls: string[] = [];
+  const ok = async (url: string | URL | Request) => {
+    urls.push(String(url));
+    return new Response(JSON.stringify({ value: 0.4 }), { status: 200, headers: { "Content-Type": "application/json" } });
+  };
+  assert.equal(await new HelperClient("", ok as typeof fetch).level("volume"), 0.4);
+  assert.ok(urls[0].endsWith("/api/level?target=volume"));
+  const no = async () => new Response(JSON.stringify({ error: "not supported" }), { status: 501 });
+  assert.equal(await new HelperClient("", no).level("brightness"), null);
+});

@@ -295,10 +295,38 @@ export function mountGestureControl(
           options.onMainMenu();
         } else toast("No main menu here", true);
         break;
-      case "cursor":
-        setCursor(!mouseOn());
+      case "cursor": {
+        const was = mouseOn();
+        setCursor(!was);
+        rememberUndo("cursor mode", () => setCursor(was));
         break;
+      }
     }
+  }
+
+  // ---------- Undo (thumb to the left) ----------
+
+  /** The last action the thumb to the left can undo, for UNDO_MS. */
+  let undo: { label: string; t: number; run: () => void } | null = null;
+  const UNDO_MS = 15_000;
+  /** Volume or brightness before the pinch, read when it is armed (null: unknown). */
+  const levelBefore: Record<LevelTarget, number | null> = { volume: null, brightness: null };
+
+  function rememberUndo(label: string, run: () => void) {
+    undo = { label, t: performance.now(), run };
+  }
+
+  /** Thumb to the left outside the menu: undoes the last action (volume, brightness, mic, cursor). */
+  function undoLast() {
+    const u = undo;
+    undo = null;
+    if (!u || performance.now() - u.t > UNDO_MS) {
+      toast("Nothing to undo");
+      return;
+    }
+    toast(`Undone: ${u.label}`);
+    log(`Undo: ${u.label}`);
+    u.run();
   }
 
   /** The microphone is a toggle: the menu stays open and the option shows the new state. */
@@ -310,6 +338,11 @@ export function mountGestureControl(
       reopening = false;
     }
     if (!enabled()) return;
+    flipMic(true);
+  }
+
+  /** Toggles the system microphone; `remember`: thumb to the left can undo it. */
+  function flipMic(remember: boolean) {
     if (micMuted !== null) micMuted = !micMuted; // shown at once, corrected by the helper's answer
     micBusy++;
     void perform("mic_mute").then((did) => {
@@ -323,6 +356,7 @@ export function mountGestureControl(
       // The helper says "microphone muted", "microphone on" or, if it cannot tell, "microphone toggled".
       const state = micStateOf(did);
       if (state !== null) micMuted = state;
+      if (remember) rememberUndo("microphone", () => flipMic(false));
       // Muted, the voice commands do not hear anything either: say so.
       toast(micMuted === null ? did : micMuted ? "Microphone muted · voice commands will not hear you" : "Microphone on");
     });
@@ -359,6 +393,29 @@ export function mountGestureControl(
       toast(MOUSE_LABELS[e.action]);
       helper.mouse(e.action).catch((err: Error) => toast(`Mouse: ${err.message}`, true));
       return;
+    }
+
+    if (e.type === "gesture" && e.gesture === "thumbs_left") {
+      undoLast();
+      return;
+    }
+    if (e.type === "level" && e.phase === "armed") {
+      // Read the value now, so that undo can put it back exactly.
+      const target = e.target;
+      levelBefore[target] = null;
+      void helper.level(target).then((v) => (levelBefore[target] = v));
+    }
+    if (e.type === "level" && e.phase === "end") {
+      const target = e.target;
+      const before = levelBefore[target];
+      levelBefore[target] = null;
+      if (before !== null) {
+        const name = target === "brightness" ? "Brightness" : "Volume";
+        rememberUndo(`${name.toLowerCase()} back to ${Math.round(before * 100)} %`, () => {
+          lastLevel[target] = null;
+          sendLevel[target](before);
+        });
+      }
     }
 
     if (e.type === "swipe" && options.onSwipe?.(e.direction)) return;
@@ -424,7 +481,8 @@ export function mountGestureControl(
       ["/ Swipe", m.swipe_right && m.swipe_left ? "Next / previous tab" : null],
       ["Fist (hold) → point + tap middle finger on thumb", `Menu: ${menu}`],
       ["again, inside the menu", "Close the menu"],
-      ["Thumbs down / Swipe, in menu", "Go back / close"],
+      ["Thumb to the left / Swipe, in menu", "Go back / close"],
+      ["Thumb to the left", "Undo the last action (volume, brightness, mic, cursor)"],
       ["Cursor mode (menu, or the switch below)", mouseOn() ? "On" : "Off"],
       ["Point (cursor mode)", "Move the mouse"],
       ["+ middle fingertip on the thumb (cursor mode)", "Click · twice quickly: right click · hold: drag"],

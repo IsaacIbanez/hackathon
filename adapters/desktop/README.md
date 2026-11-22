@@ -53,7 +53,9 @@ El detector arranca en modo **dormido** (`requireWake`) para prevenir gestos acc
 ## Menú rápido con el puño (✊) y páginas
 El menú se presenta en una rejilla 3×3 de pantalla (con el centro vacío):
 - **Abrir y cerrar:** un ✊ puño mantenido ~0,5 s y quieto abre el menú principal. Dentro del menú, soltar el puño y volver a mostrar ✊ durante ~0,5 s lo cierra. También se cierra solo tras 5 s de inactividad.
-- **Tirar atrás (navegación):** un pulgar hacia abajo 👎 mantenido ~0,3 s o un barrido lateral ✋← permite retroceder de página en el menú (o cerrarlo desde la página principal).
+- **Volver atrás (como Alt+← en el navegador):** el puño con el pulgar hacia tu izquierda, mantenido ~0,7 s, o un barrido lateral ✋←, retrocede de página en el menú (o lo cierra desde la página principal). El pulgar hacia abajo ya no lo hace.
+  - Mientras el volumen o el brillo esperan la pinza, el pulgar a la izquierda lo cancela.
+  - Fuera del menú, el pulgar a la izquierda **deshace la última acción** de los últimos 15 s: el volumen o el brillo vuelven al valor de antes de ajustarlos (el ayudante lo lee con `GET /api/level`), y el micro o el modo cursor vuelven a como estaban. Si no hay nada, dice «Nothing to undo».
 - **Página principal:**
   - ↑ 🔊 Volume y ↓ 🔆 Brightness: activan el control de nivel por pinza (🤏 abrir o cerrar dedos pulgar e índice, fijándolo al quedarse quieto).
   - ↖ Main menu: vuelve al menú principal del overlay (las opciones grandes) sin apagar los gestos; desde la burbuja, la ventana vuelve a su tamaño. Con el modo cursor se puede elegir allí una opción.

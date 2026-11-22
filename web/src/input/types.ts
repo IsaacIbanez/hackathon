@@ -46,6 +46,8 @@ export type Gesture =
   | "fist"
   | "thumbs_up"
   | "thumbs_down"
+  /** Fist with the thumb pointing to the user's left: go back (previous menu page, undo). */
+  | "thumbs_left"
   /** Index, middle and ring fingers up, pinky folded: reads the selected text aloud. */
   | "three"
   | "pinch";
