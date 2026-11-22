@@ -16,6 +16,7 @@ dependencies = [
     "pdfminer.six>=20231228",
     "pytesseract>=0.3.10",
     "reportlab>=4",
+    "pypdfium2>=4",  # the PDF viewer renders pages with it (scanner/pdf_pages.py)
 ]
 
 [project.optional-dependencies]

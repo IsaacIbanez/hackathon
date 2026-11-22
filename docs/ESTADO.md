@@ -8,7 +8,7 @@ El **overlay** (`task overlay` → `build/bin/lauzhack.exe`): Ctrl+Alt+Espacio o
 | Herramienta | Qué hace | Estado |
 |---|---|---|
 | **Gesture Control** (centro, tecla 8) | Gestos con la mano → acciones del PC y de las videollamadas; menú del puño, volumen y brillo con la pinza; burbuja de cámara | En Halo y seguro (acciones de energía desactivadas, pinza sin saltos). Comprobado por Pau con el `.exe` y la mano |
-| **PDF Scanner** (tecla 4) | Papel ante la cámara → guía de encuadre por voz → foto → OCR → **vista previa del PDF** en el visor, que solo se lee al pulsar Espacio; PDF digital con el botón «Make digital PDF» (Didac, `docs/briefs/scan-preview.md`) | Medido y mejorado (N3: 75 % de palabras, 4,3 s). **⚠ Aún no funciona bien:** el escaneo no es como la primera versión que hicimos (PDF buscable + PDF digital), y la vista previa nueva **no se ha probado con la cámara en el `.exe`**. **Falta de punta a punta con la MX Brio en el `.exe`** (R3) |
+| **PDF Scanner** (tecla 2) | Papel ante la cámara → foto **solo al pulsar «Take photo»** (o Enter; con el modo cursor, con la mano) → OCR → **dos PDF siempre**: el escaneado (la foto, con texto buscable) y la **versión con IA** (el documento rehecho por el modelo de visión, ~30 s más y ~0,03 $). Se ven en el visor, que solo lee al pulsar Espacio | Arreglado el 2026-11-22: el servicio no arrancaba en un equipo sin `scanner\pdf\.venv` (`No module named cv2`); hay que pasar `scanner\pdf\scripts\install.ps1` una vez por equipo |
 | **Read Text** (tecla 5) | Abre un PDF, una imagen o un texto y lo lee línea a línea | Probado |
 | **Visor de PDF** | Lee el PDF entero en voz alta, página a página (N4) | Hecho; algunas partes, con el estilo viejo (R1) |
 | **AI Summary** (tecla 7) | Resume el texto seleccionado en cualquier programa, en una burbuja junto al cursor | Probado (modelo barato) |
@@ -47,4 +47,4 @@ Fichas con el «Hecho cuando» y el registro: `docs/arreglos/R1.md` … `R4.md`.
 - Un gesto llegó a suspender el PC (arreglado en R2; vigilar el log `did:`).
 - Ctrl+Alt+Espacio puede estar ocupado por otro programa: usar la tecla 1 del keypad.
 - Fotos desenfocadas: el escáner no las lee (normal); la guía de encuadre de la app espera al enfoque.
-- `pypdfium2` no está declarado en `scanner/requirements.txt` y el visor de PDF lo necesita: instálalo a mano en `scanner/pdf/.venv` hasta que se añada.
+- El servicio de lectura necesita su entorno (`scanner\pdf\scripts\install.ps1`, una vez por equipo). Sin él, la app arranca el Python del sistema y el servicio muere con `No module named cv2` (se ve en `build/bin/reading-service.log`).
