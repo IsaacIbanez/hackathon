@@ -21,7 +21,7 @@ test("wake mode: gestures are ignored until a strict open palm is held ~1 s", ()
   const ctl = new HandInteraction({ requireWake: true });
   const ev = simulate(ctl, [
     ...repeat(makeHand(SHAPES.thumbs_up), 20), // asleep: ignored
-    ...repeat(makeHand(WAKE_PALM), 45), // wakes (without triggering "pause")
+    ...repeat(makeHand(WAKE_PALM), 60), // wakes (without triggering "pause")
     ...repeat(makeHand(SHAPES.thumbs_up), 20), // now it counts
   ]);
   const actions = ev.map((e) => actionFor(e)).filter(Boolean);
@@ -45,7 +45,7 @@ test("wake mode: a relaxed, turned or tilted open hand doesn't wake (and says wh
 
 test("wake mode: goes back to sleep after a while without activity", () => {
   const ctl = new HandInteraction({ requireWake: true, sleepMs: 500 });
-  const ev = simulate(ctl, [...repeat(makeHand(WAKE_PALM), 45), ...repeat(null, 30)]);
+  const ev = simulate(ctl, [...repeat(makeHand(WAKE_PALM), 60), ...repeat(null, 30)]);
   assert.deepEqual(
     ev.filter((e) => e.type === "mode").map((e) => e.type === "mode" && e.awake),
     [true, false],
@@ -300,9 +300,39 @@ test("menu: thumbs down 👎 inside the menu emits a 'back' phase", () => {
   const ev = simulate(new HandInteraction(), [
     ...repeat(makeHand(SHAPES.fist), 20), // opens
     ...repeat(makeHand(SHAPES.palm), 12), // settle > 300 ms
-    ...repeat(makeHand(SHAPES.thumbs_down), 15), // thumbs down > 300 ms
+    ...repeat(makeHand(SHAPES.thumbs_down), 25), // thumbs down > 700 ms
   ]).filter((e) => e.type === "menu");
   assert.ok(ev.some((e) => e.type === "menu" && e.phase === "back"));
+});
+
+test("menu: a brief thumbs down doesn't go back", () => {
+  const ev = simulate(new HandInteraction(), [
+    ...repeat(makeHand(SHAPES.fist), 20),
+    ...repeat(makeHand(SHAPES.palm), 12),
+    ...repeat(makeHand(SHAPES.thumbs_down), 12), // ~0.4 s
+    ...repeat(makeHand(SHAPES.palm), 5),
+  ]).filter((e) => e.type === "menu");
+  assert.ok(!ev.some((e) => e.type === "menu" && (e.phase === "back" || e.phase === "close")));
+});
+
+test("menu: moving the hand quickly between options (not an open palm) doesn't go back", () => {
+  // The hand jumps sideways with no clear pose on the way, as when going from one option to another.
+  const moving = Array.from({ length: 10 }, (_, i) => makeHand({ index: true, middle: true, ring: true, dx: 0.04 * i }));
+  const ev = simulate(new HandInteraction(), [
+    ...repeat(makeHand(SHAPES.fist), 20),
+    ...repeat(makeHand(SHAPES.point), 12),
+    ...moving,
+    ...repeat(makeHand(SHAPES.point), 5),
+  ]).filter((e) => e.type === "menu");
+  assert.ok(!ev.some((e) => e.type === "menu" && (e.phase === "back" || e.phase === "close")));
+});
+
+test("menu: it doesn't close by itself while the user keeps pointing", () => {
+  const ev = simulate(new HandInteraction({ menuTimeoutMs: 800 }), [
+    ...repeat(makeHand(SHAPES.fist), 20),
+    ...repeat(makeHand({ ...SHAPES.point, dy: 0 }), 60), // ~2 s pointing at the centre
+  ]).filter((e) => e.type === "menu");
+  assert.ok(!ev.some((e) => e.type === "menu" && e.phase === "close"));
 });
 
 test("menu: swipe inside the menu emits a 'back' phase", () => {

@@ -36,8 +36,13 @@ func main() {
 		// Transparent: the page paints its own background, except while the gesture menu covers the
 		// whole screen (SetScreenOverlay), where what is open below shows through.
 		BackgroundColour: &options.RGBA{R: 0, G: 0, B: 0, A: 0},
+		// Both are needed to see through on Windows: WebviewIsTransparent clears the page and
+		// WindowIsTranslucent stops the window itself painting a colour behind it. No backdrop
+		// material (Mica/Acrylic), so it is clear, not frosted. Windows 10 shows a blur instead.
 		Windows: &windows.Options{
 			WebviewIsTransparent: true,
+			WindowIsTranslucent:  true,
+			BackdropType:         windows.None,
 		},
 		OnStartup:  app.startup,
 		OnShutdown: app.shutdown,

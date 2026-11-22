@@ -121,6 +121,8 @@ export interface InteractionOptions {
   clickRelease: number;
   /** To press, the middle fingertip must be at least this far from the wrist (÷ hand size). */
   clickReach: number;
+  /** Consecutive frames the fingers must touch before it counts (one noisy frame is not a click). */
+  clickFrames: number;
   /** Holding the fingers together longer than this is a drag (button held), not a tap. */
   dragMs: number;
   /** A second tap within this time after the first one makes a right click. */
@@ -167,10 +169,10 @@ export const DEFAULT_OPTIONS: InteractionOptions = {
   invertHandedness: false,
   thresholds: DEFAULT_THRESHOLDS,
   requireWake: false,
-  wakeMs: 1200,
-  wakeStraightness: 0.93,
-  wakeSpread: 0.8,
-  wakeUprightDeg: 40,
+  wakeMs: 1600,
+  wakeStraightness: 0.95,
+  wakeSpread: 0.9,
+  wakeUprightDeg: 30,
   sleepMs: 10000,
   levelZero: 0.25,
   levelFull: 1.0,
@@ -182,21 +184,22 @@ export const DEFAULT_OPTIONS: InteractionOptions = {
   fistReach: 0.9,
   levelArmMs: 8000,
   useFist: false,
-  menuBackMs: 300,
+  menuBackMs: 700,
   menuHoldMs: 500,
   mouseClicks: false,
-  clickPress: 0.38,
+  clickPress: 0.34,
   clickRelease: 0.5,
-  clickReach: 0.85,
+  clickReach: 0.9,
+  clickFrames: 2,
   dragMs: 300,
   doubleTapMs: 350,
   palmMustFaceCamera: true,
   menuSelectMs: 500,
   menuSelect: "click",
   menuTapMs: 800,
-  menuTapRingSep: 0.18,
+  menuTapRingSep: 0.2,
   menuSettleMs: 300,
-  menuTimeoutMs: 5000,
+  menuTimeoutMs: 8000,
   head: {},
   switchHandRatio: 1.25,
 };
@@ -209,11 +212,11 @@ export const REDUCED_MOBILITY_PROFILE: Partial<InteractionOptions> = {
   dwellRadius: 0.045,
   swipeDistance: 0.15,
   swipeWindowMs: 700,
-  wakeMs: 1500,
+  wakeMs: 2000,
   dragMs: 450,
   doubleTapMs: 500,
   menuSelectMs: 900,
-  menuTimeoutMs: 8000,
+  menuTimeoutMs: 12000,
 };
 
 type Listener = (e: HandEvent) => void;
@@ -339,6 +342,8 @@ export class HandInteraction {
   private clickTouching = false;
   private clickReady = false;
   private menuTouching = false;
+  private menuPressFrames = 0;
+  private clickPressFrames = 0;
   private menuTouchReady = false;
   private tMenuTouch = 0;
   private menuTapSector: MenuSector | null = null;
@@ -920,7 +925,8 @@ export class HandInteraction {
    */
   private updateMenu(t: number, pose: Gesture, center: Point, hand: Hand, aspect: number): void {
     const m = this.menu!;
-    if (t - m.tOpened > this.opts.menuTimeoutMs) {
+    // It closes by itself only after a while without pointing (not while the user is choosing).
+    if (t - Math.max(m.tOpened, this.tLastPointing) > this.opts.menuTimeoutMs) {
       this.closeMenu(t);
       return;
     }
@@ -955,8 +961,10 @@ export class HandInteraction {
       this.tMenuBack = null;
     }
 
-    // Swiping left (or lateral swipe with palm) goes back.
-    if (this.detectSwipe(t, center, pose, aspect)) {
+    // A sideways swipe of the open hand goes back. Only with ✋: moving the hand quickly between
+    // options (with the pose changing on the way) must not count as a swipe.
+    if (pose !== "palm") this.swipeHistory = [];
+    else if (this.detectSwipe(t, center, pose, aspect)) {
       this.emitMenuBack(t, m);
       this.resetCandidate(t, pose, center);
       return;
@@ -1031,7 +1039,9 @@ export class HandInteraction {
     if (gap > this.opts.clickRelease) this.menuTouchReady = true;
     const outInFront = distance(pts[L.WRIST], pts[L.MIDDLE_TIP]) / size >= this.opts.clickReach;
     const offTheRing = distance(pts[L.MIDDLE_TIP], pts[L.RING_TIP]) / size > this.opts.menuTapRingSep;
-    if (this.menuTouchReady && outInFront && offTheRing && gap < this.opts.clickPress) {
+    this.menuPressFrames = this.menuTouchReady && outInFront && offTheRing && gap < this.opts.clickPress ? this.menuPressFrames + 1 : 0;
+    if (this.menuPressFrames >= this.opts.clickFrames) {
+      this.menuPressFrames = 0;
       this.menuTouching = true;
       this.menuTouchReady = false;
       this.tMenuTouch = t;
@@ -1070,11 +1080,11 @@ export class HandInteraction {
     // Resting in the pointing pose, the curled middle finger lies next to the ring finger: to click
     // it has to leave it and go to the thumb.
     const offTheRing = distance(pts[L.MIDDLE_TIP], pts[L.RING_TIP]) / size > this.opts.menuTapRingSep;
+    const pressing = pointing && this.clickReady && outInFront && offTheRing && gap < this.opts.clickPress;
+    this.clickPressFrames = pressing ? this.clickPressFrames + 1 : 0;
     this.clickTouching =
       pointing &&
-      (this.clickTouching
-        ? gap < this.opts.clickRelease
-        : this.clickReady && outInFront && offTheRing && gap < this.opts.clickPress);
+      (this.clickTouching ? gap < this.opts.clickRelease : this.clickPressFrames >= this.opts.clickFrames);
     const touching = this.clickTouching;
 
     switch (this.click) {
@@ -1121,6 +1131,7 @@ export class HandInteraction {
     this.click = "idle";
     this.clickTouching = false;
     this.clickReady = false;
+    this.clickPressFrames = 0;
   }
 
   private emitMouse(action: MouseAction, t: number): void {
