@@ -123,8 +123,6 @@ func ForegroundIsOurs() bool {
 	return int(pid) == os.Getpid()
 }
 
-var procSetForegroundWindow = user32.NewProc("SetForegroundWindow")
-
 // OtherForeground returns the active window when it belongs to another program (0 if it is ours
 // or there is none), to give it the focus back later with RestoreForeground.
 func OtherForeground() uintptr {

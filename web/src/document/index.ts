@@ -1,5 +1,16 @@
 // Document module (role B2): guided line-by-line reading of the scanned document.
 export { GuidedReader } from './GuidedReader.tsx'
+export { PdfViewer, type PdfSource } from './PdfViewer.tsx'
+export {
+  PdfPageReader,
+  RATES,
+  pdfKeyAction,
+  type PageLoader,
+  type PdfAction,
+  type PdfLine,
+  type PdfPageData,
+  type PdfState,
+} from './pdfReader.ts'
 export {
   LineReader,
   UNCLEAR,

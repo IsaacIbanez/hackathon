@@ -34,7 +34,7 @@ recorta, endereza, gira y limpia, lo **lee (OCR local)** y entrega tres cosas:
 |------|-------|--------|
 | `scanner/capturar.py` | Pau | Captura de la MX Brio: única (≈2,7 s) o modo servidor con la cámara abierta (≈0,4 s/captura, puerto 8766). Ver `scanner/README.md`. |
 | `scanner/scan.py` | Didac | **Conector**: captura → PDF → (opcional) envío a la app. Es lo que hay que llamar desde fuera. |
-| `scanner/service.py` | Didac | **Servicio de lectura** (T13): `POST /scan` en 8770, foto → `document` + `pageCorners` (§5.1). Lo llama Go. También `POST /document`: un archivo del PC (PDF con o sin texto, PNG, JPEG) → sus líneas (`documents.py`, opción «Leer un archivo» del overlay, `docs/OVERLAY.md`). |
+| `scanner/service.py` | Didac | **Servicio de lectura** (T13): `POST /scan` en 8770, foto → `document` + `pageCorners` (§5.1). Lo llama Go. También `POST /document`: un archivo del PC (PDF con o sin texto, PNG, JPEG) → sus líneas (`documents.py`, opción «Leer un archivo» del overlay, `docs/OVERLAY.md`). Y, para el visor que lee todo un PDF (N4), `POST /pdf` más `GET /pdf/<id>/page/<n>/lines` y `.jpg`: el PDF página a página, sin límite (`pdf_pages.py`). |
 | `scanner/pdf/` | Didac | Paquete `scanner_pdf` (PNG → PDF). Referencia técnica: `scanner/pdf/README.md`. |
 | `scanner/demo_app/` | Didac | **Provisional**: app en el navegador (localhost:8780) para probar. No es parte del producto. |
 | `scanner/capturas/`, `scanner/pdf/output/` | — | Resultados locales (en `.gitignore`: son documentos reales). |

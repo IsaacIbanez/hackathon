@@ -203,6 +203,11 @@ Relación con lo anterior:
 
 ## Decisiones
 - 2026-11-22 — **Gesture Control dentro del overlay** (Nil, rama `feature/T6-overlay-unified`): un solo ejecutable. El programa de gestos pasa a ser un paquete (`adapters/desktop/control`) que la app usa en su propio proceso; la página de la cámara (`mountGestureControl`) se monta en la opción 1 y habla con Go por el binding `GestureCall` (la misma API, sin HTTP, puerto ni token). Con los gestos activos, ocultar el overlay lo encoge a una burbuja de cámara en una esquina (una ventana oculta frenaría la cámara). `gesture-control` sigue existiendo para usarlo solo (`task gestures`, o en Linux, donde la cámara no funciona dentro de Wails).
+- 2026-11-22 — **Opción 4 del overlay: resumir el texto seleccionado en cualquier programa** (Didac, rama `feature/didac-resumir-seleccion`, `docs/OVERLAY.md`).
+  - Funcionamiento: Go recuerda la ventana que había delante al abrir el overlay, copia su selección con Ctrl+C, la resume con el **modelo barato** (2–3 frases, con alternativa local a 0 $) y deja el resumen en el portapapeles, en voz alta y en una burbuja junto al cursor.
+  - Preparado para el cursor de la mano de Nil: `TriggerSummary` y el evento `overlay:summarize`.
+  - **Es la implementación del resumen que se queda** (decisión de Isaac y Didac): sustituye a la N7 de Isaac, que se había fusionado (#48) y se retiró de `main` (revert de de357f8; el keypad N2 se queda). Resumir el documento abierto (opciones 2 y 3) queda pendiente, sobre `backend/summary`.
+  - El contrato no cambia.
 - 2026-11-21 — **App overlay** (rama `overlay`, detalle en `docs/OVERLAY.md`):
   - la app de escritorio es una ventana siempre encima que se abre desde cualquier programa con **Ctrl+Alt+Espacio** (`LAUZHACK_HOTKEY`; el MX Keypad envía la misma combinación desde Logi Options+);
   - opciones: **1** gestos (Nil; desde el 2026-11-22 va dentro de la app, ver la decisión siguiente), **2** leer un papel (Pau y Didac: cámara → servicio de lectura → lectura guiada) y **3** leer un archivo del PC (Didac: PDF, imágenes, TXT/MD → lectura guiada);

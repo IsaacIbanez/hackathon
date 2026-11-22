@@ -29,6 +29,12 @@ import (
 // (Ctrl+Alt+Space, or an MX Keypad key mapped to it) shows and hides. It offers the team's
 // features as options; see docs/OVERLAY.md. These are the bindings the overlay UI calls.
 
+// Size of the full overlay window (main.go opens it with this size; the summary bubble restores it).
+const (
+	overlayWidth  = 960
+	overlayHeight = 680
+)
+
 type overlayState struct {
 	mu       sync.Mutex
 	visible  bool
@@ -49,6 +55,7 @@ type overlayState struct {
 	// The program that was active before the full-screen menu: it gets the focus back afterwards,
 	// so the gestures' keys (Enter, shortcuts) go to it and not to this window.
 	before uintptr
+	bubble bool // shrunk to the summary bubble next to the pointer (option 4, app_summary.go)
 }
 
 // startOverlay registers the shortcut; the window starts visible so the person sees it once.
@@ -118,6 +125,9 @@ func (a *App) startOverlay(ctx context.Context) {
 // keypadPressed runs an MX Keypad action: it shows the overlay if needed and tells the UI, which
 // does the action (web/src/app/overlay/keypad.ts). It works while another program has the focus.
 func (a *App) keypadPressed(ctx context.Context, action overlay.KeypadAction) {
+	// Like the shortcut: remember the program in front before the overlay takes the focus, so
+	// option 4 (summarize the selection) copies from it.
+	overlay.RememberTarget()
 	if action == overlay.KeypadToggle {
 		a.toggleOverlay(ctx)
 		return
@@ -151,8 +161,16 @@ func (a *App) stopOverlay() {
 }
 
 func (a *App) toggleOverlay(ctx context.Context) {
+	// Remember the program in front before the overlay takes the focus: option 4 copies its
+	// selected text.
+	overlay.RememberTarget()
 	o := &a.overlay
 	o.mu.Lock()
+	if o.bubble { // the summary bubble is open: the shortcut closes it
+		o.mu.Unlock()
+		a.CloseSummary()
+		return
+	}
 	if o.gesturesOn {
 		// With the gestures on, the window is never hidden (a hidden page would pause the camera):
 		// the shortcut switches between the full overlay and the camera bubble.
@@ -455,12 +473,6 @@ func currentScreen(ctx context.Context) (int, int) {
 
 // Title of the window (main.go); PlaceInCorner finds the window by it.
 const windowTitle = "LauzHack overlay"
-
-// Size of the full overlay window.
-const (
-	overlayWidth  = 960
-	overlayHeight = 680
-)
 
 // keepCameraRunning asks WebView2 not to slow the page down when the window is covered by other
 // windows (a video call, for example): the gestures follow the hand from the camera there. Only

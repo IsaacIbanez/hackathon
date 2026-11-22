@@ -17,6 +17,10 @@ POST /scan   body: the photo (PNG or JPEG; the type is sniffed from the bytes, C
 POST /document?name=file.pdf   body: a file from the computer (PDF with or without text, PNG, JPEG)
   200  DocumentPayload: its lines in reading order, pages stacked top to bottom (documents.py; overlay option
        "Read a file", docs/OVERLAY.md).  400 input_*  503 ocr_unavailable (a scanned page without Tesseract)
+POST /pdf?name=file.pdf   body: a PDF -> {id, name, pages, lang}: kept open (the last 3) to read it page by page
+GET  /pdf/<id>/page/<n>/lines   -> {page, ocr, lines: [{id, text, box, confidence}]} (n from 0; OCR if scanned)
+GET  /pdf/<id>/page/<n>.jpg?width=1100   -> the page as a JPEG.  404: unknown PDF or page.
+     (PDF viewer that reads a whole PDF aloud, task N4: pdf_pages.py, docs/briefs/N4.md)
 GET  /health  {"ok": true, "tesseract": "5.x", "busy": false}
 
 Only listens on 127.0.0.1. One scan at a time (the OCR already uses the CPU in parallel); others wait.
@@ -26,6 +30,7 @@ The photo, the page and the PDFs are kept in scanner/pdf/output/ (ignored by git
 from __future__ import annotations
 
 import argparse
+import re
 import json
 import logging
 import os
@@ -49,12 +54,15 @@ from scanner_pdf.errors import ScannerError  # noqa: E402
 from scanner_pdf.input_image import load_png  # noqa: E402
 
 import documents  # noqa: E402
+import pdf_pages  # noqa: E402
 
 log = logging.getLogger("scan-service")
 
 DEFAULT_PORT = 8770
 OUTPUT_DIR = ROOT / "pdf" / "output"
 MAX_BODY = 40 * 1024 * 1024        # a 4K PNG is ~10-20 MB
+MAX_PDF_BODY = 200 * 1024 * 1024   # POST /pdf: long PDFs are read page by page
+PDF_PAGE = re.compile(r"^/pdf/([0-9a-f]+)/page/(\d+)(/lines|\.jpg)$")
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 JPEG_SIGNATURE = b"\xff\xd8\xff"
 NO_PAGE_MESSAGE = "No sheet found: hold the whole page flat inside the frame, at 30-40 cm"
@@ -102,6 +110,7 @@ class ScanService:
         self.options = options
         self.lock = threading.Lock()
         self.busy = False
+        self.pdfs = pdf_pages.PdfStore(self.output_dir, to_png, self.lock)
 
     def scan(self, data: bytes, query: dict | None = None) -> tuple[int, dict, Result | None]:
         try:
@@ -156,23 +165,62 @@ def make_handler(service: ScanService):
             self.end_headers()
             self.wfile.write(body)
 
+        def _bytes(self, status: int, data: bytes, content_type: str):
+            self.send_response(status)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(data)
+
         def do_GET(self):
-            if urlparse(self.path).path == "/health":
+            u = urlparse(self.path)
+            if u.path == "/health":
                 return self._json(200, {"ok": True, "tesseract": TESSERACT_VERSION, "busy": service.busy})
-            self._json(404, {"error": "not_found"})
+            m = PDF_PAGE.match(u.path)
+            if not m:
+                return self._json(404, {"error": "not_found"})
+            pdf_id, index, what = m.group(1), int(m.group(2)), m.group(3)
+            query = {k: v[0] for k, v in parse_qs(u.query).items()}
+            t0 = time.perf_counter()
+            try:
+                if what == ".jpg":
+                    return self._bytes(200, service.pdfs.page_image(pdf_id, index, int(query.get("width", 1100))),
+                                       "image/jpeg")
+                body = service.pdfs.page_lines(pdf_id, index)
+            except KeyError:
+                return self._json(404, {"error": "pdf_not_open", "message": "Open the PDF again (POST /pdf)"})
+            except IndexError:
+                return self._json(404, {"error": "page_not_found", "message": f"No page {index}"})
+            except ScannerError as e:
+                return self._json(503 if e.code == "ocr_unavailable" else 400, {"error": e.code, "message": e.message})
+            except Exception as e:  # never leave Go without an answer
+                log.exception("Unexpected failure")
+                return self._json(500, {"error": "internal", "message": f"{type(e).__name__}: {e}"})
+            ms = round((time.perf_counter() - t0) * 1000)
+            log.info("GET %s -> %d lines%s in %d ms", u.path, len(body["lines"]), " (OCR)" if body["ocr"] else "", ms)
+            self._json(200, body, {"X-Scan-Ms": str(ms)})
 
         def do_POST(self):
             u = urlparse(self.path)
-            if u.path not in ("/scan", "/document"):
+            if u.path not in ("/scan", "/document", "/pdf"):
                 return self._json(404, {"error": "not_found"})
             length = int(self.headers.get("Content-Length") or 0)
             if length <= 0:
                 return self._json(400, {"error": "input_empty", "message": "Send the photo as the request body"})
-            if length > MAX_BODY:
+            if length > (MAX_PDF_BODY if u.path == "/pdf" else MAX_BODY):
                 return self._json(413, {"error": "input_too_large", "message": f"Photo larger than {MAX_BODY} bytes"})
             data = self.rfile.read(length)
             query = {k: v[0] for k, v in parse_qs(u.query).items()}
             t0 = time.perf_counter()
+            if u.path == "/pdf":
+                try:
+                    info = service.pdfs.open(data, query.get("name", "document.pdf"))
+                except ScannerError as e:
+                    return self._json(400, {"error": e.code, "message": e.message})
+                log.info("POST /pdf %s -> %d pages, %s, in %d ms", info["name"], info["pages"], info["lang"],
+                         round((time.perf_counter() - t0) * 1000))
+                return self._json(200, info)
             if u.path == "/document":
                 try:
                     status, body = service.document(data, query)
@@ -216,7 +264,7 @@ def main(argv: list[str] | None = None) -> int:
     except ScannerError as e:
         log.error("%s: scans will answer 503 until it is installed", e.message)
     server = ThreadingHTTPServer(("127.0.0.1", a.port), make_handler(ScanService(a.output)))
-    log.info("Reading service at http://127.0.0.1:%d (POST /scan, POST /document, GET /health); Ctrl+C to quit", a.port)
+    log.info("Reading service at http://127.0.0.1:%d (POST /scan, POST /document, POST /pdf, GET /health); Ctrl+C to quit", a.port)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

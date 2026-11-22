@@ -3,12 +3,13 @@ import App from '../App.tsx'
 import { DocumentsMode } from './DocumentsMode.tsx'
 import { GesturesMode } from './GesturesMode.tsx'
 import { ReadFileMode } from './ReadFileMode.tsx'
+import { SummarizeMode } from './SummarizeMode.tsx'
 import { desktop, inDesktopApp, onDesktopEvent, type OverlayInfo } from './desktop.ts'
 import { keypadCommand, pressKey } from './keypad.ts'
 import { MODES, modeForKey, type ModeId } from './modes.ts'
 
 // The overlay (docs/OVERLAY.md): a menu with the team's features. Ctrl+Alt+Space (or an MX Keypad
-// key mapped to it) shows and hides the window from any program. Keys: 1–3 (or Num 1–3) choose,
+// key mapped to it) shows and hides the window from any program. Keys: 1–4 (or Num 1–4) choose,
 // Esc goes back to the menu and, from the menu, hides the overlay. D opens the old developer screen,
 // Q quits the app (and the helper programs it started).
 
@@ -17,6 +18,8 @@ type View = ModeId | 'menu' | 'developer'
 export function Overlay() {
   const [view, setView] = useState<View>('menu')
   const [info, setInfo] = useState<OverlayInfo | null>(null)
+  // Each summary request mounts option 4 afresh (it summarizes once, when it opens).
+  const [summaryRun, setSummaryRun] = useState(0)
 
   useEffect(() => {
     if (inDesktopApp()) desktop().OverlayInfo().then(setInfo).catch(() => {})
@@ -37,8 +40,22 @@ export function Overlay() {
       onDesktopEvent('overlay:keypad', (action) => {
         const cmd = keypadCommand(action)
         if (!cmd) return
-        if ('view' in cmd) setView(cmd.view)
+        if ('view' in cmd) {
+          if (cmd.view === 'summarize') setSummaryRun((n) => n + 1) // summarizes again each time
+          setView(cmd.view)
+        }
         else pressKey(cmd.key)
+      }),
+    [],
+  )
+
+  // Option 4 asked from outside the menu (TriggerSummary in Go; prepared for Gesture Control's
+  // hand cursor, see docs/OVERLAY.md).
+  useEffect(
+    () =>
+      onDesktopEvent('overlay:summarize', () => {
+        setSummaryRun((n) => n + 1)
+        setView('summarize')
       }),
     [],
   )
@@ -56,6 +73,7 @@ export function Overlay() {
       const mode = modeForKey(e.code)
       if (mode?.ready) {
         e.preventDefault()
+        if (mode.id === 'summarize') setSummaryRun((n) => n + 1)
         setView(mode.id)
       } else if (e.code === 'KeyD') {
         setView('developer')
@@ -81,6 +99,12 @@ export function Overlay() {
     gestures: <GesturesMode />,
     documents: <DocumentsMode />,
     'read-file': <ReadFileMode onCancel={() => setView('menu')} />,
+    summarize: <SummarizeMode key={summaryRun} onClose={() => setView('menu')} />,
+  }
+
+  // Option 4 lives in a small bubble next to the pointer: no menu bar.
+  if (view === 'summarize') {
+    return <main className="h-screen bg-slate-900 p-4 text-slate-50">{views.summarize}</main>
   }
 
   return (
@@ -101,7 +125,7 @@ function Menu({ info, onChoose }: { info: OverlayInfo | null; onChoose: (id: Mod
   return (
     <section aria-label="Options" className="space-y-4">
       <h1 className="text-3xl font-bold">What do you want to do?</h1>
-      <ol className="grid gap-4 md:grid-cols-3">
+      <ol className="grid gap-4 md:grid-cols-2">
         {MODES.map((m) => (
           <li key={m.id}>
             <button
@@ -120,7 +144,7 @@ function Menu({ info, onChoose }: { info: OverlayInfo | null; onChoose: (id: Mod
         ))}
       </ol>
       <p className="text-lg text-slate-400">
-        Press 1, 2 or 3 (also on the numeric keypad). Esc hides this window
+        Press 1–4 (also on the numeric keypad). Esc hides this window
         {info?.hotkeyOk ? `; ${info.hotkey} brings it back from any program.` : '.'}
         {info && !info.hotkeyOk && ` The shortcut ${info.hotkey} could not be registered: the window stays available.`}
       </p>

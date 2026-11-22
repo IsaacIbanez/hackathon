@@ -10,13 +10,9 @@ import (
 var (
 	procFindWindowW       = user32.NewProc("FindWindowW")
 	procGetWindowRect     = user32.NewProc("GetWindowRect")
-	procSetWindowPos      = user32.NewProc("SetWindowPos")
 	procMonitorFromWindow = user32.NewProc("MonitorFromWindow")
 	procGetMonitorInfoW   = user32.NewProc("GetMonitorInfoW")
-	procGetDpiForWindow   = user32.NewProc("GetDpiForWindow")
 )
-
-type rect struct{ Left, Top, Right, Bottom int32 }
 
 type monitorInfo struct {
 	Size    uint32

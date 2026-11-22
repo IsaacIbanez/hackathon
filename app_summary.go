@@ -6,39 +6,95 @@ import (
 	"log"
 	"time"
 
-	"github.com/IsaacIbanez/hackathon/backend/session"
+	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
+
+	"github.com/IsaacIbanez/hackathon/backend/overlay"
+	"github.com/IsaacIbanez/hackathon/backend/summary"
 )
 
-// Summaries with AI (task N7, brief docs/briefs/N7.md). The overlay's document options call this
-// binding with the document's text; a selection (N6) will use the same call.
+// Option 4 (Didac, B2): summarize the text selected in any program, in 2–3 plain sentences.
+// The summary is said aloud, copied to the clipboard and shown in a bubble next to the mouse
+// pointer (the overlay window, shrunk). See docs/OVERLAY.md, «Resumir el texto seleccionado».
+//
+// Triggers: the overlay's option 4 today. Gesture Control's hand cursor (Nil) will call
+// TriggerSummary when it has a "summarize" action: the overlay then opens option 4 by itself.
 
-// SummaryResult is what Summarize returns to the UI (as JSON, see app_overlay.go).
+// Size of the summary bubble (logical pixels, like the rest of the window sizes).
+const (
+	bubbleWidth  = 540
+	bubbleHeight = 420
+)
+
+// SummaryResult is what option 4 shows: the summary plus whether it was copied.
 type SummaryResult struct {
-	session.Summary
-	// TotalCostUSD is everything the models have cost since the app started (for N8).
-	TotalCostUSD float64 `json:"totalCostUsd"`
-	// Error, when there is no summary: a sentence the UI can read aloud.
-	Error string `json:"error,omitempty"`
+	summary.Result
+	Copied bool `json:"copied"`
 }
 
-// Summarize summarizes text in language lang ("" = detect) with the cheap model first.
-func (a *App) Summarize(text, lang string) string {
-	if a.model == nil {
-		return toJSON(SummaryResult{Error: "Summaries need the AI key: add OPENROUTER_API_KEY to the .env file."})
+// SummarizeSelection copies the selected text of the program that was in front, summarizes it,
+// copies the summary to the clipboard and turns the window into a bubble next to the pointer.
+// Errors start with "no_selection:" when there was nothing to copy.
+func (a *App) SummarizeSelection() (string, error) {
+	text, err := overlay.CopySelection()
+	if errors.Is(err, overlay.ErrNoSelection) || errors.Is(err, overlay.ErrNoTarget) {
+		a.showBubble()
+		return "", errors.New("no_selection: Select some text in another program first, then open the overlay and press 4.")
+	}
+	if err != nil {
+		a.showBubble()
+		return "", err
 	}
 	ctx, cancel := context.WithTimeout(a.ctx, 45*time.Second)
 	defer cancel()
-	s, err := session.Summarize(ctx, a.model, text, lang, session.DefaultConfig().MaxTokens)
-	total := a.model.Stats().TotalCostUSD
-	if err != nil {
-		log.Printf("summary: %v", err)
-		msg := "The summary failed. Check the internet connection and try again."
-		if errors.Is(err, session.ErrNothingToSummarize) {
-			msg = "There is no text to summarize."
-		}
-		return toJSON(SummaryResult{Error: msg, TotalCostUSD: total})
+	res := SummaryResult{Result: summary.Summarize(ctx, a.llm, text)}
+	if err := overlay.SetClipboardText(res.Summary); err != nil {
+		log.Printf("summary: could not copy it: %v", err)
+	} else {
+		res.Copied = true
 	}
-	log.Printf("summary: %s (%s, escalated=%v, cached=%v) %d ms, %.6f USD, %d+%d tokens, truncated=%v",
-		s.Model, s.Tier, s.Escalated, s.Cached, s.LatencyMs, s.CostUSD, s.PromptTokens, s.CompletionTokens, s.Truncated)
-	return toJSON(SummaryResult{Summary: s, TotalCostUSD: total})
+	log.Printf("summary: %d chars → %d (%s, %s, %.5f $, %d ms, truncated=%v) %s",
+		res.Chars, len([]rune(res.Summary)), res.Source, res.Model, res.CostUSD, res.LatencyMs, res.Truncated, res.Note)
+	a.showBubble()
+	return toJSON(res), nil
+}
+
+// showBubble shrinks the overlay window next to the mouse pointer, on top, with the focus (so Esc
+// and R work).
+func (a *App) showBubble() {
+	ctx := a.ctx
+	a.overlay.mu.Lock()
+	a.overlay.visible = true
+	a.overlay.bubble = true
+	a.overlay.mu.Unlock()
+	wruntime.WindowShow(ctx)
+	wruntime.WindowSetAlwaysOnTop(ctx, true)
+	where, placed := overlay.PlaceNearCursor(bubbleWidth, bubbleHeight)
+	log.Printf("summary: bubble %s", where)
+	if !placed {
+		wruntime.WindowSetSize(ctx, bubbleWidth, bubbleHeight)
+		wruntime.WindowCenter(ctx)
+	}
+}
+
+// CloseSummary closes the bubble: the window gets its size back, hides and the program the text
+// came from gets the focus again.
+func (a *App) CloseSummary() {
+	a.overlay.mu.Lock()
+	was := a.overlay.bubble
+	a.overlay.bubble = false
+	a.overlay.mu.Unlock()
+	if !was {
+		return
+	}
+	wruntime.WindowSetSize(a.ctx, overlayWidth, overlayHeight)
+	wruntime.WindowCenter(a.ctx)
+	a.HideOverlay()
+	overlay.FocusTarget()
+}
+
+// TriggerSummary opens option 4 from outside the menu (prepared for the hand cursor of Gesture
+// Control): it remembers the window in front and asks the overlay UI to run the summary.
+func (a *App) TriggerSummary() {
+	overlay.RememberTarget()
+	wruntime.EventsEmit(a.ctx, "overlay:summarize")
 }

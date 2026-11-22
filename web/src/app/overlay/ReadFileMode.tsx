@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DocumentPayload } from '../../api'
-import { GuidedReader } from '../../document/index.ts'
+import { GuidedReader, PdfViewer, type PdfSource } from '../../document/index.ts'
 import { desktop, errorText } from './desktop.ts'
-import { SummaryPanel } from './SummaryPanel.tsx'
 
-// Option 3 (Didac, B2): choose a file on the computer (PDF, text, image) and listen to it line by
-// line with the guided reader. Text and PDFs with text are instant; scanned PDFs and images go
-// through the OCR of the reading service. No model is called. O opens another file.
+// Option 3 (Didac, B2): choose a file on the computer and listen to it. A PDF opens in the PDF
+// viewer, which shows the real pages and reads the whole PDF with one button, page by page (task N4,
+// docs/briefs/N4.md). Text files and images are read line by line with the guided reader. Scanned
+// pages and images go through the OCR of the reading service. No model is called. O opens another file.
 export function ReadFileMode({ onCancel }: { onCancel: () => void }) {
   const [doc, setDoc] = useState<DocumentPayload | null>(null)
+  const [pdf, setPdf] = useState<PdfSource | null>(null)
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(true)
   const hasDoc = useRef(false)
@@ -20,17 +21,23 @@ export function ReadFileMode({ onCancel }: { onCancel: () => void }) {
   const open = useCallback(async () => {
     setBusy(true)
     try {
-      const res = await desktop().OpenAndReadFile()
+      const res = await desktop().OpenFileForReading()
       if (res.cancelled) {
         if (!hasDoc.current) onCancelRef.current()
         return
       }
       hasDoc.current = true
-      setDoc(res.document)
+      if (res.kind === 'pdf') {
+        setDoc(null)
+        setPdf(res.pdf)
+        setMessage(`${res.name}: ${res.pdf.pages} ${res.pdf.pages === 1 ? 'page' : 'pages'}. Space reads the whole PDF.`)
+        return
+      }
+      const document = res.lines.document
+      setPdf(null)
+      setDoc(document)
       setMessage(
-        res.document.blocks.length > 0
-          ? `${res.name}: ${res.document.blocks.length} lines.`
-          : `${res.name}: no text found in it.`,
+        document.blocks.length > 0 ? `${res.name}: ${document.blocks.length} lines.` : `${res.name}: no text found in it.`,
       )
     } catch (e) {
       setMessage(`Could not read the file: ${errorText(e)}`)
@@ -73,8 +80,8 @@ export function ReadFileMode({ onCancel }: { onCancel: () => void }) {
           Open another file <span className="text-base font-normal opacity-80">(O)</span>
         </button>
       </div>
+      {pdf && <PdfViewer key={pdf.id} pdf={pdf} loadPage={(n) => desktop().PDFPage(pdf.id, n)} />}
       {doc && <GuidedReader doc={doc} autoPlay />}
-      <SummaryPanel doc={doc} />
     </div>
   )
 }

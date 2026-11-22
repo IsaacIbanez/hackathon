@@ -2,7 +2,7 @@
 // does not depend on the generated wailsjs/ (and the overlay still loads in a plain browser, where
 // every call fails with a clear message).
 import type { DocumentPayload } from '../../api'
-import type { SummaryResult } from './summary.ts'
+import type { PdfPageData, PdfSource } from '../../document/index.ts'
 
 export interface OverlayInfo {
   hotkey: string
@@ -11,6 +11,27 @@ export interface OverlayInfo {
   keypad?: { shortcut: string; action: string; ok: boolean }[] | null
   /** The MX Keypad is plugged in and read directly over USB (no Logi Options+ needed). */
   keypadConnected?: boolean
+}
+
+/** What option 3 opened (app_pdf.go): a PDF for the viewer, or the lines of another file. */
+export type OpenedFile =
+  | { cancelled: true; name?: string }
+  | { cancelled: false; name: string; kind: 'pdf'; pdf: PdfSource }
+  | { cancelled: false; name: string; kind: 'lines'; lines: FileDocument }
+
+/** Option 4's answer (app_summary.go, backend/summary). */
+export interface SummaryResult {
+  summary: string
+  lang: string
+  chars: number
+  truncated: boolean
+  source: 'cloud' | 'local' | 'short'
+  note?: string
+  model?: string
+  costUsd: number
+  latencyMs: number
+  cached: boolean
+  copied: boolean
 }
 
 export interface FileDocument {
@@ -33,14 +54,21 @@ interface GoBindings {
   SetCompact(on: boolean): Promise<void>
   SetScreenOverlay(on: boolean): Promise<void>
   MoveBubble(): Promise<void>
-  Summarize(text: string, lang: string): Promise<string>
+  OpenFileForReading(): Promise<string>
+  PDFPage(id: string, page: number): Promise<string>
+  SummarizeSelection(): Promise<string>
+  CloseSummary(): Promise<void>
+  TriggerSummary(): Promise<void>
 }
 
-interface GoApp extends Omit<GoBindings, 'OverlayInfo' | 'ReadPhoto' | 'OpenAndReadFile' | 'Summarize'> {
+interface GoApp
+  extends Omit<GoBindings, 'OverlayInfo' | 'ReadPhoto' | 'OpenAndReadFile' | 'OpenFileForReading' | 'PDFPage' | 'SummarizeSelection'> {
+  OpenFileForReading(): Promise<OpenedFile>
+  PDFPage(id: string, page: number): Promise<PdfPageData>
   OverlayInfo(): Promise<OverlayInfo>
+  SummarizeSelection(): Promise<SummaryResult>
   ReadPhoto(photo: string): Promise<DocumentPayload>
   OpenAndReadFile(): Promise<FileDocument>
-  Summarize(text: string, lang: string): Promise<SummaryResult>
 }
 
 type WailsWindow = Window & {
@@ -59,7 +87,9 @@ export function desktop(): GoApp {
     OverlayInfo: async () => JSON.parse(await app.OverlayInfo()) as OverlayInfo,
     ReadPhoto: async (photo) => JSON.parse(await app.ReadPhoto(photo)) as DocumentPayload,
     OpenAndReadFile: async () => JSON.parse(await app.OpenAndReadFile()) as FileDocument,
-    Summarize: async (text, lang) => JSON.parse(await app.Summarize(text, lang)) as SummaryResult,
+    OpenFileForReading: async () => JSON.parse(await app.OpenFileForReading()) as OpenedFile,
+    PDFPage: async (id, page) => JSON.parse(await app.PDFPage(id, page)) as PdfPageData,
+    SummarizeSelection: async () => JSON.parse(await app.SummarizeSelection()) as SummaryResult,
   }
 }
 
