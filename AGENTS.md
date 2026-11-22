@@ -34,6 +34,23 @@ Isaac, Didac, Pau y Nil (`ROSTER.md`). Cada persona supervisa un agente Claude y
    - respuestas breves: qué hiciste, qué falta y qué tiene que decidir la persona.
 10. **Este archivo:** si crece, mueve el detalle a `docs/` y deja aquí una línea con el enlace.
 
+## Fase de arreglos (desde el 2026-11-22: va antes que N1–N9)
+La app funciona mal en conjunto: pantallas con diseño nuevo y viejo, gestos peligrosos, escaneo que no arranca. **Nadie añade funcionalidades nuevas hasta cerrar su arreglo.** Una área por persona, con ficha en `docs/arreglos/`:
+
+| ID | Arreglo | Persona |
+|---|---|---|
+| R1 | Una sola interfaz (Halo) en todas las pantallas | Didac |
+| R2 | Gesture Control seguro y estable | Nil |
+| R3 | PDF Scanner de punta a punta (y después Transcribe) | Pau |
+| R4 | Arranque e integración: versión visible, instalación, keypad y voz | Isaac |
+
+1. **La ficha es el brief.** No hagas entrevista; pregunta solo si algo no está claro (en una tanda).
+2. **Antes de arreglar, reprodúcelo con el `.exe` real** (`task overlay` y `build/bin/lauzhack.exe`). Cierra antes cualquier otra instancia de la app.
+3. **Un fallo, un commit.** Apunta en el «Registro» de la ficha: síntoma → cómo reproducirlo → causa → arreglo → cómo lo has comprobado.
+4. **No toques lo de otra persona.** Si el fallo está en su carpeta, apúntalo en su ficha y avísala.
+5. **Se da por cerrado** solo cuando se cumplen los «Hecho cuando» probados con el `.exe`, no solo con `task check`.
+6. **PR pequeño por arreglo.** Pide a otra persona que lo pruebe con su `.exe` antes de fusionar.
+
 ## Al coger una tarea
 Trabajo actual: `TAREAS.md` (N1–N9), con una ficha por tarea en `docs/tareas/<ID>.md`.
 1. Lee la ficha y lo que enlace. Resuelve primero leyendo el repo lo que puedas; apúntalo como «estado actual».
