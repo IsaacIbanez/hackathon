@@ -6,6 +6,8 @@ import type { DocumentPayload } from '../../api'
 export interface OverlayInfo {
   hotkey: string
   hotkeyOk: boolean
+  /** MX Keypad shortcuts (docs/KEYPAD.md) and whether each could be registered. */
+  keypad?: { shortcut: string; action: string; ok: boolean }[] | null
 }
 
 export interface FileDocument {
@@ -52,8 +54,8 @@ export function desktop(): GoApp {
   }
 }
 
-/** Subscribes to an event from Go (overlay:shown, overlay:hidden); a no-op outside the app. */
-export function onDesktopEvent(name: string, cb: () => void): () => void {
+/** Subscribes to an event from Go (overlay:shown, overlay:hidden, overlay:keypad); a no-op outside the app. */
+export function onDesktopEvent(name: string, cb: (...data: unknown[]) => void): () => void {
   const on = (window as WailsWindow).runtime?.EventsOn
   return on ? on(name, cb) : () => {}
 }

@@ -44,6 +44,15 @@ type msg struct {
 // is pressed, in any program. It returns once the hotkey is registered (or failed: another program
 // may own the combination). stop unregisters it.
 func Listen(h Hotkey, onPress func()) (stop func(), err error) {
+	stop, errs := ListenAll([]Hotkey{h}, func(int) { onPress() })
+	if errs[0] != nil {
+		stop()
+		return func() {}, errs[0]
+	}
+	return stop, nil
+}
+
+func modifiers(h Hotkey) uintptr {
 	mods := uintptr(modNoRepeat)
 	if h.Alt {
 		mods |= modAlt
@@ -57,35 +66,43 @@ func Listen(h Hotkey, onPress func()) (stop func(), err error) {
 	if h.Win {
 		mods |= modWin
 	}
-	ready := make(chan error, 1)
+	return mods
+}
+
+// ListenAll registers several hotkeys system-wide on one thread and calls onPress(i) with the index
+// of the one pressed. errs[i] is non-nil for each hotkey that could not be registered (another
+// program may own it); the others still work. stop unregisters them all.
+func ListenAll(keys []Hotkey, onPress func(i int)) (stop func(), errs []error) {
+	errs = make([]error, len(keys))
+	ready := make(chan struct{})
 	var threadID uintptr
 	go func() {
 		// RegisterHotKey posts WM_HOTKEY to the thread that registered it: keep this goroutine on it.
 		runtime.LockOSThread()
 		defer runtime.UnlockOSThread()
 		threadID, _, _ = procGetThreadID.Call()
-		ok, _, e := procRegisterHotKey.Call(0, hotkeyID, mods, uintptr(h.Key))
-		if ok == 0 {
-			ready <- fmt.Errorf("could not register %s (is another program using it?): %v", h, e)
-			return
+		for i, h := range keys {
+			ok, _, e := procRegisterHotKey.Call(0, uintptr(hotkeyID+i), modifiers(h), uintptr(h.Key))
+			if ok == 0 {
+				errs[i] = fmt.Errorf("could not register %s (is another program using it?): %v", h, e)
+				continue
+			}
+			defer procUnregisterHotKey.Call(0, uintptr(hotkeyID+i))
 		}
-		defer procUnregisterHotKey.Call(0, hotkeyID)
-		ready <- nil
+		close(ready)
 		var m msg
 		for {
 			r, _, _ := procGetMessageW.Call(uintptr(unsafe.Pointer(&m)), 0, 0, 0)
 			if int32(r) <= 0 { // WM_QUIT or error
 				return
 			}
-			if m.message == wmHotkey && m.wParam == hotkeyID {
-				onPress()
+			if i := int(m.wParam) - hotkeyID; m.message == wmHotkey && i >= 0 && i < len(keys) {
+				onPress(i)
 			}
 		}
 	}()
-	if err := <-ready; err != nil {
-		return func() {}, err
-	}
-	return func() { procPostThreadMsg.Call(threadID, wmQuit, 0, 0) }, nil
+	<-ready
+	return func() { procPostThreadMsg.Call(threadID, wmQuit, 0, 0) }, errs
 }
 
 var (

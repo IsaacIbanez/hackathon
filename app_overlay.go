@@ -33,6 +33,7 @@ type overlayState struct {
 	visible  bool
 	hotkey   string
 	hotkeyOK bool
+	keypad   []KeypadKey
 	stopKey  func()
 	reading  *overlay.ReadingService
 	gestures *overlay.GestureControl
@@ -50,14 +51,62 @@ func (a *App) startOverlay(ctx context.Context) {
 		h, _ = overlay.ParseHotkey(overlay.DefaultHotkey)
 	}
 	o.hotkey = h.String()
-	stop, err := overlay.Listen(h, func() { a.toggleOverlay(ctx) })
+	// The MX Keypad keys (docs/KEYPAD.md) are registered with the main shortcut, on the same thread.
+	pad, err := overlay.KeypadFromEnv()
 	if err != nil {
-		log.Printf("overlay: %v (the window stays open)", err)
-		o.stopKey = func() {}
+		log.Printf("overlay: %v (keypad off)", err)
+	}
+	keys := []overlay.Hotkey{h}
+	for _, k := range pad {
+		keys = append(keys, k.Hotkey)
+	}
+	stop, errs := overlay.ListenAll(keys, func(i int) {
+		if i == 0 {
+			a.toggleOverlay(ctx)
+		} else {
+			a.keypadPressed(ctx, pad[i-1].Action)
+		}
+	})
+	o.stopKey = stop
+	o.hotkeyOK = errs[0] == nil
+	if o.hotkeyOK {
+		log.Printf("overlay: press %s to show or hide the overlay", h)
+	} else {
+		log.Printf("overlay: %v", errs[0])
+	}
+	for i, k := range pad {
+		ok := errs[i+1] == nil
+		o.keypad = append(o.keypad, KeypadKey{Shortcut: k.Hotkey.String(), Action: string(k.Action), OK: ok})
+		if !ok {
+			log.Printf("overlay: keypad: %v", errs[i+1])
+		} else if k.Action == overlay.KeypadToggle {
+			o.hotkeyOK = true // the keypad can bring the window back too
+		}
+	}
+	if len(pad) > 0 {
+		log.Printf("overlay: %d keypad shortcuts (docs/KEYPAD.md)", len(pad))
+	}
+	if !o.hotkeyOK {
+		log.Printf("overlay: no shortcut to show the window: it stays open")
+	}
+}
+
+// keypadPressed runs an MX Keypad action: it shows the overlay if needed and tells the UI, which
+// does the action (web/src/app/overlay/keypad.ts). It works while another program has the focus.
+func (a *App) keypadPressed(ctx context.Context, action overlay.KeypadAction) {
+	if action == overlay.KeypadToggle {
+		a.toggleOverlay(ctx)
 		return
 	}
-	o.stopKey, o.hotkeyOK = stop, true
-	log.Printf("overlay: press %s to show or hide the overlay", h)
+	o := &a.overlay
+	o.mu.Lock()
+	show := !o.visible || !overlay.ForegroundIsOurs()
+	o.visible = true
+	o.mu.Unlock()
+	if show {
+		a.showOverlay(ctx)
+	}
+	wruntime.EventsEmit(ctx, "overlay:keypad", string(action))
 }
 
 func (a *App) stopOverlay() {
@@ -81,26 +130,38 @@ func (a *App) toggleOverlay(ctx context.Context) {
 	o.visible = show
 	o.mu.Unlock()
 	if show {
-		wruntime.WindowShow(ctx)
-		wruntime.WindowUnminimise(ctx)
-		wruntime.WindowCenter(ctx)
-		wruntime.WindowSetAlwaysOnTop(ctx, true)
-		wruntime.EventsEmit(ctx, "overlay:shown")
+		a.showOverlay(ctx)
 	} else {
 		wruntime.EventsEmit(ctx, "overlay:hidden")
 		wruntime.WindowHide(ctx)
 	}
 }
 
+func (a *App) showOverlay(ctx context.Context) {
+	wruntime.WindowShow(ctx)
+	wruntime.WindowUnminimise(ctx)
+	wruntime.WindowCenter(ctx)
+	wruntime.WindowSetAlwaysOnTop(ctx, true)
+	wruntime.EventsEmit(ctx, "overlay:shown")
+}
+
 // OverlayInfo tells the UI how the overlay is opened.
 type OverlayInfo struct {
-	Hotkey   string `json:"hotkey"`
-	HotkeyOK bool   `json:"hotkeyOk"` // false: another program owns the shortcut (or not Windows)
+	Hotkey   string      `json:"hotkey"`
+	HotkeyOK bool        `json:"hotkeyOk"` // false: no shortcut can show the window (taken, or not Windows)
+	Keypad   []KeypadKey `json:"keypad"`
+}
+
+// KeypadKey is one MX Keypad shortcut and whether it could be registered.
+type KeypadKey struct {
+	Shortcut string `json:"shortcut"`
+	Action   string `json:"action"`
+	OK       bool   `json:"ok"`
 }
 
 // OverlayInfo returns OverlayInfo as JSON.
 func (a *App) OverlayInfo() string {
-	return toJSON(OverlayInfo{Hotkey: a.overlay.hotkey, HotkeyOK: a.overlay.hotkeyOK})
+	return toJSON(OverlayInfo{Hotkey: a.overlay.hotkey, HotkeyOK: a.overlay.hotkeyOK, Keypad: a.overlay.keypad})
 }
 
 func toJSON(v any) string {
