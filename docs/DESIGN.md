@@ -10,26 +10,23 @@
 - **Cada pieza ocupa y molesta lo mínimo.**
 - **Para personas con baja visión:** la legibilidad manda sobre la estética. Contraste AA como mínimo, sobre cualquier fondo.
 
-## Dirección
-**Sereno, preciso, silencioso.**
-- **Referencias:**
-  - Spotlight y Raycast: una superficie, un foco claro y nada de decoración.
-  - El HUD de volumen de macOS: aparece, informa y se va.
-  - Xbox Game Bar: una capa encima de lo que haces.
-- **Todo es neutro** (tinta, cristal y texto claro), salvo **un acento amarillo**. El acento marca:
-  - lo que se está leyendo;
-  - el foco del teclado;
-  - lo que señala el ratón o la mano;
-  - la acción principal.
+## Dirección: «letra grande»
+- **El menú es una página de letra grande.** Cada tecla del MX Keypad es una línea de texto, en orden del 1 al 8 (la 9 es el propio menú), todas del mismo tamaño y con su número en una columna fija.
+- **Elegir es como leer.** La línea bajo el puntero, la mano o el foco se marca con la banda del subrayador (`mark`), la misma marca que la línea que se está leyendo.
+- **Una paleta, Night:** tinta azul verdosa (`#101A1F`) con amarillo subrayador (`#F2C94C`). Sus 10 colores base (`--t-*` en `index.css`) alimentan todos los roles. Se probaron cinco paletas (Night, Day, Magnifier, Contrast y Warm; commit `55953a0`) y se desactivaron: otra paleta es un bloque de 10 colores.
+- **Orden suizo:** una columna alineada a la izquierda, a la derecha del panel de la cámara, y pasos de letra claros.
+- **Skills aplicadas:**
+  - instaladas en `~/.claude/skills`: Impeccable, UI/UX Pro Max, Taste Skill, avoid-ai-design y web-design-guidelines;
+  - además, el plugin frontend-design.
 
 ## Piezas
 | Pieza | Dónde | Cómo se ve |
 |---|---|---|
 | Capa | `.halo-layer` (`index.css`) | La pantalla oscurecida (`layer`); el escritorio se sigue viendo detrás |
-| Menú | `Hub.tsx` | Gesture Control es el círculo grande del centro, con un anillo fino y quieto que se enciende con el foco. Las herramientas van en un arco, en círculos neutros que se llenan de amarillo bajo el puntero o el foco. Las distingue el icono, el nombre y el sitio, no el color |
+| Menú | `Hub.tsx`, `.print-line` | Lista de líneas del 1 al 8 (número, nombre e icono), en `text-display`, con el subrayador al señalar. Una frase debajo dice qué hace la línea señalada |
 | Panel de herramienta | `Panel` (`ui.tsx`) | Cristal (`surface`) con borde de 1 px. Cabecera: volver, icono neutro, nombre y una frase |
 | Cámara | `CameraPanel` (`Overlay.tsx`), burbuja y página de gestos (`web/src/input/desktop`) | Borde de 1–2 px, sin sombra ni aros de color. La mano se dibuja en el color del texto; el amarillo es lo que se señala |
-| Menú del puño | `gestureControl.css` | Velo (`scrim`, o `scrim-light` sobre el escritorio). Opciones de cristal; lo que se mantiene se llena de amarillo suave |
+| Menú del puño | `gestureControl.css`, `menuView.ts` | Las nueve posiciones alrededor de la mano. Cada opción lleva icono, nombre y estado si es un interruptor. Al mantener el gesto se llena de un amarillo suave; al elegirla, del subrayador. «Close app» va con el icono y el borde en rojo |
 | Lectores | `DocumentsMode`, `GuidedReader`, `ReadFileMode`, `PdfViewer` | La línea que se lee, en amarillo (`.reading-mark`). La página del PDF, en `paper` |
 | AI Summary | `SummarizeMode.tsx` | Una burbuja de cristal junto al cursor |
 | Transcribe | `LiveCaptions.tsx` | Botones base: empezar es `btn-primary` y parar es `btn-danger`. Idioma en `Tag` |
@@ -110,7 +107,7 @@ Lo resumen las skills consultadas (abajo):
 
 ## Movimiento
 - **Duración:** de 150 a 200 ms, con `ease-soft` y sin rebote, solo como respuesta a algo que hace la persona.
-- **Lo que se mueve solo:** nada. Al abrir la capa, las herramientas salen del centro una sola vez, en 200 ms.
+- **Lo que se mueve solo:** nada. Al abrir la capa, las líneas del menú entran desde la izquierda una sola vez, y el subrayador recorre la línea al señalarla.
 - **Con «reducir movimiento»:** no se anima nada.
 - **Una interacción rápida puede cortar la animación,** pero el estado final y el foco tienen que quedar bien.
 
