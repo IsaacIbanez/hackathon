@@ -25,6 +25,8 @@ from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfgen import canvas as rl_canvas
 
+from .image import LIGHT_PAPER_MEDIAN
+
 FONT, BOLD_FONT = "Helvetica", "Helvetica-Bold"
 CAP_HEIGHT = 0.718           # Helvetica: capital and ascender height / font size
 X_HEIGHT = 0.523             # Helvetica: height of "x" / font size
@@ -38,9 +40,12 @@ ASCENDERS = set("bdfhkltß0123456789ÁÉÍÓÚÀÈÒÏÜÑÇ'\"!?%&@#")
 
 
 def applicable(page: np.ndarray) -> bool:
-    """Only light paper: on a dark poster or a coloured card a "blank page" makes no sense."""
+    """Only light paper: on a dark poster or a coloured card a "blank page" makes no sense.
+    The same threshold as the rest of the pipeline (image.LIGHT_PAPER_MEDIAN, measured with real
+    captures): a webcam photo of white paper, with no sheet found and so no light correction, has a
+    median grey of ~165-175, and 200 refused it (2026-11-22, PDF Scanner in the app)."""
     gray = cv2.cvtColor(page, cv2.COLOR_BGR2GRAY) if page.ndim == 3 else page
-    return float(np.percentile(gray[::4, ::4], 50)) >= 200
+    return float(np.percentile(gray[::4, ::4], 50)) >= LIGHT_PAPER_MEDIAN
 
 
 # ---------------------------------------------------------------- local OCR only
