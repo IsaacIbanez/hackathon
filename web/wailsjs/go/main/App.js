@@ -10,8 +10,8 @@ export function EnsureReadingService() {
   return window['go']['main']['App']['EnsureReadingService']();
 }
 
-export function GestureCall(arg1, arg2, arg3) {
-  return window['go']['main']['App']['GestureCall'](arg1, arg2, arg3);
+export function GesturesRunning() {
+  return window['go']['main']['App']['GesturesRunning']();
 }
 
 export function HideOverlay() {
@@ -46,12 +46,12 @@ export function ReportDiagnostics(arg1) {
   return window['go']['main']['App']['ReportDiagnostics'](arg1);
 }
 
-export function SetCompact(arg1) {
-  return window['go']['main']['App']['SetCompact'](arg1);
+export function StartGestures() {
+  return window['go']['main']['App']['StartGestures']();
 }
 
-export function SetGesturesActive(arg1) {
-  return window['go']['main']['App']['SetGesturesActive'](arg1);
+export function StopGestures() {
+  return window['go']['main']['App']['StopGestures']();
 }
 
 export function SummarizeSelection() {

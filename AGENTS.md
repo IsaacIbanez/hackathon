@@ -205,6 +205,7 @@ Relación con lo anterior:
 - 2026-11-22 — **Opción 4 del overlay: resumir el texto seleccionado en cualquier programa** (Didac, rama `feature/didac-resumir-seleccion`, `docs/OVERLAY.md`).
   - Funcionamiento: Go recuerda la ventana que había delante al abrir el overlay, copia su selección con Ctrl+C, la resume con el **modelo barato** (2–3 frases, con alternativa local a 0 $) y deja el resumen en el portapapeles, en voz alta y en una burbuja junto al cursor.
   - Preparado para el cursor de la mano de Nil: `TriggerSummary` y el evento `overlay:summarize`.
+  - **Es la implementación del resumen que se queda** (decisión de Isaac y Didac): sustituye a la N7 de Isaac. Resumir el documento abierto (opciones 2 y 3) queda pendiente, sobre `backend/summary`.
   - El contrato no cambia.
 - 2026-11-21 — **App overlay** (rama `overlay`, detalle en `docs/OVERLAY.md`):
   - la app de escritorio es una ventana siempre encima que se abre desde cualquier programa con **Ctrl+Alt+Espacio** (`LAUZHACK_HOTKEY`; el MX Keypad envía la misma combinación desde Logi Options+);

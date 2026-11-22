@@ -113,7 +113,10 @@ Procesos que arranca la app (y que para al cerrarla, con sus hijos):
 10. **Log:** primero el archivo y después stderr, y los fallos graves (panic) también van al log. Antes, `build/bin/lauzhack.log` se quedaba vacío porque una app sin consola no tiene stderr válido.
 
 ## Opción 4: resumir el texto seleccionado
-Añadida el 2026-11-22. Funcionalidad de Didac; su brief está en `docs/briefs/didac.md`. Rama `feature/didac-resumir-seleccion`, a partir de `feature/T6-overlay-unified`.
+Añadida el 2026-11-22. Funcionalidad de Didac; su brief está en `docs/briefs/didac.md`.
+- Se hizo en la rama `feature/didac-resumir-seleccion` y se fusionó en `main` el 2026-11-22. Entraron solo los commits de Didac, sin `feature/T6-overlay-unified` de Nil, que aún no estaba en `main`.
+- Por decisión de Isaac y Didac, **esta es la implementación del resumen que se queda**: sustituye a la N7 de Isaac (`feature/N7-summary`, sin fusionar).
+- La N7 resumía además el documento abierto en las opciones 2 y 3. Eso queda pendiente; se puede hacer llamando a `backend/summary` con el texto del documento.
 
 **Flujo:**
 1. **Seleccionar.** La persona selecciona texto en cualquier programa: Word, el navegador, un PDF, el correo…
@@ -126,7 +129,7 @@ Añadida el 2026-11-22. Funcionalidad de Didac; su brief está en `docs/briefs/d
    - Los de menos de 40 caracteres se leen tal cual.
    - **Sin clave, o si el modelo falla:** un resumen local que se queda con las 2–3 frases con fechas, importes y palabras de plazo, a 0 $.
 5. **Copiar el resumen** al portapapeles. Sustituye al texto copiado.
-6. **Mostrar la burbuja.** La ventana del overlay se encoge a 540×360 junto al cursor (`overlay.PlaceNearCursor`; cambia de lado si no cabe), dice el resumen en voz alta y enseña el coste y «resumido en la nube».
+6. **Mostrar la burbuja.** La ventana del overlay se encoge a 540×420 junto al cursor (`overlay.PlaceNearCursor`; cambia de lado si no cabe), dice el resumen en voz alta y enseña el coste y «resumido en la nube».
 
 **Decisiones (Didac, 2026-11-22):**
 - **Dónde:** el texto puede estar en cualquier programa, no solo en la app.
@@ -143,7 +146,8 @@ Añadida el 2026-11-22. Funcionalidad de Didac; su brief está en `docs/briefs/d
 **Preparado para el cursor de la mano (Nil):**
 - `TriggerSummary()` (binding de Go) anota la ventana que hay delante y emite el evento `overlay:summarize`; el overlay abre la opción 4.
 - Una acción «resumir» de Gesture Control solo tiene que llamarlo.
-- **Pendiente al conectarlo:** abrir la opción 4 cambia de vista y apaga la cámara de los gestos. Habrá que mostrar la burbuja del resumen sin salir de la opción 1, por ejemplo superpuesta a la burbuja de cámara.
+- **Pendiente al conectarlo:** en `main`, los gestos son un programa aparte (`gesture-control.exe`), así que abrir la opción 4 no les quita la cámara.
+- Si se fusiona `feature/T6-overlay-unified` (los gestos dentro de la ventana), abrir la opción 4 cambiará de vista y apagará esa cámara. Entonces habrá que mostrar la burbuja del resumen sin salir de la opción 1.
 
 **Limitaciones:**
 - Solo Windows.
