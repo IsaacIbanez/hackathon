@@ -30,6 +30,7 @@ func NewApp() *App {
 
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	defer a.logSetup() // R4: what is missing, once we know whether there is an AI key
 	a.startOverlay(ctx)
 
 	h, err := a.newHandler()

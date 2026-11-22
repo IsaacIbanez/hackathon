@@ -1,5 +1,7 @@
 # Cómo probar
 
+**Primero, una vez por equipo:** `task setup` (instala el escáner, Tesseract y las dependencias web). Después, `task overlay` y `build/bin/lauzhack.exe`. El log empieza con `version: <commit>` y avisa (`setup: …`) de lo que falte.
+
 Movido desde `AGENTS.md` el 2026-11-22 (resumen allí).
 
 1. **Clave (una vez):** crea `.env` en la raíz (está en `.gitignore`; la clave se pasa por chat, nunca por git):

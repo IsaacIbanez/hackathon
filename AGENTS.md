@@ -74,7 +74,8 @@ Trabajo actual: `TAREAS.md` (N1–N9), con una ficha por tarea en `docs/tareas/<
 ## Cómo probar (detalle en `docs/COMO_PROBAR.md`)
 - **`.env` en la raíz:** `OPENROUTER_API_KEY=…` y `LLM_PROFILE=dev`. El perfil dev pone primero modelos gratuitos, pero **no es 0 $**: escala a Haiku.
 - **La app:** `task overlay` → `build/bin/lauzhack.exe`. Se abre con Ctrl+Alt+Espacio o con la tecla 1 del keypad. Log en `build/bin/lauzhack.log`.
-- **Opciones de papel y archivo:** necesitan `scanner/pdf/.venv` y Tesseract. Se instalan una vez con `powershell -ExecutionPolicy Bypass -File scanner\pdf\scripts\install.ps1`.
+- **Instalar todo, una vez por equipo:** `task setup` (escáner, Tesseract y dependencias web). Al arrancar, la app avisa en el log y en la barra de lo que falte.
+- **Versión:** el log y la barra muestran el commit del `.exe` (`version: abc1234`; el `+` indica cambios sin commit). Si algo se ve raro, mira primero que sea la versión que esperas y que no haya otra copia abierta (la app también lo avisa).
 - **Sin la app:** `task server` (lógica real en 8765) o `task mock` (respuestas fijas en 8080, sin coste).
 - **Antes del PR:** `task check`.
 - **Puertos:** 8765 app · 8767 Gesture Control suelto · 8770 servicio de lectura · 8080 mock.

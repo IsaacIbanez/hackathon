@@ -36,6 +36,8 @@ const (
 )
 
 type overlayState struct {
+	build    overlay.BuildInfo // the running executable (R4)
+	another  bool              // another copy of the app was already running
 	mu       sync.Mutex
 	visible  bool
 	hotkey   string
@@ -64,6 +66,13 @@ type overlayState struct {
 // startOverlay registers the shortcut; the window starts visible so the person sees it once.
 func (a *App) startOverlay(ctx context.Context) {
 	o := &a.overlay
+	// R4: say which build this is and whether another copy is already running, before it grabs
+	// the shortcuts, the keypad and the camera.
+	o.build = overlay.Build()
+	log.Printf("version: %s", o.build)
+	if o.another = overlay.AnotherInstance(); o.another {
+		log.Printf("overlay: another copy of the app is already running: close it (shortcuts, keypad and camera will clash)")
+	}
 	o.visible = true
 	o.reading = overlay.NewReadingService()
 	o.gestures = newGestureControl()
@@ -240,6 +249,22 @@ type OverlayInfo struct {
 	Keypad   []KeypadKey `json:"keypad"`
 	// KeypadConnected: the MX Keypad is plugged in and read directly (no Logi Options+ needed).
 	KeypadConnected bool `json:"keypadConnected"`
+	// R4: the running build, what is missing to use every tool, and a second copy of the app.
+	Version         overlay.BuildInfo `json:"version"`
+	Problems        []overlay.Problem `json:"problems"`
+	AnotherInstance bool              `json:"anotherInstance"`
+}
+
+// setupProblems lists what is missing (the AI key is known once the WebSocket handler started).
+func (a *App) setupProblems() []overlay.Problem {
+	return overlay.SetupProblems(overlay.RepoRoot(), a.hub != nil)
+}
+
+// logSetup writes the missing pieces to the log once the app has started.
+func (a *App) logSetup() {
+	for _, p := range a.setupProblems() {
+		log.Printf("setup: %s %s", p.What, p.Fix)
+	}
 }
 
 // KeypadKey is one MX Keypad shortcut and whether it could be registered.
@@ -255,7 +280,8 @@ func (a *App) OverlayInfo() string {
 	o.mu.Lock()
 	on := o.padOn
 	o.mu.Unlock()
-	return toJSON(OverlayInfo{Hotkey: o.hotkey, HotkeyOK: o.hotkeyOK, Keypad: o.keypad, KeypadConnected: on})
+	return toJSON(OverlayInfo{Hotkey: o.hotkey, HotkeyOK: o.hotkeyOK, Keypad: o.keypad, KeypadConnected: on,
+		Version: o.build, Problems: a.setupProblems(), AnotherInstance: o.another})
 }
 
 func toJSON(v any) string {
