@@ -1,4 +1,4 @@
-// Microphone recorder for voice commands (keypad keys 2 and 3, docs/KEYPAD.md): records until
+// Microphone recorder for voice commands (keypad key 7, docs/KEYPAD.md): records until
 // stop() (or MAX_SECONDS) and returns the raw samples, which transcribeRemote() sends to Go.
 
 /** Safety limit: a forgotten recording stops on its own. */

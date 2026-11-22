@@ -22,7 +22,8 @@ test('keypad: toggle (done by Go) and unknown actions do nothing here', () => {
   for (const a of ['toggle', 'volume-up', '', 42, null, undefined]) assert.equal(keypadCommand(a), null)
 })
 
-test('keypad: keys 2 and 3 start and stop recording a voice command', () => {
+test('keypad: one key, or two, start and stop recording a voice command', () => {
   assert.deepEqual(keypadCommand('record-start'), { voice: 'start' })
   assert.deepEqual(keypadCommand('record-stop'), { voice: 'stop' })
+  assert.deepEqual(keypadCommand('record-toggle'), { voice: 'toggle' })
 })

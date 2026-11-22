@@ -79,7 +79,7 @@ func (a *App) startOverlay(ctx context.Context) {
 		if i == 0 {
 			a.toggleOverlay(ctx)
 		} else {
-			a.keypadPressed(ctx, pad[i-1].Action)
+			a.keypadPressed(ctx, i, pad[i-1].Action)
 		}
 	})
 	o.stopKey = stop
@@ -103,7 +103,7 @@ func (a *App) startOverlay(ctx context.Context) {
 		// The keypad itself, read over USB without Logi Options+: key n does row n of the table.
 		o.stopPad = overlay.ListenKeypad(func(n int) {
 			if act, ok := overlay.KeypadActionForKey(n); ok {
-				a.keypadPressed(ctx, act)
+				a.keypadPressed(ctx, n, act)
 			}
 		}, func(on bool) {
 			o.mu.Lock()
@@ -120,7 +120,11 @@ func (a *App) startOverlay(ctx context.Context) {
 
 // keypadPressed runs an MX Keypad action: it shows the overlay if needed and tells the UI, which
 // does the action (web/src/app/overlay/keypad.ts). It works while another program has the focus.
-func (a *App) keypadPressed(ctx context.Context, action overlay.KeypadAction) {
+func (a *App) keypadPressed(ctx context.Context, key int, action overlay.KeypadAction) {
+	log.Printf("overlay: keypad key %d -> %s", key, action)
+	if action == overlay.KeypadOff {
+		return // turned off: it does not even show the overlay
+	}
 	// Like the shortcut: remember the program in front before the overlay takes the focus, so
 	// option 4 (summarize the selection) copies from it.
 	overlay.RememberTarget()

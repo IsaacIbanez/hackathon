@@ -88,7 +88,7 @@ export function Overlay() {
       const cmd = keypadCommand(action)
       if (!cmd) return
       if ('voice' in cmd) {
-        void (cmd.voice === 'start' ? voice.start() : voice.stop())
+        void (cmd.voice === 'start' ? voice.start() : cmd.voice === 'stop' ? voice.stop() : voice.toggle())
       } else if ('view' in cmd) {
         if (cmd.view === 'summarize') setSummaryRun((n) => n + 1) // summarizes again each time
         setView(cmd.view)

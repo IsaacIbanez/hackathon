@@ -7,7 +7,7 @@ import type { KeypadAction } from './keypad.ts'
 import { MicRecorder } from './recorder.ts'
 import { DONE_SPEECH, voiceAction } from './voiceCommand.ts'
 
-// Voice commands (docs/KEYPAD.md): keypad key 2 starts recording, key 3 stops it. Go transcribes
+// Voice commands (docs/KEYPAD.md): keypad key 7 starts recording and the same key stops it. Go transcribes
 // the recording (POST /transcribe: a cheap audio model, about 2 s) and the sentence becomes one of
 // the keypad's actions ("lee el documento", "abre un archivo", "resume", "siguiente", "menú"…).
 // Beeps mark the start and the end, and the result is spoken: it is meant for low vision.
@@ -45,7 +45,7 @@ export function useVoiceCommand(run: (action: KeypadAction) => void) {
     setStatus({ phase: 'transcribing' })
     const { samples, sampleRate } = await recorder.stop()
     if (samples.length < sampleRate * 0.3) {
-      fail('The recording was too short. Press key 2, speak, then key 3.')
+      fail('The recording was too short. Press key 7, speak, then key 7 again.')
       return
     }
     try {
@@ -81,16 +81,19 @@ export function useVoiceCommand(run: (action: KeypadAction) => void) {
     }
   }, [recorder, speaker, stop, fail])
 
+  /** One key for both: starts recording, or stops it and runs the command. */
+  const toggle = useCallback(() => (recorder.recording ? stop() : start()), [recorder, start, stop])
+
   useEffect(() => () => void recorder.stop(), [recorder])
 
-  return { status, start, stop }
+  return { status, start, stop, toggle }
 }
 
 /** A banner with what the voice command is doing; nothing when idle. */
 export function VoiceBanner({ status }: { status: VoiceStatus }) {
   if (status.phase === 'idle') return null
   const text = {
-    recording: '🎙 Recording… press key 3 to stop.',
+    recording: '🎙 Recording… press key 7 to stop.',
     transcribing: 'Understanding what you said…',
     heard: status.phase === 'heard' ? `Heard: “${status.text}”${status.understood ? '' : ' (not a command I know)'}` : '',
     error: status.phase === 'error' ? status.message : '',

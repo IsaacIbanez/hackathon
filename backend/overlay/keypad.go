@@ -16,18 +16,21 @@ import (
 type KeypadAction string
 
 const (
-	KeypadToggle   KeypadAction = "toggle"       // show or hide the overlay (like Ctrl+Alt+Space)
-	KeypadGestures KeypadAction = "gestures"     // option 1
-	KeypadDocument KeypadAction = "documents"    // option 2: read a paper document
-	KeypadReadFile KeypadAction = "read-file"    // option 3: read a file aloud
-	KeypadSummary  KeypadAction = "summarize"    // option 4: summarize the selected text
-	KeypadRecord   KeypadAction = "record-start" // start recording a voice command
-	KeypadStopRec  KeypadAction = "record-stop"  // stop recording: transcribe it and do what it says
-	KeypadMenu     KeypadAction = "menu"         // back to the menu
-	KeypadPlay     KeypadAction = "play"         // read / pause
-	KeypadPrevious KeypadAction = "previous"
-	KeypadNext     KeypadAction = "next"
-	KeypadRepeat   KeypadAction = "repeat"
+	KeypadToggle     KeypadAction = "toggle"        // show or hide the overlay (like Ctrl+Alt+Space)
+	KeypadGestures   KeypadAction = "gestures"      // option 1
+	KeypadDocument   KeypadAction = "documents"     // option 2: read a paper document
+	KeypadReadFile   KeypadAction = "read-file"     // option 3: read a file aloud
+	KeypadSummary    KeypadAction = "summarize"     // option 4: summarize the selected text
+	KeypadTranscribe KeypadAction = "transcribe"    // live captions of the microphone or a call
+	KeypadRecord     KeypadAction = "record-start"  // start recording a voice command
+	KeypadStopRec    KeypadAction = "record-stop"   // stop recording: transcribe it and do what it says
+	KeypadRecToggle  KeypadAction = "record-toggle" // the same key starts recording, then stops it and does what it says
+	KeypadMenu       KeypadAction = "menu"          // back to the menu
+	KeypadPlay       KeypadAction = "play"          // read / pause
+	KeypadPrevious   KeypadAction = "previous"
+	KeypadNext       KeypadAction = "next"
+	KeypadRepeat     KeypadAction = "repeat"
+	KeypadOff        KeypadAction = "off" // the key does nothing (not decided yet)
 )
 
 // KeypadBinding is one keypad key: the shortcut it sends and what it does.
@@ -36,20 +39,21 @@ type KeypadBinding struct {
 	Action KeypadAction
 }
 
-// DefaultKeypad is page 1 of the keypad, in key order (decided by Isaac on 2026-11-22). The
-// fallback shortcut of key n is Ctrl+Alt+Shift+n.
+// DefaultKeypad is page 1 of the keypad, in key order (decided again by Isaac, key by key, on
+// 2026-11-22: docs/KEYPAD.md). The fallback shortcut of key n is Ctrl+Alt+Shift+n. A key set to
+// KeypadOff does nothing.
 var DefaultKeypad = []struct {
 	Shortcut string
 	Action   KeypadAction
 }{
 	{"ctrl+alt+shift+1", KeypadToggle},
-	{"ctrl+alt+shift+2", KeypadRecord},
-	{"ctrl+alt+shift+3", KeypadStopRec},
-	{"ctrl+alt+shift+4", KeypadDocument},
-	{"ctrl+alt+shift+5", KeypadReadFile},
-	{"ctrl+alt+shift+6", KeypadPlay},
-	{"ctrl+alt+shift+7", KeypadSummary},
-	{"ctrl+alt+shift+8", KeypadGestures},
+	{"ctrl+alt+shift+2", KeypadDocument},
+	{"ctrl+alt+shift+3", KeypadReadFile},
+	{"ctrl+alt+shift+4", KeypadSummary},
+	{"ctrl+alt+shift+5", KeypadTranscribe},
+	{"ctrl+alt+shift+6", KeypadGestures},
+	{"ctrl+alt+shift+7", KeypadRecToggle},
+	{"ctrl+alt+shift+8", KeypadPlay},
 	{"ctrl+alt+shift+9", KeypadMenu},
 }
 

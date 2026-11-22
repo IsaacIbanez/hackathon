@@ -13,7 +13,7 @@ El **overlay «Halo»** (`task overlay` → `build/bin/lauzhack.exe`): Ctrl+Alt+
 | **Visor de PDF** | Lee el PDF entero en voz alta, página a página (N4) | Hecho; algunas partes, con el estilo viejo (R1) |
 | **AI Summary** (tecla 7) | Resume el texto seleccionado en cualquier programa, en una burbuja junto al cursor | Probado (modelo barato) |
 | **Transcribe** | Subtítulos en directo del micro o de una llamada: quién habla, idioma, barbarismos entre comillas, traducción, `.txt` | En `main` desde hoy (`GET /captions`, Together AI). Probado en el navegador; **falta el `.exe`** |
-| **MX Keypad** | Teclas 1–9 → acciones (`docs/KEYPAD.md`) | Hecho; **falta probar las órdenes de voz (2 y 3) con micro** (R4) |
+| **MX Keypad** | Teclas 1–9 → acciones (`docs/KEYPAD.md`) | Hecho; teclas reasignadas por Isaac (`docs/KEYPAD.md`); **falta probar la orden de voz (tecla 7) con micro** (R4) |
 
 ## Fase de arreglos (va antes que cualquier funcionalidad nueva)
 | ID | Arreglo | Persona | Estado |

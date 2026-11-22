@@ -20,12 +20,13 @@ export type KeypadAction =
   | 'repeat'
   | 'record-start'
   | 'record-stop'
+  | 'record-toggle'
 
 /** What the overlay does for an action: change the view, press a key, or record a voice command. */
 export type KeypadCommand =
   | { view: ModeId | 'menu' }
   | { key: { code: string; key: string } }
-  | { voice: 'start' | 'stop' }
+  | { voice: 'start' | 'stop' | 'toggle' }
 
 const READER_KEYS: Partial<Record<KeypadAction, { code: string; key: string }>> = {
   play: { code: 'Space', key: ' ' },
@@ -48,6 +49,8 @@ export function keypadCommand(action: unknown): KeypadCommand | null {
       return { voice: 'start' }
     case 'record-stop':
       return { voice: 'stop' }
+    case 'record-toggle':
+      return { voice: 'toggle' }
   }
   const key = typeof action === 'string' ? READER_KEYS[action as KeypadAction] : undefined
   return key ? { key } : null
