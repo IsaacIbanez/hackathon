@@ -21,6 +21,7 @@ El **overlay «Halo»** (`task overlay` → `build/bin/lauzhack.exe`): Ctrl+Alt+
 | R1 | Una sola interfaz (Halo) en todas las pantallas | Didac | Gesture Control ya en Halo. **Falta:** pantalla Developer (`App.tsx`, `DocumentText.tsx`, `Cost.tsx`) y visor de PDF (`PdfViewer.tsx`), o sacarlas del recorrido de la demo |
 | R2 | Gesture Control seguro y estable | Nil | Energía desactivada y pinza estable, en `main`. **Falta:** 5 min de uso con el `.exe` sin acciones involuntarias; compartir la cámara con PDF Scanner |
 | R3 | PDF Scanner de punta a punta (y Transcribe) | Pau | PDF digital de pago **desactivado** por defecto y Transcribe conectado, en `main`. **Falta:** 5 escaneos seguidos con la Brio desde el `.exe`; aviso por voz si falta el servicio o Tesseract |
+| R5 | Flujo de ventanas: el overlay manda y los gestos conviven (`docs/VENTANA.md`) | Pau | Controlador único de la forma de la ventana, probado con el `.exe` y el log. **Falta:** que Pau lo pruebe con la mano (menú del puño, modo cursor, AI Summary) |
 | R4 | Arranque: versión visible, instalación, keypad y voz | Isaac | PR #51 abierto. **Falta:** versión en la barra, `task setup`, aviso de otra instancia, voz con micro |
 
 Fichas con el «Hecho cuando» y el registro: `docs/arreglos/R1.md` … `R4.md`.
@@ -39,6 +40,7 @@ Fichas con el «Hecho cuando» y el registro: `docs/arreglos/R1.md` … `R4.md`.
 - **Keypad** leído por USB, sin Options+; atajos de respaldo Ctrl+Alt+Shift+N.
 - **Modelos:** `cheap` Haiku 5.5, `expensive` Sonnet 5.5 (OpenRouter); transcripción de respaldo con Gemini Flash Lite; Transcribe con Together AI (Parakeet + Qwen3.5-9B). **Presupuesto del equipo: 10 €**; `LLM_PROFILE=dev` mientras se desarrolla.
 - **Escáner:** responde con el `document` en cuanto acaba el OCR y hace los PDF en segundo plano; el PDF digital (de pago) solo con `SCANNER_DIGITAL=1`. Sin hoja pero con texto, devuelve el texto sin `pageCorners`.
+- **Ventana:** una sola forma a la vez, decidida por `app_window.go` con una jerarquía fija; los gestos nunca abren, cierran ni encogen el overlay (`docs/VENTANA.md`).
 - **API local** solo para 127.0.0.1 y los orígenes de la app (`ws.Guard`).
 
 ## Problemas conocidos

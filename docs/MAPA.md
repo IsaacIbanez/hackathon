@@ -5,7 +5,8 @@
 ## Carpetas
 | Carpeta | Qué es | Dueño | Lee primero |
 |---|---|---|---|
-| `main.go`, `app.go`, `app_overlay.go`, `app_pdf.go`, `app_summary.go`, `wails.json` | La app Wails: ventana, bindings del overlay, visor de PDF y resumen (la raíz la exige Wails) | Isaac | `docs/OVERLAY.md` («Cómo está hecho») |
+| `main.go`, `app.go`, `app_overlay.go`, `app_pdf.go`, `app_summary.go`, `wails.json` | La app Wails: bindings del overlay, visor de PDF y resumen (la raíz la exige Wails) | Isaac | `docs/OVERLAY.md` («Cómo está hecho») |
+| `app_window.go` | **La forma de la ventana** (capa, ventana, burbujas, pantalla de gestos): una sola pieza la decide | Pau (R5) | **`docs/VENTANA.md`** |
 | `api/` | **Contrato** `openapi.yaml` (0.8), fixtures y tipos Go generados (`gen/`) | Isaac | `api/README.md` |
 | `backend/session` | Sesión compartida, prompts, `POST /scan`, `POST /transcribe`; registro de rutas en `mux.go` | Isaac | `backend/README.md` |
 | `backend/llm` | Cliente de modelos (OpenRouter): niveles barato/caro, caché, coste | Isaac | `backend/llm/README.md` |

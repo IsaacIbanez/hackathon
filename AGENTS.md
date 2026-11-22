@@ -17,6 +17,7 @@ Lo cargan todos los agentes (Claude Code, Gemini CLI) **en cada petición**: es 
 | Trabajar: rama, checks, `.exe`, PR, trampas de Windows | `docs/TRABAJAR.md` |
 | Probar la app | `docs/COMO_PROBAR.md` |
 | Tocar pantallas | `docs/DISENO.md` (Halo) y `docs/OVERLAY.md` (busca la sección, es largo) |
+| Mostrar, ocultar o redimensionar la ventana | `docs/VENTANA.md` (una sola pieza decide la forma) |
 | Tocar el keypad / el contrato | `docs/KEYPAD.md` / `api/openapi.yaml` |
 | Saber por qué se decidió algo | `docs/DECISIONES.md` (archivo: solo si hace falta) |
 

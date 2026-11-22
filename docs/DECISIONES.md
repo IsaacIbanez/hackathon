@@ -2,6 +2,10 @@
 
 Registro completo, de la más nueva a la más antigua. Movido desde `AGENTS.md` el 2026-11-22 para ahorrar tokens: `docs/ESTADO.md` resume las vigentes. **Si tomas una decisión que cambia una interfaz o el contrato, añádela aquí arriba** (una entrada corta) y, si afecta al trabajo diario, una línea en «Decisiones vigentes» de `docs/ESTADO.md`.
 
+- 2026-11-22 — **Una sola pieza decide la forma de la ventana** (R5, Pau; `docs/VENTANA.md`):
+  - `app_window.go`: las partes declaran lo que quieren (`open`, `layer`, `gestures`, `gestureScreen`, `summary`) y `desiredShape` decide con una jerarquía fija: resumen > menú del puño > overlay (capa o ventana) > burbuja de cámara > oculta.
+  - Las formas temporales vuelven solas a la que había. Los gestos nunca abren, cierran ni encogen el overlay; el modo cursor no toca la ventana.
+  - Motivo: seis funciones movían la ventana por su cuenta y el menú del puño, el modo cursor o el resumen dejaban el overlay en 960×680 o lo encogían.
 - 2026-11-22 — **Contexto para las IA reorganizado** (Pau, a petición del equipo):
   - `AGENTS.md` pasa de 12 KB a ~3 KB: qué es, dónde estamos, qué leer según la tarea y 10 reglas. Se carga en cada petición.
   - Tres documentos nuevos: `docs/ESTADO.md` (dónde estamos y adónde vamos; mantenerlo al día), `docs/MAPA.md` (carpetas, dueños, puertos y flujos) y `docs/TRABAJAR.md` (ciclo de trabajo, `.exe`, trampas de Windows, ahorro de tokens).
