@@ -46,6 +46,8 @@ export type Gesture =
   | "fist"
   | "thumbs_up"
   | "thumbs_down"
+  /** Index, middle and ring fingers up, pinky folded: reads the selected text aloud. */
+  | "three"
   | "pinch";
 
 export type Direction = "left" | "right";

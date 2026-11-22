@@ -8,7 +8,8 @@
 // paused meanwhile (pauseCamera / resumeCamera).
 import { bindingFetch, HelperClient } from '../../input/desktop/client.ts'
 import { mountGestureControl, type GestureControlHandle } from '../../input/desktop/gestureControl.ts'
-import { desktop, inDesktopApp, onDesktopEvent } from './desktop.ts'
+import { Speaker } from '../../input/voice/speaker.ts'
+import { desktop, errorText, inDesktopApp, onDesktopEvent } from './desktop.ts'
 
 export type GestureVariant = 'panel' | 'full'
 
@@ -34,6 +35,8 @@ export function gestureRoot(): HTMLDivElement | null {
     onScreenOverlay: (need) => void app.SetScreenOverlay(need).catch(() => {}),
     // Cursor mode on: the window becomes the bubble, out of the way; off: it comes back.
     onCursorMode: (on) => void app.SetCompact(on).catch(() => {}),
+    // Three fingers: read aloud the text selected in the program in front.
+    onReadSelection: () => void readSelection(),
     // The bubble dodges the gesture cursor: clicks on it would go to this window, not to the
     // program below. It jumps to the other bottom corner when the cursor comes near.
     onPointer: (p) => {
@@ -95,4 +98,28 @@ function nearThisWindow(p: { x: number; y: number }): boolean {
   const top = window.screenY / sh - m
   const bottom = (window.screenY + window.outerHeight) / sh + m
   return p.x >= left && p.x <= right && p.y >= top && p.y <= bottom
+}
+
+const speaker = new Speaker()
+
+/** Copies the selected text of the program in front (Go) and reads it aloud. */
+async function readSelection(): Promise<void> {
+  try {
+    const text = await desktop().ReadSelection()
+    if (text) speaker.speak({ text, lang: guessLang(text) })
+  } catch (e) {
+    const msg = errorText(e)
+    speaker.speak({
+      text: msg.startsWith('no_selection:') ? 'Primero selecciona un texto.' : 'No he podido leer el texto seleccionado.',
+      lang: 'es-ES',
+    })
+  }
+}
+
+/** Spanish unless the text looks clearly English (enough to pick the voice). */
+export function guessLang(text: string): string {
+  const words = text.toLowerCase().match(/[a-záéíóúñü]+/g) ?? []
+  const en = words.filter((w) => ['the', 'and', 'of', 'to', 'is', 'you', 'that', 'for'].includes(w)).length
+  const es = words.filter((w) => ['el', 'la', 'de', 'que', 'y', 'los', 'en', 'por', 'es'].includes(w)).length
+  return en > es ? 'en-US' : 'es-ES'
 }

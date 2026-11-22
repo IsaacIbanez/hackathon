@@ -551,3 +551,10 @@ test("level: a one-frame glitch in the pinch doesn't move the volume (R2)", () =
   assert.ok(max <= 0.4, `values ${values.join(", ")}`);
   for (let i = 1; i < values.length; i++) assert.ok(Math.abs(values[i] - values[i - 1]) <= 0.2, `jump ${values[i - 1]} → ${values[i]}`);
 });
+
+test("three fingers held: reads the selected text aloud, in any context", () => {
+  const ev = simulate(new HandInteraction(), repeat(makeHand({ index: true, middle: true, ring: true }), 20));
+  const g = ev.find((e) => e.type === "gesture" && e.gesture === "three");
+  assert.ok(g);
+  for (const c of ["pc", "call", "document"] as const) assert.equal(actionFor(g, c), "read_selection");
+});

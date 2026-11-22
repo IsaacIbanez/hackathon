@@ -25,6 +25,8 @@ export interface GestureControlOptions {
    * volume/brightness is being adjusted (the desktop app then spreads its window over the screen).
    */
   onScreenOverlay?: (need: boolean) => void;
+  /** Three fingers: read the text selected in the program in front aloud (the app does it). */
+  onReadSelection?: () => void;
   /** Called when cursor mode is turned on or off (the desktop app moves out of the way when on). */
   onCursorMode?: (on: boolean) => void;
   /** Where cursor mode moves the mouse ([0, 1] over the screen), e.g. to keep a window out of its way. */
@@ -293,6 +295,12 @@ export function mountGestureControl(
 
     const action = actionFor(e, context);
     if (!action) return;
+    if (action === "read_selection") {
+      toast("Reading the selected text");
+      if (options.onReadSelection) options.onReadSelection();
+      else toast("Reading the selection only works in the desktop app", true);
+      return;
+    }
     if (e.type === "level") {
       toast(`${e.target === "brightness" ? "Brightness" : "Volume"} ${Math.round(e.value * 100)} %`);
       // The system value follows the hand at most 20 % per update; the confirmed value is exact.
@@ -341,6 +349,7 @@ export function mountGestureControl(
       .join(", ");
     const rows: [string, string | null][] = [
       ["Open palm, fingers spread (hold ~1 s)", "Wake up"],
+      ["Three fingers up (index, middle, ring)", "Read the selected text aloud"],
       ["Thumbs up", m.thumbs_up && label(m.thumbs_up)],
       ["Thumbs down", m.thumbs_down && label(m.thumbs_down)],
       ["/ Swipe", m.swipe_right && m.swipe_left ? "Next / previous tab" : null],
