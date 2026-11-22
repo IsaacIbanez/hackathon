@@ -37,6 +37,18 @@ export function gestureRoot(): HTMLDivElement | null {
     onCursorMode: (on) => void app.SetCompact(on).catch(() => {}),
     // Three fingers: read aloud the text selected in the program in front.
     onReadSelection: () => void readSelection(),
+    // While reading: swipe back (left) starts again, forward (right) ends it.
+    onSwipe: (direction) => {
+      if (!reading()) return false
+      if (direction === 'left') {
+        speaker.stop()
+        if (lastText) speaker.speak({ text: lastText, lang: guessLang(lastText) })
+      } else {
+        speaker.stop()
+        lastText = ''
+      }
+      return true
+    },
     // "Close assistant" in the gesture menu.
     onQuit: () => void app.Quit().catch(() => {}),
     // The bubble dodges the gesture cursor: clicks on it would go to this window, not to the
@@ -103,14 +115,26 @@ function nearThisWindow(p: { x: number; y: number }): boolean {
 }
 
 const speaker = new Speaker()
+/** The selection being read (for "start again"). */
+let lastText = ''
+
+/** A reading of the selection is going on (speaking or paused). */
+const reading = () => lastText !== '' && (speaker.isSpeaking || speaker.isPaused)
 
 /** Copies the selected text of the program in front (Go) and reads it aloud. */
 async function readSelection(): Promise<void> {
+  // Three fingers again while reading: pause, and once more: go on.
+  if (reading()) {
+    if (speaker.isPaused) speaker.resume()
+    else speaker.pause()
+    return
+  }
   try {
     const text = await desktop().ReadSelection()
     // WebView2 lists the voices only after a moment: without them the default (often English)
     // voice reads, whatever the language. Wait for them first.
     await voicesReady()
+    lastText = text
     if (text) speaker.speak({ text, lang: guessLang(text) })
   } catch (e) {
     const msg = errorText(e)

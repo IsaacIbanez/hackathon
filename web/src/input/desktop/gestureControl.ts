@@ -25,6 +25,11 @@ export interface GestureControlOptions {
    * volume/brightness is being adjusted (the desktop app then spreads its window over the screen).
    */
   onScreenOverlay?: (need: boolean) => void;
+  /**
+   * A swipe of the open hand ("left" is the user's left). Return true to take it (it then does
+   * nothing else): the app uses it to control a reading in progress.
+   */
+  onSwipe?: (direction: "left" | "right") => boolean;
   /** "Close assistant" in the gesture menu: quit the app (the desktop app does it). */
   onQuit?: () => void;
   /** Three fingers: read the text selected in the program in front aloud (the app does it). */
@@ -300,6 +305,7 @@ export function mountGestureControl(
       return;
     }
 
+    if (e.type === "swipe" && options.onSwipe?.(e.direction)) return;
     const action = actionFor(e, context);
     if (!action) return;
     if (action === "read_selection") {
