@@ -8,12 +8,12 @@ import { CONNECTIONS, type Gesture, type HandFrame, type HandSide, type MenuSect
 
 export const GESTURE_LABELS: Record<Gesture, string> = {
   none: "No gesture",
-  point: "☝️ Pointing",
-  palm: "✋ Open palm",
-  fist: "✊ Fist (menu)",
-  thumbs_up: "👍 Thumbs up",
-  thumbs_down: "👎 Thumbs down",
-  pinch: "🤏 Pinch",
+  point: "Pointing",
+  palm: "Open palm",
+  fist: "Fist (menu)",
+  thumbs_up: "Thumbs up",
+  thumbs_down: "Thumbs down",
+  pinch: "Pinch",
 };
 
 export const ACTION_LABELS: Partial<Record<Action, string>> = {
@@ -154,7 +154,7 @@ function drawVolume(
 ): void {
   const n = interaction.levelActive(t);
   if (!n) {
-    if (interaction.levelArmed) label(ctx, "🤏 Touch thumb and index, then open them", w / 2, h * 0.9, 28 * unit, "#4cc9f0");
+    if (interaction.levelArmed) label(ctx, "Touch thumb and index, then open them", w / 2, h * 0.9, 28 * unit, "#4cc9f0");
     return;
   }
   ctx.strokeStyle = `hsl(${Math.round(120 * n.value)}, 90%, 55%)`;
@@ -166,7 +166,7 @@ function drawVolume(
   ctx.stroke();
   const mx = (X(n.thumb) + X(n.index)) / 2;
   const my = Math.min(Y(n.thumb), Y(n.index)) - 40 * unit;
-  label(ctx, `🔊 ${Math.round(n.value * 100)} %`, mx, my, 40 * unit, "#ffd23f");
+  label(ctx, `${Math.round(n.value * 100)} %`, mx, my, 40 * unit, "#ffd23f");
   if (n.confirmProgress > 0) ring(ctx, mx, my + 40 * unit, 18 * unit, n.confirmProgress, "#3ddc97", 6 * unit);
 }
 

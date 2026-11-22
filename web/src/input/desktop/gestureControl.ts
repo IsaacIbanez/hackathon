@@ -88,18 +88,18 @@ export function mountGestureControl(
   const label = (a: Action) => LABELS[a] ?? a.replaceAll("_", " ");
 
   const WAKE_HINTS: Record<WakeIssue | "none", string> = {
-    none: "😴 Asleep — hold up an open palm, fingers spread, to wake",
-    open: "✋ Open all five fingers",
-    straight: "✋ Straighten your fingers",
-    spread: "✋ Spread your fingers apart",
-    facing: "✋ Turn your palm towards the camera",
-    upright: "✋ Hold your hand upright",
+    none: "Asleep. Hold up an open palm, fingers spread, to wake",
+    open: "Open all five fingers",
+    straight: "Straighten your fingers",
+    spread: "Spread your fingers apart",
+    facing: "Turn your palm towards the camera",
+    upright: "Hold your hand upright",
   };
   const MOUSE_LABELS: Record<MouseAction, string> = {
-    click: "🖱️ Click",
-    right_click: "🖱️ Right click",
-    down: "🖱️ Holding — move to drag",
-    up: "🖱️ Released",
+    click: "Click",
+    right_click: "Right click",
+    down: "Holding — move to drag",
+    up: "Released",
   };
 
   const enabled = () => $<HTMLInputElement>("enabled").checked;
@@ -117,13 +117,13 @@ export function mountGestureControl(
     if (t - tPointerError < 5000) return;
     tPointerError = t;
     toast(`Mouse: ${err.message}`, true);
-    log(`✗ Mouse: ${err.message}`);
+    log(`Mouse: ${err.message}`);
   }
 
   function setCursor(on: boolean) {
     $<HTMLInputElement>("mouse").checked = on;
     interaction.configure({ mouseClicks: on });
-    toast(on ? "🖱️ Cursor mode on" : "🖱️ Cursor mode off");
+    toast(on ? "Cursor mode on" : "Cursor mode off");
     paintGuide();
     options.onCursorMode?.(on);
   }
@@ -151,7 +151,7 @@ export function mountGestureControl(
       return did;
     } catch (e) {
       toast(`${label(action)}: ${(e as Error).message}`, true);
-      log(`✗ ${label(action)}: ${(e as Error).message}`);
+      log(`${label(action)}: ${(e as Error).message}`);
       return null;
     }
   }
@@ -180,7 +180,7 @@ export function mountGestureControl(
       } finally {
         reopening = false;
       }
-      toast("↩ Back");
+      toast("Back");
       return;
     }
     if (page.id === "computer" || page.id === "apps") {
@@ -191,7 +191,7 @@ export function mountGestureControl(
       } finally {
         reopening = false;
       }
-      toast("↩ Back");
+      toast("Back");
       return;
     }
     showPage({ id: "main" });
@@ -227,13 +227,13 @@ export function mountGestureControl(
     switch (item.kind) {
       case "level":
         interaction.startLevel(e.t, item.target);
-        toast(`🤏 ${item.target === "brightness" ? "Brightness" : "Volume"}: pinch, then open your fingers`);
+        toast(`${item.target === "brightness" ? "Brightness" : "Volume"}: pinch, then open your fingers`);
         break;
       case "action":
         toast(label(item.action));
         void perform(item.action).then((did) => {
           // The helper says whether the microphone ended up muted.
-          if (did && item.action === "mic_mute") toast(`🎙️ ${did}`);
+          if (did && item.action === "mic_mute") toast(`${did}`);
         });
         break;
       case "power":
@@ -242,7 +242,7 @@ export function mountGestureControl(
         break;
       case "app":
         if (item.id) {
-          toast(`🚀 ${item.label}`);
+          toast(`${item.label}`);
           void perform("open_app", { target: item.id });
         } else {
           toast("Empty slot: add apps to apps.json (see the README)", true);
@@ -261,7 +261,7 @@ export function mountGestureControl(
 
   interaction.on((e) => {
     if (e.type === "mode") {
-      toast(e.awake ? "👋 Awake" : "😴 Asleep");
+      toast(e.awake ? "Gestures on" : "Gestures asleep");
       return;
     }
     if (e.type === "menu") {
@@ -293,7 +293,7 @@ export function mountGestureControl(
     const action = actionFor(e, context);
     if (!action) return;
     if (e.type === "level") {
-      toast(`${e.target === "brightness" ? "🔆" : "🔊"} ${Math.round(e.value * 100)} %`);
+      toast(`${e.target === "brightness" ? "Brightness" : "Volume"} ${Math.round(e.value * 100)} %`);
       // The system value follows the hand at most 20 % per update; the confirmed value is exact.
       const last = lastLevel[e.target];
       const v = e.phase === "end" || last === null ? e.value : last + Math.max(-0.2, Math.min(0.2, e.value - last));
@@ -339,18 +339,18 @@ export function mountGestureControl(
       .map((i) => i!.label.replace(/^\S+\s/, "").replace(" ▸", ""))
       .join(", ");
     const rows: [string, string | null][] = [
-      ["✋ Open palm, fingers spread (hold ~1 s)", "Wake up"],
-      ["👍 Thumbs up", m.thumbs_up && label(m.thumbs_up)],
-      ["👎 Thumbs down", m.thumbs_down && label(m.thumbs_down)],
-      ["✋→ / ✋← Swipe", m.swipe_right && m.swipe_left ? "Next / previous tab" : null],
-      ["✊ Fist (hold) → ☝️ point + tap middle finger on thumb", `Menu: ${menu}`],
-      ["✊ again, inside the menu", "Close the menu"],
-      ["👎 Thumbs down / ✋← Swipe, in menu", "Go back / close"],
-      ["🖱️ Cursor mode (menu, or the switch below)", mouseOn() ? "On" : "Off"],
-      ["☝️ Point (cursor mode)", "Move the mouse"],
-      ["☝️ + middle fingertip on the thumb (cursor mode)", "Click · twice quickly: right click · hold: drag"],
-      ["✋ Open palm up / down (cursor mode)", "Scroll"],
-      ["⌨️ Keyboard (menu)", "On-screen keyboard, to type with the mouse"],
+      ["Open palm, fingers spread (hold ~1 s)", "Wake up"],
+      ["Thumbs up", m.thumbs_up && label(m.thumbs_up)],
+      ["Thumbs down", m.thumbs_down && label(m.thumbs_down)],
+      ["/ Swipe", m.swipe_right && m.swipe_left ? "Next / previous tab" : null],
+      ["Fist (hold) → point + tap middle finger on thumb", `Menu: ${menu}`],
+      ["again, inside the menu", "Close the menu"],
+      ["Thumbs down / Swipe, in menu", "Go back / close"],
+      ["Cursor mode (menu, or the switch below)", mouseOn() ? "On" : "Off"],
+      ["Point (cursor mode)", "Move the mouse"],
+      ["+ middle fingertip on the thumb (cursor mode)", "Click · twice quickly: right click · hold: drag"],
+      ["Open palm up / down (cursor mode)", "Scroll"],
+      ["Keyboard (menu)", "On-screen keyboard, to type with the mouse"],
     ];
     $("guide").innerHTML = rows.map(([g, a]) => `<tr><td>${g}</td><td>${a ?? "—"}</td></tr>`).join("");
   }
@@ -393,7 +393,7 @@ export function mountGestureControl(
     el.hidden = !asleep;
     if (!asleep) return;
     const progress = interaction.wakeProgress(t);
-    el.textContent = progress > 0 ? "✋ Hold still…" : WAKE_HINTS[interaction.wakeHint ?? "none"];
+    el.textContent = progress > 0 ? "Hold still…" : WAKE_HINTS[interaction.wakeHint ?? "none"];
     el.style.setProperty("--p", String(progress));
   }
 
@@ -411,7 +411,7 @@ export function mountGestureControl(
     el.hidden = !lvl && !interaction.levelArmed;
     if (el.hidden) return;
     const brightness = interaction.levelTargetName === "brightness";
-    const icon = brightness ? "🔆" : "🔊";
+    const icon = brightness ? "Brightness" : "Volume";
     if (!lvl) {
       setHtml(el, `${icon} <small>touch thumb and index, then open them</small>`);
       el.style.setProperty("--p", "0");
@@ -569,7 +569,7 @@ export function mountGestureControl(
       } catch (e) {
         // The camera works but the hand detector didn't load (MediaPipe comes from the internet).
         if (stale()) return;
-        const text = `✋ Hand detection could not start: ${(e as Error)?.message ?? e}`;
+        const text = `Hand detection could not start: ${(e as Error)?.message ?? e}`;
         showCameraMessage(text, true);
         $("status").textContent = text;
         $("status").classList.add("error");
@@ -585,7 +585,7 @@ export function mountGestureControl(
       if (stale()) return;
       // Coming back from another option, its camera may take a moment to be released: try again.
       if ((e as { name?: string })?.name === "NotReadableError" && attempt < 4) {
-        showCameraMessage("📷 Waiting for the camera…");
+        showCameraMessage("Waiting for the camera…");
         setTimeout(() => {
           if (!stale()) void startCamera(attempt + 1);
         }, 700);
@@ -641,7 +641,7 @@ export function mountGestureControl(
     setCompact(on: boolean) {
       root.classList.toggle("compact", on);
     },
-    setCamera(on: boolean, reason = "📷 Camera paused: another option is using it") {
+    setCamera(on: boolean, reason = "Camera paused: another option is using it") {
       if (stopped) return;
       if (on) void startCamera();
       else stopCamera(reason);
@@ -656,8 +656,8 @@ export function mountGestureControl(
 /** A camera error in words for the user. */
 export function cameraErrorText(e: unknown): string {
   const name = (e as { name?: string })?.name ?? "";
-  if (name === "NotAllowedError" || name === "SecurityError") return "📷 Camera blocked: allow camera access for this app";
-  if (name === "NotReadableError" || name === "AbortError") return "📷 Camera in use by another program";
-  if (name === "NotFoundError" || name === "OverconstrainedError") return "📷 No camera found";
-  return `📷 Camera error: ${(e as Error)?.message ?? String(e)}`;
+  if (name === "NotAllowedError" || name === "SecurityError") return "Camera blocked: allow camera access for this app";
+  if (name === "NotReadableError" || name === "AbortError") return "Camera in use by another program";
+  if (name === "NotFoundError" || name === "OverconstrainedError") return "No camera found";
+  return `Camera error: ${(e as Error)?.message ?? String(e)}`;
 }

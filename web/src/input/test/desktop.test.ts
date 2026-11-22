@@ -86,8 +86,8 @@ test("menu: the main page has volume, brightness, microphone, apps and computer"
   assert.equal(withPower.down_right?.kind === "page" && withPower.down_right.page.id, "computer");
   assert.equal(pc.up_left?.kind === "action" && pc.up_left.action, "keyboard");
   assert.equal(pc.up_right?.kind, "cursor");
-  assert.equal(menuPage({ id: "main" }, "pc", [], true).up_right?.label, "🖱️ Cursor off");
-  assert.deepEqual(pc.up, { kind: "level", target: "volume", label: "🔊 Volume" });
+  assert.equal(menuPage({ id: "main" }, "pc", [], true).up_right?.label, "Cursor off");
+  assert.deepEqual(pc.up, { kind: "level", target: "volume", label: "Volume" });
   assert.equal(pc.down?.kind === "level" && pc.down.target, "brightness");
   assert.equal(pc.left?.kind === "action" && pc.left.action, "mic_mute"); // the system microphone
   // In a call: the call's own mute, plus raising your hand and leaving the call.
