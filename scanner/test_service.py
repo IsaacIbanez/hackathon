@@ -100,7 +100,10 @@ class TestScanService(ServiceServer):
 
     def test_health_and_unknown_path(self):
         with urllib.request.urlopen(self.url + "/health", timeout=5) as r:
-            self.assertTrue(json.load(r)["ok"])
+            health = json.load(r)
+        self.assertTrue(health["ok"])
+        # The app refuses a service with an older route version (backend/overlay/procs.go).
+        self.assertEqual(health["api"], service.SERVICE_API)
         status, body, _ = self.post(b"x", path="/nope")
         self.assertEqual(status, 404)
 

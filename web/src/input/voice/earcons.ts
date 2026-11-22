@@ -14,6 +14,8 @@ export function beep(kind: Earcon, volume = 0.15): void {
   if (typeof AudioContext === "undefined") return;
   try {
     ctx ??= new AudioContext();
+    // Started from a keypad key (an event from Go, not a click) it may be suspended: no sound.
+    if (ctx.state === "suspended") void ctx.resume();
     let t = ctx.currentTime;
     for (const [freq, ms] of TONES[kind]) {
       const osc = ctx.createOscillator();

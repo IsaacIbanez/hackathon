@@ -40,7 +40,7 @@ Responsable: **Isaac**. Plan común y reglas: `docs/demo/README.md`. Isaac tambi
 - **Tests:** `task check`. Sin ventana: `task server` (lógica real en 8765) o `task mock`.
 
 ## Hecho cuando
-- [ ] PR #54 probado con voz real y en `main`.
+- [x] PR #54 probado con voz real y en `main`.
 - [x] El menú avisa al arrancar de cada cosa que falte, con qué hacer.
 - [x] La segunda copia de la app avisa en vez de fallar en silencio.
 - [ ] `docs/PITCH.md` reescrito y ensayado dos veces seguidas con el `.exe` de `main`.
@@ -63,5 +63,5 @@ pruébalo con el .exe; abre un PR y, con el CI en verde, fusiónalo tú mismo a 
 Por cada fallo: síntoma → cómo reproducirlo → causa → arreglo → cómo se ha comprobado (con el `.exe`).
 - 2026-11-22, avisos al arrancar: si faltaba una clave, el entorno del escáner o Tesseract, la app no lo decía hasta que la herramienta fallaba (Transcribe reintentaba cada segundo; el servicio moría con `No module named cv2`) → reproducido con el `.exe` y el `.env` sin `TOGETHER_API_KEY` → `backend/overlay/checks.go` (`StartupProblems`, función pura con tests) y `app_checks.go`: cada problema sale en el log (`startup:`) y en el menú, en color de aviso, con qué hacer (por ejemplo, el comando exacto de `install.ps1`). Comprobado con el `.exe`: avisa de `TOGETHER_API_KEY`.
 - 2026-11-22, segunda copia: con dos copias abiertas, la segunda se iba a otro puerto en silencio y las dos se peleaban por el keypad y la cámara → reproducido abriendo dos `.exe` → mutex de Windows `Local\LauzHackOverlay` (`instance_windows.go`): la segunda copia lo dice en el log y en el menú. Comprobado con dos `.exe` a la vez.
-
+- 2026-11-22, órdenes de voz: «baja el volumen» funciona con la voz de Isaac. El aviso «Heard: …» tapaba toda la burbuja de la cámara y no se iba hasta la siguiente orden → reproducido por Isaac con la cámara en pequeño → el aviso se quita solo (4 s; los errores, 7 s), en una ventana pequeña es una franja fina abajo y nunca bloquea clics (`useVoiceCommand.tsx`).
 **Aviso de Nil (2026-11-22):** he tocado `web/src/app/overlay/gestureHost.ts` y `Overlay.tsx`. «Close gestures» pasa a ser «Main menu»: el host lanza el evento `gestures:main-menu` (`MAIN_MENU_EVENT`), `Overlay.tsx` lo escucha y vuelve a `view = "menu"`, y desde la burbuja se llama a `SetCompact(false)`. Los gestos siguen activos. `turnGesturesOn()` ahora despierta los gestos con `handle.wakeGestures()`. Detalle en el Registro de `docs/demo/NIL.md`.

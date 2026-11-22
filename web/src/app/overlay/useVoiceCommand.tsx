@@ -22,8 +22,34 @@ export type VoiceStatus =
   | { phase: 'heard'; text: string; understood: boolean }
   | { phase: 'error'; message: string }
 
+/**
+ * Below this peak the recording is silence: a muted or broken microphone (measured: 0.000-0.015,
+ * while a voice with the browser's gain control peaks well above 0.1). Silence is never sent to be
+ * transcribed: the model then invents words, which could even turn into a command.
+ */
+export const SILENCE_PEAK = 0.025
+
+/** The loudest sample of a recording (0 to 1). */
+export function peakOf(samples: Float32Array): number {
+  let peak = 0
+  for (let i = 0; i < samples.length; i++) peak = Math.max(peak, Math.abs(samples[i]))
+  return peak
+}
+
+/** One step of a voice command in lauzhack.log (the desktop build has no console). */
+function trace(msg: string): void {
+  if (inDesktopApp()) void desktop().UILog(`voice: ${msg}`).catch(() => {})
+}
+
 export function useVoiceCommand(run: (action: KeypadAction) => void) {
   const [status, setStatus] = useState<VoiceStatus>({ phase: 'idle' })
+  // What was heard, or an error, stays a few seconds and then goes away on its own: it must not
+  // cover the screen (or the small camera bubble) until the next command.
+  useEffect(() => {
+    if (status.phase !== 'heard' && status.phase !== 'error') return
+    const t = setTimeout(() => setStatus({ phase: 'idle' }), status.phase === 'heard' ? 4000 : 7000)
+    return () => clearTimeout(t)
+  }, [status])
   const [recorder] = useState(() => new MicRecorder())
   const [speaker] = useState(() => new Speaker())
   const runRef = useRef(run)
@@ -45,8 +71,21 @@ export function useVoiceCommand(run: (action: KeypadAction) => void) {
     beep('end')
     setStatus({ phase: 'transcribing' })
     const { samples, sampleRate } = await recorder.stop()
+    const peak = peakOf(samples)
+    trace(`stopped: ${(samples.length / sampleRate).toFixed(2)} s at ${sampleRate} Hz, peak ${peak.toFixed(3)}`)
     if (samples.length < sampleRate * 0.3) {
       fail('The recording was too short. Press key 7, speak, then key 7 again.')
+      return
+    }
+    if (peak < SILENCE_PEAK) {
+      // Nothing reached the microphone: say why instead of sending silence to be transcribed.
+      const muted = inDesktopApp() ? await desktop().MicMuted().catch(() => false) : false
+      trace(`silent recording (microphone muted in Windows: ${muted})`)
+      fail(
+        muted
+          ? 'The microphone is muted in Windows. Turn it on (fist menu, Microphone) and try again.'
+          : 'No sound reached the microphone. Check that it is connected and on, then try again.',
+      )
       return
     }
     try {
@@ -55,17 +94,34 @@ export function useVoiceCommand(run: (action: KeypadAction) => void) {
       if (!wsUrl) throw new Error('The voice service is not running (no AI key in .env?).')
       const { text } = await transcribeRemote(samples, sampleRate, LANG, wsUrl)
       const action = voiceAction(text)
+      trace(`heard "${text}" -> ${action ?? 'no command'}`)
       setStatus({ phase: 'heard', text, understood: action !== null })
       if (!text.trim()) {
         speaker.speak({ text: 'No te he oído.', lang: LANG })
       } else if (!action) {
         speaker.speak({ text: `No sé hacer: ${text}`, lang: LANG })
+      } else if (action === 'volume-up' || action === 'volume-down') {
+        // The system volume, one step of 10 % (Windows shows its own indicator).
+        await desktop().ChangeVolume(action === 'volume-up')
+        speaker.speak({ text: action === 'volume-up' ? 'Volumen subido.' : 'Volumen bajado.', lang: LANG })
+      } else if (action === 'delete-selection') {
+        // Only now, after a command that is clearly "delete", is anything deleted, and only text
+        // that is really selected (Go checks it first).
+        try {
+          const n = await desktop().DeleteSelection()
+          speaker.speak({ text: n === 1 ? 'Borrado un carácter.' : `Texto borrado: ${n} caracteres.`, lang: LANG })
+        } catch (e) {
+          const msg = errorText(e)
+          if (msg.includes('no_selection')) speaker.speak({ text: 'No hay texto seleccionado. Selecciona el texto y repite la orden.', lang: LANG })
+          else throw e
+        }
       } else {
         const done = DONE_SPEECH[action]
         if (done) speaker.speak({ text: done, lang: LANG })
         runRef.current(action)
       }
     } catch (e) {
+      trace(`error: ${errorText(e)}`)
       fail(errorText(e))
     }
   }, [recorder, speaker, fail])
@@ -74,10 +130,13 @@ export function useVoiceCommand(run: (action: KeypadAction) => void) {
     if (recorder.recording) return
     speaker.stop() // do not record the app's own voice
     try {
+      trace('start')
       await recorder.start(() => void stop())
+      trace(`recording (audio ${recorder.state})`)
       beep('start')
       setStatus({ phase: 'recording' })
     } catch (e) {
+      trace(`microphone error: ${errorText(e)}`)
       fail(`Cannot open the microphone: ${errorText(e)}`)
     }
   }, [recorder, speaker, stop, fail])
@@ -92,6 +151,14 @@ export function useVoiceCommand(run: (action: KeypadAction) => void) {
 
 /** A banner with what the voice command is doing; nothing when idle. */
 export function VoiceBanner({ status }: { status: VoiceStatus }) {
+  // In a small window (the camera bubble, the summary bubble) a slim line at the bottom instead of
+  // the big pill, so the camera stays visible.
+  const [small, setSmall] = useState(isSmallWindow)
+  useEffect(() => {
+    const onResize = () => setSmall(isSmallWindow())
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
   if (status.phase === 'idle') return null
   const text = {
     recording: 'Recording… press key 7 to stop.',
@@ -105,11 +172,28 @@ export function VoiceBanner({ status }: { status: VoiceStatus }) {
       : status.phase === 'error'
         ? 'var(--color-warn)'
         : 'var(--color-edge)'
+  if (small) {
+    return (
+      <p
+        role="status"
+        aria-live="assertive"
+        className="pointer-events-none fixed inset-x-2 bottom-2 z-50 flex items-center gap-2 truncate rounded-chip bg-surface px-2 py-1 text-meta"
+        style={{ boxShadow: `inset 0 0 0 1px ${color}` }}
+      >
+        {status.phase === 'recording' ? (
+          <Icon name="mic" size={16} className="shrink-0 text-accent" />
+        ) : (
+          <span className="size-2 shrink-0 rounded-full" style={{ background: color }} aria-hidden="true" />
+        )}
+        <span className="truncate">{text}</span>
+      </p>
+    )
+  }
   return (
     <p
       role="status"
       aria-live="assertive"
-      className="glass fixed top-6 left-1/2 z-50 flex max-w-[90vw] -translate-x-1/2 items-center gap-3 rounded-full px-6 py-3 text-lead"
+      className="glass pointer-events-none fixed top-6 left-1/2 z-50 flex max-w-[90vw] -translate-x-1/2 items-center gap-3 rounded-full px-6 py-3 text-lead"
       style={{ borderColor: color, animation: 'rise var(--duration-base) var(--ease-soft)' }}
     >
       {status.phase === 'recording' ? (
@@ -120,4 +204,9 @@ export function VoiceBanner({ status }: { status: VoiceStatus }) {
       {text}
     </p>
   )
+}
+
+/** The window is a small bubble (camera or summary), not the layer or the normal window. */
+function isSmallWindow(): boolean {
+  return window.innerWidth < 720 || window.innerHeight < 420
 }

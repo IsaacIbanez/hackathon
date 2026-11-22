@@ -117,3 +117,35 @@ test('revise replaces text and language; the transcript shows the language like 
       '[00:00:05] Speaker 2: Okay, "hasta luego".\n',
   )
 })
+
+test('no key: Go accepts and closes at once; the page must not reconnect forever', async () => {
+  const { afterClose, isFatal, fatalMessage } = await import('../reconnect.ts')
+  // The error Go sends first makes the close final: no reconnection at all.
+  assert.equal(isFatal('no_key', false), true)
+  assert.deepEqual(afterClose({ stopped: false, fatal: true, live: false, retries: 0 }), { do: 'end' })
+  assert.match(fatalMessage('no_key', 'x'), /TOGETHER_API_KEY=/)
+  assert.match(fatalMessage('upstream', 'the speech service refused the API key (401)'), /Check TOGETHER_API_KEY/)
+  assert.equal(fatalMessage('upstream', 'The live captions service is not answering'), 'The live captions service is not answering')
+  // Even if the error were missed, a server that closes before 'ready' is retried 3 times, then given up.
+  let retries = 0
+  const seen: string[] = []
+  for (let i = 0; i < 10; i++) {
+    const a = afterClose({ stopped: false, fatal: false, live: false, retries })
+    seen.push(a.do === 'retry' ? `retry ${a.waitMs}` : a.do)
+    if (a.do !== 'retry') break
+    retries = a.retries
+  }
+  assert.deepEqual(seen, ['retry 1000', 'retry 2000', 'retry 4000', 'give-up'])
+})
+
+test('a session that had worked is retried again from the start; Stop ends it', async () => {
+  const { afterClose, isFatal } = await import('../reconnect.ts')
+  assert.deepEqual(afterClose({ stopped: false, fatal: false, live: true, retries: 3 }), { do: 'retry', waitMs: 1000, retries: 1 })
+  assert.deepEqual(afterClose({ stopped: true, fatal: false, live: true, retries: 0 }), { do: 'end' })
+  // Translation and speaker errors never end the captions; the cost limit and a refused key do.
+  assert.equal(isFatal('translation', true), false)
+  assert.equal(isFatal('diarization', false), false)
+  assert.equal(isFatal('limit_reached', false), true)
+  assert.equal(isFatal('upstream', false), true)
+  assert.equal(isFatal('upstream', true), false)
+})

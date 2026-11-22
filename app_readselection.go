@@ -29,3 +29,18 @@ func (a *App) ReadSelection() (string, error) {
 	log.Printf("read selection: %d chars", len([]rune(text)))
 	return text, nil
 }
+
+// DeleteSelection deletes the text selected in the program in front (voice command "borra el
+// texto", docs/KEYPAD.md). Nothing is deleted unless some text is selected; then the error starts
+// with "no_selection:".
+func (a *App) DeleteSelection() (int, error) {
+	n, err := overlay.DeleteSelection()
+	if errors.Is(err, overlay.ErrNoSelection) || errors.Is(err, overlay.ErrNoTarget) {
+		return 0, errors.New("no_selection: Select some text first, then give the command again.")
+	}
+	if err != nil {
+		return 0, err
+	}
+	log.Printf("delete selection: %d chars", n)
+	return n, nil
+}
