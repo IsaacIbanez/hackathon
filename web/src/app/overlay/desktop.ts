@@ -13,6 +13,8 @@ export interface OverlayInfo {
   keypadConnected?: boolean
   /** What a tool needs and is missing on this computer, each with what to do (app_checks.go). */
   problems?: string[]
+  /** Which build is running (app_checks.go): to tell an old .exe apart. */
+  version?: { commit: string; modified: boolean; built: string }
 }
 
 /** What option 3 opened (app_pdf.go): a PDF for the viewer, or the lines of another file. */

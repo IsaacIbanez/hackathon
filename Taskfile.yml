@@ -1,6 +1,6 @@
 # Project tasks. Install task once:
 #   go install github.com/go-task/task/v3/cmd/task@latest
-# Usage: task gen | task mock | task server | task dev | task overlay | task gestures | task fmt | task check
+# Usage: task setup (once per computer) | task gen | task mock | task server | task dev | task overlay | task gestures | task fmt | task check
 version: "3"
 
 vars:
@@ -35,10 +35,24 @@ tasks:
     cmds:
       - wails dev {{.GOTAGS}}
 
+  setup:
+    desc: Installs what the app needs, once per computer - the scanner (Python env, Tesseract, languages) and the web dependencies
+    cmds:
+      - cmd: powershell -ExecutionPolicy Bypass -File scanner/pdf/scripts/install.ps1
+        platforms: [windows]
+      - cmd: bash scanner/pdf/scripts/install.sh
+        platforms: [linux, darwin]
+      - cmd: npm ci
+        dir: web
+
   overlay:
     desc: Builds the overlay app (build/bin/lauzhack.exe), with Gesture Control inside (docs/OVERLAY.md)
+    vars:
+      COMMIT:
+        sh: git describe --always --dirty
     cmds:
-      - wails build {{.GOTAGS}}
+      # The commit goes into the .exe (the log and the menu show it): wails build does not stamp it.
+      - wails build {{.GOTAGS}} -ldflags "-X github.com/IsaacIbanez/hackathon/backend/overlay.StampedCommit={{.COMMIT}}"
 
   gestures:
     desc: Builds Gesture Control on its own (build/bin/gesture-control), for using it without the overlay

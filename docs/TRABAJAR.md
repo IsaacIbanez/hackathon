@@ -10,8 +10,8 @@
 7. Si cierras algo que cambia el estado general, actualiza la línea en `docs/ESTADO.md`.
 
 ## Compilar y probar la app
-- **Una vez por equipo:** Go ≥ 1.26, `go install github.com/go-task/task/v3/cmd/task@latest`, Wails v2, Node; el escáner con `powershell -ExecutionPolicy Bypass -File scanner\pdf\scripts\install.ps1`.
-- **Compilar:** `task overlay` → `build/bin/lauzhack.exe` (lee el `.env` de la raíz; log en `build/bin/lauzhack.log`).
+- **Una vez por equipo:** Go ≥ 1.26, `go install github.com/go-task/task/v3/cmd/task@latest`, Wails v2, Node; después **`task setup`** (el escáner con su Python, Tesseract y los idiomas, y las dependencias web).
+- **Compilar:** `task overlay` → `build/bin/lauzhack.exe` (lee el `.env` de la raíz; log en `build/bin/lauzhack.log`). El log y el pie del menú dicen qué versión es (`version: <commit> (built …)`; un «+» = compilado con cambios sin commit).
 - **Antes de abrirlo, cierra cualquier otra copia** de la app y de `gesture-control.exe`: con dos abiertas no sabes cuál estás probando.
 - **Sin ventana:** `task server` (lógica real en 8765) o `task mock` (respuestas fijas en 8080, sin coste).
 - **Pruebas de humo:** `docs/COMO_PROBAR.md`.

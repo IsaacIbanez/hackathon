@@ -17,6 +17,8 @@ func (a *App) checkStartup(another bool) {
 	for _, p := range llm.DotEnvCandidates() {
 		llm.LoadDotEnv(p) // the same .env the models and Transcribe read
 	}
+	build := overlay.Build()
+	log.Printf("version: %s", build)
 	var problems []string
 	if another {
 		problems = append(problems, "Another copy of the app is already open. Close one of them: both fight for the keypad, the shortcuts and the camera.")
@@ -36,6 +38,7 @@ func (a *App) checkStartup(another bool) {
 	}
 	a.overlay.mu.Lock()
 	a.overlay.problems = problems
+	a.overlay.build = build
 	a.overlay.mu.Unlock()
 }
 
