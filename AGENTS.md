@@ -202,14 +202,12 @@ Relación con lo anterior:
 - Las secciones «Plan actual» y «Roles y carpetas» describen el reparto anterior: **úsalas solo como mapa de quién conoce cada parte.** El reparto vigente es el de `TAREAS.md`.
 
 ## Decisiones
-<<<<<<< HEAD
 - 2026-11-21 — **App overlay** (rama `overlay`, detalle en `docs/OVERLAY.md`):
   - la app de escritorio es una ventana siempre encima que se abre desde cualquier programa con **Ctrl+Alt+Espacio** (`LAUZHACK_HOTKEY`; el MX Keypad envía la misma combinación desde Logi Options+);
   - opciones: **1** gestos (Nil, lanza `gesture-control.exe`), **2** leer un papel (Pau y Didac: cámara → servicio de lectura → lectura guiada) y **3** leer un archivo del PC (Didac: PDF, imágenes, TXT/MD → lectura guiada);
   - la app arranca y para el servicio de lectura y Gesture Control;
   - ninguna opción usa IA y el contrato no cambia.
   - Motivo: juntar las funcionalidades en un solo ejecutable.
-=======
 - 2026-11-21 — **Subtítulos en directo (Pau, brief en `docs/briefs/pau.md`):**
   - Qué hacen: subtítulos del micrófono y del audio de una llamada, con quién habla, traducción y la transcripción guardada en un `.txt`.
   - Cómo:
@@ -220,7 +218,6 @@ Relación con lo anterior:
   - Clave `TOGETHER_API_KEY`: solo en `.env`, nunca en el repo ni en el navegador.
   - Coste visible, con un tope por sesión (`CAPTIONS_LIMIT_USD`, 1 $). Si Together falla, se ofrece el Whisper local de Nil.
   - Isaac pone el botón «Live captions» en la app.
->>>>>>> 131bcf4 (docs: Pau's brief (live captions with speakers and translation) and AGENTS note)
 - 2026-11-21 — **Arranque por persona:** no se reparten más tareas cerradas.
   - Cada persona trabaja con su agente en lo que decida: Nil, en la cámara y su entorno (voz, cara, manos, teclado); Didac y Pau, en una funcionalidad grande y distinta cada uno; Isaac decide entre el backend, una funcionalidad o ayudar a otra persona.
   - El agente entrevista primero a su persona (`docs/arranque/<persona>.md`) y deja un brief confirmado en `docs/briefs/<persona>.md`.
