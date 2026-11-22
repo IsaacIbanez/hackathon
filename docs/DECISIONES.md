@@ -5,7 +5,7 @@ Registro completo, de la más nueva a la más antigua. Movido desde `AGENTS.md` 
 - 2026-11-22 — **Sistema de diseño nuevo para el overlay** (Isaac; `docs/DESIGN.md`):
   - Sustituye a Halo (`docs/DISENO.md`): tokens semánticos en `web/src/index.css` (texto, un solo acento, estados, transparencias, 5 tamaños de letra, radios, elevación, movimiento) y componentes base en `ui.tsx` (`IconButton`, `Switch`, `Tag`, más `.btn-quiet` y `.backing`).
   - Las transparencias se conservan con los mismos valores, ahora como tokens; el contraste se ha medido sobre un escritorio blanco y uno negro.
-  - Se migra por áreas, un PR cada una, solo la apariencia (sin tocar lógica, props ni contrato). Motivo: coherencia entre pantallas y un aspecto de overlay sobrio, no de app «hecha por IA».
+  - Aplicado a todas las pantallas el mismo día, solo la apariencia (sin tocar lógica, props ni contrato): un solo acento amarillo (las herramientas se distinguen por icono, nombre y sitio), anillo quieto en vez del halo que giraba, bordes de 1 px en vez de sombras grandes, 5 tamaños de letra, sin emojis como iconos. `DISENO.md` pasa a `docs/historial/DISENO_halo.md`. Motivo: coherencia entre pantallas y un aspecto de overlay sobrio, no de app «hecha por IA».
 - 2026-11-22 — **Una sola pieza decide la forma de la ventana** (R5, Pau; `docs/VENTANA.md`):
   - `app_window.go`: las partes declaran lo que quieren (`open`, `layer`, `gestures`, `gestureScreen`, `summary`) y `desiredShape` decide con una jerarquía fija: resumen > menú del puño > overlay (capa o ventana) > burbuja de cámara > oculta.
   - Las formas temporales vuelven solas a la que había. Los gestos nunca abren, cierran ni encogen el overlay; el modo cursor no toca la ventana.

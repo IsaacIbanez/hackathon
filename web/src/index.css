@@ -7,7 +7,7 @@
  * Overlay design system (docs/DESIGN.md). It is an overlay, not an app: a dimmed see-through layer
  * over the desktop, few surfaces, one accent (yellow: what is being read and the keyboard focus).
  * Everything goes through these tokens: no loose colours, sizes or radii in components.
- * The "Halo" tokens above the line stay until every piece is migrated.
+ * The first block holds older names kept for existing code; new code uses the second block.
  */
 @theme {
   --font-sans: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
@@ -38,6 +38,9 @@
   /* States (never colour alone: always with an icon or words). */
   --color-warn: #ffb547;
   --color-danger: #ff6b7a;
+  /* The page of a PDF (paper is white), and the panel that fills a normal window (no layer behind). */
+  --color-paper: #ffffff;
+  --color-surface-opaque: #101832;
 
   /* Transparencies (values kept as they were; DESIGN.md, "Transparencias"). */
   --color-layer: rgb(6 10 24 / 0.82); /* the dimmed layer over the whole screen */
@@ -127,7 +130,7 @@
   .glass {
     background: var(--color-surface);
     border: 1px solid var(--color-edge);
-    box-shadow: var(--shadow-edge), var(--shadow-panel);
+    box-shadow: var(--shadow-edge);
     backdrop-filter: blur(var(--blur-surface));
   }
 
@@ -165,16 +168,24 @@
     opacity: 0.75;
   }
   .btn-primary {
-    background: var(--accent, var(--color-mark));
+    background: var(--accent, var(--color-accent));
     border-color: transparent;
-    color: var(--color-ink);
+    color: var(--color-on-accent);
   }
   .btn-primary:hover {
-    background: var(--accent, var(--color-mark));
+    background: var(--accent, var(--color-accent));
     filter: brightness(1.08);
   }
-
-  /* A keyboard shortcut next to its action. */
+  /* Danger: stopping or deleting something. Dark text keeps AA on the light red. */
+  .btn-danger {
+    background: var(--color-danger);
+    border-color: transparent;
+    color: var(--color-on-accent);
+  }
+  .btn-danger:hover {
+    background: var(--color-danger);
+    filter: brightness(1.08);
+  }
   .kbd {
     display: inline-block;
     min-width: 1.5em;
@@ -187,9 +198,10 @@
     text-align: center;
     line-height: 1.4;
   }
-  .btn-primary .kbd {
-    background: rgb(10 17 40 / 0.18);
-    color: var(--color-ink);
+  .btn-primary .kbd,
+  .btn-danger .kbd {
+    background: color-mix(in oklab, var(--color-on-accent) 18%, transparent);
+    color: var(--color-on-accent);
   }
 
   /* Quiet button: no fill until the pointer or the focus is on it (secondary actions in a bar). */
@@ -294,26 +306,16 @@
   }
 }
 
-/* The hub's halo turns slowly; the tools fan out from it once, when the layer opens. */
-@property --spin {
-  syntax: "<angle>";
-  inherits: false;
-  initial-value: 0deg;
-}
-@keyframes halo-spin {
-  to {
-    --spin: 360deg;
-  }
-}
+/* The tools fan out from the centre once, when the layer opens (short and soft, no overshoot). */
 @keyframes orb-out {
   from {
-    transform: translate(-50%, -50%) scale(0.4);
+    transform: translate(-50%, -50%) scale(0.92);
     opacity: 0;
   }
 }
 @keyframes rise {
   from {
-    transform: translateY(12px);
+    transform: translateY(8px);
     opacity: 0;
   }
 }
@@ -326,54 +328,55 @@
   }
 }
 
-/* Hub (web/src/app/overlay/Hub.tsx): one big circle for Gesture Control, the tools on an arc. */
+/* Hub (web/src/app/overlay/Hub.tsx): one big circle for Gesture Control, the tools on an arc. All
+   neutral at rest; the accent fills the one under the pointer (or the hand's cursor) or the focus. */
 @layer components {
   .orb {
     display: grid;
     place-items: center;
-    border-radius: 999px;
-    background: color-mix(in oklab, var(--accent) 16%, rgb(16 24 50 / 0.94));
-    border: 2px solid color-mix(in oklab, var(--accent) 70%, transparent);
-    color: var(--accent);
-    box-shadow: 0 24px 60px -24px rgb(0 0 0 / 0.8);
+    border-radius: var(--radius-pill);
+    background: var(--color-surface);
+    border: 1px solid var(--color-edge);
+    color: var(--color-fg);
+    box-shadow: var(--shadow-edge);
     transition:
-      transform 0.18s ease-out,
-      background-color 0.18s,
-      color 0.18s;
+      transform var(--duration-fast) var(--ease-soft),
+      background-color var(--duration-fast) var(--ease-soft),
+      color var(--duration-fast) var(--ease-soft);
   }
   .orb:hover,
   .orb:focus-visible {
-    background: var(--accent);
-    color: var(--color-ink);
-    transform: scale(1.07);
+    background: var(--color-accent);
+    color: var(--color-on-accent);
+    transform: scale(1.04);
   }
   .orb[aria-disabled="true"] {
     border-style: dashed;
-    background: rgb(16 24 50 / 0.7);
-    color: color-mix(in oklab, var(--accent) 55%, var(--color-mist));
+    background: var(--color-surface);
+    color: var(--color-fg-muted);
     cursor: default;
   }
   .orb[aria-disabled="true"]:hover {
     transform: none;
   }
 
-  .hub-orb {
-    background: radial-gradient(circle at 35% 28%, #213574, #0b1331 72%);
-    border: 1px solid rgb(124 140 255 / 0.35);
-    color: var(--color-snow);
-  }
+  /* The centre stays dark (its name is long); a thin still ring lights up instead. */
+  .hub-orb,
   .hub-orb:hover,
   .hub-orb:focus-visible {
-    background: radial-gradient(circle at 35% 28%, #2a4596, #0e1a42 72%);
-    color: var(--color-snow);
+    background: var(--color-surface-solid);
+    color: var(--color-fg);
   }
   .hub-halo {
     position: absolute;
-    inset: -14px;
-    border-radius: 999px;
-    background: conic-gradient(from var(--spin), var(--color-hand), var(--color-hand-2), transparent 55%, var(--color-hand));
-    mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 6px));
-    animation: halo-spin 7s linear infinite;
+    inset: -12px;
+    border-radius: var(--radius-pill);
+    border: 2px solid var(--color-edge);
     pointer-events: none;
+    transition: border-color var(--duration-fast) var(--ease-soft);
+  }
+  .hub-orb:hover .hub-halo,
+  .hub-orb:focus-visible .hub-halo {
+    border-color: var(--color-accent);
   }
 }
