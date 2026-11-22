@@ -114,6 +114,7 @@ export function Panel({
   accent,
   onBack,
   fill = false,
+  gutterLeft = 0,
   actions,
   children,
 }: {
@@ -123,6 +124,8 @@ export function Panel({
   accent: string
   onBack: () => void
   fill?: boolean
+  /** Room kept free on the left (the camera panel in the top-left corner, N1), in CSS pixels. */
+  gutterLeft?: number
   actions?: ReactNode
   children: ReactNode
 }) {
@@ -156,7 +159,7 @@ export function Panel({
   )
   if (fill) return sheet
   return (
-    <div className="halo-layer flex items-center justify-center p-8" style={{ animation: 'rise .25s ease-out' }}>
+    <div className="halo-layer flex items-center justify-center p-8" style={{ animation: 'rise .25s ease-out', paddingLeft: gutterLeft ? gutterLeft + 16 : undefined }}>
       {sheet}
     </div>
   )

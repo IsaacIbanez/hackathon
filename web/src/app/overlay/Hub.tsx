@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from 'react'
+import { useState, type CSSProperties, type ReactNode } from 'react'
 import type { OverlayInfo } from './desktop.ts'
 import { MODES, type Mode, type ModeId } from './modes.ts'
 import { Icon } from './ui.tsx'
@@ -21,11 +21,14 @@ export function Hub({
   onChoose,
   onHide,
   onQuit,
+  extras,
 }: {
   info: OverlayInfo | null
   onChoose: (id: ModeId) => void
   onHide: () => void
   onQuit?: () => void
+  /** Extra panels of the menu (extensions.ts, MENU_PANELS), in the bottom-left corner. */
+  extras?: ReactNode
 }) {
   const [hint, setHint] = useState<Mode | null>(null)
   const hub = MODES.find((m) => m.place === 'hub')!
@@ -91,6 +94,8 @@ export function Hub({
       >
         {caption}
       </p>
+
+      {extras && <div className="absolute bottom-8 left-8 w-[22rem] space-y-3">{extras}</div>}
 
       <footer className="glass absolute bottom-8 left-1/2 flex -translate-x-1/2 items-center gap-5 rounded-full px-6 py-3 text-base whitespace-nowrap text-[var(--color-mist)]">
         <span>

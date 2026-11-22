@@ -53,7 +53,9 @@ Variables opcionales:
   - **Q** cierra la app y los programas que haya arrancado.
 - **Dentro de una opción:** **Esc** vuelve al menú. Lo que se está leyendo sigue sonando aunque se oculte el overlay.
 - **Lectura guiada** (opciones 2 y 3): Espacio o Num 5 pausa y sigue, ← o Num 4 va a la línea anterior, → o Num 6 a la siguiente, R o Num 8 repite, y un clic en una línea lee desde ahí.
-- **Opción 1:** al entrar se abre la cámara de los gestos dentro de la ventana; **Esc** vuelve al menú y la apaga. Mientras está abierta, **el atajo** (o **M**) no oculta la ventana: la encoge a una **burbuja de cámara** en la esquina inferior derecha, siempre encima, y los gestos siguen funcionando. El atajo o un doble clic en la burbuja la devuelven a tamaño completo. (Una ventana oculta frenaría la cámara.) Desde la burbuja, al abrir el menú de gestos con ✊ (o al ajustar el volumen o el brillo) la ventana pasa a **pantalla completa transparente**: las opciones salen encima de lo que haya abierto y la cámara queda pequeña en una esquina; al terminar vuelve a la burbuja. Solo ocupa la pantalla mientras no hace falta el ratón, así que nunca se queda con los clics de otros programas. *Sin probar en Windows: si la transparencia no funciona, se verá un fondo oscuro detrás del menú.*
+- **Cámara arriba a la izquierda (N1):** en todas las pantallas se ve la cámara con los puntos de la mano que se sigue. Es el mismo motor de gestos de la opción 1, siempre encendido mientras el overlay está abierto (`gestureHost.ts`). Con el botón **Hide camera** se oculta la vista (los gestos siguen); **📷 Show camera** la vuelve a mostrar, y se recuerda para la próxima vez. Al abrir el menú de gestos con ✊, o al ajustar el volumen o el brillo, la vista crece a toda la ventana. Mientras la opción 2 o la pantalla de desarrollo usan la cámara, se pausa con un aviso. Sin cámara (o bloqueada, u ocupada por otro programa), lo dice encima de la vista y el resto de la app sigue funcionando.
+- **Todo con el ratón (N1):** arriba a la derecha hay botones para lo que hacen las teclas: **Developer screen** (D, en el menú), **Hide** (Esc) y **Quit** (Q). Cada opción tiene su botón en el menú y **← Menu** para volver.
+- **Opción 1:** la página completa de Gesture Control (interruptor, Llamada/Ordenador, app de la llamada, modo cursor, guía de gestos y registro). Mientras los gestos están en marcha, **el atajo**, **Hide** o **M** no ocultan la ventana: la encogen a una **burbuja de cámara** en una esquina inferior, siempre encima, y los gestos siguen funcionando. El atajo o un doble clic en la burbuja la devuelven a tamaño completo. (Una ventana oculta frenaría la cámara.) Desde la burbuja, al abrir el menú de gestos con ✊ (o al ajustar el volumen o el brillo) la ventana pasa a **pantalla completa transparente**: las opciones salen encima de lo que haya abierto y la cámara queda pequeña en una esquina; al terminar vuelve a la burbuja. Solo ocupa la pantalla mientras no hace falta el ratón, así que nunca se queda con los clics de otros programas.
 - **Opción 2:** la foto se hace sola cuando el papel está quieto (a los 8 s, la mejor que haya); **Intro** la hace en el momento. Si no hay hoja, lo dice en voz alta e **Intro** lo reintenta.
 - **Opción 3:** se abre el diálogo de archivos; **O** abre otro archivo.
   - Con un **PDF**, **Espacio** (o el botón amarillo) lo lee entero.
@@ -75,6 +77,24 @@ Variables opcionales:
   - **Esc** (o el atajo) cierra la burbuja y devuelve el foco al programa del que vino el texto.
 
 **MX Keypad:** en Logi Options+, asigna a una tecla la combinación Ctrl+Alt+Espacio y, si quieres, a otras teclas «1», «2» y «3» (o Num 1–3) y las de la lectura guiada (Num 4, 5, 6 y 8). No hace falta cambiar nada en la app. *Sin probar todavía con el keypad real.*
+
+## Añadir un botón o un panel (N1)
+Todo está en `web/src/app/overlay/extensions.ts`: son listas, y `Overlay.tsx` las dibuja. No hace falta tocar nada más.
+
+- **Un botón en la barra de arriba a la derecha** (sale en todas las pantallas): añade una entrada a `TOOLBAR`.
+  ```ts
+  {
+    id: 'help',                       // único
+    label: '❓ Help',                 // texto del botón (en inglés, como el resto de la interfaz)
+    key: 'H',                         // opcional: la tecla que hace lo mismo, se muestra al lado
+    show: (ctx) => ctx.view === 'menu', // opcional: en qué pantallas sale (por defecto, en todas)
+    run: (ctx) => ctx.setView('read-file'), // qué hace: cambiar de pantalla, llamar a Go (desktop())…
+  },
+  ```
+  Si el botón hace lo mismo que una tecla, la tecla se sigue gestionando en `Overlay.tsx`; el botón solo la hace accesible con el ratón.
+- **Un panel en el menú** (debajo de las opciones): crea un componente (por ejemplo `MiPanel.tsx`) y añade `{ id, title, Component: MiPanel }` a `MENU_PANELS`. El ejemplo que hay, `GestureTipsPanel.tsx`, explica los gestos; se puede quitar borrando su entrada.
+- **Una opción nueva del menú** (una pantalla entera): una entrada en `modes.ts` y su componente en `views` de `Overlay.tsx` (ver más abajo).
+- **La cámara:** la vista de arriba a la izquierda es `CameraPanel` en `Overlay.tsx`. Si una pantalla nueva abre la cámara por su cuenta, añádela a `NEEDS_CAMERA` en `Overlay.tsx`: los gestos le dejan la cámara mientras está abierta.
 
 ## Cómo está hecho
 ```

@@ -81,6 +81,10 @@ export interface Tracker {
   enableFace(enabled: boolean): Promise<void>;
   /** Frames analysed per second (recent average). */
   readonly fps: number;
+  /** Where the hand detector runs: "GPU", or "CPU" when the GPU was not available (much slower). */
+  readonly delegate: "GPU" | "CPU" | null;
+  /** Milliseconds the hand detector takes per frame (recent average). It blocks the page meanwhile. */
+  readonly analysisMs: number;
 }
 
 export async function createTracker(
@@ -94,6 +98,9 @@ export async function createTracker(
     : await import(/* @vite-ignore */ `${o.mediapipeBase}/vision_bundle.mjs`);
   const fileset = await vision.FilesetResolver.forVisionTasks(`${o.mediapipeBase}/wasm`);
 
+  let usedDelegate: "GPU" | "CPU" | null = null;
+  let analysisMs = 0;
+
   // Creates a detector on the GPU and, if that fails, on the CPU.
   async function withFallback<R>(factory: FactoryMP<R>, extra: Record<string, unknown>, model: string) {
     const create = (delegate: "GPU" | "CPU") =>
@@ -103,11 +110,15 @@ export async function createTracker(
         ...extra,
       });
     try {
-      return await create(o.delegate);
+      const d = await create(o.delegate);
+      if (factory === vision.HandLandmarker) usedDelegate = o.delegate;
+      return d;
     } catch (e) {
       if (o.delegate === "CPU") throw e;
       console.warn("MediaPipe: GPU not available, using CPU", e);
-      return await create("CPU");
+      const d = await create("CPU");
+      if (factory === vision.HandLandmarker) usedDelegate = "CPU";
+      return d;
     }
   }
   const createHands = () =>
@@ -191,7 +202,10 @@ export async function createTracker(
     }
     tLast = t;
     frameCount++;
-    const frame = toHandFrame(hands.detectForVideo(video, t), t, video.videoWidth / video.videoHeight);
+    const result = hands.detectForVideo(video, t);
+    const took = performance.now() - t;
+    analysisMs = analysisMs === 0 ? took : 0.9 * analysisMs + 0.1 * took;
+    const frame = toHandFrame(result, t, video.videoWidth / video.videoHeight);
     if (faceEnabled) {
       if (face && frameCount % o.faceEveryN === 0) lastFace = toFace(face.detectForVideo(video, t));
       frame.face = lastFace;
@@ -221,6 +235,12 @@ export async function createTracker(
     },
     get fps() {
       return fps;
+    },
+    get delegate() {
+      return usedDelegate;
+    },
+    get analysisMs() {
+      return analysisMs;
     },
   };
 }

@@ -469,7 +469,8 @@ func (a *App) setCompact(ctx context.Context, on bool) {
 	wasScreen := o.screen
 	o.screen = false
 	o.mu.Unlock()
-	if wasScreen {
+	// Out of the full-screen gesture menu or of the full-screen layer (docs/DISENO.md).
+	if wasScreen || wruntime.WindowIsFullscreen(ctx) {
 		wruntime.WindowUnfullscreen(ctx)
 	}
 	wruntime.WindowShow(ctx)
@@ -483,6 +484,12 @@ func (a *App) setCompact(ctx context.Context, on bool) {
 	}
 	wruntime.WindowSetSize(ctx, overlayWidth, overlayHeight)
 	wruntime.WindowCenter(ctx)
+	o.mu.Lock()
+	layer := o.layer
+	o.mu.Unlock()
+	if layer { // back to the full-screen layer of the screen that was open
+		wruntime.WindowFullscreen(ctx)
+	}
 	wruntime.EventsEmit(ctx, "overlay:expanded")
 	wruntime.EventsEmit(ctx, "overlay:shown")
 }

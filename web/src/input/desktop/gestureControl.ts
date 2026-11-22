@@ -9,7 +9,7 @@
 //   (twice quickly: right click; holding: drag).
 import { actionFor, MAPS, type Action } from "../actions.ts";
 import { areaPoint, HandInteraction, POINTER_AREA, type WakeIssue } from "../interaction.ts";
-import { createTracker } from "../tracker.ts";
+import { createTracker, type Tracker } from "../tracker.ts";
 import { CONNECTIONS, L, type HandEvent, type HandFrame, type LevelTarget, type MenuSector, type MouseAction, type Point } from "../types.ts";
 import { latestOnly, OS_ACTIONS, toScreen, type ActionOptions, type CallAppId, type HelperClient } from "./client.ts";
 import { MARKUP } from "./markup.ts";
@@ -35,6 +35,10 @@ export interface GestureControlHandle {
   stop(): void;
   /** Shows only the camera (the desktop app's corner bubble). */
   setCompact(on: boolean): void;
+  /** Stops the camera (another part of the app needs it) with a reason shown over the view, or starts it again. */
+  setCamera(on: boolean, reason?: string): void;
+  /** Plays the camera again after the page was moved to another place in the document. */
+  resume(): void;
   /**
    * See-through over the whole screen: only the menu, the hints and a small camera preview are
    * painted; the rest of the page is transparent.
@@ -61,7 +65,9 @@ export function mountGestureControl(
   const interaction = new HandInteraction({ requireWake: true, mouseClicks: false, menuArea: POINTER_AREA });
   let stopped = false;
   let screenNeeded = false;
-  let tracker: { stop(): void } | null = null;
+  let tracker: Tracker | null = null;
+  let tDrawn = -Infinity;
+  const DRAW_MS = 1000 / 32;
 
   let context: DesktopContext = "call";
   let page: MenuPage = { id: "main" };
@@ -384,6 +390,14 @@ export function mountGestureControl(
     el.style.setProperty("--p", String(progress));
   }
 
+  /** Rewriting the same text every frame still costs layout work: only when it changes. */
+  function setHtml(el: HTMLElement, html: string) {
+    if (el.dataset.html !== html) {
+      el.dataset.html = html;
+      el.innerHTML = html;
+    }
+  }
+
   /** Volume or brightness being adjusted: the value, and how long until it is set. */
   function paintLevel(lvl: ReturnType<HandInteraction["levelActive"]>) {
     const el = $("level");
@@ -392,20 +406,29 @@ export function mountGestureControl(
     const brightness = interaction.levelTargetName === "brightness";
     const icon = brightness ? "🔆" : "🔊";
     if (!lvl) {
-      el.innerHTML = `${icon} <small>touch thumb and index, then open them</small>`;
+      setHtml(el, `${icon} <small>touch thumb and index, then open them</small>`);
       el.style.setProperty("--p", "0");
       return;
     }
     const hint = lvl.confirmProgress > 0 ? "hold still to set it" : "open or close your fingers";
-    el.innerHTML = `${icon} ${Math.round(lvl.value * 100)} % <small>${hint}</small>`;
+    setHtml(el, `${icon} ${Math.round(lvl.value * 100)} % <small>${hint}</small>`);
     el.style.setProperty("--p", String(lvl.confirmProgress));
   }
 
   function draw() {
     if (stopped) return;
     const t = performance.now();
-    const w = (canvas.width = video.videoWidth || 640);
-    const h = (canvas.height = video.videoHeight || 360);
+    // At most as often as the camera gives images: the screen may refresh 60–144 times a second.
+    if (t - tDrawn < DRAW_MS) {
+      requestAnimationFrame(draw);
+      return;
+    }
+    tDrawn = t;
+    // Setting a canvas's size reallocates and clears it: only when the camera's size changes.
+    const w = video.videoWidth || 640;
+    const h = video.videoHeight || 360;
+    if (canvas.width !== w) canvas.width = w;
+    if (canvas.height !== h) canvas.height = h;
     ctx.clearRect(0, 0, w, h);
     if (video.readyState >= 2) ctx.drawImage(video, 0, 0, w, h);
     for (const hand of lastFrame?.hands ?? []) {
@@ -465,11 +488,29 @@ export function mountGestureControl(
 
   // ---------- Start ----------
 
+  let statusText = "";
+
+  /**
+   * Speed in the status line, every second: images analysed per second, where the detector runs
+   * and how long each analysis takes. On the CPU it is several times slower: say so.
+   */
+  function showSpeed(base: string) {
+    const id = setInterval(() => {
+      if (stopped || !tracker) return clearInterval(id);
+      const tr = tracker;
+      const speed = `${Math.round(tr.fps)} fps · ${tr.delegate ?? "?"} · ${Math.round(tr.analysisMs)} ms`;
+      const el = $("status");
+      el.textContent = `${statusText || base} · ${speed}`;
+      el.classList.toggle("error", tr.delegate === "CPU" || (tr.fps > 0 && tr.fps < 15));
+    }, 1000);
+  }
+
   async function start() {
     try {
       const s = await helper.status();
       launchers = s.launchers ?? [];
-      $("status").textContent = `${s.dryRun ? "Dry run — nothing is pressed · " : ""}${s.desktop}`;
+      statusText = `${s.dryRun ? "Dry run — nothing is pressed · " : ""}${s.desktop}`;
+      $("status").textContent = statusText;
       $("dryrun").hidden = !s.dryRun;
       showPage({ id: "main" });
       paintGuide();
@@ -477,28 +518,88 @@ export function mountGestureControl(
       $("status").textContent = options.unreachable ?? "Helper not reachable — start it with: go run ./adapters/desktop (port 8767)";
       $("status").classList.add("error");
     }
+    await startCamera();
+  }
+
+  /** Each start or pause of the camera; a start that finds a newer one gives the camera back. */
+  let cameraRun = 0;
+  let drawing = false;
+
+  async function startCamera() {
+    const run = ++cameraRun;
+    const stale = () => stopped || run !== cameraRun;
+    showCameraMessage(null);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 }, audio: false });
-      if (stopped) {
+      // 640×360 is plenty: MediaPipe shrinks every image to ~200 px to find the hand, and a smaller
+      // image is cheaper to copy to it and to draw.
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: 30 } },
+        audio: false,
+      });
+      if (stale()) {
         for (const tr of stream.getTracks()) tr.stop();
         return;
       }
       video.srcObject = stream;
       await video.play();
-      requestAnimationFrame(draw); // the image shows even if the hand tracker fails to load
-      const tr = await createTracker(video, (f) => {
-        lastFrame = f;
-        interaction.process(f);
-      });
-      if (stopped) {
+      if (!drawing) {
+        drawing = true;
+        requestAnimationFrame(draw); // the image shows even if the hand tracker fails to load
+      }
+      // One hand: with two, MediaPipe looks for the second one in every frame while only one is
+      // in view, which costs as much as tracking it.
+      let tr: Tracker;
+      try {
+        tr = await createTracker(
+          video,
+          (f) => {
+            lastFrame = f;
+            interaction.process(f);
+          },
+          { numHands: 1 },
+        );
+      } catch (e) {
+        // The camera works but the hand detector didn't load (MediaPipe comes from the internet).
+        if (stale()) return;
+        const text = `✋ Hand detection could not start: ${(e as Error)?.message ?? e}`;
+        showCameraMessage(text, true);
+        $("status").textContent = text;
+        $("status").classList.add("error");
+        return;
+      }
+      if (stale()) {
         tr.stop();
         return;
       }
       tracker = tr;
+      showSpeed(statusText);
     } catch (e) {
-      $("status").textContent = `Camera error: ${(e as Error).message}`;
+      if (stale()) return;
+      const text = cameraErrorText(e);
+      showCameraMessage(text);
+      $("status").textContent = `Camera: ${text}`;
       $("status").classList.add("error");
     }
+  }
+
+  /** Gives the camera back (another part of the app needs it) and shows why it is off. */
+  function stopCamera(reason: string) {
+    cameraRun++;
+    tracker?.stop();
+    tracker = null;
+    lastFrame = null;
+    const stream = video.srcObject as MediaStream | null;
+    for (const t of stream?.getTracks() ?? []) t.stop();
+    video.srcObject = null;
+    showCameraMessage(reason);
+  }
+
+  /** A message over the camera view (no camera, camera in use…); null hides it. */
+  function showCameraMessage(text: string | null, soft = false) {
+    const el = $("nocam");
+    el.hidden = text === null;
+    el.textContent = text ?? "";
+    el.classList.toggle("soft", soft);
   }
 
   showPage({ id: "main" });
@@ -524,5 +625,23 @@ export function mountGestureControl(
     setCompact(on: boolean) {
       root.classList.toggle("compact", on);
     },
+    setCamera(on: boolean, reason = "📷 Camera paused: another option is using it") {
+      if (stopped) return;
+      if (on) void startCamera();
+      else stopCamera(reason);
+    },
+    resume() {
+      // Moving the page in the document can pause the video: play it again.
+      if (video.srcObject) void video.play().catch(() => {});
+    },
   };
+}
+
+/** A camera error in words for the user. */
+export function cameraErrorText(e: unknown): string {
+  const name = (e as { name?: string })?.name ?? "";
+  if (name === "NotAllowedError" || name === "SecurityError") return "📷 Camera blocked: allow camera access for this app";
+  if (name === "NotReadableError" || name === "AbortError") return "📷 Camera in use by another program";
+  if (name === "NotFoundError" || name === "OverconstrainedError") return "📷 No camera found";
+  return `📷 Camera error: ${(e as Error)?.message ?? String(e)}`;
 }
