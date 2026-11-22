@@ -1,21 +1,28 @@
 /* Gesture Control camera page, scoped under .gc so it can live inside the desktop app.
-   Halo design (docs/DISENO.md): the overlay's tokens from web/src/index.css, with the same values as
-   fallbacks so the stand-alone page (task gestures) looks the same without index.css. Gesture
-   Control's colour is --color-hand; the keyboard focus and what is chosen use --color-mark. */
+   Overlay design system (docs/DESIGN.md): the tokens from web/src/index.css, with the same values as
+   fallbacks so the stand-alone page (task gestures) looks the same without index.css. One accent
+   (--color-accent) for the focus, what is pointed at and what is chosen; everything else neutral. */
 .gc {
   color-scheme: dark;
-  --ink: var(--color-ink, #0a1128);
-  --text: var(--color-snow, #f3f6ff);
-  --muted: var(--color-mist, #b4bfdc);
-  --line: var(--color-line, rgb(196 210 255 / 0.18));
-  --mark: var(--color-mark, #ffd84d);
-  --hand: var(--color-hand, #49e3c4);
-  --hand-2: var(--color-hand-2, #7c8cff);
-  --glass: rgb(16 24 50 / 0.9);
-  --glass-strong: rgb(16 24 50 / 0.96);
-  --bad: #ff6b7a;
+  --ink: var(--color-on-accent, #0a1128);
+  --text: var(--color-fg, #f3f6ff);
+  --muted: var(--color-fg-muted, #b4bfdc);
+  --line: var(--color-edge, rgb(196 210 255 / 0.18));
+  --mark: var(--color-accent, #ffd84d);
+  --hand: var(--mark); /* one accent: Gesture Control has no colour of its own */
+  --glass: var(--color-surface, rgb(16 24 50 / 0.9));
+  --glass-strong: var(--color-surface-solid, rgb(16 24 50 / 0.96));
+  --bad: var(--color-danger, #ff6b7a);
+  --warn: var(--color-warn, #ffb547);
+  --fill: var(--color-fill-strong, rgb(255 255 255 / 0.12));
+  --scrim: var(--color-scrim, rgb(6 10 24 / 0.62));
+  --scrim-light: var(--color-scrim-light, rgb(6 10 24 / 0.4));
+  --backing: var(--color-backing, rgb(6 10 24 / 0.72));
+  --highlight: var(--color-highlight, rgb(255 255 255 / 0.06));
+  /* What fills while a hand holds a pose: the accent, light enough for the text on it (AA). */
+  --dwell: color-mix(in oklab, var(--mark) 38%, transparent);
   /* Kept for the code that reads them. */
-  --bg: var(--ink); --surface: var(--glass); --surface-2: rgb(255 255 255 / 0.08); --border: var(--line);
+  --bg: var(--ink); --surface: var(--glass); --surface-2: var(--fill); --border: var(--line);
   --accent: var(--hand); --accent-ink: var(--ink); --ok: var(--hand); --cyan: var(--mark);
   font: 400 clamp(18px, 0.6vw + 11px, 28px)/1.45 var(--font-sans, "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif);
   -webkit-font-smoothing: antialiased;
@@ -34,7 +41,7 @@
 .gc .brand { display: flex; align-items: center; gap: 14px; }
 .gc .logo { width: 2.6em; height: 2.6em; border-radius: 50%; display: grid; place-items: center; font-size: 1em;
   font-weight: 700; letter-spacing: .02em; color: var(--ink);
-  background: radial-gradient(circle at 35% 30%, var(--hand), var(--hand-2)); box-shadow: 0 0 0 3px rgb(73 227 196 / 0.25); }
+  background: var(--mark); }
 .gc h1 { font-size: 1.4em; font-weight: 700; margin: 0; }
 .gc #status { margin: 0; font-size: .9em; color: var(--muted); }
 .gc #status.error { color: var(--bad); font-weight: 700; }
@@ -42,7 +49,7 @@
 /* On/off: a large switch with its word next to it. */
 .gc .power { display: flex; align-items: center; gap: 10px; font-weight: 700; cursor: pointer; min-height: 48px;
   padding: 0 .9em; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-2); }
-.gc .power input { appearance: none; width: 60px; height: 34px; border-radius: 999px; background: rgb(255 255 255 / 0.12);
+.gc .power input { appearance: none; width: 60px; height: 34px; border-radius: 999px; background: var(--fill);
   box-shadow: inset 0 0 0 1px var(--line); position: relative; cursor: pointer; transition: background .2s; margin: 0; }
 .gc .power input::after { content: ""; position: absolute; top: 4px; left: 4px; width: 26px; height: 26px; border-radius: 50%;
   background: var(--muted); transition: transform .2s; }
@@ -51,7 +58,7 @@
 
 /* The camera. */
 .gc .stage { container-type: inline-size; position: relative; border-radius: 1.5rem; overflow: hidden; background: #000;
-  border: 1px solid var(--line); box-shadow: 0 40px 90px -30px rgb(0 0 0 / 0.75); }
+  border: 1px solid var(--line); box-shadow: none; }
 .gc canvas { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; transform: scaleX(-1); }
 .gc video { position: absolute; inset: 0; width: 100%; opacity: 0; pointer-events: none; }
 .gc .stage.off canvas { filter: grayscale(1) brightness(.5); }
@@ -60,19 +67,19 @@
 /* What the last gesture did: a pill in the tool's colour. */
 .gc #action { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); white-space: nowrap;
   font-size: clamp(15px, 3.2cqw, 44px); font-weight: 700; color: var(--ink); background: var(--hand);
-  padding: .25em .9em; border-radius: 999px; box-shadow: 0 10px 30px -10px rgb(0 0 0 / 0.8); }
+  padding: .25em .9em; border-radius: 999px; box-shadow: none; }
 .gc #action:empty { display: none; }
 .gc #action.error { background: var(--bad); color: var(--ink); }
 
 /* Fist menu: glass tiles around the hand; the one pointed at gets the tool's colour, the chosen one
    is filled in yellow (what is chosen, like what is being read). */
-.gc #menu { position: absolute; inset: 0; display: grid; background: rgb(6 10 24 / 0.62);
+.gc #menu { position: absolute; inset: 0; display: grid; background: var(--scrim);
   grid-template: "ul up ur" 1fr "left center right" 1fr "dl down dr" 1fr / 1fr 1fr 1fr; }
 .gc #menu[hidden] { display: none; }
 .gc #menu .op { --p: 0; margin: 10px; display: flex; align-items: center; justify-content: center; text-align: center;
   border-radius: 1.5rem; font-size: clamp(13px, 3.6cqw, 48px); font-weight: 700; line-height: 1.15; padding: .2em;
-  background: var(--glass); border: 1px solid var(--line); backdrop-filter: blur(18px);
-  background-image: linear-gradient(90deg, rgb(73 227 196 / 0.4) calc(var(--p) * 100%), transparent 0); }
+  background: var(--glass); border: 1px solid var(--line);
+  background-image: linear-gradient(90deg, var(--dwell) calc(var(--p) * 100%), transparent 0); }
 .gc #menu .op:empty { visibility: hidden; }
 .gc #menu .op.active { border: 4px solid var(--hand); color: var(--text); }
 .gc #menu .op.chosen { background: var(--mark); color: var(--ink); border-color: var(--mark); }
@@ -84,7 +91,7 @@
 .gc #sleep { --p: 0; position: absolute; top: 14px; left: 50%; transform: translateX(-50%); white-space: nowrap;
   max-width: calc(100% - 28px); overflow: hidden; text-overflow: ellipsis; font-size: clamp(14px, 2.8cqw, 36px);
   font-weight: 700; padding: .25em .9em; border-radius: 999px; background: var(--glass-strong); border: 1px solid var(--line);
-  background-image: linear-gradient(90deg, rgb(73 227 196 / 0.45) calc(var(--p) * 100%), transparent 0); }
+  background-image: linear-gradient(90deg, var(--dwell) calc(var(--p) * 100%), transparent 0); }
 .gc #sleep[hidden] { display: none; }
 .gc #cursor { position: absolute; width: 24px; height: 24px; margin: -12px 0 0 -12px; border-radius: 50%;
   background: var(--mark); border: 3px solid var(--ink); box-shadow: 0 0 0 3px var(--mark); pointer-events: none; }
@@ -95,7 +102,7 @@
 .gc .seg { display: inline-flex; padding: 4px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); }
 .gc .seg button { border: 0; background: none; min-height: 44px; padding: .4em 1.1em; border-radius: 999px; cursor: pointer;
   color: var(--muted); font-weight: 700; white-space: nowrap; }
-.gc .seg button:hover { color: var(--text); background: rgb(255 255 255 / 0.08); }
+.gc .seg button:hover { color: var(--text); background: var(--surface-2); }
 .gc .seg button[aria-pressed="true"] { background: var(--hand); color: var(--ink); }
 .gc select { min-height: 48px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: .4em 1em; }
 .gc select option { background: var(--ink); color: var(--text); }
@@ -104,8 +111,8 @@
 
 /* Guide and log: glass panels with the large Halo radius. */
 .gc .card { background: var(--glass); border: 1px solid var(--line); border-radius: 2rem; padding: 16px 22px; margin-bottom: 12px;
-  backdrop-filter: blur(18px); box-shadow: 0 1px 0 rgb(255 255 255 / 0.06) inset; }
-.gc .card h2 { margin: 0 0 8px; font-size: .85em; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+  box-shadow: 0 1px 0 var(--highlight) inset; }
+.gc .card h2 { margin: 0 0 8px; font-size: .85em; font-weight: 700; color: var(--muted); }
 .gc table { width: 100%; border-collapse: collapse; }
 .gc td { padding: 7px 6px; border-top: 1px solid var(--line); }
 .gc tr:first-child td { border-top: 0; }
@@ -119,7 +126,7 @@
 /* Compact: the desktop app shrinks to a camera bubble in a corner (only the camera stays). */
 .gc.compact { max-width: none; padding: 0; position: fixed; inset: 0; z-index: 50; background: transparent; }
 .gc.compact > :not(.stage) { display: none; }
-.gc.compact .stage { border-radius: 1.25rem; height: 100vh; border: 3px solid var(--hand); box-shadow: none; }
+.gc.compact .stage { border-radius: 1.25rem; height: 100vh; border: 2px solid var(--line); box-shadow: none; }
 .gc.compact canvas { height: 100%; width: 100%; object-fit: cover; aspect-ratio: auto; }
 .gc.compact #action, .gc.compact #sleep { padding: .15em .6em; }
 .gc.compact #menu .op { margin: 4px; border-radius: .75rem; }
@@ -128,7 +135,7 @@
 .gc #level { --p: 0; position: absolute; top: 14px; left: 50%; transform: translateX(-50%); white-space: nowrap;
   font-size: clamp(16px, 3.8cqw, 48px); font-weight: 700; padding: .2em .8em; border-radius: 999px; color: var(--text);
   background: var(--glass-strong); border: 4px solid var(--hand);
-  background-image: linear-gradient(90deg, rgb(73 227 196 / 0.5) calc(var(--p) * 100%), transparent 0); }
+  background-image: linear-gradient(90deg, var(--dwell) calc(var(--p) * 100%), transparent 0); }
 .gc #level[hidden] { display: none; }
 .gc #level small { font-size: .5em; font-weight: 700; color: var(--muted); margin-left: .5em; }
 
@@ -141,18 +148,20 @@ html.gc-see-through .gc.screen { visibility: visible; }
 .gc.screen > :not(.stage) { display: none; }
 .gc.screen .stage { height: 100vh; border-radius: 0; background: transparent; border: 0; box-shadow: none; }
 .gc.screen canvas { position: absolute; right: 24px; bottom: 24px; width: min(28vw, 360px); height: auto; aspect-ratio: 16 / 9;
-  border-radius: 1.25rem; box-shadow: 0 0 0 4px var(--hand); }
-.gc.screen #menu { background: rgb(6 10 24 / 0.4); }
+  border-radius: 1.25rem; box-shadow: 0 0 0 2px var(--line); }
+.gc.screen #menu { background: var(--scrim-light); }
+/* Over the desktop the scrim is light: the words in the middle get a soft plate (AA on white). */
+.gc.screen #menu .center { background: var(--backing); border-radius: .75rem; padding: .4em .8em; }
 .gc.screen #menu .op { margin: 2vmin; background: var(--glass); }
 .gc.screen #menu .center { background: var(--glass); border: 1px solid var(--line); border-radius: 1.5rem; margin: 2vmin; }
 .gc #dryrun { position: absolute; left: 0; right: 0; bottom: 0; z-index: 5; text-align: center; font-weight: 700;
-  font-size: clamp(14px, 2.8cqw, 34px); padding: .3em; color: var(--ink); background: var(--color-scan, #ffb547); }
+  font-size: clamp(14px, 2.8cqw, 34px); padding: .3em; color: var(--ink); background: var(--warn); }
 .gc #dryrun[hidden] { display: none; }
 /* The camera may give 4:3 instead of the 16:9 asked for: crop instead of stretching. */
 .gc canvas { object-fit: cover; }
 /* No camera, camera in use or paused: a message over the camera view, the app keeps working. */
 .gc #nocam { position: absolute; inset: 0; z-index: 4; display: flex; align-items: center; justify-content: center; text-align: center;
-  padding: 1em; font-weight: 700; font-size: clamp(14px, 3.2cqw, 32px); color: var(--text); background: rgb(10 17 40 / 0.88); }
+  padding: 1em; font-weight: 700; font-size: clamp(14px, 3.2cqw, 32px); color: var(--text); background: var(--glass-strong); }
 .gc #nocam[hidden] { display: none; }
 
 /* Desktop app, small camera panel in the top-left corner (N1): only the camera and the hand's
@@ -166,14 +175,14 @@ html.gc-see-through .gc.screen { visibility: visible; }
 .gc.gc-panel.expanded:not(.compact):not(.screen) .stage { height: 100vh; border-radius: 0; border: 0; }
 .gc.gc-panel.expanded:not(.compact):not(.screen) canvas { height: 100%; }
 /* The camera works but something else failed (the hand detector): a strip, the image stays visible. */
-.gc #nocam.soft { inset: auto 0 0 0; font-size: clamp(13px, 2.4cqw, 24px); background: rgb(10 17 40 / 0.85); }
+.gc #nocam.soft { inset: auto 0 0 0; font-size: clamp(13px, 2.4cqw, 24px); background: var(--glass-strong); }
 
 @media (prefers-reduced-motion: reduce) {
   .gc *, .gc *::before, .gc *::after { transition: none !important; animation: none !important; }
 }
 
 /* "Close app" quits the whole assistant: red, so it is not taken for "Close gestures". */
-.gc #menu .op.danger, .gc.screen #menu .op.danger { background: rgb(255 107 107 / 0.28); border-color: var(--bad); color: var(--text); }
+.gc #menu .op.danger, .gc.screen #menu .op.danger { background: color-mix(in oklab, var(--bad) 28%, transparent); border-color: var(--bad); color: var(--text); }
 .gc #menu .op.danger.active { border: 4px solid var(--bad); }
 .gc #menu .op.danger.chosen { background: var(--bad); color: var(--ink); }
 /* After "Close gestures": the message over the camera view is a button that turns them on again. */

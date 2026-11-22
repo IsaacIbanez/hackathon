@@ -29,7 +29,7 @@ export function DocumentText({
   }, [highlight])
 
   if (!doc) {
-    return <p className="text-2xl text-slate-300">Hold a document in front of the camera.</p>
+    return <p className="text-title text-fg-muted">Hold a document in front of the camera.</p>
   }
 
   // Reading order: top to bottom, then left to right (boxes are normalized to [0, 1]).
@@ -38,7 +38,7 @@ export function DocumentText({
   const firstId = blocks.find((b) => marked.has(b.id))?.id
 
   return (
-    <ol aria-label="Document" className="space-y-3 text-3xl leading-snug">
+    <ol aria-label="Document" className="space-y-3 text-display leading-snug">
       {blocks.map((b) => {
         const on = marked.has(b.id)
         const drafting = draft?.id === b.id
@@ -50,12 +50,12 @@ export function DocumentText({
               aria-current={drafting ? 'step' : undefined}
               className={
                 drafting
-                  ? 'rounded-lg border-4 border-dashed border-amber-300 px-3 py-2'
-                  : 'rounded-lg border-2 border-emerald-400 bg-emerald-950 px-3 py-2'
+                  ? 'rounded-chip border-4 border-dashed border-accent px-3 py-2'
+                  : 'rounded-chip border border-accent bg-surface-solid px-3 py-2'
               }
             >
               {writeValue(b.text, drafting ? draft!.value || '…' : saved)}
-              <span className="ml-3 text-xl font-normal italic">{drafting ? '(draft, not saved)' : '✓ saved'}</span>
+              <span className="ml-3 text-lead font-normal italic">{drafting ? '(draft, not saved)' : '✓ saved'}</span>
             </li>
           )
         }
@@ -66,12 +66,12 @@ export function DocumentText({
             aria-current={on ? 'true' : undefined}
             className={
               on
-                ? 'rounded-lg bg-yellow-300 px-3 py-2 font-bold text-slate-900'
-                : 'rounded-lg px-3 py-2'
+                ? 'rounded-chip bg-accent px-3 py-2 font-bold text-on-accent'
+                : 'rounded-chip px-3 py-2'
             }
           >
             {b.text}
-            {b.confidence < UNCLEAR && <span className="ml-3 text-xl font-normal italic opacity-80">(unclear)</span>}
+            {b.confidence < UNCLEAR && <span className="ml-3 text-lead font-normal italic opacity-80">(unclear)</span>}
           </li>
         )
       })}

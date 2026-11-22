@@ -192,10 +192,10 @@ export function DocumentsMode() {
     <div className="flex h-full flex-col gap-4">
       <Status tone={phase === 'error' ? 'warn' : 'info'}>{message}</Status>
       {(phase === 'starting' || phase === 'framing') && (
-        <div className="relative min-h-[18rem] flex-1 overflow-hidden rounded-[1.5rem] border border-[var(--color-line)] bg-black">
+        <div className="relative min-h-[18rem] flex-1 overflow-hidden rounded-card border border-edge bg-ink">
           <video ref={videoRef} muted playsInline className="h-full w-full object-contain" />
           {phase === 'framing' && (
-            <button type="button" onClick={() => void takeNow()} className="btn btn-primary absolute bottom-5 left-1/2 -translate-x-1/2 text-xl">
+            <button type="button" onClick={() => void takeNow()} className="btn btn-primary absolute bottom-5 left-1/2 -translate-x-1/2 text-lead">
               Take the photo now <span className="kbd">Enter</span>
             </button>
           )}
@@ -203,7 +203,7 @@ export function DocumentsMode() {
       )}
       {phase === 'error' && (
         <div>
-          <button type="button" onClick={again} className="btn btn-primary text-xl">
+          <button type="button" onClick={again} className="btn btn-primary text-lead">
             Try again <span className="kbd">Enter</span>
           </button>
         </div>

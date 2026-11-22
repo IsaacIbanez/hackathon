@@ -30,7 +30,7 @@ func main() {
 		Width:       overlayWidth,
 		Height:      overlayHeight,
 		AlwaysOnTop: true,
-		// No title bar (docs/DISENO.md): the layer, the panels and the bubbles draw their own edges;
+		// No title bar (docs/DESIGN.md): the layer, the panels and the bubbles draw their own edges;
 		// a panel is dragged by its header (--wails-draggable in web/src/app/overlay/ui.tsx).
 		Frameless: true,
 		AssetServer: &assetserver.Options{

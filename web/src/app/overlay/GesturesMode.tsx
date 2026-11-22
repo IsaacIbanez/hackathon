@@ -20,11 +20,11 @@ export function GesturesMode() {
   }, [])
 
   if (!inDesktopApp()) {
-    return <p className="text-2xl text-amber-300">Only available in the desktop app (task overlay → build/bin/lauzhack.exe).</p>
+    return <p className="text-title text-warn">Only available in the desktop app (task overlay → build/bin/lauzhack.exe).</p>
   }
   return (
     <div className="space-y-3">
-      <p className="flex flex-wrap items-center gap-3 text-lg text-[var(--color-mist)]">
+      <p className="flex flex-wrap items-center gap-3 text-body text-fg-muted">
         <button type="button" onClick={() => void desktop().SetCompact(true)} className="btn btn-primary">
           Shrink to a camera bubble <span className="kbd">M</span>
         </button>

@@ -349,15 +349,15 @@ export function LiveCaptions({ onClose }: LiveCaptionsProps) {
 
   const running = phase === 'connecting' || phase === 'live' || phase === 'local'
   const busy = running || phase === 'finishing'
-  const bannerColor = banner?.kind === 'error' ? 'bg-red-700' : banner?.kind === 'warn' ? 'bg-amber-500 text-black' : 'bg-sky-800'
-  const select = 'rounded-lg border-2 border-white bg-black px-3 py-2 text-lg text-white disabled:opacity-50'
-  const button = 'rounded-lg border-2 border-white px-4 py-2 text-lg font-semibold disabled:opacity-40'
+  const bannerColor = banner?.kind === 'error' ? 'bg-danger text-on-accent' : banner?.kind === 'warn' ? 'bg-warn text-on-accent' : 'bg-surface-solid'
+  const select = 'rounded-chip border border-edge bg-ink px-3 py-2 text-body text-fg disabled:opacity-50'
+  const button = 'btn disabled:opacity-40'
 
   return (
-    <section className="flex h-full min-h-0 flex-col bg-black text-white" aria-label="Live captions">
-      <header className="flex flex-wrap items-end gap-3 border-b-2 border-white/30 p-3">
-        <h1 className="mr-2 text-2xl font-bold">Live captions</h1>
-        <label className="flex flex-col text-sm">
+    <section className="flex h-full min-h-0 flex-col text-fg" aria-label="Live captions">
+      <header className="flex flex-wrap items-end gap-3 border-b border-edge p-3">
+        <h1 className="mr-2 text-title font-bold">Live captions</h1>
+        <label className="flex flex-col text-meta">
           Microphone
           <select className={select} value={micId} disabled={busy} onChange={(e) => setMicId(e.target.value)}>
             <option value="">Default microphone</option>
@@ -368,7 +368,7 @@ export function LiveCaptions({ onClose }: LiveCaptionsProps) {
             ))}
           </select>
         </label>
-        <label className="flex flex-col text-sm">
+        <label className="flex flex-col text-meta">
           Spoken language
           <select
             className={select}
@@ -386,7 +386,7 @@ export function LiveCaptions({ onClose }: LiveCaptionsProps) {
             ))}
           </select>
         </label>
-        <label className="flex flex-col text-sm" title="Telling how many people talk helps to know who says what">
+        <label className="flex flex-col text-meta" title="Telling how many people talk helps to know who says what">
           People speaking
           <select
             className={select}
@@ -404,7 +404,7 @@ export function LiveCaptions({ onClose }: LiveCaptionsProps) {
             ))}
           </select>
         </label>
-        <label className="flex flex-col text-sm">
+        <label className="flex flex-col text-meta">
           Translate to
           <select className={select} value={target} disabled={phase === 'local' || phase === 'finishing'} onChange={(e) => changeTarget(e.target.value)}>
             {TARGETS.map(([v, l]) => (
@@ -415,17 +415,17 @@ export function LiveCaptions({ onClose }: LiveCaptionsProps) {
           </select>
         </label>
         {running ? (
-          <button type="button" className={`${button} bg-red-600`} onClick={stop}>
+          <button type="button" className={`${button} btn-danger`} onClick={stop}>
             Stop
           </button>
         ) : (
-          <button type="button" className={`${button} bg-green-700`} disabled={phase === 'finishing'} onClick={() => void start()}>
+          <button type="button" className={`${button} btn-primary`} disabled={phase === 'finishing'} onClick={() => void start()}>
             Start
           </button>
         )}
         <button
           type="button"
-          className={`${button} ${callAudio ? 'bg-sky-700' : ''}`}
+          className={`${button} ${callAudio ? 'btn-primary' : ''}`}
           disabled={phase !== 'live' || !canCaptureCallAudio()}
           title={canCaptureCallAudio() ? 'Also caption a tab or screen with sound (a call, a video)' : 'This window cannot capture other audio; use Chrome'}
           aria-pressed={callAudio}
@@ -452,10 +452,10 @@ export function LiveCaptions({ onClose }: LiveCaptionsProps) {
       </header>
 
       {banner && (
-        <div role="alert" className={`flex flex-wrap items-center gap-3 px-4 py-3 text-xl font-semibold ${bannerColor}`}>
+        <div role="alert" className={`flex flex-wrap items-center gap-3 px-4 py-3 text-lead font-bold ${bannerColor}`}>
           <span>{banner.text}</span>
           {offerLocal && (
-            <button type="button" className={`${button} bg-black text-white`} onClick={() => void startLocalWhisper()}>
+            <button type="button" className={button} onClick={() => void startLocalWhisper()}>
               Use local Whisper (less accurate)
             </button>
           )}
@@ -465,23 +465,23 @@ export function LiveCaptions({ onClose }: LiveCaptionsProps) {
       <div className="relative min-h-0 flex-1">
         <div ref={listRef} onScroll={onScroll} className="h-full overflow-y-auto px-4 py-3" style={{ fontSize: fontPx, lineHeight: 1.3 }}>
           {captions.lines.length === 0 && !captions.partial && (
-            <p className="text-white/60" style={{ fontSize: Math.max(20, fontPx * 0.6) }}>
+            <p className="text-fg-muted" style={{ fontSize: Math.max(20, fontPx * 0.6) }}>
               {phase === 'idle' || phase === 'ended' ? 'Press Start and speak: the captions appear here.' : 'Listening…'}
             </p>
           )}
           <ol aria-live="polite" aria-relevant="additions" className="space-y-4">
             {captions.lines.map((l) => (
               <li key={l.id}>
-                <div className="text-white/60" style={{ fontSize: Math.max(16, fontPx * 0.45) }}>
+                <div className="text-fg-muted" style={{ fontSize: Math.max(16, fontPx * 0.45) }}>
                   {clock(l.start)}
-                  {l.lang && <span className="ml-3 rounded border border-white/40 px-1 uppercase">{l.lang}</span>}
-                  {l.speaker && <span className="ml-3 font-bold text-cyan-300">{l.speaker}</span>}
+                  {l.lang && <span className="tag ml-3 uppercase">{l.lang}</span>}
+                  {l.speaker && <span className="ml-3 font-bold text-accent">{l.speaker}</span>}
                 </div>
-                <p className="font-semibold" lang={l.lang}>
+                <p className="font-bold" lang={l.lang}>
                   {l.text}
                 </p>
                 {Object.entries(l.translations).map(([tl, tx]) => (
-                  <p key={tl} className="text-yellow-300" lang={tl}>
+                  <p key={tl} className="text-fg-muted" lang={tl}>
                     <span className="sr-only">{`Translation (${tl}): `}</span>
                     {tx}
                   </p>
@@ -489,26 +489,26 @@ export function LiveCaptions({ onClose }: LiveCaptionsProps) {
               </li>
             ))}
           </ol>
-          {captions.partial && <p className="mt-4 italic text-white/80">{captions.partial}</p>}
+          {captions.partial && <p className="mt-4 italic text-fg-muted">{captions.partial}</p>}
         </div>
         {!atBottom && (
-          <button type="button" className={`${button} absolute bottom-4 right-6 bg-white text-black`} onClick={jumpToLatest}>
+          <button type="button" className={`${button} btn-primary absolute bottom-4 right-6`} onClick={jumpToLatest}>
             Jump to latest ↓
           </button>
         )}
       </div>
 
-      <footer className="flex flex-wrap items-center gap-4 border-t-2 border-white/30 px-4 py-2 text-lg">
-        <span aria-label="Input level" className="inline-block h-3 w-32 overflow-hidden rounded bg-white/20">
-          <span className="block h-full bg-green-400" style={{ width: `${Math.round(level * 100)}%` }} />
+      <footer className="flex flex-wrap items-center gap-4 border-t border-edge px-4 py-2 text-body">
+        <span aria-label="Input level" className="inline-block h-3 w-32 overflow-hidden rounded-chip bg-fill-strong">
+          <span className="block h-full bg-accent" style={{ width: `${Math.round(level * 100)}%` }} />
         </span>
         <span>
           {phase === 'local' ? 'Local Whisper · 0 $' : `Cost: ${captions.costUsd.toFixed(4)} $${captions.limitUsd ? ` of ${captions.limitUsd.toFixed(2)} $` : ''}`}
         </span>
-        {captions.model && phase !== 'local' && <span className="text-white/60">{captions.model}</span>}
-        {captions.savedPath && <span className="text-white/80">Saved: {captions.savedPath}</span>}
+        {captions.model && phase !== 'local' && <span className="text-fg-muted">{captions.model}</span>}
+        {captions.savedPath && <span className="text-fg-muted">Saved: {captions.savedPath}</span>}
         {notice && (
-          <span role="status" className="text-amber-300">
+          <span role="status" className="text-warn">
             {notice}
           </span>
         )}

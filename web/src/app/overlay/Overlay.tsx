@@ -15,7 +15,7 @@ import { MODES, modeForKey, type ModeId } from './modes.ts'
 import { Icon, Panel } from './ui.tsx'
 import { useVoiceCommand, VoiceBanner } from './useVoiceCommand.tsx'
 
-// The overlay (docs/OVERLAY.md, design in docs/DISENO.md): a see-through layer over the screen with
+// The overlay (docs/OVERLAY.md, design in docs/DESIGN.md): a see-through layer over the screen with
 // the team's tools around Gesture Control. Ctrl+Alt+Space (or an MX Keypad key mapped to it) shows
 // and hides it from any program. Keys: 1–4 (or Num 1–4) choose,
 // Esc goes back to the menu and, from the menu, hides the overlay. D opens the old developer screen,
@@ -180,8 +180,8 @@ export function Overlay() {
           }}
           onHide={() => inDesktopApp() && void desktop().HideOverlay()}
           extras={MENU_PANELS.map(({ id, title, Component }) => (
-            <section key={id} aria-label={title} className="glass rounded-[1.5rem] p-5">
-              <h2 className="mb-2 text-lg font-bold">{title}</h2>
+            <section key={id} aria-label={title} className="glass rounded-card p-5">
+              <h2 className="mb-2 text-body font-bold">{title}</h2>
               <Component />
             </section>
           ))}
@@ -253,9 +253,9 @@ function CameraPanel({ hidden, onToggle }: { hidden: boolean; onToggle: () => vo
     <div className="fixed top-5 left-5 z-30 flex flex-col items-start gap-2" style={{ width: hidden ? undefined : CAMERA_PANEL_WIDTH }}>
       <GestureSlot
         variant="panel"
-        className={hidden ? 'hidden' : 'w-full overflow-hidden rounded-[1.25rem] border border-[var(--color-line)] shadow-[0_24px_60px_-24px_rgb(0_0_0/0.8)]'}
+        className={hidden ? 'hidden' : 'w-full overflow-hidden rounded-card border border-edge shadow-edge'}
       />
-      <button type="button" onClick={onToggle} className="btn glass min-h-0 py-1.5 text-sm">
+      <button type="button" onClick={onToggle} className="btn glass min-h-0 py-1.5 text-meta">
         <Icon name="hand" size={18} /> {hidden ? 'Show camera' : 'Hide camera'}
       </button>
     </div>
@@ -275,7 +275,7 @@ function Toolbar({ ctx }: { ctx: OverlayContext }) {
           onClick={() => b.run(ctx)}
           aria-keyshortcuts={b.key}
           title={b.key ? `${b.label} (${b.key})` : b.label}
-          className="btn min-h-0 border-transparent bg-transparent py-1.5 text-base"
+          className="btn min-h-0 border-transparent bg-transparent py-1.5 text-body"
         >
           {b.label}
           {b.key && <span className="kbd">{b.key}</span>}
