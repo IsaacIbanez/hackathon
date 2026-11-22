@@ -88,3 +88,20 @@ html.gc-see-through .gc.screen { visibility: visible; }
 .gc #dryrun[hidden] { display: none; }
 /* The camera may give 4:3 instead of the 16:9 asked for: crop instead of stretching. */
 .gc canvas { object-fit: cover; }
+/* No camera, camera in use or paused: a message over the camera view, the app keeps working. */
+.gc #nocam { position: absolute; inset: 0; z-index: 4; display: flex; align-items: center; justify-content: center; text-align: center;
+  padding: 1em; font-weight: 800; font-size: clamp(12px, 3cqw, 30px); color: #fff; background: #0b0d12d9; }
+.gc #nocam[hidden] { display: none; }
+
+/* Desktop app, small camera panel in the top-left corner (N1): only the camera and the hand's
+   points. While the gesture menu or the volume/brightness control is in use it grows over the
+   whole window, with all its hints. */
+.gc.gc-panel { max-width: none; min-width: 0; padding: 0; margin: 0; background: transparent; }
+.gc.gc-panel > :not(.stage) { display: none; }
+.gc.gc-panel .stage { border-radius: 0; box-shadow: none; }
+.gc.gc-panel:not(.expanded) #sleep, .gc.gc-panel:not(.expanded) #action, .gc.gc-panel:not(.expanded) #level { display: none; }
+.gc.gc-panel.expanded:not(.compact):not(.screen) { position: fixed; inset: 0; z-index: 40; background: var(--bg); }
+.gc.gc-panel.expanded:not(.compact):not(.screen) .stage { height: 100vh; }
+.gc.gc-panel.expanded:not(.compact):not(.screen) canvas { height: 100%; }
+/* The camera works but something else failed (the hand detector): a strip, the image stays visible. */
+.gc #nocam.soft { inset: auto 0 0 0; font-size: clamp(11px, 2.2cqw, 22px); background: #0b0d12cc; }

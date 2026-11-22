@@ -35,6 +35,10 @@ export interface GestureControlHandle {
   stop(): void;
   /** Shows only the camera (the desktop app's corner bubble). */
   setCompact(on: boolean): void;
+  /** Stops the camera (another part of the app needs it) with a reason shown over the view, or starts it again. */
+  setCamera(on: boolean, reason?: string): void;
+  /** Plays the camera again after the page was moved to another place in the document. */
+  resume(): void;
   /**
    * See-through over the whole screen: only the menu, the hints and a small camera preview are
    * painted; the rest of the page is transparent.
@@ -514,6 +518,17 @@ export function mountGestureControl(
       $("status").textContent = options.unreachable ?? "Helper not reachable — start it with: go run ./adapters/desktop (port 8767)";
       $("status").classList.add("error");
     }
+    await startCamera();
+  }
+
+  /** Each start or pause of the camera; a start that finds a newer one gives the camera back. */
+  let cameraRun = 0;
+  let drawing = false;
+
+  async function startCamera() {
+    const run = ++cameraRun;
+    const stale = () => stopped || run !== cameraRun;
+    showCameraMessage(null);
     try {
       // 640×360 is plenty: MediaPipe shrinks every image to ~200 px to find the hand, and a smaller
       // image is cheaper to copy to it and to draw.
@@ -521,33 +536,70 @@ export function mountGestureControl(
         video: { width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: 30 } },
         audio: false,
       });
-      if (stopped) {
+      if (stale()) {
         for (const tr of stream.getTracks()) tr.stop();
         return;
       }
       video.srcObject = stream;
       await video.play();
-      requestAnimationFrame(draw); // the image shows even if the hand tracker fails to load
+      if (!drawing) {
+        drawing = true;
+        requestAnimationFrame(draw); // the image shows even if the hand tracker fails to load
+      }
       // One hand: with two, MediaPipe looks for the second one in every frame while only one is
       // in view, which costs as much as tracking it.
-      const tr = await createTracker(
-        video,
-        (f) => {
-          lastFrame = f;
-          interaction.process(f);
-        },
-        { numHands: 1 },
-      );
-      if (stopped) {
+      let tr: Tracker;
+      try {
+        tr = await createTracker(
+          video,
+          (f) => {
+            lastFrame = f;
+            interaction.process(f);
+          },
+          { numHands: 1 },
+        );
+      } catch (e) {
+        // The camera works but the hand detector didn't load (MediaPipe comes from the internet).
+        if (stale()) return;
+        const text = `✋ Hand detection could not start: ${(e as Error)?.message ?? e}`;
+        showCameraMessage(text, true);
+        $("status").textContent = text;
+        $("status").classList.add("error");
+        return;
+      }
+      if (stale()) {
         tr.stop();
         return;
       }
       tracker = tr;
       showSpeed(statusText);
     } catch (e) {
-      $("status").textContent = `Camera error: ${(e as Error).message}`;
+      if (stale()) return;
+      const text = cameraErrorText(e);
+      showCameraMessage(text);
+      $("status").textContent = `Camera: ${text}`;
       $("status").classList.add("error");
     }
+  }
+
+  /** Gives the camera back (another part of the app needs it) and shows why it is off. */
+  function stopCamera(reason: string) {
+    cameraRun++;
+    tracker?.stop();
+    tracker = null;
+    lastFrame = null;
+    const stream = video.srcObject as MediaStream | null;
+    for (const t of stream?.getTracks() ?? []) t.stop();
+    video.srcObject = null;
+    showCameraMessage(reason);
+  }
+
+  /** A message over the camera view (no camera, camera in use…); null hides it. */
+  function showCameraMessage(text: string | null, soft = false) {
+    const el = $("nocam");
+    el.hidden = text === null;
+    el.textContent = text ?? "";
+    el.classList.toggle("soft", soft);
   }
 
   showPage({ id: "main" });
@@ -573,5 +625,23 @@ export function mountGestureControl(
     setCompact(on: boolean) {
       root.classList.toggle("compact", on);
     },
+    setCamera(on: boolean, reason = "📷 Camera paused: another option is using it") {
+      if (stopped) return;
+      if (on) void startCamera();
+      else stopCamera(reason);
+    },
+    resume() {
+      // Moving the page in the document can pause the video: play it again.
+      if (video.srcObject) void video.play().catch(() => {});
+    },
   };
+}
+
+/** A camera error in words for the user. */
+export function cameraErrorText(e: unknown): string {
+  const name = (e as { name?: string })?.name ?? "";
+  if (name === "NotAllowedError" || name === "SecurityError") return "📷 Camera blocked: allow camera access for this app";
+  if (name === "NotReadableError" || name === "AbortError") return "📷 Camera in use by another program";
+  if (name === "NotFoundError" || name === "OverconstrainedError") return "📷 No camera found";
+  return `📷 Camera error: ${(e as Error)?.message ?? String(e)}`;
 }

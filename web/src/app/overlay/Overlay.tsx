@@ -5,6 +5,9 @@ import { GesturesMode } from './GesturesMode.tsx'
 import { ReadFileMode } from './ReadFileMode.tsx'
 import { SummarizeMode } from './SummarizeMode.tsx'
 import { desktop, inDesktopApp, onDesktopEvent, type OverlayInfo } from './desktop.ts'
+import { MENU_PANELS, TOOLBAR, type OverlayContext, type OverlayView } from './extensions.ts'
+import { GestureSlot } from './GestureSlot.tsx'
+import { pauseCamera, resumeCamera } from './gestureHost.ts'
 import { keypadCommand, pressKey, type KeypadAction } from './keypad.ts'
 import { MODES, modeForKey, type ModeId } from './modes.ts'
 import { useVoiceCommand, VoiceBanner } from './useVoiceCommand.tsx'
@@ -14,13 +17,43 @@ import { useVoiceCommand, VoiceBanner } from './useVoiceCommand.tsx'
 // Esc goes back to the menu and, from the menu, hides the overlay. D opens the old developer screen,
 // Q quits the app (and the helper programs it started).
 
-type View = ModeId | 'menu' | 'developer'
+type View = OverlayView
+
+/** Screens that open the camera themselves: the gestures give it back meanwhile (one camera). */
+const NEEDS_CAMERA: View[] = ['documents', 'developer']
+
+/** Remembered between runs: whether the person hid the camera panel. */
+function cameraPanelHidden(): boolean {
+  try {
+    return localStorage.getItem('overlay.cameraPanel') === 'hidden'
+  } catch {
+    return false
+  }
+}
 
 export function Overlay() {
   const [view, setView] = useState<View>('menu')
   const [info, setInfo] = useState<OverlayInfo | null>(null)
   // Each summary request mounts option 4 afresh (it summarizes once, when it opens).
   const [summaryRun, setSummaryRun] = useState(0)
+  const [cameraHidden, setCameraHidden] = useState(cameraPanelHidden)
+
+  // One camera: option 2 and the developer screen open it themselves.
+  useEffect(() => {
+    if (!NEEDS_CAMERA.includes(view)) return
+    pauseCamera()
+    return () => resumeCamera()
+  }, [view])
+
+  const toggleCameraPanel = () =>
+    setCameraHidden((hidden) => {
+      try {
+        localStorage.setItem('overlay.cameraPanel', hidden ? 'shown' : 'hidden')
+      } catch {
+        // Without storage it is only remembered while the app runs.
+      }
+      return !hidden
+    })
 
   useEffect(() => {
     if (inDesktopApp()) desktop().OverlayInfo().then(setInfo).catch(() => {})
@@ -105,9 +138,11 @@ export function Overlay() {
     return () => window.removeEventListener('keydown', onKey)
   }, [view])
 
+  const ctx: OverlayContext = { view, setView }
   if (view === 'developer') {
     return (
       <div>
+        <Toolbar ctx={ctx} />
         <BackBar onBack={() => setView('menu')} title="Developer screen" />
         <App />
       </div>
@@ -132,8 +167,15 @@ export function Overlay() {
     )
   }
 
+  // The camera panel (top left) shows on every screen but option 1, which shows the whole page.
+  const panel = inDesktopApp() && view !== 'gestures'
   return (
-    <main className="min-h-screen bg-slate-900 p-6 text-slate-50">
+    <main
+      className="min-h-screen bg-slate-900 p-6 pt-16 text-slate-50"
+      style={panel && !cameraHidden ? { paddingLeft: CAMERA_PANEL_WIDTH + 36 } : undefined}
+    >
+      <Toolbar ctx={ctx} />
+      {panel && <CameraPanel hidden={cameraHidden} onToggle={toggleCameraPanel} />}
       <VoiceBanner status={voice.status} />
       {current ? (
         <>
@@ -175,12 +217,57 @@ function Menu({ info, onChoose }: { info: OverlayInfo | null; onChoose: (id: Mod
         {info && !info.hotkeyOk && ` The shortcut ${info.hotkey} could not be registered: the window stays available.`}
       </p>
       <KeypadStatus info={info} />
-      {inDesktopApp() && (
-        <button type="button" onClick={() => void desktop().Quit()} className="text-base text-slate-500 underline">
-          Quit the app (Q)
-        </button>
-      )}
+      {MENU_PANELS.map(({ id, title, Component }) => (
+        <section key={id} aria-label={title} className="rounded-2xl border border-slate-700 p-4">
+          <h2 className="mb-2 text-xl font-bold">{title}</h2>
+          <Component />
+        </section>
+      ))}
     </section>
+  )
+}
+
+const CAMERA_PANEL_WIDTH = 288
+
+/**
+ * The camera in the top-left corner (N1): the hand's points live, on every screen. The gesture
+ * engine behind it is the one of option 1 (gestureHost.ts). Hiding it only hides the view.
+ */
+function CameraPanel({ hidden, onToggle }: { hidden: boolean; onToggle: () => void }) {
+  return (
+    <div className="fixed left-3 top-3 z-30" style={{ width: hidden ? undefined : CAMERA_PANEL_WIDTH }}>
+      <GestureSlot variant="panel" className={hidden ? 'hidden' : 'overflow-hidden rounded-xl ring-1 ring-slate-600'} />
+      <button
+        type="button"
+        onClick={onToggle}
+        className="mt-1 rounded-lg border border-slate-600 bg-slate-800 px-2 py-0.5 text-sm text-slate-200"
+      >
+        {hidden ? '📷 Show camera' : 'Hide camera'}
+      </button>
+    </div>
+  )
+}
+
+/** Buttons for what the keys do (extensions.ts), top right: the overlay works with the mouse only. */
+function Toolbar({ ctx }: { ctx: OverlayContext }) {
+  const buttons = TOOLBAR.filter((b) => b.show?.(ctx) ?? true)
+  if (buttons.length === 0) return null
+  return (
+    <nav aria-label="Window" className="fixed right-3 top-3 z-30 flex gap-2">
+      {buttons.map((b) => (
+        <button
+          key={b.id}
+          type="button"
+          onClick={() => b.run(ctx)}
+          aria-keyshortcuts={b.key}
+          title={b.key ? `${b.label} (${b.key})` : b.label}
+          className="rounded-lg border border-slate-600 bg-slate-800 px-3 py-1 text-base text-slate-100"
+        >
+          {b.label}
+          {b.key && <span className="ml-1 text-sm text-slate-400">({b.key})</span>}
+        </button>
+      ))}
+    </nav>
   )
 }
 

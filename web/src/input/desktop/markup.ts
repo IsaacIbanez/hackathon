@@ -15,6 +15,7 @@ export const MARKUP = `
       <video id="video" autoplay playsinline muted></video>
       <canvas id="canvas" aria-label="Camera view with hand tracking"></canvas>
       <div id="action" aria-live="assertive"></div>
+      <div id="nocam" role="status" hidden></div>
       <div id="dryrun" role="alert" hidden>⚠️ SIMULATION — nothing happens on the computer (dry run)</div>
       <div id="sleep" role="status" hidden></div>
       <div id="level" role="status" hidden></div>
