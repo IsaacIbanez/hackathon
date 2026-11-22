@@ -122,6 +122,19 @@ func (d *macDesktop) SetBrightness(v float64) error {
 	return osascript(script)
 }
 
+// MicMuted: "muted" on macOS is an input volume of 0 (see ToggleMicMute).
+func (d *macDesktop) MicMuted() (bool, error) {
+	out, err := exec.Command("osascript", "-e", "input volume of (get volume settings)").Output()
+	if err != nil {
+		return false, fmt.Errorf("osascript: %v", err)
+	}
+	var current int
+	if _, err := fmt.Sscanf(strings.TrimSpace(string(out)), "%d", &current); err != nil {
+		return false, fmt.Errorf("parse input volume %q: %v", string(out), err)
+	}
+	return current == 0, nil
+}
+
 func (d *macDesktop) ToggleMicMute() (string, error) {
 	out, err := exec.Command("osascript", "-e", "input volume of (get volume settings)").Output()
 	if err != nil {

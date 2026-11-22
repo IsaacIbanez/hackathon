@@ -5,6 +5,7 @@ import type { MenuItem } from "./menu.ts";
 const ICONS: Record<string, string> = {
   volume: '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/>',
   brightness: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  home: '<path d="M4 6h16M4 12h16M4 18h10"/>',
   handOff: '<path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V11M11 10.5V4a1.5 1.5 0 0 1 3 0v6.5M14 10.5V5.5a1.5 1.5 0 0 1 3 0V13"/><path d="M17 11.5a1.5 1.5 0 0 1 3 0V15a6 6 0 0 1-6 6h-1.5a6 6 0 0 1-4.9-2.5L4.3 15a1.6 1.6 0 0 1 2.5-2L8 14.5"/><path d="M3 3l18 18"/>',
   power: '<path d="M12 3v8"/><path d="M6.3 7.5a8 8 0 1 0 11.4 0"/>',
   mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/>',
@@ -36,8 +37,8 @@ export function optionParts(item: MenuItem | undefined, text: string): { icon: s
   switch (item.kind) {
     case "level":
       return { icon: item.target === "volume" ? "volume" : "brightness", name };
-    case "gestures_off":
-      return { icon: "handOff", name };
+    case "main_menu":
+      return { icon: "home", name };
     case "quit":
     case "power":
       return { icon: "power", name };

@@ -13,13 +13,14 @@ import { desktop, errorText, inDesktopApp, onDesktopEvent } from './desktop.ts'
 
 export type GestureVariant = 'panel' | 'full'
 
+/** Window event: the gesture menu's "Main menu" asks the overlay to show its main menu. */
+export const MAIN_MENU_EVENT = 'gestures:main-menu'
+
 let root: HTMLDivElement | null = null
 let handle: GestureControlHandle | null = null
 let compact = false
 let tMoved = -Infinity
 let paused = false
-/** false after "Close gestures" in the menu, until the camera view is clicked. */
-let gesturesOn = true
 
 /** The page's root, built and started the first time (null outside the desktop app). */
 export function gestureRoot(): HTMLDivElement | null {
@@ -51,18 +52,14 @@ export function gestureRoot(): HTMLDivElement | null {
       }
       return true
     },
-    // "Close gestures" (Isaac, 2026-11-22): for now it only brings the overlay back, from the bubble
-    // or over it; the camera and the gestures keep running.
-    onCloseGestures: () => void app.SetCompact(false).catch(() => {}),
+    // "Main menu": the overlay's main menu comes back, from the bubble or over another option; the
+    // camera and the gestures keep running (the hand cursor can choose an option there).
+    onMainMenu: () => {
+      window.dispatchEvent(new Event(MAIN_MENU_EVENT))
+      if (compact) void app.SetCompact(false).catch(() => {})
+    },
     // "Close app" in the gesture menu.
     onQuit: () => void app.Quit().catch(() => {}),
-    // "Close gestures": only the camera stops; the app stays. From the bubble, the window comes back
-    // (a bubble without gestures is no use). A click on the camera view turns them on again.
-    onGestures: (on) => {
-      gesturesOn = on
-      void app.SetGesturesActive(on && !paused).catch(() => {})
-      if (!on && compact) void app.SetCompact(false).catch(() => {})
-    },
     // The bubble dodges the gesture cursor: clicks on it would go to this window, not to the
     // program below. It jumps to the other top corner when the cursor is on it.
     onPointer: (p) => {
@@ -90,13 +87,9 @@ export function gestureRoot(): HTMLDivElement | null {
   return root
 }
 
-/**
- * Turns the gestures on again after "Close gestures" in the menu, as a click on the camera view does
- * (opening Gesture Control means the person wants them).
- */
+/** Wakes the gestures if they fell asleep (opening Gesture Control means the person wants them). */
 export function turnGesturesOn(): void {
-  if (gesturesOn || !root) return
-  root.querySelector<HTMLElement>('#nocam')?.click()
+  handle?.wakeGestures()
 }
 
 /** Shows the page as the small top-left panel or as the full Gesture Control page. */
@@ -120,7 +113,7 @@ export function resumeCamera(): void {
   if (!handle || !paused) return
   paused = false
   handle.setCamera(true)
-  if (gesturesOn) void desktop().SetGesturesActive(true).catch(() => {})
+  void desktop().SetGesturesActive(true).catch(() => {})
 }
 
 /** Whether a screen point ([0, 1] over the screen) is on this window (or just at its edge). */

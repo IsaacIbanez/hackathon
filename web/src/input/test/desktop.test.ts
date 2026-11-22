@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { bindingFetch, HelperClient, latestOnly, OS_ACTIONS, toScreen } from "../desktop/client.ts";
-import { APP_CELLS, cellsOf, menuPage } from "../desktop/menu.ts";
+import { APP_CELLS, cellsOf, menuPage, micStateOf } from "../desktop/menu.ts";
 
 const near = (a: { x: number; y: number }, x: number, y: number) =>
   assert.ok(Math.abs(a.x - x) < 1e-9 && Math.abs(a.y - y) < 1e-9, JSON.stringify(a));
@@ -84,7 +84,7 @@ test("menu: the main page has volume, brightness, microphone, apps, computer and
   assert.deepEqual(cellsOf(pc).sort(), ["down", "down_left", "left", "right", "up", "up_left", "up_right"]);
   const withPower = menuPage({ id: "main" }, "pc", [], false, true);
   assert.equal(withPower.down_right?.kind === "page" && withPower.down_right.page.id, "computer");
-  assert.equal(pc.up_left?.kind, "gestures_off"); // closes only Gesture Control
+  assert.equal(pc.up_left?.kind, "main_menu"); // back to the overlay's main menu, gestures still on
   assert.equal(pc.left?.kind, "quit"); // "Close app", in red
   assert.equal(pc.left?.label, "Close app");
   assert.equal(pc.up_right?.kind, "cursor");
@@ -150,4 +150,23 @@ test("bindingFetch sends the request through the call and rebuilds the response"
     ["POST", "/api/action", JSON.stringify({ action: "enter" })],
     ["POST", "/api/mouse", JSON.stringify({ action: "click" })],
   ]);
+});
+
+test("microphone: the helper's answer gives the real state", () => {
+  assert.equal(micStateOf("microphone muted"), true);
+  assert.equal(micStateOf("microphone on"), false);
+  assert.equal(micStateOf("unmuted"), false);
+  assert.equal(micStateOf("microphone toggled"), null);
+});
+
+test("microphone: micMuted reads GET /api/mic, null when the helper cannot tell", async () => {
+  const answer = (status: number, body: unknown) => async () =>
+    new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+  assert.equal(await new HelperClient("", answer(200, { muted: true })).micMuted(), true);
+  assert.equal(await new HelperClient("", answer(200, { muted: false })).micMuted(), false);
+  assert.equal(await new HelperClient("", answer(501, { error: "not supported" })).micMuted(), null);
+  const failing = async () => {
+    throw new Error("down");
+  };
+  assert.equal(await new HelperClient("", failing).micMuted(), null);
 });
