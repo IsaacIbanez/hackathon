@@ -1,4 +1,4 @@
-# LauzHack 2026 — a document reader for people with low vision
+# SeeSay — a document reader for people with low vision (LauzHack 2026)
 
 A desktop app that reads documents aloud and explains them: paper held up to the camera, or files on the PC. It runs as a full-screen **overlay** and is driven by hand gestures, voice and the Logitech MX Keypad, with the Logitech MX Brio as its camera.
 

@@ -1,6 +1,6 @@
 {
   "$schema": "https://wails.io/schemas/config.v2.json",
-  "name": "lauzhack",
+  "name": "SeeSay",
   "outputfilename": "lauzhack",
   "frontend:dir": "web",
   "frontend:install": "npm install",
@@ -9,5 +9,12 @@
   "frontend:dev:serverUrl": "auto",
   "author": {
     "name": "LauzHack team"
+  },
+  "info": {
+    "companyName": "SeeSay",
+    "productName": "SeeSay",
+    "productVersion": "1.0.0",
+    "copyright": "LauzHack 2026 team",
+    "comments": "SeeSay: document reader overlay for people with low vision"
   }
 }

@@ -72,7 +72,7 @@ export default function App() {
   return (
     <main className="min-h-screen bg-surface-solid p-8 text-fg">
       <header className="flex flex-wrap items-baseline justify-between gap-4">
-        <h1 className="text-display font-bold">LauzHack project</h1>
+        <h1 className="text-display font-bold">SeeSay</h1>
         <p className="text-body" role="status">
           Server: <strong>{status}</strong> <span className="text-fg-muted">({url ?? '…'})</span>
         </p>

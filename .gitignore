@@ -11,6 +11,10 @@ __pycache__/
 .task/
 
 # Wails and Vite: binaries and generated files
-/build/
+/build/*
+!/build/appicon.png
+!/build/windows/
+/build/windows/*
+!/build/windows/icon.ico
 web/dist/
 web/package.json.md5

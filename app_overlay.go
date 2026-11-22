@@ -426,7 +426,7 @@ func currentScreen(ctx context.Context) (int, int) {
 }
 
 // Title of the window (main.go); PlaceInCorner finds the window by it.
-const windowTitle = "LauzHack overlay"
+const windowTitle = "SeeSay"
 
 // keepCameraRunning asks WebView2 not to slow the page down when the window is covered by other
 // windows (a video call, for example): the gestures follow the hand from the camera there. It also
