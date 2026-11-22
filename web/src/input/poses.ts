@@ -109,6 +109,7 @@ export function classifyPose(hand: Hand, aspect = 1, th: Thresholds = DEFAULT_TH
   // "victory" gesture any more, because it was too similar to the click gesture (index pointing
   // while the middle finger moves to touch the thumb).
   if (f.index && !f.ring && !f.pinky) return "point";
+  if (f.index && f.middle && f.ring && !f.pinky) return "three";
   if (!f.index && nOthers === 0) {
     if (f.thumb) {
       const d = thumbDirection(hand, aspect);

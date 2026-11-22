@@ -56,6 +56,8 @@ interface GoBindings {
   /** The see-through layer over the whole screen (true) or a normal window (false). */
   SetLayer(on: boolean): Promise<void>
   MoveBubble(): Promise<void>
+  /** The text selected in the program in front (errors start with "no_selection:"). */
+  ReadSelection(): Promise<string>
   OpenFileForReading(): Promise<string>
   PDFPage(id: string, page: number): Promise<string>
   SummarizeSelection(): Promise<string>

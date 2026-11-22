@@ -8,7 +8,8 @@
 // paused meanwhile (pauseCamera / resumeCamera).
 import { bindingFetch, HelperClient } from '../../input/desktop/client.ts'
 import { mountGestureControl, type GestureControlHandle } from '../../input/desktop/gestureControl.ts'
-import { desktop, inDesktopApp, onDesktopEvent } from './desktop.ts'
+import { Speaker } from '../../input/voice/speaker.ts'
+import { desktop, errorText, inDesktopApp, onDesktopEvent } from './desktop.ts'
 
 export type GestureVariant = 'panel' | 'full'
 
@@ -34,6 +35,22 @@ export function gestureRoot(): HTMLDivElement | null {
     onScreenOverlay: (need) => void app.SetScreenOverlay(need).catch(() => {}),
     // Cursor mode does not touch the window (fix R5, docs/VENTANA.md): with the overlay open the hand
     // cursor can press its buttons; hidden, the bubble stays. It used to shrink and reopen the overlay.
+    // Three fingers: read aloud the text selected in the program in front.
+    onReadSelection: () => void readSelection(),
+    // While reading: swipe back (left) starts again, forward (right) ends it.
+    onSwipe: (direction) => {
+      if (!reading()) return false
+      if (direction === 'left') {
+        speaker.stop()
+        if (lastText) speaker.speak({ text: lastText, lang: guessLang(lastText) })
+      } else {
+        speaker.stop()
+        lastText = ''
+      }
+      return true
+    },
+    // "Close assistant" in the gesture menu.
+    onQuit: () => void app.Quit().catch(() => {}),
     // The bubble dodges the gesture cursor: clicks on it would go to this window, not to the
     // program below. It jumps to the other bottom corner when the cursor comes near.
     onPointer: (p) => {
@@ -95,4 +112,57 @@ function nearThisWindow(p: { x: number; y: number }): boolean {
   const top = window.screenY / sh - m
   const bottom = (window.screenY + window.outerHeight) / sh + m
   return p.x >= left && p.x <= right && p.y >= top && p.y <= bottom
+}
+
+const speaker = new Speaker()
+/** The selection being read (for "start again"). */
+let lastText = ''
+
+/** A reading of the selection is going on (speaking or paused). */
+const reading = () => lastText !== '' && (speaker.isSpeaking || speaker.isPaused)
+
+/** Copies the selected text of the program in front (Go) and reads it aloud. */
+async function readSelection(): Promise<void> {
+  // Three fingers again while reading: pause, and once more: go on.
+  if (reading()) {
+    if (speaker.isPaused) speaker.resume()
+    else speaker.pause()
+    return
+  }
+  try {
+    const text = await desktop().ReadSelection()
+    // WebView2 lists the voices only after a moment: without them the default (often English)
+    // voice reads, whatever the language. Wait for them first.
+    await voicesReady()
+    lastText = text
+    if (text) speaker.speak({ text, lang: guessLang(text) })
+  } catch (e) {
+    const msg = errorText(e)
+    speaker.speak({
+      text: msg.startsWith('no_selection:') ? 'Primero selecciona un texto.' : 'No he podido leer el texto seleccionado.',
+      lang: 'es-ES',
+    })
+  }
+}
+
+/** Spanish unless the text looks clearly English (enough to pick the voice). */
+export function guessLang(text: string): string {
+  const words = text.toLowerCase().match(/[a-záéíóúñü]+/g) ?? []
+  const en = words.filter((w) => ['the', 'and', 'of', 'to', 'is', 'you', 'that', 'for'].includes(w)).length
+  const es = words.filter((w) => ['el', 'la', 'de', 'que', 'y', 'los', 'en', 'por', 'es'].includes(w)).length
+  return en > es ? 'en-US' : 'es-ES'
+}
+
+/** Resolves when the system voices are listed (at most ~1.5 s). */
+function voicesReady(): Promise<void> {
+  const synth = window.speechSynthesis
+  if (!synth || synth.getVoices().length > 0) return Promise.resolve()
+  return new Promise((resolve) => {
+    const done = () => {
+      synth.removeEventListener('voiceschanged', done)
+      resolve()
+    }
+    synth.addEventListener('voiceschanged', done)
+    setTimeout(done, 1500)
+  })
 }

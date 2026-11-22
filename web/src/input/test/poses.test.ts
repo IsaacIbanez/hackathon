@@ -17,6 +17,8 @@ test("index and middle up is pointing: there is no victory gesture (it looked li
   assert.equal(classifyPose(makeHand({ index: true, middle: true })), "point");
 });
 
-test("three extended fingers is not a known gesture", () => {
-  assert.equal(classifyPose(makeHand({ index: true, middle: true, ring: true })), "none");
+test("index, middle and ring up (pinky folded) is the three-finger gesture", () => {
+  assert.equal(classifyPose(makeHand({ index: true, middle: true, ring: true })), "three");
+  // With the pinky up too it is the open palm, not three.
+  assert.equal(classifyPose(makeHand({ thumb: "out", index: true, middle: true, ring: true, pinky: true })), "palm");
 });

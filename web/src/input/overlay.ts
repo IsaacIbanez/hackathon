@@ -17,6 +17,7 @@ export const GESTURE_LABELS: Record<Gesture, string> = {
   thumbs_up: "Thumbs up",
   thumbs_down: "Thumbs down",
   pinch: "Pinch",
+  three: "Three fingers",
 };
 
 export const ACTION_LABELS: Partial<Record<Action, string>> = {

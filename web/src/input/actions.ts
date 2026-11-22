@@ -34,6 +34,7 @@ export type Action =
   | "shutdown"
   | "open_app"
   | "keyboard"
+  | "read_selection"
   // Video call
   | "toggle_mic"
   | "toggle_camera"
@@ -142,6 +143,8 @@ export function actionFor(event: HandEvent, context: Context = "document"): Acti
       if (event.gesture === "thumbs_up") return m.thumbs_up;
       if (event.gesture === "thumbs_down") return m.thumbs_down;
       if (event.gesture === "palm") return m.palm;
+      // Three fingers: read aloud the text selected in the program in front (any context).
+      if (event.gesture === "three") return "read_selection";
       return null; // the fist opens the menu; the rest have no action of their own
     case "swipe":
       return event.direction === "right" ? m.swipe_right : m.swipe_left;
