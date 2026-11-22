@@ -4,7 +4,7 @@ import { HandInteraction, POINTER_AREA } from "../interaction.ts";
 import { actionFor } from "../actions.ts";
 import { HeadGestureDetector } from "../head.ts";
 import type { Face, Hand, HandEvent, HandFrame } from "../types.ts";
-import { CLICK_PRESS, CLICK_REST, makeHand, rotate, SHAPES, WAKE_PALM } from "./hand.ts";
+import { CLICK_PRESS, CLICK_REST, makeHand, rotate, SHAPES, thumbsLeft, WAKE_PALM } from "./hand.ts";
 
 const STEP = 33;
 const repeat = <T>(x: T, n: number): T[] => Array.from({ length: n }, () => x);
@@ -296,20 +296,29 @@ test("menu: opening the hand and closing the fist again closes it (and doesn't r
   );
 });
 
-test("menu: thumbs down 👎 inside the menu emits a 'back' phase", () => {
+test("menu: the thumb to the left inside the menu emits a 'back' phase", () => {
   const ev = simulate(new HandInteraction(), [
     ...repeat(makeHand(SHAPES.fist), 20), // opens
     ...repeat(makeHand(SHAPES.palm), 12), // settle > 300 ms
-    ...repeat(makeHand(SHAPES.thumbs_down), 25), // thumbs down > 700 ms
+    ...repeat(thumbsLeft(), 25), // thumb to the left > 700 ms
   ]).filter((e) => e.type === "menu");
   assert.ok(ev.some((e) => e.type === "menu" && e.phase === "back"));
 });
 
-test("menu: a brief thumbs down doesn't go back", () => {
+test("menu: thumbs down no longer goes back (only the thumb to the left does)", () => {
   const ev = simulate(new HandInteraction(), [
     ...repeat(makeHand(SHAPES.fist), 20),
     ...repeat(makeHand(SHAPES.palm), 12),
-    ...repeat(makeHand(SHAPES.thumbs_down), 12), // ~0.4 s
+    ...repeat(makeHand(SHAPES.thumbs_down), 25),
+  ]).filter((e) => e.type === "menu");
+  assert.ok(!ev.some((e) => e.type === "menu" && e.phase === "back"));
+});
+
+test("menu: a brief thumb to the left doesn't go back", () => {
+  const ev = simulate(new HandInteraction(), [
+    ...repeat(makeHand(SHAPES.fist), 20),
+    ...repeat(makeHand(SHAPES.palm), 12),
+    ...repeat(thumbsLeft(), 12), // ~0.4 s
     ...repeat(makeHand(SHAPES.palm), 5),
   ]).filter((e) => e.type === "menu");
   assert.ok(!ev.some((e) => e.type === "menu" && (e.phase === "back" || e.phase === "close")));
@@ -569,4 +578,23 @@ test("wakeNow wakes the gestures once they fell asleep (opening Gesture Control)
   assert.ok(ctl.isAwake);
   ctl.wakeNow(9001); // already awake: no second event
   assert.deepEqual(modes, [true]);
+});
+
+test("thumb to the left: a gesture of its own outside the menu (undo); to the right it stays a fist", () => {
+  const left = simulate(new HandInteraction(), repeat(thumbsLeft(), 20)).find((e) => e.type === "gesture");
+  assert.equal(left?.type === "gesture" && left.gesture, "thumbs_left");
+  const right = simulate(new HandInteraction(), repeat(makeHand({ thumb: "side" }), 20)).filter((e) => e.type === "gesture");
+  assert.ok(right.every((e) => e.type === "gesture" && e.gesture !== "thumbs_left"));
+  // With mirror off the sides swap.
+  const unmirrored = simulate(new HandInteraction({ mirror: false }), repeat(makeHand({ thumb: "side" }), 20)).find((e) => e.type === "gesture");
+  assert.equal(unmirrored?.type === "gesture" && unmirrored.gesture, "thumbs_left");
+});
+
+test("thumb to the left while the volume is armed cancels it", () => {
+  const ctl = new HandInteraction();
+  simulate(ctl, repeat(makeHand(SHAPES.palm), 5));
+  ctl.startLevel(200, "volume");
+  const ev = simulate(ctl, repeat(thumbsLeft(), 5), 300);
+  assert.ok(ev.some((e) => e.type === "level" && e.phase === "cancel"));
+  assert.equal(ctl.levelArmed, false);
 });

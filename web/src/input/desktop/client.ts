@@ -88,6 +88,18 @@ export class HelperClient {
     return (await r.json()) as HelperStatus;
   }
 
+  /** The current volume or brightness (0–1); null if the helper cannot tell. */
+  async level(target: "volume" | "brightness"): Promise<number | null> {
+    try {
+      const r = await this.request(`/api/level?target=${target}`, "GET");
+      if (!r.ok) return null;
+      const data = (await r.json()) as { value?: unknown };
+      return typeof data.value === "number" ? data.value : null;
+    } catch {
+      return null;
+    }
+  }
+
   /** Whether the system microphone is muted now; null if the helper cannot tell (unsupported, error). */
   async micMuted(): Promise<boolean | null> {
     try {

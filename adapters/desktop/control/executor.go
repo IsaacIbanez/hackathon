@@ -4,6 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -28,6 +31,8 @@ type Desktop interface {
 	ToggleMicMute() (state string, err error)
 	// MicMuted says whether the system microphone is muted now (the menu shows it before a toggle).
 	MicMuted() (bool, error)
+	// Level reads the current "volume" or "brightness", from 0 to 1 (undo puts it back).
+	Level(target string) (float64, error)
 	Power(kind string) error
 	OpenApp(argv []string) error
 	// FocusWindow brings the call app's window to the front before sending its shortcuts.
@@ -213,6 +218,20 @@ func (d *DryRun) ToggleMicMute() (string, error) {
 	return "toggled", nil
 }
 
+// Level is the last value set in the dry run (0.5 before any).
+func (d *DryRun) Level(target string) (float64, error) {
+	prefix := target + " "
+	for i := len(d.Calls) - 1; i >= 0; i-- {
+		if strings.HasPrefix(d.Calls[i], prefix) {
+			var v float64
+			if _, err := fmt.Sscanf(strings.TrimPrefix(d.Calls[i], prefix), "%f", &v); err == nil {
+				return v, nil
+			}
+		}
+	}
+	return 0.5, nil
+}
+
 // MicMuted follows the dry-run toggles (starts unmuted).
 func (d *DryRun) MicMuted() (bool, error) {
 	n := 0
@@ -233,3 +252,29 @@ func (d *DryRun) FocusWindow(app CallApp) error { return d.record("focus " + app
 func screenPixels(x, y float64, w, h int) (int, int) {
 	return int(x*float64(w-1) + 0.5), int(y*float64(h-1) + 0.5)
 }
+
+// parsePercent reads a level from a tool's answer: the first "40%" if there is one (0.4), otherwise
+// the first number, as a level if up to 1 ("0.4") or as a percentage ("75").
+func parsePercent(s string) (float64, error) {
+	m := percentRe.FindStringSubmatch(s)
+	pct := m != nil
+	if !pct {
+		m = numberRe.FindStringSubmatch(s)
+	}
+	if m == nil {
+		return 0, fmt.Errorf("no level in %q", strings.TrimSpace(s))
+	}
+	v, err := strconv.ParseFloat(m[1], 64)
+	if err != nil {
+		return 0, err
+	}
+	if pct || v > 1 {
+		v /= 100
+	}
+	return math.Max(0, math.Min(1, v)), nil
+}
+
+var (
+	percentRe = regexp.MustCompile(`(\d+(?:\.\d+)?)\s*%`)
+	numberRe  = regexp.MustCompile(`(\d+(?:\.\d+)?)`)
+)

@@ -67,3 +67,8 @@ For each bug: symptom → how to reproduce it → cause → fix → how it was c
 - Symptom: a way was needed to go back to the overlay's general menu without turning the gestures off completely; fix 1 put them to sleep.
 - Fix: ↖ «Main menu» shows the overlay's main menu (`gestures:main-menu` → `view = "menu"`) and, from the bubble, restores the window. The gestures and cursor mode stay active. `sleepNow` is removed; `wakeNow` stays for key 6.
 - Checked: tests updated, `tsc`, 201 tests, web build. The `.exe` is still missing (Nil on Windows).
+
+**4. Thumb to the left = go back and undo (2026-11-22, asked for by Nil)**
+- What: the fist with the thumb pointing to the user's left (`thumbs_left`, in `poses.ts`) goes back in the fist menu (thumbs down no longer does). If volume or brightness is waiting for the pinch, it cancels it. Outside the menu it undoes the last action (15 s): volume and brightness back to the value before, microphone and cursor mode.
+- To restore the exact value, the helper reads the current volume and brightness: `GET /api/level?target=volume|brightness` (`Desktop.Level`; Windows through Core Audio and WMI, Linux with wpctl/pactl/amixer and brightnessctl/light, macOS volume only).
+- Checked: `TestServerLevel`, `TestParsePercent` (Go), pose, menu, cancel and `level()` tests (web), `go vet` Linux, Windows and macOS, 209 tests, web build, and Nil tested it with the `.exe` on Windows.

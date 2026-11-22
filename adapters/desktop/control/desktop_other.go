@@ -19,6 +19,7 @@ func (otherDesktop) SetVolume(float64) error        { return ErrUnsupported }
 func (otherDesktop) SetBrightness(float64) error    { return ErrUnsupported }
 func (otherDesktop) ToggleMicMute() (string, error) { return "", ErrUnsupported }
 func (otherDesktop) MicMuted() (bool, error)        { return false, ErrUnsupported }
+func (otherDesktop) Level(string) (float64, error)  { return 0, ErrUnsupported }
 func (otherDesktop) Power(string) error             { return ErrUnsupported }
 func (otherDesktop) OpenApp([]string) error         { return ErrUnsupported }
 func (otherDesktop) FocusWindow(CallApp) error      { return ErrUnsupported }

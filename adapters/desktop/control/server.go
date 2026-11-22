@@ -46,6 +46,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/status", s.guard(s.status))
 	mux.HandleFunc("POST /api/action", s.guard(s.action))
 	mux.HandleFunc("GET /api/mic", s.guard(s.mic))
+	mux.HandleFunc("GET /api/level", s.guard(s.level))
 	mux.HandleFunc("POST /api/mouse", s.guard(s.mouse))
 	mux.HandleFunc("POST /api/pointer", s.guard(s.pointer))
 	mux.HandleFunc("GET /", s.page)
@@ -59,6 +60,7 @@ func (s *Server) api() http.Handler {
 		mux.HandleFunc("GET /api/status", s.status)
 		mux.HandleFunc("POST /api/action", s.action)
 		mux.HandleFunc("GET /api/mic", s.mic)
+		mux.HandleFunc("GET /api/level", s.level)
 		mux.HandleFunc("POST /api/mouse", s.mouse)
 		mux.HandleFunc("POST /api/pointer", s.pointer)
 		s.apiMux = mux
@@ -139,6 +141,23 @@ func (s *Server) mic(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"muted": muted})
+}
+
+// level answers the current volume or brightness: GET /api/level?target=volume → {"value": 0.4}.
+func (s *Server) level(w http.ResponseWriter, r *http.Request) {
+	target := r.URL.Query().Get("target")
+	if target != "volume" && target != "brightness" {
+		writeError(w, http.StatusBadRequest, "target must be volume or brightness")
+		return
+	}
+	s.mu.Lock()
+	v, err := s.Exec.Desktop.Level(target)
+	s.mu.Unlock()
+	if err != nil {
+		writeError(w, http.StatusNotImplemented, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]float64{"value": v})
 }
 
 func (s *Server) action(w http.ResponseWriter, r *http.Request) {

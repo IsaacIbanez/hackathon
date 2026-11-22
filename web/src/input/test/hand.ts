@@ -2,7 +2,8 @@
 import type { Hand, Point3D } from "../types.ts";
 
 export interface HandShape {
-  thumb?: "out" | "up" | "down" | "folded";
+  /** "side": straight out to the image's left, level (with the default mirror: the user's right). */
+  thumb?: "out" | "up" | "down" | "side" | "folded";
   index?: boolean;
   middle?: boolean;
   ring?: boolean;
@@ -35,6 +36,10 @@ export function makeHand(s: HandShape = {}): Hand {
     pts[2] = p(0.4, 0.72);
     pts[3] = p(0.4, 0.83);
     pts[4] = p(0.4, 0.94);
+  } else if (s.thumb === "side") {
+    pts[2] = p(0.37, 0.74);
+    pts[3] = p(0.3, 0.73);
+    pts[4] = p(0.23, 0.72);
   } else if (s.thumb === "out") {
     pts[2] = p(0.38, 0.7);
     pts[3] = p(0.33, 0.65);
@@ -105,6 +110,14 @@ export const CLICK_REST: HandShape = { index: true, middle: true, thumb: "out" }
 export const CLICK_PRESS: HandShape = { index: true, middleOnThumb: true };
 
 /** Rotates the whole hand around the wrist (degrees; positive = clockwise in the image). */
+/** The same hand seen mirrored (x → 1 − x): a "side" thumb then points to the user's left. */
+export function mirrorX(h: Hand): Hand {
+  return { ...h, points: h.points.map((q) => ({ ...q, x: 1 - q.x })) };
+}
+
+/** Fist with the thumb pointing to the user's left (with the default mirror option). */
+export const thumbsLeft = (): Hand => mirrorX(makeHand({ thumb: "side" }));
+
 export function rotate(h: Hand, degrees: number): Hand {
   const a = (degrees * Math.PI) / 180;
   const [c, s] = [Math.cos(a), Math.sin(a)];
