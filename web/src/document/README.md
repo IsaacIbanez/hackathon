@@ -46,12 +46,42 @@ Medido en Chrome con la voz Microsoft Helena (es-ES):
 - una voz que interrumpe deja el lector en pausa;
 - leerla no llama a ningún modelo.
 
+## Visor de PDF: leer todo el PDF (N4)
+`PdfViewer` (`PdfViewer.tsx`) y su lógica `PdfPageReader` (`pdfReader.ts`). Brief: `docs/briefs/N4.md`.
+
+```tsx
+<PdfViewer pdf={{ id, name, pages, lang }} loadPage={(n) => desktop().PDFPage(id, n)} />
+```
+
+**Qué hace:**
+- **Páginas:** enseña cada página del PDF (la imagen la da el servicio de lectura) con un recuadro amarillo sobre la línea que suena. Esa misma línea aparece abajo en letra muy grande, como un subtítulo.
+- **Botón «Read the whole PDF»** (o Espacio): lee de principio a fin con la voz local, a 0 $. Al empezar cada página dice «Página N de M» y pide la siguiente página mientras suena la actual.
+- **Sin límite de páginas.**
+  - Si una página escaneada aún no está lista (pasa por OCR), dice «Preparando la página N».
+  - Las páginas vacías se anuncian.
+  - Las líneas dudosas van precedidas de «No se lee bien:».
+- **Teclas:**
+
+  | Acción | Teclas |
+  |---|---|
+  | Leer / pausa | Espacio · Num 5 |
+  | Línea anterior / siguiente | ← → · Num 4 / Num 6 |
+  | Repetir | R · Num 8 |
+  | Parar (vuelve al principio) | S |
+  | Velocidad 0,75× a 1,5× | + / − · Num + / Num − |
+  | Página anterior / siguiente | RePág / AvPág |
+  | Ir a una página | G |
+
+- **Idioma:** las frases y la voz van en es, ca o en, según el idioma detectado en el PDF.
+
 ## Archivos
 | Archivo | Contenido |
 |---|---|
 | `reader.ts` | Lógica pura, sin interfaz: `LineReader`, el orden de lectura, los atajos y las frases |
 | `voice.ts` | La voz del sistema (`webSpeechVoice`) y la alternativa sin síntesis de voz (`silentVoice`) |
 | `GuidedReader.tsx` | La vista |
+| `pdfReader.ts` | Lógica pura del visor de PDF (`PdfPageReader`): páginas, controles, avisos y teclas |
+| `PdfViewer.tsx` | El visor de PDF |
 | `demo/` | La página de prueba |
 | `test/` | Los tests (`npm test`) |
 

@@ -18,8 +18,16 @@ export function OpenAndReadFile() {
   return window['go']['main']['App']['OpenAndReadFile']();
 }
 
+export function OpenFileForReading() {
+  return window['go']['main']['App']['OpenFileForReading']();
+}
+
 export function OverlayInfo() {
   return window['go']['main']['App']['OverlayInfo']();
+}
+
+export function PDFPage(arg1, arg2) {
+  return window['go']['main']['App']['PDFPage'](arg1, arg2);
 }
 
 export function Quit() {

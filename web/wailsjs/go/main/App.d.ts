@@ -9,7 +9,11 @@ export function HideOverlay():Promise<void>;
 
 export function OpenAndReadFile():Promise<string>;
 
+export function OpenFileForReading():Promise<string>;
+
 export function OverlayInfo():Promise<string>;
+
+export function PDFPage(arg1:string,arg2:number):Promise<string>;
 
 export function Quit():Promise<void>;
 
