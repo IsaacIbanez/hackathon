@@ -26,7 +26,12 @@ Didac no está en este reparto. Sus carpetas (`scanner/`, `web/src/document`, `b
    - ningún bucle de reintentos sin pausa;
    - nada que se quede colgado sin límite de tiempo;
    - si falta algo (clave, cámara, micro, servicio), la app lo dice en pantalla con qué hacer.
-4. `task check` en verde y probado con el `.exe` antes de subir. PR pequeño. Isaac fusiona a `main` con el CI en verde.
+4. **Cada agente prueba y fusiona lo suyo; nadie revisa lo de otros** (decidido por Isaac):
+   - escribe o actualiza los tests de lo que arregla;
+   - pasa `task check` y los tests de su parte (Python: los del escáner);
+   - lo prueba con el `.exe` real;
+   - abre un PR pequeño y, **con el CI en verde, lo fusiona él mismo a `main`** (`gh pr merge <n> --merge`);
+   - antes de fusionar, `git pull` y vuelve a pasar los tests si `main` ha cambiado.
 5. No toques carpetas de otra persona (`docs/MAPA.md`): apúntalo en su ficha y avísale.
 6. Gasta pocos tokens: lee por rangos, filtra la salida y no lances subagentes.
 

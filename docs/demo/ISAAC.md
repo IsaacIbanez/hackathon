@@ -1,6 +1,6 @@
 # Demo · Isaac: arranque, overlay, voz e integración
 
-Responsable: **Isaac**. Plan común y reglas: `docs/demo/README.md`. Isaac también **fusiona a `main`** y hace el ensayo general.
+Responsable: **Isaac**. Plan común y reglas: `docs/demo/README.md`. Isaac también hace el **ensayo general**. Cada agente fusiona su propio PR a `main` (`docs/demo/README.md`).
 
 ## Qué revisas
 | Pieza | Dónde |
@@ -54,6 +54,9 @@ Read Text, con los puntos de «Qué tiene que funcionar» y «Fallos y riesgos»
 arrancar (claves que faltan, entorno del escáner) y por la segunda copia de la app. Reproduce con el .exe
 y el log antes de cambiar nada. Un arreglo = un commit en una rama demo/isaac-<tema>, con su línea en el
 Registro de docs/demo/ISAAC.md. Las carpetas de Didac, Nil o Pau: pregúntame antes de tocarlas.
+Para cada arreglo escribe o actualiza sus tests, pasa task check (y los tests de tu parte) y
+pruébalo con el .exe; abre un PR y, con el CI en verde, fusiónalo tú mismo a main
+(gh pr merge <n> --merge). Nadie revisa lo de otros.
 ```
 
 ## Registro (lo rellena el agente)

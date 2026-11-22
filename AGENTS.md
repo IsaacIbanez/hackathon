@@ -30,7 +30,7 @@ Lo cargan todos los agentes (Claude Code, Gemini CLI) **en cada petición**: es 
 3. **Sin brief o ficha confirmados, no hay código.** Preguntas a tu persona en tandas de 3–5, con opciones y la recomendada primero.
 4. Rama `feature/<ID>-<nombre>`; un arreglo = un commit, con su línea en el «Registro» de la ficha.
 5. **Antes de subir:** `task check` en verde y, si toca la app, probado con el `.exe` real (`docs/TRABAJAR.md`).
-6. A `main` solo con PR revisado y CI en verde, **o si una persona lo pide expresamente**.
+6. A `main` solo con PR revisado y CI en verde, **o si una persona lo pide expresamente**. **En el pulido para la demo, cada agente fusiona su propio PR con el CI en verde** (`docs/demo/README.md`).
 7. El contrato (`api/`) cambia en un PR aparte; después, `task gen`.
 8. **Nunca** claves ni contraseñas en el repo: van en `.env` (ignorado).
 9. Si cambias una interfaz entre módulos: una entrada en `docs/DECISIONES.md` y, si afecta al día a día, una línea en `docs/ESTADO.md`.

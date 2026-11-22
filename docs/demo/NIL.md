@@ -45,6 +45,9 @@ adapters/desktop, uno a uno, con los puntos de «Qué tiene que funcionar» y «
 cambiar código, reprodúcelo con el .exe (task overlay) y el log. Un arreglo = un commit en una rama
 demo/nil-<tema>, con su línea en el Registro de docs/demo/NIL.md. task check en verde antes de subir.
 Si necesitas tocar gestureHost.ts u otra carpeta, pregúntame primero.
+Para cada arreglo escribe o actualiza sus tests, pasa task check (y los tests de tu parte) y
+pruébalo con el .exe; abre un PR y, con el CI en verde, fusiónalo tú mismo a main
+(gh pr merge <n> --merge). Nadie revisa lo de otros.
 ```
 
 ## Registro (lo rellena el agente)

@@ -59,6 +59,9 @@ Transcribe sin TOGETHER_API_KEY. Reproduce cada fallo con el .exe y los logs ant
 arreglo = un commit en una rama demo/pau-<tema>, con su línea en el Registro de docs/demo/PAU.md. Las
 carpetas de Didac (scanner/, web/src/document) y los archivos de Isaac: pregúntame antes de tocarlos.
 Nunca imprimas ni subas claves.
+Para cada arreglo escribe o actualiza sus tests, pasa task check (y los tests de tu parte) y
+pruébalo con el .exe; abre un PR y, con el CI en verde, fusiónalo tú mismo a main
+(gh pr merge <n> --merge). Nadie revisa lo de otros.
 ```
 
 ## Registro (lo rellena el agente)
