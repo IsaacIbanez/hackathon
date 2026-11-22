@@ -2,6 +2,10 @@
 
 Registro completo, de la más nueva a la más antigua. Movido desde `AGENTS.md` el 2026-11-22 para ahorrar tokens: `docs/ESTADO.md` resume las vigentes. **Si tomas una decisión que cambia una interfaz o el contrato, añádela aquí arriba** (una entrada corta) y, si afecta al trabajo diario, una línea en «Decisiones vigentes» de `docs/ESTADO.md`.
 
+- 2026-11-22 — **Orden de voz «borra el texto»** (Isaac; `docs/KEYPAD.md`):
+  - Binding nuevo `DeleteSelection()` (`app_readselection.go`, `backend/overlay/selection_windows.go`): copia la selección del programa de delante y, solo si hay texto seleccionado, pulsa Supr; devuelve el portapapeles anterior.
+  - Solo por voz: graba únicamente al pulsar la 7 (o «Voice command»), transcribe con `POST /transcribe` y borra solo si la frase es una orden de borrar (regla que va primero en `voiceCommand.ts`).
+  - Motivo: borrar sin selección quitaría la letra tras el cursor; por eso se comprueba antes.
 - 2026-11-22 — **Sistema de diseño nuevo para el overlay** (Isaac; `docs/DESIGN.md`):
   - Sustituye a Halo (`docs/DISENO.md`): tokens semánticos en `web/src/index.css` (texto, un solo acento, estados, transparencias, 5 tamaños de letra, radios, elevación, movimiento) y componentes base en `ui.tsx` (`IconButton`, `Switch`, `Tag`, más `.btn-quiet` y `.backing`).
   - Las transparencias se conservan con los mismos valores, ahora como tokens; el contraste se ha medido sobre un escritorio blanco y uno negro.

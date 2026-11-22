@@ -21,6 +21,11 @@ export type KeypadAction =
   | 'record-start'
   | 'record-stop'
   | 'record-toggle'
+  /** Voice only: delete the text selected in the program in front (useVoiceCommand.tsx). */
+  | 'delete-selection'
+  /** Voice only: the system volume, one step of 10 % (useVoiceCommand.tsx). */
+  | 'volume-up'
+  | 'volume-down'
 
 /** What the overlay does for an action: change the view, press a key, or record a voice command. */
 export type KeypadCommand =

@@ -42,6 +42,7 @@ const (
 	vkLWin        = 0x5B
 	vkRWin        = 0x5C
 	vkC           = 0x43
+	vkDelete      = 0x2E
 )
 
 var (
@@ -94,6 +95,29 @@ func CopySelection() (string, error) {
 		}
 	}
 	return "", ErrNoSelection
+}
+
+// DeleteSelection deletes the text selected in the target window (the one CopySelection uses) with
+// the Delete key, and only after copying it proves that some text really is selected: with nothing
+// selected, Delete would erase the character after the caret. The clipboard gets back what it had.
+// It returns how many characters were deleted.
+func DeleteSelection() (int, error) {
+	prev, hadPrev := ClipboardText()
+	text, err := CopySelection() // also brings the target window to the front
+	if hadPrev {
+		defer func() { _ = SetClipboardText(prev) }()
+	}
+	if err != nil {
+		return 0, err
+	}
+	for _, vk := range []uintptr{vkControl, vkShift, vkMenu, vkLWin, vkRWin} {
+		if s, _, _ := procGetAsyncKeyState.Call(vk); s&0x8000 != 0 {
+			key(vk, keyUp) // Ctrl+Delete or Shift+Delete mean other things
+		}
+	}
+	key(vkDelete, 0)
+	key(vkDelete, keyUp)
+	return len([]rune(text)), nil
 }
 
 func key(vk uintptr, flags uintptr) {
