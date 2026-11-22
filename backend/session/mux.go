@@ -3,6 +3,7 @@ package session
 import (
 	"encoding/json"
 	"io"
+	"log"
 	"mime"
 	"net/http"
 
@@ -116,6 +117,11 @@ func handleTranscribe(w http.ResponseWriter, r *http.Request, sess *Session, hub
 		lang = "es-ES"
 	}
 	resp, err := sess.Transcribe(r.Context(), wav, lang, hub.Broadcast)
+	if err != nil {
+		log.Printf("transcribe: %d bytes, lang %s: %v", len(wav), lang, err)
+	} else {
+		log.Printf("transcribe: %d bytes, lang %s -> %q (%s, %d ms)", len(wav), lang, resp.Text, resp.Model, resp.LatencyMs)
+	}
 	if err != nil {
 		w.WriteHeader(http.StatusBadGateway)
 		_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "error": err.Error()})

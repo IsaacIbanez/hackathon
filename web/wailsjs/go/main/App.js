@@ -30,6 +30,10 @@ export function MakeDigitalPDF(arg1) {
   return window['go']['main']['App']['MakeDigitalPDF'](arg1);
 }
 
+export function MicMuted() {
+  return window['go']['main']['App']['MicMuted']();
+}
+
 export function MoveBubble() {
   return window['go']['main']['App']['MoveBubble']();
 }
@@ -96,6 +100,10 @@ export function SummarizeSelection() {
 
 export function TriggerSummary() {
   return window['go']['main']['App']['TriggerSummary']();
+}
+
+export function UILog(arg1) {
+  return window['go']['main']['App']['UILog'](arg1);
 }
 
 export function WindowShape() {

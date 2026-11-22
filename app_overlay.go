@@ -421,14 +421,16 @@ func currentScreen(ctx context.Context) (int, int) {
 const windowTitle = "LauzHack overlay"
 
 // keepCameraRunning asks WebView2 not to slow the page down when the window is covered by other
-// windows (a video call, for example): the gestures follow the hand from the camera there. Only
-// if nobody set these arguments already.
+// windows (a video call, for example): the gestures follow the hand from the camera there. It also
+// lets the page play and record audio without a click inside it: here the person acts with the MX
+// Keypad or the hand, and Chromium's autoplay policy otherwise leaves the audio suspended (the voice
+// command's beep and recording). Only if nobody set these arguments already.
 func keepCameraRunning() {
 	const env = "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"
 	if os.Getenv(env) != "" {
 		return
 	}
-	_ = os.Setenv(env, "--disable-background-timer-throttling --disable-renderer-backgrounding --disable-backgrounding-occluded-windows")
+	_ = os.Setenv(env, "--disable-background-timer-throttling --disable-renderer-backgrounding --disable-backgrounding-occluded-windows --autoplay-policy=no-user-gesture-required")
 }
 
 // SetScreenOverlay: the gesture menu or the volume/brightness control is open (true) or closed

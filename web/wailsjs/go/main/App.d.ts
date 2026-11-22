@@ -15,6 +15,8 @@ export function HideOverlay():Promise<void>;
 
 export function MakeDigitalPDF(arg1:string):Promise<string>;
 
+export function MicMuted():Promise<boolean>;
+
 export function MoveBubble():Promise<void>;
 
 export function OpenAndReadFile():Promise<string>;
@@ -48,6 +50,8 @@ export function SetScreenOverlay(arg1:boolean):Promise<void>;
 export function SummarizeSelection():Promise<string>;
 
 export function TriggerSummary():Promise<void>;
+
+export function UILog(arg1:string):Promise<void>;
 
 export function WindowShape():Promise<string>;
 

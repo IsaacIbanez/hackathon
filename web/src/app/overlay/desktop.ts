@@ -72,6 +72,10 @@ interface GoBindings {
   ReadSelection(): Promise<string>
   /** Deletes the text selected in the program in front (only if there is a selection). */
   DeleteSelection(): Promise<number>
+  /** Whether the default microphone is muted in Windows. */
+  MicMuted(): Promise<boolean>
+  /** Writes a line from the page in lauzhack.log. */
+  UILog(msg: string): Promise<void>
   /** Raises (true) or lowers the system volume by 10 %. */
   ChangeVolume(up: boolean): Promise<void>
   OpenFileForReading(): Promise<string>

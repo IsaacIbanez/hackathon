@@ -22,6 +22,25 @@ export type VoiceStatus =
   | { phase: 'heard'; text: string; understood: boolean }
   | { phase: 'error'; message: string }
 
+/**
+ * Below this peak the recording is silence: a muted or broken microphone (measured: 0.000-0.015,
+ * while a voice with the browser's gain control peaks well above 0.1). Silence is never sent to be
+ * transcribed: the model then invents words, which could even turn into a command.
+ */
+export const SILENCE_PEAK = 0.025
+
+/** The loudest sample of a recording (0 to 1). */
+export function peakOf(samples: Float32Array): number {
+  let peak = 0
+  for (let i = 0; i < samples.length; i++) peak = Math.max(peak, Math.abs(samples[i]))
+  return peak
+}
+
+/** One step of a voice command in lauzhack.log (the desktop build has no console). */
+function trace(msg: string): void {
+  if (inDesktopApp()) void desktop().UILog(`voice: ${msg}`).catch(() => {})
+}
+
 export function useVoiceCommand(run: (action: KeypadAction) => void) {
   const [status, setStatus] = useState<VoiceStatus>({ phase: 'idle' })
   const [recorder] = useState(() => new MicRecorder())
@@ -45,8 +64,21 @@ export function useVoiceCommand(run: (action: KeypadAction) => void) {
     beep('end')
     setStatus({ phase: 'transcribing' })
     const { samples, sampleRate } = await recorder.stop()
+    const peak = peakOf(samples)
+    trace(`stopped: ${(samples.length / sampleRate).toFixed(2)} s at ${sampleRate} Hz, peak ${peak.toFixed(3)}`)
     if (samples.length < sampleRate * 0.3) {
       fail('The recording was too short. Press key 7, speak, then key 7 again.')
+      return
+    }
+    if (peak < SILENCE_PEAK) {
+      // Nothing reached the microphone: say why instead of sending silence to be transcribed.
+      const muted = inDesktopApp() ? await desktop().MicMuted().catch(() => false) : false
+      trace(`silent recording (microphone muted in Windows: ${muted})`)
+      fail(
+        muted
+          ? 'The microphone is muted in Windows. Turn it on (fist menu, Microphone) and try again.'
+          : 'No sound reached the microphone. Check that it is connected and on, then try again.',
+      )
       return
     }
     try {
@@ -55,6 +87,7 @@ export function useVoiceCommand(run: (action: KeypadAction) => void) {
       if (!wsUrl) throw new Error('The voice service is not running (no AI key in .env?).')
       const { text } = await transcribeRemote(samples, sampleRate, LANG, wsUrl)
       const action = voiceAction(text)
+      trace(`heard "${text}" -> ${action ?? 'no command'}`)
       setStatus({ phase: 'heard', text, understood: action !== null })
       if (!text.trim()) {
         speaker.speak({ text: 'No te he oído.', lang: LANG })
@@ -81,6 +114,7 @@ export function useVoiceCommand(run: (action: KeypadAction) => void) {
         runRef.current(action)
       }
     } catch (e) {
+      trace(`error: ${errorText(e)}`)
       fail(errorText(e))
     }
   }, [recorder, speaker, fail])
@@ -89,10 +123,13 @@ export function useVoiceCommand(run: (action: KeypadAction) => void) {
     if (recorder.recording) return
     speaker.stop() // do not record the app's own voice
     try {
+      trace('start')
       await recorder.start(() => void stop())
+      trace(`recording (audio ${recorder.state})`)
       beep('start')
       setStatus({ phase: 'recording' })
     } catch (e) {
+      trace(`microphone error: ${errorText(e)}`)
       fail(`Cannot open the microphone: ${errorText(e)}`)
     }
   }, [recorder, speaker, stop, fail])
