@@ -193,7 +193,7 @@ html.gc-see-through .gc.screen { visibility: visible; }
   .gc *, .gc *::before, .gc *::after { transition: none !important; animation: none !important; }
 }
 
-/* "Close app" quits the whole assistant: its icon and edge in red, so it is not taken for "Close gestures". */
+/* "Close app" quits the whole assistant: its icon and edge in red, so it stands apart from the other options. */
 .gc #menu .op.danger { border-color: color-mix(in oklab, var(--bad) 70%, transparent); }
 .gc #menu .op.danger .op-icon { color: var(--bad); }
 .gc #menu .op.danger.active { border-color: var(--bad); }

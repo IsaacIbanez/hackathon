@@ -32,8 +32,8 @@ export type MenuItem =
   | { kind: "close"; label: string }
   /** Closes the assistant (the whole app). */
   | { kind: "quit"; label: string }
-  /** Turns off only Gesture Control (the camera); the rest of the app keeps running. */
-  | { kind: "gestures_off"; label: string }
+  /** Back to the overlay's main menu (the big options); the gestures keep working. */
+  | { kind: "main_menu"; label: string }
   /** Turns cursor mode (the gesture mouse) on or off. */
   | { kind: "cursor"; label: string };
 
@@ -82,8 +82,8 @@ export function menuPage(
       return {
         up: { kind: "level", target: "volume", label: "Volume" },
         down: { kind: "level", target: "brightness", label: "Brightness" },
-        // Turns off only the gestures (the camera); the overlay stays.
-        up_left: { kind: "gestures_off", label: "Close gestures" },
+        // Back to the overlay's main menu, with the gestures still on.
+        up_left: { kind: "main_menu", label: "Main menu" },
         // Close the whole app, in every context (shown in red).
         left: { kind: "quit", label: "Close app" },
         // The system microphone: it works with any app (👍 toggles the call app's own mute). A toggle:

@@ -830,11 +830,6 @@ export class HandInteraction {
     this.emit({ type: "mode", awake: true, t });
   }
 
-  /** Puts the gestures to sleep now ("Close gestures"): the camera keeps running, an open palm wakes them. */
-  sleepNow(t: number = this.tLastHand): void {
-    if (this.awake && this.opts.requireWake) this.sleep(t);
-  }
-
   /** Wakes the gestures now (the person opened Gesture Control), as a wake palm would. */
   wakeNow(t: number = this.tLastHand): void {
     if (!this.awake) this.wake(t, this.currentPose);

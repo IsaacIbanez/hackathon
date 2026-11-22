@@ -13,6 +13,9 @@ import { desktop, errorText, inDesktopApp, onDesktopEvent } from './desktop.ts'
 
 export type GestureVariant = 'panel' | 'full'
 
+/** Window event: the gesture menu's "Main menu" asks the overlay to show its main menu. */
+export const MAIN_MENU_EVENT = 'gestures:main-menu'
+
 let root: HTMLDivElement | null = null
 let handle: GestureControlHandle | null = null
 let compact = false
@@ -49,9 +52,12 @@ export function gestureRoot(): HTMLDivElement | null {
       }
       return true
     },
-    // "Close gestures": the gestures sleep (an open palm wakes them) and the overlay comes back, from
-    // the bubble or over it; the camera keeps running.
-    onCloseGestures: () => void app.SetCompact(false).catch(() => {}),
+    // "Main menu": the overlay's main menu comes back, from the bubble or over another option; the
+    // camera and the gestures keep running (the hand cursor can choose an option there).
+    onMainMenu: () => {
+      window.dispatchEvent(new Event(MAIN_MENU_EVENT))
+      if (compact) void app.SetCompact(false).catch(() => {})
+    },
     // "Close app" in the gesture menu.
     onQuit: () => void app.Quit().catch(() => {}),
     // The bubble dodges the gesture cursor: clicks on it would go to this window, not to the
@@ -81,10 +87,7 @@ export function gestureRoot(): HTMLDivElement | null {
   return root
 }
 
-/**
- * Wakes the gestures after "Close gestures" in the menu (opening Gesture Control means the person
- * wants them), as an open palm would.
- */
+/** Wakes the gestures if they fell asleep (opening Gesture Control means the person wants them). */
 export function turnGesturesOn(): void {
   handle?.wakeGestures()
 }

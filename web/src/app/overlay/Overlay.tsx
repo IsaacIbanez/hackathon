@@ -8,7 +8,7 @@ import { SummarizeMode } from './SummarizeMode.tsx'
 import { desktop, inDesktopApp, onDesktopEvent, type OverlayInfo } from './desktop.ts'
 import { MENU_PANELS, TOOLBAR, type OverlayContext, type OverlayView } from './extensions.ts'
 import { GestureSlot } from './GestureSlot.tsx'
-import { pauseCamera, resumeCamera, turnGesturesOn } from './gestureHost.ts'
+import { MAIN_MENU_EVENT, pauseCamera, resumeCamera, turnGesturesOn } from './gestureHost.ts'
 import { keypadCommand, pressKey, type KeypadAction } from './keypad.ts'
 import { Hub } from './Hub.tsx'
 import { MODES, modeForKey, type ModeId } from './modes.ts'
@@ -108,6 +108,13 @@ export function Overlay() {
       }),
     [],
   )
+
+  // "Main menu" in the gesture menu (Nil): back to the main menu, the gestures keep working.
+  useEffect(() => {
+    const toMenu = () => setView('menu')
+    window.addEventListener(MAIN_MENU_EVENT, toMenu)
+    return () => window.removeEventListener(MAIN_MENU_EVENT, toMenu)
+  }, [])
 
   // Option 4 asked from outside the menu (TriggerSummary in Go; prepared for Gesture Control's
   // hand cursor, see docs/OVERLAY.md).

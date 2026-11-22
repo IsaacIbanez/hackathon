@@ -84,7 +84,7 @@ test("menu: the main page has volume, brightness, microphone, apps, computer and
   assert.deepEqual(cellsOf(pc).sort(), ["down", "down_left", "left", "right", "up", "up_left", "up_right"]);
   const withPower = menuPage({ id: "main" }, "pc", [], false, true);
   assert.equal(withPower.down_right?.kind === "page" && withPower.down_right.page.id, "computer");
-  assert.equal(pc.up_left?.kind, "gestures_off"); // closes only Gesture Control
+  assert.equal(pc.up_left?.kind, "main_menu"); // back to the overlay's main menu, gestures still on
   assert.equal(pc.left?.kind, "quit"); // "Close app", in red
   assert.equal(pc.left?.label, "Close app");
   assert.equal(pc.up_right?.kind, "cursor");

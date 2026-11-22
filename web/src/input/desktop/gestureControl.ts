@@ -33,11 +33,8 @@ export interface GestureControlOptions {
   onSwipe?: (direction: "left" | "right") => boolean;
   /** "Close app" in the gesture menu: quit the app (the desktop app does it). */
   onQuit?: () => void;
-  /**
-   * "Close gestures": the gestures went to sleep (the camera keeps running, an open palm wakes them).
-   * The desktop app uses it to bring the overlay back.
-   */
-  onCloseGestures?: () => void;
+  /** "Main menu": show the overlay's main menu again; the gestures keep working. */
+  onMainMenu?: () => void;
   /** Three fingers: read the text selected in the program in front aloud (the app does it). */
   onReadSelection?: () => void;
   /** Called when cursor mode is turned on or off (the desktop app moves out of the way when on). */
@@ -55,7 +52,7 @@ export interface GestureControlHandle {
   setCamera(on: boolean, reason?: string): void;
   /** Plays the camera again after the page was moved to another place in the document. */
   resume(): void;
-  /** Wakes the gestures (after "Close gestures", when the person opens Gesture Control again). */
+  /** Wakes the gestures (when the person opens Gesture Control, they may be asleep). */
   wakeGestures(): void;
   /**
    * See-through over the whole screen: only the menu, the hints and a small camera preview are
@@ -292,8 +289,11 @@ export function mountGestureControl(
         if (options.onQuit) options.onQuit();
         else toast("Close the window to quit", true);
         break;
-      case "gestures_off":
-        closeGestures(e.t);
+      case "main_menu":
+        if (options.onMainMenu) {
+          toast("Main menu");
+          options.onMainMenu();
+        } else toast("No main menu here", true);
         break;
       case "cursor":
         setCursor(!mouseOn());
@@ -326,17 +326,6 @@ export function mountGestureControl(
       // Muted, the voice commands do not hear anything either: say so.
       toast(micMuted === null ? did : micMuted ? "Microphone muted · voice commands will not hear you" : "Microphone on");
     });
-  }
-
-  /**
-   * "Close gestures": the gestures go to sleep, cursor mode ends and the app shows the overlay again.
-   * The camera keeps running (nothing to wait for, and option 2 can still borrow it).
-   */
-  function closeGestures(t: number) {
-    if (mouseOn()) setCursor(false);
-    interaction.sleepNow(t);
-    toast("Gestures closed · open palm to wake them");
-    options.onCloseGestures?.();
   }
 
   // ---------- Gestures → actions ----------
