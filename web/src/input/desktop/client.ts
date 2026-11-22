@@ -2,6 +2,7 @@
 // actions on the real computer. Kept free of DOM code so it can be tested.
 
 import type { Action } from "../actions.ts";
+import { areaPoint, POINTER_AREA } from "../interaction.ts";
 import type { MouseAction, Point } from "../types.ts";
 
 /** Actions the helper can perform on the computer. The rest belong to the document reader. */
@@ -49,16 +50,12 @@ export interface ActionOptions {
 }
 
 /**
- * Maps the pointer from camera-image coordinates to the screen. The image is mirrored for the user,
- * and only the central part of the camera is used (`margin` on each side) so the screen edges can
- * be reached without leaving the camera's field of view. A larger margin means less hand movement
- * for the same cursor movement (0.26: the central 48 % of the image covers the whole screen).
+ * Maps the pointer from camera-image coordinates to the screen: the image is mirrored for the user
+ * and only POINTER_AREA (smaller than the image, and high up, so the hand stays in view at the
+ * bottom of the screen) covers the whole screen.
  */
-export function toScreen(p: Point, mirror = true, margin = 0.26): Point {
-  const x = mirror ? 1 - p.x : p.x;
-  const clamp = (v: number) => Math.min(1, Math.max(0, v));
-  const span = 1 - 2 * margin;
-  return { x: clamp((x - margin) / span), y: clamp((p.y - margin) / span) };
+export function toScreen(p: Point, mirror = true, area = POINTER_AREA): Point {
+  return areaPoint(p, mirror, area);
 }
 
 export class HelperClient {

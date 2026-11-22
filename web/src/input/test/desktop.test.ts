@@ -6,12 +6,13 @@ import { APP_CELLS, cellsOf, menuPage } from "../desktop/menu.ts";
 const near = (a: { x: number; y: number }, x: number, y: number) =>
   assert.ok(Math.abs(a.x - x) < 1e-9 && Math.abs(a.y - y) < 1e-9, JSON.stringify(a));
 
-test("toScreen mirrors the image and uses the central part of the camera", () => {
-  // Image right edge (user's left) → screen left; the margin maps to the screen edges.
-  near(toScreen({ x: 0.74, y: 0.26 }), 0, 0);
-  near(toScreen({ x: 0.26, y: 0.74 }), 1, 1);
-  near(toScreen({ x: 0.5, y: 0.5 }), 0.5, 0.5);
-  // Beyond the margin it clamps instead of leaving the screen.
+test("toScreen mirrors the image and uses a small area high up in the camera", () => {
+  // Image right edge (user's left) → screen left; the area's edges map to the screen edges.
+  near(toScreen({ x: 0.73, y: 0.06 }), 0, 0);
+  near(toScreen({ x: 0.27, y: 0.5 }), 1, 1);
+  near(toScreen({ x: 0.5, y: 0.28 }), 0.5, 0.5);
+  // The bottom of the screen is reached with the fingertip at half the image height, so the hand
+  // below it stays in view; beyond the area it clamps instead of leaving the screen.
   near(toScreen({ x: 1, y: 1 }), 0, 1);
 });
 

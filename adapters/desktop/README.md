@@ -13,7 +13,7 @@ Lo normal es usarlo como **opción 1 del overlay** (`task overlay` → `build/bi
 
 ## Modo cursor (usar el ordenador con la mano)
 Se activa en el menú (✊ → «🖱️ Cursor mode») o con el interruptor de la ventana. Dentro del overlay, al activarlo la ventana se aparta a la burbuja.
-- ☝️ apuntar mueve el ratón (la parte central de la cámara, un 48 %, cubre toda la pantalla);
+- ☝️ apuntar mueve el ratón: una zona pequeña y alta de la imagen (`POINTER_AREA`, el 46 % del ancho y del 6 % al 50 % de la altura) cubre toda la pantalla, así la mano no sale del encuadre al llegar abajo; el menú de gestos usa la misma zona;
 - punta del corazón sobre el pulgar: clic; dos toques rápidos: clic derecho; mantener: arrastrar;
 - ✋ palma abierta hacia arriba o abajo: rueda del ratón (scroll);
 - «⌨️ Keyboard» (menú principal en modo Ordenador, o primera opción de «Apps»): abre el teclado en pantalla para escribir con el ratón (Windows: `osk.exe`; Linux: `onboard`, si está instalado; macOS: abre los ajustes del teclado de accesibilidad).

@@ -5,7 +5,10 @@
 
 import { HeadGestureDetector, type HeadOptions } from "./head.ts";
 import { OneEuroFilter } from "./filter.ts";
+import { areaPoint, FULL_IMAGE, type Area } from "./area.ts";
 import { applyHomography, distance, distance2D, documentHomography, mean } from "./geometry.ts";
+
+export { areaPoint, FULL_IMAGE, POINTER_AREA, type Area } from "./area.ts";
 import {
   classifyPose,
   DEFAULT_THRESHOLDS,
@@ -138,6 +141,11 @@ export interface InteractionOptions {
    * the thumb; "dwell" — hold the pointer on it for menuSelectMs.
    */
   menuSelect: "click" | "dwell";
+  /**
+   * Part of the image the menu's 3×3 grid covers (FULL_IMAGE by default). The Gesture Control
+   * window uses POINTER_AREA, the same as the cursor, so the bottom row is reached with the hand in view.
+   */
+  menuArea: Area;
   /** Menu tap: the fingers must let go within this time after touching (longer is not a tap). */
   menuTapMs: number;
   /** Menu tap and mouse click: the middle fingertip must be this far from the ring fingertip (÷ hand size). */
@@ -199,6 +207,7 @@ export const DEFAULT_OPTIONS: InteractionOptions = {
   palmMustFaceCamera: true,
   menuSelectMs: 500,
   menuSelect: "click",
+  menuArea: FULL_IMAGE,
   menuTapMs: 800,
   menuTapRingSep: 0.2,
   menuSettleMs: 300,
@@ -1006,7 +1015,7 @@ export class HandInteraction {
     if (t - this.tLastPointing <= 150) {
       const p = this.indexPointer(t, hand);
       this.lastPointer = p;
-      sector = screenSector(p, this.opts.mirror);
+      sector = screenSector(p, this.opts.mirror, this.opts.menuArea);
       if (m.blocked && sector === m.blocked) sector = null;
       else m.blocked = null; // the pointer left the cell chosen in the previous page
       if (sector && !this.menuOffers(sector, m.hand)) sector = null;
@@ -1379,12 +1388,15 @@ const GRID: (MenuSector | null)[][] = [
  * Menu cell under the pointer: the screen (as seen by the user) is split into a 3×3 grid with an
  * empty centre. Each menu decides which cells it uses (setMenuCells).
  */
-export function screenSector(p: Point, mirror: boolean): MenuSector | null {
-  const x = mirror ? 1 - p.x : p.x;
-  const col = Math.floor(Math.min(0.999, Math.max(0, x)) * 3);
-  const row = Math.floor(Math.min(0.999, Math.max(0, p.y)) * 3);
+export function screenSector(p: Point, mirror: boolean, area: Area = FULL_IMAGE): MenuSector | null {
+  const a = areaPoint(p, mirror, area);
+  const col = Math.floor(Math.min(0.999, a.x) * 3);
+  const row = Math.floor(Math.min(0.999, a.y) * 3);
   return GRID[row][col];
 }
+
+
+
 
 function roundLevel(v: number, step: number): number {
   return Math.min(1, Math.max(0, Number((Math.round(v / step) * step).toFixed(4))));

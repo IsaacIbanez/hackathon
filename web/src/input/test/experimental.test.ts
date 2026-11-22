@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { HandInteraction } from "../interaction.ts";
+import { HandInteraction, POINTER_AREA } from "../interaction.ts";
 import { actionFor } from "../actions.ts";
 import { HeadGestureDetector } from "../head.ts";
 import type { Face, Hand, HandEvent, HandFrame } from "../types.ts";
@@ -524,4 +524,13 @@ test("head: the event goes through the controller and maps according to the cont
   }
   const h = ev.find((e) => e.type === "head")!;
   assert.equal(actionFor(h, "pc"), "enter");
+});
+
+test("menu: with menuArea (the Gesture Control window), the bottom row is reached with the hand higher", () => {
+  // Fingertip at ~0.47 of the image height: the middle row of the whole image…
+  const frames = [...repeat(makeHand(SHAPES.fist), 20), ...tapAt(0, 0)];
+  assert.ok(!simulate(new HandInteraction(), frames).some((e) => e.type === "menu" && e.phase === "choose"));
+  // …but the bottom row of the pointer area.
+  const choose = simulate(new HandInteraction({ menuArea: POINTER_AREA }), frames).find((e) => e.type === "menu" && e.phase === "choose");
+  assert.ok(choose && choose.type === "menu" && choose.sector === "down");
 });

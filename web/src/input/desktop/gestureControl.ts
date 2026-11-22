@@ -8,7 +8,7 @@
 // - With "Move the mouse", ☝️ moves the cursor and touching the middle fingertip to the thumb clicks
 //   (twice quickly: right click; holding: drag).
 import { actionFor, MAPS, type Action } from "../actions.ts";
-import { HandInteraction, type WakeIssue } from "../interaction.ts";
+import { areaPoint, HandInteraction, POINTER_AREA, type WakeIssue } from "../interaction.ts";
 import { createTracker } from "../tracker.ts";
 import { CONNECTIONS, L, type HandEvent, type HandFrame, type LevelTarget, type MenuSector, type MouseAction } from "../types.ts";
 import { latestOnly, OS_ACTIONS, toScreen, type ActionOptions, type CallAppId, type HelperClient } from "./client.ts";
@@ -53,7 +53,7 @@ export function mountGestureControl(
   const canvas = $<HTMLCanvasElement>("canvas");
   const ctx = canvas.getContext("2d")!;
 
-  const interaction = new HandInteraction({ requireWake: true, mouseClicks: false });
+  const interaction = new HandInteraction({ requireWake: true, mouseClicks: false, menuArea: POINTER_AREA });
   let stopped = false;
   let screenNeeded = false;
   let tracker: { stop(): void } | null = null;
@@ -347,8 +347,10 @@ export function mountGestureControl(
     const cursor = $("cursor");
     cursor.hidden = !(open && p);
     if (open && p) {
-      cursor.style.left = `${(1 - p.x) * 100}%`;
-      cursor.style.top = `${p.y * 100}%`;
+      // Same mapping as the menu cells: the dot is where the option is chosen.
+      const q = areaPoint(p);
+      cursor.style.left = `${q.x * 100}%`;
+      cursor.style.top = `${q.y * 100}%`;
     }
   }
 
