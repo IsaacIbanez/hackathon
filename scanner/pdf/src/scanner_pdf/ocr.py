@@ -35,6 +35,9 @@ MAX_OCR_MEGAPIXELS = 8.5   # largest image Tesseract reads: a whole 4K frame (8.
 ROTATIONS = {90: cv2.ROTATE_90_CLOCKWISE, 180: cv2.ROTATE_180, 270: cv2.ROTATE_90_COUNTERCLOCKWISE}
 
 MIN_WORDS = 8           # fewer than this on a page = the first pass probably did not segment well
+SPARSE_MAX_WORDS = 60   # with this many words read it is a page of text, not a poster or a card: the sparse
+                        # pass (psm 11) is not tried. On blurry photos of full letters it cost ~10 s and was
+                        # never chosen (real scans held in the hand, 2026-11-22)
 DOUBTFUL_CONFIDENCE = 70.0  # mean confidence (0-100) below which the sparse-text pass is tried
 RELIABLE_CONFIDENCE = 60.0
 MIN_COVERAGE = 0.6      # fraction of the page letters that should fall inside recognised words
@@ -119,13 +122,21 @@ def orient(img: np.ndarray) -> tuple[np.ndarray, int, float | None]:
             return rotate(img, degrees), degrees, conf
 
     page = _reading_size(img)
-    counts = {d: _confident_words(rotate(page, d), 50) for d in (0, 180)}
+    counts = _words_by_rotation(page, (0, 180))
     if max(counts.values()) < SIDEWAYS_BELOW:
-        counts.update({d: _confident_words(rotate(page, d), 50) for d in (90, 270)})
+        counts.update(_words_by_rotation(page, (90, 270)))
     best = max(counts, key=lambda d: (counts[d], d == 0, d == osd_degrees))
     if best == 0 or counts[best] <= counts[0]:
         return img, 0, confidence
     return rotate(img, best), best, confidence
+
+
+def _words_by_rotation(page: np.ndarray, rotations: tuple[int, ...]) -> dict[int, int]:
+    """Confident words read in each rotation, in parallel Tesseract processes (same result as one after
+    the other, half the time: a sheet held in the hand spent ~5 s here, real scans 2026-11-22)."""
+    with ThreadPoolExecutor(max_workers=len(rotations)) as pool:
+        futures = {d: pool.submit(_confident_words, rotate(page, d), 50) for d in rotations}
+        return {d: f.result() for d, f in futures.items()}
 
 
 def _reading_size(img: np.ndarray, target: float = 28.0, cap: int = 2200) -> np.ndarray:
@@ -202,7 +213,7 @@ def recognize(img: np.ndarray, languages: str, dpi: float, level: str = "line", 
       processes: psm 3 is the right one for letters and forms, but in photos with lines that are not
       quite straight it skips whole paragraphs (measured: 205 vs 282 reliable words), and then psm 6 is
       used. In parallel it takes as long as the slowest (measured on a 4K letter: 7.4 s serial -> 5.0 s).
-    - Sparse text (psm 11) only if almost nothing was read: posters, cards, phone screens.
+    - Sparse text (psm 11) only if little was read, or it was doubtful: posters, cards, phone screens.
     """
     factor = min(MAX_UPSCALE, max(1.0, OCR_DPI / dpi))
     # Size cap: with no detected sheet the DPI is a guess, and upscaling a whole 4K frame only costs
@@ -222,7 +233,7 @@ def recognize(img: np.ndarray, languages: str, dpi: float, level: str = "line", 
     if coverage is not None and coverage < MIN_COVERAGE and _reliable_chars(words6) > _reliable_chars(words):
         pdf, words, psm = pdf6, words6, 6
         coverage = _coverage(img, words)
-    if _doubtful(words):
+    if _doubtful(words) and len(words) < SPARSE_MAX_WORDS:
         pdf11, words11 = _ocr_pass(img, languages, dpi, 11, timeout)
         passes = 3
         if _reliable_chars(words11) > _reliable_chars(words):
