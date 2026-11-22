@@ -58,7 +58,7 @@ Variables opcionales:
     |---|---|
     | Línea anterior / siguiente | ← → |
     | Repetir | R |
-    | Parar | S |
+    | Parar | X |
     | Más rápido / más lento (0,75× a 1,5×) | + / − |
     | Página anterior / siguiente | RePág / AvPág |
     | Ir a una página | G |
@@ -115,7 +115,7 @@ Procesos que arranca la app (y que para al cerrarla, con sus hijos):
 ## Opción 4: resumir el texto seleccionado
 Añadida el 2026-11-22. Funcionalidad de Didac; su brief está en `docs/briefs/didac.md`.
 - Se hizo en la rama `feature/didac-resumir-seleccion` y se fusionó en `main` el 2026-11-22. Entraron solo los commits de Didac, sin `feature/T6-overlay-unified` de Nil, que aún no estaba en `main`.
-- Por decisión de Isaac y Didac, **esta es la implementación del resumen que se queda**: sustituye a la N7 de Isaac (`feature/N7-summary`, sin fusionar).
+- Por decisión de Isaac y Didac, **esta es la implementación del resumen que se queda**: sustituye a la N7 de Isaac. La N7 se había fusionado (#48) y se retiró de `main` al fusionar esto (revert de de357f8). Su brief se conserva en `docs/briefs/N7.md` como historial.
 - La N7 resumía además el documento abierto en las opciones 2 y 3. Eso queda pendiente; se puede hacer llamando a `backend/summary` con el texto del documento.
 
 **Flujo:**
@@ -146,6 +146,7 @@ Añadida el 2026-11-22. Funcionalidad de Didac; su brief está en `docs/briefs/d
 **Preparado para el cursor de la mano (Nil):**
 - `TriggerSummary()` (binding de Go) anota la ventana que hay delante y emite el evento `overlay:summarize`; el overlay abre la opción 4.
 - Una acción «resumir» de Gesture Control solo tiene que llamarlo.
+- **MX Keypad (N2):** existe la acción `summarize`, que abre la opción 4. Al pulsar una tecla del keypad, Go recuerda la ventana que había delante, igual que con el atajo. Todavía no tiene una tecla asignada (página 2 de la N2).
 - **Pendiente al conectarlo:** en `main`, los gestos son un programa aparte (`gesture-control.exe`), así que abrir la opción 4 no les quita la cámara.
 - Si se fusiona `feature/T6-overlay-unified` (los gestos dentro de la ventana), abrir la opción 4 cambiará de vista y apagará esa cámara. Entonces habrá que mostrar la burbuja del resumen sin salir de la opción 1.
 

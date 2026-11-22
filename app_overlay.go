@@ -115,6 +115,9 @@ func (a *App) startOverlay(ctx context.Context) {
 // keypadPressed runs an MX Keypad action: it shows the overlay if needed and tells the UI, which
 // does the action (web/src/app/overlay/keypad.ts). It works while another program has the focus.
 func (a *App) keypadPressed(ctx context.Context, action overlay.KeypadAction) {
+	// Like the shortcut: remember the program in front before the overlay takes the focus, so
+	// option 4 (summarize the selection) copies from it.
+	overlay.RememberTarget()
 	if action == overlay.KeypadToggle {
 		a.toggleOverlay(ctx)
 		return

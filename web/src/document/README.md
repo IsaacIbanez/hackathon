@@ -67,7 +67,7 @@ Medido en Chrome con la voz Microsoft Helena (es-ES):
   | Leer / pausa | Espacio · Num 5 |
   | Línea anterior / siguiente | ← → · Num 4 / Num 6 |
   | Repetir | R · Num 8 |
-  | Parar (vuelve al principio) | S |
+  | Parar (vuelve al principio) | X |
   | Velocidad 0,75× a 1,5× | + / − · Num + / Num − |
   | Página anterior / siguiente | RePág / AvPág |
   | Ir a una página | G |

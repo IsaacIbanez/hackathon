@@ -223,7 +223,8 @@ test('one page: no page announcement', async () => {
 
 test('keys', () => {
   assert.equal(pdfKeyAction('Space'), 'toggle')
-  assert.equal(pdfKeyAction('KeyS'), 'stop')
+  assert.equal(pdfKeyAction('KeyX'), 'stop')
+  assert.equal(pdfKeyAction('KeyS'), null)
   assert.equal(pdfKeyAction('PageDown'), 'nextPage')
   assert.equal(pdfKeyAction('PageUp'), 'previousPage')
   assert.equal(pdfKeyAction('KeyG'), 'goToPage')

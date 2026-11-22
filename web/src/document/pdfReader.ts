@@ -65,7 +65,7 @@ const KEYS: Record<string, PdfAction> = {
   Numpad6: 'next',
   KeyR: 'repeat',
   Numpad8: 'repeat',
-  KeyS: 'stop',
+  KeyX: 'stop',
   Equal: 'faster',
   NumpadAdd: 'faster',
   Minus: 'slower',

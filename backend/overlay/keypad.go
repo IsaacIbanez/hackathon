@@ -20,6 +20,7 @@ const (
 	KeypadGestures KeypadAction = "gestures"  // option 1
 	KeypadDocument KeypadAction = "documents" // option 2: read a paper document
 	KeypadReadFile KeypadAction = "read-file" // option 3: read a file aloud
+	KeypadSummary  KeypadAction = "summarize" // option 4: summarize the selected text (no key bound yet: page 2 of N2)
 	KeypadMenu     KeypadAction = "menu"      // back to the menu
 	KeypadPlay     KeypadAction = "play"      // read / pause
 	KeypadPrevious KeypadAction = "previous"

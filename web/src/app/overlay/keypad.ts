@@ -11,6 +11,7 @@ export type KeypadAction =
   | 'gestures'
   | 'documents'
   | 'read-file'
+  | 'summarize'
   | 'menu'
   | 'play'
   | 'previous'
@@ -33,6 +34,7 @@ export function keypadCommand(action: unknown): KeypadCommand | null {
     case 'gestures':
     case 'documents':
     case 'read-file':
+    case 'summarize':
     case 'menu':
       return { view: action }
   }

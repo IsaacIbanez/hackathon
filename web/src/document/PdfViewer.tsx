@@ -19,7 +19,7 @@ const KEY_HINT: Record<PdfAction, string> = {
   previous: '←',
   next: '→',
   repeat: 'R',
-  stop: 'S',
+  stop: 'X',
   faster: '+',
   slower: '−',
   previousPage: 'PgUp',

@@ -40,7 +40,10 @@ export function Overlay() {
       onDesktopEvent('overlay:keypad', (action) => {
         const cmd = keypadCommand(action)
         if (!cmd) return
-        if ('view' in cmd) setView(cmd.view)
+        if ('view' in cmd) {
+          if (cmd.view === 'summarize') setSummaryRun((n) => n + 1) // summarizes again each time
+          setView(cmd.view)
+        }
         else pressKey(cmd.key)
       }),
     [],
