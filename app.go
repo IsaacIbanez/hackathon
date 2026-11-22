@@ -18,8 +18,7 @@ import (
 type App struct {
 	ctx    context.Context
 	server *ws.Local
-	hub    *ws.Hub       // nil when answering with fixtures
-	model  session.Model // nil without an OpenRouter key (summaries, app_summary.go)
+	hub    *ws.Hub // nil when answering with fixtures
 
 	overlay overlayState // shortcut and helper processes (app_overlay.go)
 }
@@ -78,7 +77,7 @@ func (a *App) newHandler() (http.Handler, error) {
 	}
 	log.Printf("app: real sessions, cheap=%s expensive=%s", client.Models[llm.Cheap], client.Models[llm.Expensive])
 	h, hub := session.NewMux(client, session.DefaultConfig())
-	a.hub, a.model = hub, client
+	a.hub = hub
 	return h, nil
 }
 

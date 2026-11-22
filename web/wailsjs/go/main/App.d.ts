@@ -21,6 +21,4 @@ export function StartGestures():Promise<void>;
 
 export function StopGestures():Promise<void>;
 
-export function Summarize(arg1:string,arg2:string):Promise<string>;
-
 export function WsURL():Promise<string>;

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DocumentPayload } from '../../api'
 import { GuidedReader } from '../../document/index.ts'
 import { desktop, errorText } from './desktop.ts'
-import { SummaryPanel } from './SummaryPanel.tsx'
 
 // Option 3 (Didac, B2): choose a file on the computer (PDF, text, image) and listen to it line by
 // line with the guided reader. Text and PDFs with text are instant; scanned PDFs and images go
@@ -74,7 +73,6 @@ export function ReadFileMode({ onCancel }: { onCancel: () => void }) {
         </button>
       </div>
       {doc && <GuidedReader doc={doc} autoPlay />}
-      <SummaryPanel doc={doc} />
     </div>
   )
 }
