@@ -1,6 +1,6 @@
 # Arranque de Didac (P2, rol B2: lectura de documentos)
 
-Guion para el agente de Didac. Úsalo solo si `docs/briefs/didac.md` no existe. Si existe, trabaja con el brief y pregunta solo lo que falte o haya cambiado. Reglas generales en `AGENTS.md`, «Al empezar una sesión».
+Guion para el agente de Didac. Úsalo solo si `docs/briefs/didac.md` no existe. Si existe, trabaja con el brief y pregunta solo lo que falte o haya cambiado. Reglas generales en `docs/historial/AGENTS_2026-11-22.md`, «Al empezar una sesión».
 
 ## Contexto
 Didac hará **una funcionalidad grande y distinta** del programa. No tiene por qué estar ligada a su trabajo anterior, y debe ser distinta de la de Pau.

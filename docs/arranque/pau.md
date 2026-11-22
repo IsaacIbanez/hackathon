@@ -1,6 +1,6 @@
 # Arranque de Pau (P4, rol B1: cámara en la app)
 
-Guion para el agente de Pau. Úsalo solo si `docs/briefs/pau.md` no existe. Si existe, trabaja con el brief y pregunta solo lo que falte o haya cambiado. Reglas generales en `AGENTS.md`, «Al empezar una sesión».
+Guion para el agente de Pau. Úsalo solo si `docs/briefs/pau.md` no existe. Si existe, trabaja con el brief y pregunta solo lo que falte o haya cambiado. Reglas generales en `docs/historial/AGENTS_2026-11-22.md`, «Al empezar una sesión».
 
 ## Contexto
 Pau hará **una funcionalidad grande y distinta** del programa. No tiene por qué estar ligada a su trabajo anterior, y debe ser distinta de la de Didac.

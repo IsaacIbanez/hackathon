@@ -170,7 +170,7 @@ Todos los mensajes viajan dentro del sobre `{type, id, ts, payload}`. `ts` va en
 
 ## 6. Decisiones
 
-**Tomadas** (detalle y motivos en `AGENTS.md`, «Decisiones»):
+**Tomadas** (detalle y motivos en `docs/DECISIONES.md`):
 - Wails en la raíz, frontend en `web/`, paquetes en `backend/<nombre>` sin `internal/`.
 - Contrato primero; tipos siempre generados (`task gen`); `Taskfile` en lugar de `Makefile`.
 - Código y commits en inglés; conversación y documentación en español.

@@ -1,6 +1,6 @@
 # Arranque de Isaac (P1, rol A: núcleo e integración)
 
-Guion para el agente de Isaac. Úsalo solo si `docs/briefs/isaac.md` no existe. Si existe, trabaja con el brief y pregunta solo lo que falte o haya cambiado. Reglas generales en `AGENTS.md`, «Al empezar una sesión».
+Guion para el agente de Isaac. Úsalo solo si `docs/briefs/isaac.md` no existe. Si existe, trabaja con el brief y pregunta solo lo que falte o haya cambiado. Reglas generales en `docs/historial/AGENTS_2026-11-22.md`, «Al empezar una sesión».
 
 ## Contexto
 Isaac tiene que decidir entre tres caminos:

@@ -27,6 +27,6 @@ Cuatro personas, cada una con un agente de Claude (Pro) y uno de Gemini (Plus): 
 
 ## Reglas de oro
 - Los agentes no tocan `estado/` de otro agente.
-- Los cambios de contrato entre módulos se anotan en `AGENTS.md` (sección Decisiones).
+- Los cambios de contrato entre módulos se anotan en `docs/DECISIONES.md`.
 - Los agentes no editan `TAREAS.md`; lo actualiza quien fusiona el PR.
 - Las credenciales de las cuentas nunca van al repositorio.
