@@ -180,6 +180,10 @@ Puertos: 8765 app · 8766 captura de Pau (pruebas) · 8767 Gesture Control (Nil)
 El reparto por persona y las tareas T1–T19 se cerraron con la integración del 2026-11-21 (rama `integration/proyecto-unificado`). **El reparto se redefinirá** después de la lluvia de ideas (`docs/ideas/`). El plan por persona anterior está íntegro en `docs/historial/plan_por_agente.md` y el estado real de cada pieza, en `docs/ESTADO_PROYECTO.md`. *Nota (2026-11-21): el reparto ya no se decide desde arriba. Cada persona define el suyo con su agente en `docs/briefs/` (ver «Al empezar una sesión»). Este plan y sus interfaces siguen valiendo mientras ningún brief los cambie.*
 
 ## Decisiones
+- 2026-11-22 — **Opción 4 del overlay: resumir el texto seleccionado en cualquier programa** (Didac, rama `feature/didac-resumir-seleccion`, `docs/OVERLAY.md`).
+  - Funcionamiento: Go recuerda la ventana que había delante al abrir el overlay, copia su selección con Ctrl+C, la resume con el **modelo barato** (2–3 frases, con alternativa local a 0 $) y deja el resumen en el portapapeles, en voz alta y en una burbuja junto al cursor.
+  - Preparado para el cursor de la mano de Nil: `TriggerSummary` y el evento `overlay:summarize`.
+  - El contrato no cambia.
 - 2026-11-21 — **App overlay** (rama `overlay`, detalle en `docs/OVERLAY.md`):
   - la app de escritorio es una ventana siempre encima que se abre desde cualquier programa con **Ctrl+Alt+Espacio** (`LAUZHACK_HOTKEY`; el MX Keypad envía la misma combinación desde Logi Options+);
   - opciones: **1** gestos (Nil, lanza `gesture-control.exe`), **2** leer un papel (Pau y Didac: cámara → servicio de lectura → lectura guiada) y **3** leer un archivo del PC (Didac: PDF, imágenes, TXT/MD → lectura guiada);
