@@ -4,7 +4,7 @@ Dueño: Pau (P4). Brief: `docs/briefs/N3.md`. Resultados: `docs/medidas/N3.md`.
 
 Mide lo bien que la MX Brio y el pipeline de lectura leen los 3 documentos de prueba impresos (`scanner/pdf/samples/print/`). Se miden tres cosas:
 
-- **palabras correctas:** cuántas palabras del texto real del PDF aparecen en lo leído, sin importar el orden (una tabla se recorre distinto en el PDF y al leerla). Los acentos cuentan. Aparte se guarda el porcentaje en orden y la lista de palabras que faltan;
+- **palabras correctas:** cuántas palabras del **texto de cuerpo** (10 pt o más; la cabecera y el pie grises de 8–9 pt no se leen a 30–40 cm, y se miden aparte como «todo el texto») aparecen en lo leído, sin importar el orden (una tabla se recorre distinto en el PDF y al leerla). Los acentos cuentan. Aparte se guarda el porcentaje en orden y la lista de palabras que faltan;
 - **esquinas:** si se encuentran las 4 esquinas de la hoja y forman un A4;
 - **tiempo:** desde la foto hasta tener el `document` (lo que hace falta para empezar a leer), y aparte el del PDF y el del PDF digital.
 

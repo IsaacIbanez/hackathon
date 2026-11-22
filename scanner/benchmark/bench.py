@@ -103,9 +103,23 @@ def word_accuracy(truth: list[str], got: list[str]) -> float:
     return max(0.0, 1.0 - edit_distance(truth, got) / len(truth))
 
 
-def truth_words(pdf: Path) -> list[str]:
-    from pdfminer.high_level import extract_text
-    return words(extract_text(str(pdf)))
+BODY_PT = 10.0  # body text; the samples' 8-9 pt grey header and footer are unreadable at 30-40 cm
+
+
+def truth_words(pdf: Path, min_pt: float = 0.0) -> list[str]:
+    """The real words of a sample, from lines whose largest letter is at least `min_pt` points."""
+    from pdfminer.high_level import extract_pages
+    from pdfminer.layout import LTChar, LTTextContainer, LTTextLine
+    out = []
+    for page in extract_pages(str(pdf)):
+        for box in page:
+            if not isinstance(box, LTTextContainer):
+                continue
+            for line in box:
+                chars = [c for c in line if isinstance(c, LTChar)] if isinstance(line, LTTextLine) else []
+                if chars and max(c.size for c in chars) >= min_pt:
+                    out += words(line.get_text())
+    return out
 
 
 def document_words(doc: dict) -> list[str]:
@@ -193,7 +207,8 @@ def cmd_shoot(a) -> int:
     return 0
 
 
-def analyze_photo(path: Path, truth: dict[str, list[str]], digital: bool, out_dir: Path) -> dict:
+def analyze_photo(path: Path, truth: dict[str, list[str]], digital: bool, out_dir: Path,
+                  truth_all: dict[str, list[str]] | None = None) -> dict:
     from scanner_pdf import Options, convert
     cond, sample, shot = parse_photo(path.name)
     meta_path = path.with_suffix(".json")
@@ -209,6 +224,7 @@ def analyze_photo(path: Path, truth: dict[str, list[str]], digital: bool, out_di
     return {
         "photo": path.name, "condition": cond, "sample": sample, "shot": shot,
         "words_ok": round(word_recall(truth[sample], got), 4), "words_in_order": round(word_accuracy(truth[sample], got), 4),
+        "words_all_ok": round(word_recall((truth_all or truth)[sample], got), 4), "read": got,
         "words_truth": len(truth[sample]), "words_read": len(got),
         "missed": sorted((Counter(truth[sample]) - Counter(got)).elements())[:40],
         "corners_ok": ok, "aspect": aspect, "corners_found": bool(corners),
@@ -224,7 +240,8 @@ def analyze_photo(path: Path, truth: dict[str, list[str]], digital: bool, out_di
 
 
 def cmd_analyze(a) -> int:
-    truth = {k: truth_words(p) for k, p in samples().items()}
+    truth = {k: truth_words(p, BODY_PT) for k, p in samples().items()}
+    truth_all = {k: truth_words(p) for k, p in samples().items()}
     photos = sorted(p for p in Path(a.photos).glob("*.png") if parse_photo(p.name))
     if not photos:
         print(f"No photos in {a.photos}: take them first with `bench.py shoot`.")
@@ -232,9 +249,9 @@ def cmd_analyze(a) -> int:
     out_dir = RESULTS / a.label
     lines = []
     for p in photos:
-        r = analyze_photo(p, truth, a.digital, out_dir)
+        r = analyze_photo(p, truth, a.digital, out_dir, truth_all)
         lines.append(json.dumps(r, ensure_ascii=False))
-        print(f"{p.name}: words {r['words_ok']:.1%}, corners {'ok' if r['corners_ok'] else 'BAD'} ({r['aspect']}), "
+        print(f"{p.name}: words {r['words_ok']:.1%} (all text {r['words_all_ok']:.1%}), corners {'ok' if r['corners_ok'] else 'BAD'} ({r['aspect']}), "
               f"document {r['document_ms']} ms, pdf {r['pdf_ms']} ms, digital {r['digital_ms']} ms"
               + (f", error {r['error']}" if r['error'] else ""))
     (RESULTS / f"{a.label}.jsonl").write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -252,7 +269,7 @@ def summary(rows: list[dict]) -> dict:
         vals = [r[key] for r in rows if r.get(key) is not None]
         return statistics.mean(vals) if vals else None
     capture = mean("capture_ms") or 0
-    return {"n": len(rows), "words": mean("words_ok"), "corners": sum(r["corners_ok"] for r in rows),
+    return {"n": len(rows), "words": mean("words_ok"), "words_all": mean("words_all_ok"), "corners": sum(r["corners_ok"] for r in rows),
             "to_read_s": (capture + (mean("document_ms") or 0)) / 1000, "pdf_s": (mean("pdf_ms") or 0) / 1000,
             "digital_s": (mean("digital_ms") or 0) / 1000}
 
@@ -274,7 +291,7 @@ def cmd_report(a) -> int:
         print(f"| {CONDITION_NAMES.get(cond, 'All')} | " + " | ".join(cells) + " |")
     for label, rows in runs.items():
         s = summary(rows)
-        print(f"\n{label}: PDF {s['pdf_s']:.1f} s and digital PDF {s['digital_s']:.1f} s on average, "
+        print(f"\n{label}: all text (with the 8-9 pt header and footer) {s['words_all'] or 0:.1%}; PDF {s['pdf_s']:.1f} s and digital PDF {s['digital_s']:.1f} s on average, "
               f"{sum(r['pdf'] for r in rows)}/{len(rows)} PDFs, {sum(r['digital_pdf'] for r in rows)}/{len(rows)} digital PDFs.")
         worst = sorted(rows, key=lambda r: r["words_ok"])[:3]
         print("Worst: " + ", ".join(f"{r['photo']} {r['words_ok']:.0%}" for r in worst))
