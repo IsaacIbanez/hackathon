@@ -4,6 +4,7 @@ import { DocumentsMode } from './DocumentsMode.tsx'
 import { GesturesMode } from './GesturesMode.tsx'
 import { ReadFileMode } from './ReadFileMode.tsx'
 import { desktop, inDesktopApp, onDesktopEvent, type OverlayInfo } from './desktop.ts'
+import { keypadCommand, pressKey } from './keypad.ts'
 import { MODES, modeForKey, type ModeId } from './modes.ts'
 
 // The overlay (docs/OVERLAY.md): a menu with the team's features. Ctrl+Alt+Space (or an MX Keypad
@@ -23,6 +24,24 @@ export function Overlay() {
 
   // Back on screen: focus the window content so the keys work right away.
   useEffect(() => onDesktopEvent('overlay:shown', () => window.focus()), [])
+
+  // The keypad can be plugged in or out while the app runs.
+  useEffect(
+    () => onDesktopEvent('overlay:keypad-connected', (on) => setInfo((i) => (i ? { ...i, keypadConnected: on === true } : i))),
+    [],
+  )
+
+  // MX Keypad (docs/KEYPAD.md): Go shows the window and sends the action, even from another program.
+  useEffect(
+    () =>
+      onDesktopEvent('overlay:keypad', (action) => {
+        const cmd = keypadCommand(action)
+        if (!cmd) return
+        if ('view' in cmd) setView(cmd.view)
+        else pressKey(cmd.key)
+      }),
+    [],
+  )
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -105,12 +124,33 @@ function Menu({ info, onChoose }: { info: OverlayInfo | null; onChoose: (id: Mod
         {info?.hotkeyOk ? `; ${info.hotkey} brings it back from any program.` : '.'}
         {info && !info.hotkeyOk && ` The shortcut ${info.hotkey} could not be registered: the window stays available.`}
       </p>
+      <KeypadStatus info={info} />
       {inDesktopApp() && (
         <button type="button" onClick={() => void desktop().Quit()} className="text-base text-slate-500 underline">
           Quit the app (Q)
         </button>
       )}
     </section>
+  )
+}
+
+/** MX Keypad (docs/KEYPAD.md): whether it is plugged in, and any fallback shortcut that failed. */
+function KeypadStatus({ info }: { info: OverlayInfo | null }) {
+  const failed = (info?.keypad ?? []).filter((k) => !k.ok)
+  return (
+    <>
+      {info?.keypadConnected && (
+        <p role="status" className="text-lg text-emerald-300">
+          MX Keypad connected: keys 1–9 work from any program.
+        </p>
+      )}
+      {failed.length > 0 && (
+        <p role="status" className="text-lg text-amber-300">
+          Keypad shortcuts {failed.map((k) => k.shortcut).join(', ')} could not be registered (another program uses
+          them).
+        </p>
+      )}
+    </>
   )
 }
 
