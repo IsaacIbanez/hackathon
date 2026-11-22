@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { DocumentPayload } from '../../api'
-import { captureStill, openCamera, startFramingGuide, type FramingGuide } from '../../camera/index.ts'
+import { captureStill, describeStream, openCamera, startFramingGuide, type FramingGuide } from '../../camera/index.ts'
 import { GuidedReader, PdfViewer, type PdfSource } from '../../document/index.ts'
 import { Speaker } from '../../input/voice/speaker.ts'
 import { blobToDataURL, desktop, errorText, type ScanPdfKind } from './desktop.ts'
@@ -22,6 +22,27 @@ const SAY = {
 }
 
 const PDF_LABEL: Record<ScanPdfKind, string> = { searchable: 'Scanned PDF', digital: 'Digital PDF' }
+
+/** Below this width the OCR cannot read a page held at 30-40 cm (real scans at 640x360: 0 words). */
+const MIN_SCAN_WIDTH = 1920
+
+/**
+ * Opens the camera at full resolution. Gesture Control opens the same camera at 640x360 and, inside
+ * one page, Chromium shares the device: a stream asked for while the old one is still closing comes at
+ * 640x360 too (seen on the 2nd and 3rd paper in a row). So a small stream is closed and asked for again.
+ */
+async function openScanCamera(isCancelled: () => boolean): Promise<MediaStream> {
+  for (let attempt = 0; ; attempt++) {
+    const stream = await openCamera()
+    const width = stream.getVideoTracks()[0]?.getSettings().width ?? 0
+    if (width >= MIN_SCAN_WIDTH || attempt >= 3 || isCancelled()) {
+      console.info(`[scan] camera: ${describeStream(stream)} (attempt ${attempt + 1})`)
+      return stream
+    }
+    stream.getTracks().forEach((t) => t.stop())
+    await new Promise((resolve) => setTimeout(resolve, 400 + 300 * attempt))
+  }
+}
 
 type Phase = 'starting' | 'framing' | 'reading' | 'pdf' | 'done' | 'error'
 
@@ -105,14 +126,19 @@ export function DocumentsMode() {
     ;(async () => {
       const service = desktop().EnsureReadingService().catch((e) => errorText(e))
       try {
-        const stream = await openCamera()
+        const stream = await openScanCamera(() => cancelled)
         if (cancelled) return stream.getTracks().forEach((t) => t.stop())
         streamRef.current = stream
         const video = videoRef.current!
         video.srcObject = stream
         await video.play()
         setPhase('framing')
-        setMessage('Hold the paper still in front of the camera. The photo is taken on its own.')
+        const { width = 0, height = 0 } = stream.getVideoTracks()[0]?.getSettings() ?? {}
+        setMessage(
+          width && width < MIN_SCAN_WIDTH
+            ? `The camera only gives ${width}x${height}: small print may not be read. Hold the paper close and still.`
+            : 'Hold the paper still in front of the camera. The photo is taken on its own.',
+        )
         speaker.speak({ text: SAY.start, lang: LANG })
         guideRef.current = startFramingGuide(video, {
           lang: LANG,
