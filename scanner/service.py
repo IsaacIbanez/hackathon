@@ -301,6 +301,12 @@ class ScanService:
         return 200, body
 
 
+# Version of the routes this service serves, reported by GET /health. The app refuses an older
+# service still answering on the port (one started by hand before an update): it lacks routes the app
+# calls. 3 = /scan, /scan/<id>/pdf and /scan/<id>/digital, /pdf (and its pages), /document.
+SERVICE_API = 3
+
+
 def make_handler(service: ScanService):
     class Handler(BaseHTTPRequestHandler):
         server_version = "ScannerService/1"
@@ -329,7 +335,7 @@ def make_handler(service: ScanService):
         def do_GET(self):
             u = urlparse(self.path)
             if u.path == "/health":
-                return self._json(200, {"ok": True, "tesseract": TESSERACT_VERSION, "busy": service.busy})
+                return self._json(200, {"ok": True, "api": SERVICE_API, "tesseract": TESSERACT_VERSION, "busy": service.busy})
             m = SCAN_PDF.match(u.path)
             if m and m.group(2) == "pdf":
                 query = {k: v[0] for k, v in parse_qs(u.query).items()}

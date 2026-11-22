@@ -78,6 +78,20 @@ Por cada fallo: síntoma → cómo reproducirlo → causa → arreglo → cómo 
     - tests de `reconnect.ts` (200 en verde);
     - con el `.exe` y una clave no válida: **un solo** `captions:` en el log en 10 s (antes, uno por segundo), el aviso «Together AI refused the key. Check TOGETHER_API_KEY…» y el botón «Use local Whisper»;
     - el caso sin clave no se puede montar con el `.exe` (Windows no admite una variable vacía y la app lee el `.env`), así que se comprobó con el servidor y los tests.
+- **El servicio de lectura no decía qué hacer** (archivos de Isaac, `backend/overlay/procs.go`, y de Didac, `scanner/service.py`, con permiso de Pau).
+  - **Síntomas:**
+    - sin `scanner/pdf/.venv`, la app arrancaba el Python del sistema, que moría con `No module named cv2`, y la pantalla solo decía «exited on start (see …log)»;
+    - un `service.py` viejo en el 8770 se daba por bueno, aunque le faltaban las rutas nuevas.
+  - **Reproducir:** un servidor de prueba en el 8770 que contesta a `/health` sin versión (como uno viejo) → `.exe` → tecla 2.
+  - **Causa:** `Healthy` aceptaba cualquier servicio que contestara a `/health`, y `Ensure` no miraba ni el entorno ni el log.
+  - **Arreglo:**
+    - `/health` dice su versión de rutas (`"api": 3`), y la app rechaza un servicio más viejo, explicando cómo cerrarlo; nunca lo mata, porque no es suyo;
+    - sin `scanner/pdf/.venv` (y sin `LAUZHACK_PYTHON`), no arranca el Python del sistema y da el comando de instalación;
+    - si el servicio muere al arrancar, lee el final de `reading-service.log`: `No module named …` → el comando de instalación; puerto ocupado → cerrarlo.
+  - **Comprobado:**
+    - tests de Go (`procs_test.go`: versión buena, servicio viejo, motivos de la caída, entorno) y de Python (`/health` con `api`), 42 en verde;
+    - con el `.exe` y el servicio falso en el 8770: PDF Scanner muestra «an older reading service is answering on port 8770… Close it… then try again».
+
 - **Visto de paso (pendiente):**
-  - En una pantalla de 1536 px el panel de Transcribe se sale por la derecha y corta «Start».
+  - En una pantalla de 1536 px **los paneles del overlay** (Transcribe, PDF Scanner…) se salen por la derecha y cortan texto y botones: es del diseño del overlay (Isaac).
   - Un `server.exe` viejo (`go run ./backend/cmd/server`) ocupaba el 8765: la app usa otro puerto, pero las pruebas a mano contra el 8765 hablaban con el código viejo.
