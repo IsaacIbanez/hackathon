@@ -45,6 +45,7 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/status", s.guard(s.status))
 	mux.HandleFunc("POST /api/action", s.guard(s.action))
+	mux.HandleFunc("GET /api/mic", s.guard(s.mic))
 	mux.HandleFunc("POST /api/mouse", s.guard(s.mouse))
 	mux.HandleFunc("POST /api/pointer", s.guard(s.pointer))
 	mux.HandleFunc("GET /", s.page)
@@ -57,6 +58,7 @@ func (s *Server) api() http.Handler {
 		mux := http.NewServeMux()
 		mux.HandleFunc("GET /api/status", s.status)
 		mux.HandleFunc("POST /api/action", s.action)
+		mux.HandleFunc("GET /api/mic", s.mic)
 		mux.HandleFunc("POST /api/mouse", s.mouse)
 		mux.HandleFunc("POST /api/pointer", s.pointer)
 		s.apiMux = mux
@@ -125,6 +127,18 @@ func (s *Server) guard(next http.HandlerFunc) http.HandlerFunc {
 
 func (s *Server) status(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, s.Status)
+}
+
+// mic answers whether the system microphone is muted: {"muted": true|false}.
+func (s *Server) mic(w http.ResponseWriter, _ *http.Request) {
+	s.mu.Lock()
+	muted, err := s.Exec.Desktop.MicMuted()
+	s.mu.Unlock()
+	if err != nil {
+		writeError(w, http.StatusNotImplemented, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"muted": muted})
 }
 
 func (s *Server) action(w http.ResponseWriter, r *http.Request) {

@@ -57,3 +57,8 @@ Por cada fallo: síntoma → cómo reproducirlo → causa → arreglo → cómo 
 - Síntoma: tras «Close gestures» el overlay volvía, pero la mano seguía disparando acciones. Quedaba además código viejo que apagaba la cámara.
 - Arreglo: «Close gestures» duerme los gestos (`HandInteraction.sleepNow`), apaga el modo cursor y vuelve al overlay; la cámara sigue encendida. Una palma abierta o abrir Gesture Control (tecla 6, `wakeNow`) los despierta.
 - Comprobado: test nuevo en `experimental.test.ts`, `tsc`, 199 tests. Falta el `.exe` (lo prueba Nil en Windows).
+
+**2. «Microphone» no mostraba el estado real (2026-11-22)**
+- Síntoma: la opción decía «Microphone» hasta pulsarla. Además, tras pulsarla en Windows tampoco cambiaba: el ayudante responde «microphone on» y la página buscaba «unmuted».
+- Arreglo: el ayudante tiene `GET /api/mic` (`{"muted": true|false}`, `Desktop.MicMuted` en Windows, Linux y macOS). La página lo lee al arrancar y al abrir el menú (como mucho cada 2 s); tras pulsar, usa la respuesta del ayudante (`micStateOf`). Si falla, vuelve a leer el estado real. Silenciado, avisa de que las órdenes de voz no oirán.
+- Comprobado: `TestServerMicState` (Go), tests de `micStateOf` y `micMuted` (web), `go vet` Linux y Windows, 201 tests. Falta el `.exe` (Nil en Windows).

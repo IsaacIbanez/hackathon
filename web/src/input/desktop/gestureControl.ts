@@ -15,7 +15,7 @@ import { CONNECTIONS, L, type HandEvent, type HandFrame, type LevelTarget, type 
 import { latestOnly, OS_ACTIONS, toScreen, type ActionOptions, type CallAppId, type HelperClient } from "./client.ts";
 import { MARKUP } from "./markup.ts";
 import "./gestureControl.css";
-import { cellsOf, menuPage, powerLabel, type DesktopContext, type Launcher, type MenuPage } from "./menu.ts";
+import { cellsOf, menuPage, micStateOf, powerLabel, type DesktopContext, type Launcher, type MenuPage } from "./menu.ts";
 import { optionHtml } from "./menuView.ts";
 
 export interface GestureControlOptions {
@@ -125,6 +125,18 @@ export function mountGestureControl(
   const app = () => $<HTMLSelectElement>("app").value as CallAppId;
   /** The system microphone, as the helper last said (null: not known yet). */
   let micMuted: boolean | null = null;
+  /** Toggles still waiting for the helper: a state read meanwhile would be out of date. */
+  let micBusy = 0;
+  let tMicRead = -Infinity;
+  /** Reads the real microphone state (on start and when the menu opens, at most every 2 s). */
+  function refreshMic() {
+    const t = performance.now();
+    if (t - tMicRead < 2000) return;
+    tMicRead = t;
+    void helper.micMuted().then((muted) => {
+      if (micBusy === 0 && muted !== null) micMuted = muted;
+    });
+  }
   const layout = () => menuPage(page, context, launchers, mouseOn(), powerOn, micMuted);
 
   /**
@@ -221,7 +233,10 @@ export function mountGestureControl(
 
   function onMenu(e: Extract<HandEvent, { type: "menu" }>) {
     if (e.phase === "open") {
-      if (!reopening) showPage({ id: "main" });
+      if (!reopening) {
+        showPage({ id: "main" });
+        refreshMic();
+      }
       return;
     }
     if (e.phase === "back") {
@@ -296,12 +311,20 @@ export function mountGestureControl(
     }
     if (!enabled()) return;
     if (micMuted !== null) micMuted = !micMuted; // shown at once, corrected by the helper's answer
+    micBusy++;
     void perform("mic_mute").then((did) => {
-      if (!did) return;
-      // The helper says whether the microphone ended up muted.
-      if (/unmuted/i.test(did)) micMuted = false;
-      else if (/muted/i.test(did)) micMuted = true;
-      toast(micMuted === null ? did : micMuted ? "Microphone muted" : "Microphone on");
+      micBusy--;
+      if (!did) {
+        // It failed (perform showed why): read the real state instead of the guess.
+        tMicRead = -Infinity;
+        refreshMic();
+        return;
+      }
+      // The helper says "microphone muted", "microphone on" or, if it cannot tell, "microphone toggled".
+      const state = micStateOf(did);
+      if (state !== null) micMuted = state;
+      // Muted, the voice commands do not hear anything either: say so.
+      toast(micMuted === null ? did : micMuted ? "Microphone muted · voice commands will not hear you" : "Microphone on");
     });
   }
 
@@ -598,6 +621,7 @@ export function mountGestureControl(
       $("status").textContent = options.unreachable ?? "Helper not reachable — start it with: go run ./adapters/desktop (port 8767)";
       $("status").classList.add("error");
     }
+    refreshMic();
     await startCamera();
   }
 

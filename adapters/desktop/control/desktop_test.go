@@ -513,3 +513,16 @@ func TestCallActionNeedsTheCallWindow(t *testing.T) {
 		t.Errorf("no keys may be pressed: %v", d.Calls)
 	}
 }
+
+func TestServerMicState(t *testing.T) {
+	s, _ := newTestServer()
+	if code, body := s.Call("GET", "/api/mic", ""); code != http.StatusOK || strings.TrimSpace(body) != `{"muted":false}` {
+		t.Fatalf("mic before: %d %s", code, body)
+	}
+	if code, _ := s.Call("POST", "/api/action", `{"action":"mic_mute"}`); code != http.StatusOK {
+		t.Fatalf("mic_mute: %d", code)
+	}
+	if code, body := s.Call("GET", "/api/mic", ""); code != http.StatusOK || strings.TrimSpace(body) != `{"muted":true}` {
+		t.Fatalf("mic after: %d %s", code, body)
+	}
+}

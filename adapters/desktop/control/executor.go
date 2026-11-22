@@ -26,6 +26,8 @@ type Desktop interface {
 	SetVolume(v float64) error
 	SetBrightness(v float64) error
 	ToggleMicMute() (state string, err error)
+	// MicMuted says whether the system microphone is muted now (the menu shows it before a toggle).
+	MicMuted() (bool, error)
 	Power(kind string) error
 	OpenApp(argv []string) error
 	// FocusWindow brings the call app's window to the front before sending its shortcuts.
@@ -209,6 +211,16 @@ func (d *DryRun) SetBrightness(v float64) error { return d.record(fmt.Sprintf("b
 func (d *DryRun) ToggleMicMute() (string, error) {
 	_ = d.record("mic toggle")
 	return "toggled", nil
+}
+// MicMuted follows the dry-run toggles (starts unmuted).
+func (d *DryRun) MicMuted() (bool, error) {
+	n := 0
+	for _, c := range d.Calls {
+		if c == "mic toggle" {
+			n++
+		}
+	}
+	return n%2 == 1, nil
 }
 func (d *DryRun) Power(kind string) error { return d.record("power " + kind) }
 func (d *DryRun) OpenApp(argv []string) error {

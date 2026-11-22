@@ -132,6 +132,13 @@ export function menuPage(
   }
 }
 
+/** Whether the helper's answer to mic_mute says muted (true), on (false) or cannot tell (null). */
+export function micStateOf(did: string): boolean | null {
+  if (/\bunmuted\b|\bon\b/i.test(did)) return false;
+  if (/\bmuted\b/i.test(did)) return true;
+  return null;
+}
+
 /** Cells that have an option (for HandInteraction.setMenuCells). */
 export function cellsOf(layout: MenuLayout): MenuSector[] {
   return (Object.keys(layout) as MenuSector[]).filter((s) => layout[s]);
