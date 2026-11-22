@@ -112,7 +112,11 @@ export class HelperClient {
     if (this.pointerBusy) return;
     this.pointerBusy = true;
     try {
-      await this.request("/api/pointer", "POST", { x: p.x, y: p.y });
+      const r = await this.request("/api/pointer", "POST", { x: p.x, y: p.y });
+      if (!r.ok) {
+        const data = (await r.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error ?? `HTTP ${r.status}`);
+      }
     } finally {
       this.pointerBusy = false;
     }

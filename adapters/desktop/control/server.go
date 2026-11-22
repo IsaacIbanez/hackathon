@@ -145,6 +145,9 @@ func (s *Server) action(w http.ResponseWriter, r *http.Request) {
 		log.Printf("action %q: %v", req.Action, err)
 		writeError(w, http.StatusInternalServerError, err.Error())
 	default:
+		if s.Status.DryRun {
+			did = "simulated (dry run): " + did
+		}
 		log.Printf("did: %s", did)
 		writeJSON(w, http.StatusOK, map[string]string{"did": did})
 	}

@@ -81,3 +81,6 @@ html.gc-see-through .gc.screen { visibility: visible; }
 .gc.screen #menu { background: #0b0d1259; }
 .gc.screen #menu .op { margin: 2vmin; background: #141821e6; box-shadow: 0 0 0 3px #ffffff33; }
 .gc.screen #menu .center { background: #141821cc; border-radius: 14px; margin: 2vmin; }
+.gc #dryrun { position: absolute; left: 0; right: 0; bottom: 0; z-index: 5; text-align: center; font-weight: 800;
+  font-size: clamp(12px, 2.6cqw, 32px); padding: .3em; color: #fff; background: #c0262dee; }
+.gc #dryrun[hidden] { display: none; }

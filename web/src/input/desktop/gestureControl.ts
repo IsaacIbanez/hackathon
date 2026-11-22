@@ -99,6 +99,15 @@ export function mountGestureControl(
    * Cursor mode: ☝️ moves the mouse, the middle finger on the thumb clicks (twice: right click;
    * holding: drag) and the open palm moving up or down scrolls. Off, pointing does nothing.
    */
+  let tPointerError = -Infinity;
+  function pointerError(err: Error) {
+    const t = performance.now();
+    if (t - tPointerError < 5000) return;
+    tPointerError = t;
+    toast(`Mouse: ${err.message}`, true);
+    log(`✗ Mouse: ${err.message}`);
+  }
+
   function setCursor(on: boolean) {
     $<HTMLInputElement>("mouse").checked = on;
     interaction.configure({ mouseClicks: on });
@@ -249,7 +258,8 @@ export function mountGestureControl(
     if (!enabled()) return;
 
     if (e.type === "pointer") {
-      if (mouseOn()) void helper.pointer(toScreen(e.image)).catch(() => {});
+      // A failing mouse (a missing tool on Linux, for example) must not fail silently.
+      if (mouseOn()) void helper.pointer(toScreen(e.image)).catch((err: Error) => pointerError(err));
       return;
     }
     if (e.type === "scroll") {
@@ -451,6 +461,7 @@ export function mountGestureControl(
       const s = await helper.status();
       launchers = s.launchers ?? [];
       $("status").textContent = `${s.dryRun ? "Dry run — nothing is pressed · " : ""}${s.desktop}`;
+      $("dryrun").hidden = !s.dryRun;
       showPage({ id: "main" });
       paintGuide();
     } catch {
