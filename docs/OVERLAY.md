@@ -12,7 +12,7 @@ La app de escritorio deja de ser una ventana normal y pasa a ser un **overlay**:
 | **2** | Leer un papel (*PDF Scanner*) | Pau (B1) y Didac (B2) | Cámara con la guía de encuadre por voz → foto automática → servicio de lectura → **lectura guiada** en voz alta |
 | **3** | Leer un archivo (*Read Text*) | Didac (B2) | Pide un documento del PC. Un **PDF** se abre en un **visor** con las páginas de verdad y un botón «Read the whole PDF» que lo lee entero, página a página y sin límite (N4, `docs/briefs/N4.md`). El texto y las imágenes se leen línea a línea (**lectura guiada**) |
 | **4** | Resumir el texto seleccionado (*AI Summary*) | Didac (B2) | Resume en 2–3 frases sencillas el texto seleccionado en **cualquier programa**: lo dice en voz alta, lo copia al portapapeles y lo enseña en una burbuja junto al cursor (sección «Opción 4») |
-| 5 | Subtítulos en directo (*Transcribe*) | Pau (B1) | Aún no está en `main`: el círculo dice «Coming soon» |
+| 5 | Subtítulos en directo (*Transcribe*) | Pau (B1) | `<LiveCaptions />` (`web/src/captions`) sobre `GET /captions`; necesita `TOGETHER_API_KEY` en `.env` |
 
 Las opciones 1 a 3 son **locales y gratuitas**: no llaman a ningún modelo de IA. La 4 usa el **modelo barato**: unos 0,0001 $ por resumen, con el coste a la vista. Sin clave, resume en local.
 

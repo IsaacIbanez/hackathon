@@ -78,7 +78,7 @@ export const MODES: Mode[] = [
     accent: 'var(--color-voice)',
     place: 'arc',
     owner: 'Pau (B1)',
-    ready: false,
+    ready: true,
   },
 ]
 

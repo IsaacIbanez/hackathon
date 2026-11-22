@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import App from '../App.tsx'
+import { LiveCaptions } from '../../captions'
 import { DocumentsMode } from './DocumentsMode.tsx'
 import { GesturesMode } from './GesturesMode.tsx'
 import { ReadFileMode } from './ReadFileMode.tsx'
@@ -223,7 +224,7 @@ export function Overlay() {
     gestures: <GesturesMode />,
     documents: <DocumentsMode />,
     'read-file': <ReadFileMode onCancel={back} />,
-    transcribe: <ComingSoon />,
+    transcribe: <LiveCaptions onClose={back} />,
   }
   return (
     <>
@@ -240,20 +241,6 @@ export function Overlay() {
       </Panel>
       {banner}
     </>
-  )
-}
-
-/** Transcribe (Pau's live captions) is not in the app yet. */
-function ComingSoon() {
-  return (
-    <div className="grid h-full place-items-center text-center">
-      <div className="max-w-xl space-y-3">
-        <p className="text-3xl font-bold">Transcribe is not ready yet.</p>
-        <p className="text-xl text-[var(--color-mist)]">
-          It will show live captions of what people around you say. Press Esc to go back and use another tool.
-        </p>
-      </div>
-    </div>
   )
 }
 
