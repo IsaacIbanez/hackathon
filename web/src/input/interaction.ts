@@ -28,6 +28,7 @@ import {
   type MenuSector,
   type MouseAction,
   type Point,
+  type Point3D,
 } from "./types.ts";
 
 export interface InteractionOptions {
@@ -89,8 +90,13 @@ export interface InteractionOptions {
   levelStep: number;
   /** Extra margin (fraction of a step) to change step: avoids flicker at the boundary. */
   levelHysteresis: number;
-  /** Time held still on the same step to confirm the value. */
+  /** Time held still (within levelStillBand) to confirm the value. */
   levelConfirmMs: number;
+  /**
+   * Movement of the continuous level (0–1) still counted as "holding still": the natural tremor
+   * of the hand must not restart the confirmation.
+   */
+  levelStillBand: number;
   /** Time the pinch must be held to start controlling the level. */
   levelStartMs: number;
   /** After choosing "adjust volume" in the menu, time to pinch before cancelling. */
@@ -170,7 +176,8 @@ export const DEFAULT_OPTIONS: InteractionOptions = {
   levelFull: 1.0,
   levelStep: 0.1,
   levelHysteresis: 0.25,
-  levelConfirmMs: 1000,
+  levelConfirmMs: 1200,
+  levelStillBand: 0.06,
   levelStartMs: 150,
   fistReach: 0.9,
   levelArmMs: 8000,
@@ -178,16 +185,16 @@ export const DEFAULT_OPTIONS: InteractionOptions = {
   menuBackMs: 300,
   menuHoldMs: 500,
   mouseClicks: false,
-  clickPress: 0.3,
-  clickRelease: 0.45,
-  clickReach: 0.9,
+  clickPress: 0.38,
+  clickRelease: 0.5,
+  clickReach: 0.85,
   dragMs: 300,
   doubleTapMs: 350,
   palmMustFaceCamera: true,
   menuSelectMs: 500,
   menuSelect: "click",
-  menuTapMs: 600,
-  menuTapRingSep: 0.22,
+  menuTapMs: 800,
+  menuTapRingSep: 0.18,
   menuSettleMs: 300,
   menuTimeoutMs: 5000,
   head: {},
@@ -259,6 +266,9 @@ interface LevelState {
   tChange: number;
   /** Whether the value has changed at least once (the untouched initial value is not confirmed). */
   moved: boolean;
+  /** Since when the hand holds still, and the continuous value it holds around. */
+  tStill: number;
+  stillAt: number;
   /** Recent values: when closing the fist, a value from before closing is used. */
   history: { t: number; value: number }[];
   tLastValid: number;
@@ -449,7 +459,7 @@ export class HandInteraction {
   } | null {
     const n = this.level;
     if (!n) return null;
-    const confirmProgress = n.moved ? Math.min(1, (t - n.tChange) / this.opts.levelConfirmMs) : 0;
+    const confirmProgress = n.moved ? Math.min(1, (t - n.tStill) / this.opts.levelConfirmMs) : 0;
     return { value: n.value, continuous: n.continuous, confirmProgress, thumb: n.thumb, index: n.index };
   }
 
@@ -827,6 +837,8 @@ export class HandInteraction {
         continuous,
         tChange: t,
         moved: false,
+        tStill: t,
+        stillAt: continuous,
         history: [{ t, value }],
         tLastValid: t,
         thumb,
@@ -852,8 +864,13 @@ export class HandInteraction {
     n.history.push({ t, value: n.value });
     while (n.history.length && t - n.history[0].t > 400) n.history.shift();
 
-    // Confirm: held still on the same step for the configured time.
-    if (n.moved && t - n.tChange >= this.opts.levelConfirmMs) {
+    // Confirm: the hand held still (small tremor allowed) for the configured time. A step change
+    // always restarts it.
+    if (Math.abs(continuous - n.stillAt) > this.opts.levelStillBand || n.tChange === t) {
+      n.stillAt = continuous;
+      n.tStill = t;
+    }
+    if (n.moved && t - n.tStill >= this.opts.levelConfirmMs) {
       this.endLevel(t, false);
       this.stableGesture = pose;
       this.resetCandidate(t, pose, center);
@@ -1000,7 +1017,7 @@ export class HandInteraction {
   private menuTap(t: number, pose: Gesture, hand: Hand, aspect: number, sector: MenuSector | null): boolean {
     const pts = shapePoints(hand, aspect);
     const size = handSize(pts);
-    const gap = distance(pts[L.THUMB_TIP], pts[L.MIDDLE_TIP]) / size;
+    const gap = fingerGap(hand, pts, aspect);
     if (pose !== "point") {
       this.menuTouchReady = false;
       this.menuTouching = false;
@@ -1042,7 +1059,7 @@ export class HandInteraction {
     const pointing = pose === "point" || t - this.tLastPointing <= 150;
     const pts = shapePoints(hand, aspect);
     const size = handSize(pts);
-    const gap = distance(pts[L.THUMB_TIP], pts[L.MIDDLE_TIP]) / size;
+    const gap = fingerGap(hand, pts, aspect);
     // Pointing with the middle finger curled into the palm can leave its tip next to the thumb. Two
     // guards keep that from clicking: the fingers must first be seen apart after pointing starts
     // (clickReady), and the middle fingertip must be out in front of the palm, where it meets the
@@ -1236,6 +1253,19 @@ export class HandInteraction {
     if (ACTIVITY.has(e.type)) this.tActivity = e.t;
     for (const l of this.listeners) l(e);
   }
+}
+
+/**
+ * Middle fingertip to thumb tip, ÷ hand size: the smaller of the 3D measure and the one on the
+ * image. MediaPipe's depth is the noisiest coordinate, so fingers that touch often look apart in
+ * 3D; seen from the camera they clearly touch.
+ */
+export function fingerGap(hand: Hand, pts: Point3D[], aspect: number): number {
+  const g3 = distance(pts[L.THUMB_TIP], pts[L.MIDDLE_TIP]) / handSize(pts);
+  const p = hand.points;
+  const size2 = distance2D(p[L.WRIST], p[L.MIDDLE_MCP], aspect) || 1;
+  const g2 = distance2D(p[L.THUMB_TIP], p[L.MIDDLE_TIP], aspect) / size2;
+  return Math.min(g3, g2);
 }
 
 /** Size of the hand in the image (bounding-box diagonal): larger means nearer the camera. */

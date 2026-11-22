@@ -331,6 +331,23 @@ export function mountGestureControl(
     el.style.setProperty("--p", String(progress));
   }
 
+  /** Volume or brightness being adjusted: the value, and how long until it is set. */
+  function paintLevel(lvl: ReturnType<HandInteraction["levelActive"]>) {
+    const el = $("level");
+    el.hidden = !lvl && !interaction.levelArmed;
+    if (el.hidden) return;
+    const brightness = interaction.levelTargetName === "brightness";
+    const icon = brightness ? "🔆" : "🔊";
+    if (!lvl) {
+      el.innerHTML = `${icon} <small>touch thumb and index, then open them</small>`;
+      el.style.setProperty("--p", "0");
+      return;
+    }
+    const hint = lvl.confirmProgress > 0 ? "hold still to set it" : "open or close your fingers";
+    el.innerHTML = `${icon} ${Math.round(lvl.value * 100)} % <small>${hint}</small>`;
+    el.style.setProperty("--p", String(lvl.confirmProgress));
+  }
+
   function draw() {
     if (stopped) return;
     const t = performance.now();
@@ -381,6 +398,7 @@ export function mountGestureControl(
       ctx.stroke();
     }
     paintSleep(t);
+    paintLevel(lvl);
     paintMenu();
     if (t - tAction > 1800) $("action").textContent = "";
     requestAnimationFrame(draw);

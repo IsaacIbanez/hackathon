@@ -132,7 +132,7 @@ test("pinch: holding still ~1 s on the same value confirms it", () => {
   const frames = [
     ...repeat(makeHand(SHAPES.pinch), 8),
     ...Array.from({ length: 10 }, (_, i) => openPinch(0.01 * (i + 1))), // opens a little
-    ...repeat(openPinch(0.1), 40), // and holds still
+    ...repeat(openPinch(0.1), 60), // and holds still
   ];
   const ev = simulate(ctl, frames).filter((e) => e.type === "level");
   const ends = ev.filter((e) => e.type === "level" && e.phase === "end");
@@ -140,6 +140,18 @@ test("pinch: holding still ~1 s on the same value confirms it", () => {
   const lastMove = ev.filter((e) => e.type === "level" && e.phase === "move").pop()!;
   assert.ok(ends[0].type === "level" && lastMove.type === "level" && ends[0].value === lastMove.value);
   assert.ok(ends[0].t - lastMove.t >= 1000);
+});
+
+test("pinch: a trembling hand still confirms (small movements don't restart the wait)", () => {
+  const ctl = armed();
+  const frames = [
+    ...repeat(makeHand(SHAPES.pinch), 8),
+    ...Array.from({ length: 10 }, (_, i) => openPinch(0.012 * (i + 1))),
+    // Holds around the same spot with a small tremor.
+    ...Array.from({ length: 70 }, (_, i) => openPinch(0.12 + (i % 2 ? 0.006 : -0.006))),
+  ];
+  const ends = simulate(ctl, frames).filter((e) => e.type === "level" && e.phase === "end");
+  assert.equal(ends.length, 1);
 });
 
 test("pinch: bringing the fingers back together always gives 0 % and the scale doesn't drift", () => {

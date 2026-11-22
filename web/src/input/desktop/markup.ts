@@ -16,6 +16,7 @@ export const MARKUP = `
       <canvas id="canvas" aria-label="Camera view with hand tracking"></canvas>
       <div id="action" aria-live="assertive"></div>
       <div id="sleep" role="status" hidden></div>
+      <div id="level" role="status" hidden></div>
       <div id="menu" hidden>
         <div class="op" data-s="up_left" style="grid-area: ul"></div>
         <div class="op" data-s="up" style="grid-area: up"></div>
