@@ -212,6 +212,7 @@ func (d *DryRun) ToggleMicMute() (string, error) {
 	_ = d.record("mic toggle")
 	return "toggled", nil
 }
+
 // MicMuted follows the dry-run toggles (starts unmuted).
 func (d *DryRun) MicMuted() (bool, error) {
 	n := 0
