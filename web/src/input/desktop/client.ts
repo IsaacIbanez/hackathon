@@ -50,9 +50,10 @@ export interface ActionOptions {
 /**
  * Maps the pointer from camera-image coordinates to the screen. The image is mirrored for the user,
  * and only the central part of the camera is used (`margin` on each side) so the screen edges can
- * be reached without leaving the camera's field of view.
+ * be reached without leaving the camera's field of view. A larger margin means less hand movement
+ * for the same cursor movement (0.22: the central 56 % of the image covers the whole screen).
  */
-export function toScreen(p: Point, mirror = true, margin = 0.15): Point {
+export function toScreen(p: Point, mirror = true, margin = 0.22): Point {
   const x = mirror ? 1 - p.x : p.x;
   const clamp = (v: number) => Math.min(1, Math.max(0, v));
   const span = 1 - 2 * margin;

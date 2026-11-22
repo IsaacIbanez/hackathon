@@ -13,6 +13,7 @@ import (
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v2/pkg/options/windows"
 )
 
 //go:embed all:web/dist
@@ -32,9 +33,14 @@ func main() {
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
-		BackgroundColour: &options.RGBA{R: 15, G: 23, B: 42, A: 1},
-		OnStartup:        app.startup,
-		OnShutdown:       app.shutdown,
+		// Transparent: the page paints its own background, except while the gesture menu covers the
+		// whole screen (SetScreenOverlay), where what is open below shows through.
+		BackgroundColour: &options.RGBA{R: 0, G: 0, B: 0, A: 0},
+		Windows: &windows.Options{
+			WebviewIsTransparent: true,
+		},
+		OnStartup:  app.startup,
+		OnShutdown: app.shutdown,
 		Bind: []interface{}{
 			app,
 		},

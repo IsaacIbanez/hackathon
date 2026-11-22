@@ -41,6 +41,7 @@ type overlayState struct {
 	gestures   *control.Server
 	gesturesOn bool // option 1 is showing the camera
 	compact    bool // shrunk to a camera bubble in a corner instead of hidden
+	screen     bool // from the bubble: see-through over the whole screen while the gesture menu is open
 }
 
 // startOverlay registers the shortcut; the window starts visible so the person sees it once.
@@ -321,7 +322,12 @@ func (a *App) setCompact(ctx context.Context, on bool) {
 	o.mu.Lock()
 	o.compact = on
 	o.visible = true
+	wasScreen := o.screen
+	o.screen = false
 	o.mu.Unlock()
+	if wasScreen {
+		wruntime.WindowUnfullscreen(ctx)
+	}
 	wruntime.WindowShow(ctx)
 	wruntime.WindowUnminimise(ctx)
 	wruntime.WindowSetAlwaysOnTop(ctx, true)
@@ -373,4 +379,33 @@ func keepCameraRunning() {
 		return
 	}
 	_ = os.Setenv(env, "--disable-background-timer-throttling --disable-renderer-backgrounding --disable-backgrounding-occluded-windows")
+}
+
+// SetScreenOverlay, from the camera bubble, spreads the window over the whole screen with a
+// see-through page (true): the gesture menu and the volume/brightness control show on top of what
+// is open, with the camera small in a corner. false goes back to the bubble. The window covers the
+// screen only while the menu or the level control is in use — when the mouse is not needed — so it
+// never takes the clicks meant for other programs. Ignored unless the window is the bubble.
+func (a *App) SetScreenOverlay(on bool) {
+	o := &a.overlay
+	o.mu.Lock()
+	if !o.compact || o.screen == on {
+		o.mu.Unlock()
+		return
+	}
+	o.screen = on
+	o.mu.Unlock()
+	ctx := a.ctx
+	if on {
+		wruntime.WindowSetAlwaysOnTop(ctx, true)
+		wruntime.WindowFullscreen(ctx)
+		wruntime.EventsEmit(ctx, "overlay:screen")
+		return
+	}
+	wruntime.WindowUnfullscreen(ctx)
+	wruntime.WindowSetSize(ctx, compactWidth, compactHeight)
+	if sw, sh := currentScreen(ctx); sw > 0 {
+		wruntime.WindowSetPosition(ctx, sw-compactWidth-compactMargin, sh-compactHeight-3*compactMargin)
+	}
+	wruntime.EventsEmit(ctx, "overlay:compact")
 }

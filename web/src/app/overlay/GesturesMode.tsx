@@ -7,7 +7,10 @@ import { desktop, errorText, inDesktopApp, onDesktopEvent } from './desktop.ts'
 // runs in this window and its actions go to Go through the GestureCall binding — no separate
 // program. While it is open, hiding the overlay (the shortcut, or M) shrinks the window to a camera
 // bubble in a corner instead, so the camera keeps following the hand; the shortcut or a double
-// click on the bubble brings the full overlay back. Esc goes back to the menu and stops the camera.
+// click on the bubble brings the full overlay back. From the bubble, opening the gesture menu (✊)
+// or adjusting the volume/brightness spreads a see-through window over the whole screen with the
+// options on top of what is open; it goes back to the bubble when done. Esc goes back to the menu
+// and stops the camera.
 export function GesturesMode() {
   const root = useRef<HTMLDivElement>(null)
   const [error, setError] = useState<string | null>(
@@ -20,15 +23,25 @@ export function GesturesMode() {
     const helper = new HelperClient('', bindingFetch((m, p, b) => app.GestureCall(m, p, b)))
     let handle: GestureControlHandle | null = mountGestureControl(root.current, helper, {
       unreachable: 'Gesture Control did not answer inside the app (see build/bin/lauzhack.log).',
+      // From the bubble, the menu and the volume/brightness control take the whole screen.
+      onScreenOverlay: (need) => void app.SetScreenOverlay(need).catch(() => {}),
     })
     void app.SetGesturesActive(true).catch((e) => setError(errorText(e)))
-    const offCompact = onDesktopEvent('overlay:compact', () => handle?.setCompact(true))
-    const offExpanded = onDesktopEvent('overlay:expanded', () => handle?.setCompact(false))
+    const offCompact = onDesktopEvent('overlay:compact', () => {
+      handle?.setScreen(false)
+      handle?.setCompact(true)
+    })
+    const offScreen = onDesktopEvent('overlay:screen', () => handle?.setScreen(true))
+    const offExpanded = onDesktopEvent('overlay:expanded', () => {
+      handle?.setScreen(false)
+      handle?.setCompact(false)
+    })
     const el = root.current
     const expand = () => void app.SetCompact(false)
     el.addEventListener('dblclick', expand)
     return () => {
       offCompact()
+      offScreen()
       offExpanded()
       el.removeEventListener('dblclick', expand)
       handle?.stop()

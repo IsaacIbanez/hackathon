@@ -8,8 +8,8 @@ const near = (a: { x: number; y: number }, x: number, y: number) =>
 
 test("toScreen mirrors the image and uses the central part of the camera", () => {
   // Image right edge (user's left) → screen left; the margin maps to the screen edges.
-  near(toScreen({ x: 0.85, y: 0.15 }), 0, 0);
-  near(toScreen({ x: 0.15, y: 0.85 }), 1, 1);
+  near(toScreen({ x: 0.78, y: 0.22 }), 0, 0);
+  near(toScreen({ x: 0.22, y: 0.78 }), 1, 1);
   near(toScreen({ x: 0.5, y: 0.5 }), 0.5, 0.5);
   // Beyond the margin it clamps instead of leaving the screen.
   near(toScreen({ x: 1, y: 1 }), 0, 1);

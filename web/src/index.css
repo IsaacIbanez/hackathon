@@ -5,6 +5,10 @@
   html {
     font-size: 125%;
   }
+  /* The desktop window is transparent: the page paints the background (see main.go). */
+  body {
+    background: #0f172a;
+  }
   :focus-visible {
     outline: 4px solid #facc15;
     outline-offset: 2px;

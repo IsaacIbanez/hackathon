@@ -26,6 +26,7 @@ interface GoBindings {
   GestureCall(method: string, path: string, body: string): Promise<string>
   SetGesturesActive(on: boolean): Promise<void>
   SetCompact(on: boolean): Promise<void>
+  SetScreenOverlay(on: boolean): Promise<void>
 }
 
 interface GoApp extends Omit<GoBindings, 'OverlayInfo' | 'ReadPhoto' | 'OpenAndReadFile'> {

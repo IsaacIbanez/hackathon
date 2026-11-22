@@ -19,6 +19,11 @@ import { cellsOf, menuPage, powerLabel, type DesktopContext, type Launcher, type
 export interface GestureControlOptions {
   /** Status text when the helper can't be reached. */
   unreachable?: string;
+  /**
+   * Called when the page starts or stops needing the whole screen: while the menu is open or the
+   * volume/brightness is being adjusted (the desktop app then spreads its window over the screen).
+   */
+  onScreenOverlay?: (need: boolean) => void;
 }
 
 export interface GestureControlHandle {
@@ -26,6 +31,11 @@ export interface GestureControlHandle {
   stop(): void;
   /** Shows only the camera (the desktop app's corner bubble). */
   setCompact(on: boolean): void;
+  /**
+   * See-through over the whole screen: only the menu, the hints and a small camera preview are
+   * painted; the rest of the page is transparent.
+   */
+  setScreen(on: boolean): void;
 }
 
 /** Builds the camera page inside root and starts it; the helper performs the actions. */
@@ -43,6 +53,7 @@ export function mountGestureControl(
 
   const interaction = new HandInteraction({ requireWake: true, mouseClicks: true });
   let stopped = false;
+  let screenNeeded = false;
   let tracker: { stop(): void } | null = null;
 
   let context: DesktopContext = "call";
@@ -400,6 +411,12 @@ export function mountGestureControl(
     paintSleep(t);
     paintLevel(lvl);
     paintMenu();
+    const needScreen =
+      !!interaction.menuOpen(t) || interaction.levelArmed || !!lvl || (!!chosen && t - chosen.t < 700);
+    if (needScreen !== screenNeeded) {
+      screenNeeded = needScreen;
+      options.onScreenOverlay?.(needScreen);
+    }
     if (t - tAction > 1800) $("action").textContent = "";
     requestAnimationFrame(draw);
   }
@@ -452,8 +469,13 @@ export function mountGestureControl(
       const stream = video.srcObject as MediaStream | null;
       for (const t of stream?.getTracks() ?? []) t.stop();
       video.srcObject = null;
-      root.classList.remove("gc", "compact");
+      root.classList.remove("gc", "compact", "screen");
+      document.documentElement.classList.remove("gc-see-through");
       root.innerHTML = "";
+    },
+    setScreen(on: boolean) {
+      root.classList.toggle("screen", on);
+      document.documentElement.classList.toggle("gc-see-through", on);
     },
     setCompact(on: boolean) {
       root.classList.toggle("compact", on);

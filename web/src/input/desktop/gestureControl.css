@@ -67,3 +67,17 @@
   background-image: linear-gradient(90deg, #3ddc9788 calc(var(--p) * 100%), transparent 0); }
 .gc #level[hidden] { display: none; }
 .gc #level small { font-size: .5em; font-weight: 600; color: #cfd6e4; margin-left: .5em; }
+
+/* Whole screen, see-through (desktop app): the gesture menu and hints over what is open, with the
+   camera small in a corner. Everything else on the page is invisible. */
+html.gc-see-through, html.gc-see-through body { background: transparent !important; }
+html.gc-see-through body { visibility: hidden; }
+html.gc-see-through .gc.screen { visibility: visible; }
+.gc.screen { max-width: none; min-width: 0; padding: 0; position: fixed; inset: 0; z-index: 60; background: transparent; }
+.gc.screen > :not(.stage) { display: none; }
+.gc.screen .stage { height: 100vh; border-radius: 0; background: transparent; box-shadow: none; }
+.gc.screen canvas { position: absolute; right: 24px; bottom: 24px; width: min(28vw, 360px); height: auto; aspect-ratio: 16 / 9;
+  border-radius: 14px; box-shadow: 0 0 0 3px var(--accent); }
+.gc.screen #menu { background: #0b0d1259; }
+.gc.screen #menu .op { margin: 2vmin; background: #141821e6; box-shadow: 0 0 0 3px #ffffff33; }
+.gc.screen #menu .center { background: #141821cc; border-radius: 14px; margin: 2vmin; }
