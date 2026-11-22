@@ -6,6 +6,9 @@ import { menuFor, type Action } from "./actions.ts";
 import type { HandInteraction } from "./interaction.ts";
 import { CONNECTIONS, type Gesture, type HandFrame, type HandSide, type MenuSector, type Point } from "./types.ts";
 
+/** Halo colours (docs/DISENO.md, web/src/index.css): Gesture Control's teal, the yellow mark, ink and glass. */
+export const HALO = { ink: "#0a1128", glass: "#101832ee", mist: "#b4bfdc", mark: "#ffd84d", hand: "#49e3c4", bad: "#ff6b7a" } as const;
+
 export const GESTURE_LABELS: Record<Gesture, string> = {
   none: "No gesture",
   point: "Pointing",
@@ -78,13 +81,13 @@ export function drawHandOverlay(
     ctx.restore();
   }
   if (!interaction.isAwake) {
-    ctx.fillStyle = "#0009";
+    ctx.fillStyle = HALO.ink + "99";
     ctx.fillRect(0, 0, w, h);
   }
 
   // Faces: a few dots, enough to see that the face is tracked.
   if (frame?.face) {
-    ctx.fillStyle = "#4cc9f088";
+    ctx.fillStyle = HALO.hand + "88";
     for (let i = 0; i < frame.face.points.length; i += 6) {
       const p = frame.face.points[i];
       ctx.fillRect(X(p) - 1, Y(p) - 1, 2 * unit, 2 * unit);
@@ -108,14 +111,14 @@ export function drawHandOverlay(
     }
     for (const [i, p] of hand.points.entries()) {
       const tip = i === 4 || i === 8 || i === 12 || i === 16 || i === 20;
-      ctx.fillStyle = !active ? "#ffffff66" : tip ? "#ffd23f" : "#ffffff";
+      ctx.fillStyle = !active ? "#ffffff66" : tip ? HALO.mark : "#ffffff";
       ctx.beginPath();
       ctx.arc(X(p), Y(p), (tip ? 7 : 4.5) * unit, 0, Math.PI * 2);
       ctx.fill();
     }
     if (active) {
       const wake = interaction.wakeProgress(t);
-      if (wake > 0) ring(ctx, X(hand.points[0]), Y(hand.points[0]), 40 * unit, wake, "#3ddc97", 10 * unit);
+      if (wake > 0) ring(ctx, X(hand.points[0]), Y(hand.points[0]), 40 * unit, wake, HALO.hand, 10 * unit);
     }
   }
 
@@ -126,7 +129,7 @@ export function drawHandOverlay(
 
   const p = options.drawPointer === false ? null : interaction.pointer;
   if (p) {
-    ctx.fillStyle = "#ff5d5d";
+    ctx.fillStyle = HALO.bad;
     ctx.strokeStyle = "#000";
     ctx.lineWidth = 3 * unit;
     ctx.beginPath();
@@ -154,7 +157,7 @@ function drawVolume(
 ): void {
   const n = interaction.levelActive(t);
   if (!n) {
-    if (interaction.levelArmed) label(ctx, "Touch thumb and index, then open them", w / 2, h * 0.9, 28 * unit, "#4cc9f0");
+    if (interaction.levelArmed) label(ctx, "Touch thumb and index, then open them", w / 2, h * 0.9, 28 * unit, HALO.hand);
     return;
   }
   ctx.strokeStyle = `hsl(${Math.round(120 * n.value)}, 90%, 55%)`;
@@ -166,8 +169,8 @@ function drawVolume(
   ctx.stroke();
   const mx = (X(n.thumb) + X(n.index)) / 2;
   const my = Math.min(Y(n.thumb), Y(n.index)) - 40 * unit;
-  label(ctx, `${Math.round(n.value * 100)} %`, mx, my, 40 * unit, "#ffd23f");
-  if (n.confirmProgress > 0) ring(ctx, mx, my + 40 * unit, 18 * unit, n.confirmProgress, "#3ddc97", 6 * unit);
+  label(ctx, `${Math.round(n.value * 100)} %`, mx, my, 40 * unit, HALO.mark);
+  if (n.confirmProgress > 0) ring(ctx, mx, my + 40 * unit, 18 * unit, n.confirmProgress, HALO.hand, 6 * unit);
 }
 
 /** Quick menu as four big boxes around the screen (from the user's point of view). */
@@ -178,7 +181,7 @@ function drawMenu(
   h: number,
   unit: number,
 ): void {
-  ctx.fillStyle = "#0b0d12b0";
+  ctx.fillStyle = HALO.ink + "b8";
   ctx.fillRect(0, 0, w, h);
   const options = menuFor(menu.hand);
   const bw = w * 0.3;
@@ -195,18 +198,18 @@ function drawMenu(
     if (!action) continue;
     const [x, y] = boxes[s]!;
     const active = menu.sector === s;
-    ctx.fillStyle = active ? "#ffd23f33" : "#1b2030ee";
+    ctx.fillStyle = active ? HALO.mark + "33" : HALO.glass;
     ctx.fillRect(x, y, bw, bh);
     if (active) {
-      ctx.fillStyle = "#ffd23f";
+      ctx.fillStyle = HALO.mark;
       ctx.fillRect(x, y + bh - 8 * unit, bw * menu.progress, 8 * unit);
     }
-    ctx.strokeStyle = active ? "#ffd23f" : "#ffffff55";
+    ctx.strokeStyle = active ? HALO.mark : "#ffffff55";
     ctx.lineWidth = (active ? 4 : 2) * unit;
     ctx.strokeRect(x, y, bw, bh);
-    label(ctx, `${ARROWS[s]} ${ACTION_LABELS[action] ?? action}`, x + bw / 2, y + bh / 2, 30 * unit, active ? "#ffd23f" : "#fff");
+    label(ctx, `${ARROWS[s]} ${ACTION_LABELS[action] ?? action}`, x + bw / 2, y + bh / 2, 30 * unit, active ? HALO.mark : "#fff");
   }
-  label(ctx, "Point at an option and tap your middle finger on your thumb", w / 2, h / 2, 22 * unit, "#cfd6e4");
+  label(ctx, "Point at an option and tap your middle finger on your thumb", w / 2, h / 2, 22 * unit, HALO.mist);
 }
 
 function ring(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, progress: number, color: string, width: number): void {
@@ -226,7 +229,7 @@ function label(
   color: string,
   align: CanvasTextAlign = "center",
 ): void {
-  ctx.font = `700 ${size}px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
+  ctx.font = `700 ${size}px "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif`;
   ctx.textAlign = align;
   ctx.textBaseline = align === "left" ? "top" : "middle";
   ctx.lineWidth = size / 5;

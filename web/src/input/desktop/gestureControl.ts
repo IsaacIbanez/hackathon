@@ -7,6 +7,7 @@
 // - ✊ opens the quick menu: volume, brightness, microphone, apps and computer (power) options.
 // - With "Move the mouse", ☝️ moves the cursor and touching the middle fingertip to the thumb clicks
 //   (twice quickly: right click; holding: drag).
+import { HALO } from "../overlay.ts";
 import { actionFor, MAPS, type Action } from "../actions.ts";
 import { areaPoint, HandInteraction, POINTER_AREA, type WakeIssue } from "../interaction.ts";
 import { createTracker, type Tracker } from "../tracker.ts";
@@ -450,7 +451,7 @@ export function mountGestureControl(
         ctx.lineTo(hand.points[b].x * w, hand.points[b].y * h);
         ctx.stroke();
       }
-      ctx.fillStyle = "#ffd23f";
+      ctx.fillStyle = HALO.mark;
       for (const p of hand.points) {
         ctx.beginPath();
         ctx.arc(p.x * w, p.y * h, 5, 0, Math.PI * 2);
@@ -464,7 +465,7 @@ export function mountGestureControl(
     const button = interaction.mouseButton;
     if (mouseOn() && hand && button !== "up") {
       const tip = hand.points[L.INDEX_TIP];
-      ctx.strokeStyle = button === "dragging" ? "#ff5d5d" : "#ffd23f";
+      ctx.strokeStyle = button === "dragging" ? HALO.bad : HALO.mark;
       ctx.lineWidth = 6;
       ctx.beginPath();
       ctx.arc(tip.x * w, tip.y * h, 18, 0, Math.PI * 2);
