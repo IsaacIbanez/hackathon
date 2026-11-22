@@ -70,6 +70,10 @@ export function ReportDiagnostics(arg1) {
   return window['go']['main']['App']['ReportDiagnostics'](arg1);
 }
 
+export function SaveScanPDF(arg1, arg2) {
+  return window['go']['main']['App']['SaveScanPDF'](arg1, arg2);
+}
+
 export function ScanPDF(arg1, arg2) {
   return window['go']['main']['App']['ScanPDF'](arg1, arg2);
 }

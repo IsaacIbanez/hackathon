@@ -3,10 +3,18 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"log"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
+	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
+
 	"github.com/IsaacIbanez/hackathon/api/gen"
+	"github.com/IsaacIbanez/hackathon/backend/overlay"
 	"github.com/IsaacIbanez/hackathon/backend/scanner"
 )
 
@@ -82,4 +90,63 @@ func (a *App) MakeDigitalPDF(scanID string) (string, error) {
 		return "", err
 	}
 	return toJSON(info), nil
+}
+
+// SaveScanPDF saves a copy of a scan's PDF (kind "searchable" or "digital") where the person picks in
+// a «Save as» dialog, opened in Downloads. It returns the saved path, or "" when the dialog is cancelled.
+func (a *App) SaveScanPDF(scanID, kind string) (string, error) {
+	src, err := scanner.ScanPDFFile(overlay.RepoRoot(), scanID, kind)
+	if err != nil {
+		return "", err
+	}
+	name := scanID + ".pdf"
+	if kind == scanner.PDFDigital {
+		name = scanID + "-ai.pdf"
+	}
+	opts := wruntime.SaveDialogOptions{
+		Title:           "Save the PDF",
+		DefaultFilename: name,
+		Filters:         []wruntime.FileFilter{{DisplayName: "PDF (*.pdf)", Pattern: "*.pdf"}},
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		if dir := filepath.Join(home, "Downloads"); isDir(dir) {
+			opts.DefaultDirectory = dir
+		}
+	}
+	dst, err := wruntime.SaveFileDialog(a.ctx, opts)
+	if err != nil || dst == "" {
+		return "", err
+	}
+	if !strings.EqualFold(filepath.Ext(dst), ".pdf") {
+		dst += ".pdf"
+	}
+	if err := copyFile(src, dst); err != nil {
+		log.Printf("scan: saving %s PDF of %s to %s failed: %v", kind, scanID, dst, err)
+		return "", fmt.Errorf("the PDF could not be saved in %s: %w", dst, err)
+	}
+	log.Printf("scan: %s PDF of %s saved to %s", kind, scanID, dst)
+	return dst, nil
+}
+
+func isDir(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
+}
+
+// copyFile copies src to dst, replacing dst (the dialog already asked before overwriting).
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		out.Close()
+		return err
+	}
+	return out.Close()
 }

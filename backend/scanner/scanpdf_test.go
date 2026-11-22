@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -43,5 +45,35 @@ func TestScanPDFs(t *testing.T) {
 	}
 	if _, err := c.ScanPDF(ctx, "old", PDFSearchable); err == nil || err.Error() != "scan_not_found: Unknown or old scan" {
 		t.Fatalf("unknown scan: %v", err)
+	}
+}
+
+func TestScanPDFFile(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "scanner", "pdf", "output", "scan-1")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"scan-1.pdf", "scan-1-digital.pdf"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("%PDF-1.7"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for kind, want := range map[string]string{PDFSearchable: "scan-1.pdf", PDFDigital: "scan-1-digital.pdf"} {
+		got, err := ScanPDFFile(root, "scan-1", kind)
+		if err != nil || got != filepath.Join(dir, want) {
+			t.Errorf("%s: got %q, %v; want %s", kind, got, err, want)
+		}
+	}
+	bad := []struct{ root, id, kind string }{
+		{"", "scan-1", PDFSearchable},      // no repository
+		{root, "../scan-1", PDFSearchable}, // leaves the output folder
+		{root, "scan-1", "other"},          // unknown kind
+		{root, "scan-2", PDFSearchable},    // not on disk
+	}
+	for _, b := range bad {
+		if got, err := ScanPDFFile(b.root, b.id, b.kind); err == nil {
+			t.Errorf("ScanPDFFile(%q, %q, %q) = %q, want an error", b.root, b.id, b.kind, got)
+		}
 	}
 }
