@@ -177,6 +177,11 @@ def cmd_shoot(a) -> int:
                 t0 = time.perf_counter()
                 frame, meta = live.capturar()
                 ms = round((time.perf_counter() - t0) * 1000)
+                if frame.mean() < 3:
+                    # Windows opens a camera that another app is using but only delivers black frames.
+                    print("  BLACK PHOTO, not saved: another app is using the camera (Windows Camera, a browser "
+                          "tab, the overlay or the gestures). Close it and run this again.")
+                    return 2
                 path = PHOTOS / photo_name(a.condition, sample, shot)
                 cv2.imwrite(str(path), frame, [cv2.IMWRITE_PNG_COMPRESSION, 1])
                 (path.with_suffix(".json")).write_text(json.dumps({"capture_ms": ms, **meta}, ensure_ascii=False, indent=1),
