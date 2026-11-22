@@ -16,6 +16,7 @@ import { latestOnly, OS_ACTIONS, toScreen, type ActionOptions, type CallAppId, t
 import { MARKUP } from "./markup.ts";
 import "./gestureControl.css";
 import { cellsOf, menuPage, powerLabel, type DesktopContext, type Launcher, type MenuPage } from "./menu.ts";
+import { optionHtml } from "./menuView.ts";
 
 export interface GestureControlOptions {
   /** Status text when the helper can't be reached. */
@@ -440,7 +441,11 @@ export function mountGestureControl(
       const s = op.dataset.s as MenuSector;
       const text = open ? options[s]?.label : shownChoice?.sector === s ? shownChoice.label : undefined;
       op.style.visibility = text ? "visible" : "hidden";
-      op.textContent = text ?? "";
+      // Icon, name and state (menuView.ts); rebuilt only when the option changes (this runs every frame).
+      if (op.dataset.label !== (text ?? "")) {
+        op.dataset.label = text ?? "";
+        op.innerHTML = text ? optionHtml(open ? options[s] : undefined, text) : "";
+      }
       op.classList.toggle("active", open?.sector === s);
       op.classList.toggle("chosen", shownChoice?.sector === s);
       op.classList.toggle("danger", !!text && options[s]?.kind === "quit");

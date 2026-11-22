@@ -7,13 +7,12 @@
  * Overlay design system, "Large print" (docs/DESIGN.md).
  * - The menu is a page of large print: tools are lines of type, and the line under the pointer gets
  *   the highlighter band, the same mark as the line being read. Choosing looks like reading.
- * - Five palettes, the colour modes people with low vision already use on magnifiers and readers:
- *   Night, Day, Magnifier (yellow on blue), Contrast (yellow on black) and Warm (little blue light).
- *   Each theme sets ten base colours (--t-*); every role below is built from them.
+ * - One palette, Night (ink-teal and highlighter yellow). Its base colours (--t-*) feed every role
+ *   below, so another palette is one block of ten colours (four more were tried in git, 55953a0).
  * - Swiss order: one left-aligned column, a fixed column for key numbers, clear type steps.
  */
 
-/* Night (default): deep ink-teal, warm highlighter yellow. */
+/* Night: deep ink-teal, warm highlighter yellow. */
 :root {
   --t-bg: #101a1f;
   --t-raised: #182831;
@@ -28,68 +27,6 @@
   --t-danger: #ff8a80;
   --t-shadow: rgb(0 0 0 / 0.45);
 }
-/* Day: paper white, ink text, blue for actions, yellow highlighter for what is read. */
-:root[data-theme="day"] {
-  --t-bg: #f5f6f3;
-  --t-raised: #ffffff;
-  --t-fg: #15191c;
-  --t-muted: #4a5258;
-  --t-accent: #1e4fd8;
-  --t-on-accent: #ffffff;
-  --t-mark: #ffe066;
-  --t-on-mark: #15191c;
-  --t-veil: rgb(236 238 234 / 0.9);
-  --t-warn: #8a4500;
-  --t-danger: #b3261e;
-  --t-shadow: rgb(20 30 40 / 0.18);
-  color-scheme: light;
-}
-/* Magnifier: the yellow-on-blue mode of electronic magnifiers. */
-:root[data-theme="magnifier"] {
-  --t-bg: #0a35b8;
-  --t-raised: #0b2c8f;
-  --t-fg: #ffffff;
-  --t-muted: #d2dcff;
-  --t-accent: #ffe14a;
-  --t-on-accent: #000000;
-  --t-mark: #ffe14a;
-  --t-on-mark: #000000;
-  --t-veil: rgb(3 10 40 / 0.84);
-  --t-warn: #ffd08a;
-  --t-danger: #ffb4a8;
-  --t-shadow: rgb(0 0 20 / 0.5);
-}
-/* Contrast: the strongest mode, yellow and white on black. */
-:root[data-theme="contrast"] {
-  --t-bg: #000000;
-  --t-raised: #1a1a1a;
-  --t-fg: #ffffff;
-  --t-muted: #e6e6e6;
-  --t-accent: #ffff00;
-  --t-on-accent: #000000;
-  --t-mark: #ffff00;
-  --t-on-mark: #000000;
-  --t-veil: rgb(0 0 0 / 0.9);
-  --t-warn: #ffb000;
-  --t-danger: #ff7070;
-  --t-shadow: rgb(0 0 0 / 0);
-}
-/* Warm: amber on deep brown, little blue light for the evening or for light sensitivity. */
-:root[data-theme="warm"] {
-  --t-bg: #2a1810;
-  --t-raised: #3a2419;
-  --t-fg: #ffe9c7;
-  --t-muted: #e3c49c;
-  --t-accent: #ffb347;
-  --t-on-accent: #2a1810;
-  --t-mark: #ffb347;
-  --t-on-mark: #2a1810;
-  --t-veil: rgb(20 10 5 / 0.86);
-  --t-warn: #ffd27a;
-  --t-danger: #ff9c8a;
-  --t-shadow: rgb(0 0 0 / 0.5);
-}
-
 @theme static {
   --font-sans: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
 
@@ -371,7 +308,7 @@
   }
   .print-line {
     display: grid;
-    grid-template-columns: 2.2ch auto 1fr;
+    grid-template-columns: 2.4rem auto 1fr;
     align-items: center;
     column-gap: 0.9rem;
     width: 100%;
@@ -391,13 +328,18 @@
   }
   .print-num {
     justify-self: end;
-    font-size: 0.5em;
+    font-size: 1.3rem;
     color: var(--color-fg-muted);
     transition: color var(--duration-fast) var(--ease-soft);
   }
   .print-icon {
     color: var(--color-fg-muted);
     transition: color var(--duration-fast) var(--ease-soft);
+  }
+  /* Keys that are not a tool (hide, voice, read/pause): the same line, in smaller print. */
+  .print-line.minor {
+    font-size: var(--text-lead);
+    padding-block: 0.3em;
   }
   /* The highlighter sweeps across the line under the pointer, the hand or the focus. */
   .print-line:hover,
@@ -412,29 +354,6 @@
     color: var(--color-on-mark);
   }
 
-  /* Palette picker: each swatch is the theme itself, its background with its highlighter. */
-  .swatch {
-    display: grid;
-    place-items: center;
-    width: 2.4rem;
-    height: 2.4rem;
-    border-radius: var(--radius-pill);
-    border: 2px solid var(--color-edge);
-    cursor: pointer;
-    transition: transform var(--duration-fast) var(--ease-soft);
-  }
-  .swatch:hover {
-    transform: scale(1.08);
-  }
-  .swatch[aria-pressed="true"] {
-    border-color: var(--color-fg);
-    box-shadow: 0 0 0 3px var(--color-accent);
-  }
-  .swatch span {
-    width: 0.9rem;
-    height: 0.9rem;
-    border-radius: var(--radius-pill);
-  }
 }
 
 /* One authored moment: when the layer opens, the lines of the menu settle in from the left. */
