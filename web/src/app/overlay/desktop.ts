@@ -8,6 +8,8 @@ export interface OverlayInfo {
   hotkeyOk: boolean
   /** MX Keypad shortcuts (docs/KEYPAD.md) and whether each could be registered. */
   keypad?: { shortcut: string; action: string; ok: boolean }[] | null
+  /** The MX Keypad is plugged in and read directly over USB (no Logi Options+ needed). */
+  keypadConnected?: boolean
 }
 
 export interface FileDocument {

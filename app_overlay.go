@@ -35,6 +35,8 @@ type overlayState struct {
 	hotkeyOK bool
 	keypad   []KeypadKey
 	stopKey  func()
+	stopPad  func() // direct USB reading of the keypad
+	padOn    bool   // keypad plugged in and read directly
 	reading  *overlay.ReadingService
 	gestures *overlay.GestureControl
 }
@@ -85,6 +87,18 @@ func (a *App) startOverlay(ctx context.Context) {
 	}
 	if len(pad) > 0 {
 		log.Printf("overlay: %d keypad shortcuts (docs/KEYPAD.md)", len(pad))
+		// The keypad itself, read over USB without Logi Options+: key n does row n of the table.
+		o.stopPad = overlay.ListenKeypad(func(n int) {
+			if act, ok := overlay.KeypadActionForKey(n); ok {
+				a.keypadPressed(ctx, act)
+			}
+		}, func(on bool) {
+			o.mu.Lock()
+			o.padOn = on
+			o.mu.Unlock()
+			log.Printf("overlay: MX Keypad read directly: connected=%v", on)
+			wruntime.EventsEmit(ctx, "overlay:keypad-connected", on)
+		})
 	}
 	if !o.hotkeyOK {
 		log.Printf("overlay: no shortcut to show the window: it stays open")
@@ -113,6 +127,9 @@ func (a *App) stopOverlay() {
 	o := &a.overlay
 	if o.stopKey != nil {
 		o.stopKey()
+	}
+	if o.stopPad != nil {
+		o.stopPad()
 	}
 	if o.gestures != nil {
 		o.gestures.Stop()
@@ -150,6 +167,8 @@ type OverlayInfo struct {
 	Hotkey   string      `json:"hotkey"`
 	HotkeyOK bool        `json:"hotkeyOk"` // false: no shortcut can show the window (taken, or not Windows)
 	Keypad   []KeypadKey `json:"keypad"`
+	// KeypadConnected: the MX Keypad is plugged in and read directly (no Logi Options+ needed).
+	KeypadConnected bool `json:"keypadConnected"`
 }
 
 // KeypadKey is one MX Keypad shortcut and whether it could be registered.
@@ -161,7 +180,11 @@ type KeypadKey struct {
 
 // OverlayInfo returns OverlayInfo as JSON.
 func (a *App) OverlayInfo() string {
-	return toJSON(OverlayInfo{Hotkey: a.overlay.hotkey, HotkeyOK: a.overlay.hotkeyOK, Keypad: a.overlay.keypad})
+	o := &a.overlay
+	o.mu.Lock()
+	on := o.padOn
+	o.mu.Unlock()
+	return toJSON(OverlayInfo{Hotkey: o.hotkey, HotkeyOK: o.hotkeyOK, Keypad: o.keypad, KeypadConnected: on})
 }
 
 func toJSON(v any) string {

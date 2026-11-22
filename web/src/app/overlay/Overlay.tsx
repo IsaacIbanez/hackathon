@@ -25,6 +25,12 @@ export function Overlay() {
   // Back on screen: focus the window content so the keys work right away.
   useEffect(() => onDesktopEvent('overlay:shown', () => window.focus()), [])
 
+  // The keypad can be plugged in or out while the app runs.
+  useEffect(
+    () => onDesktopEvent('overlay:keypad-connected', (on) => setInfo((i) => (i ? { ...i, keypadConnected: on === true } : i))),
+    [],
+  )
+
   // MX Keypad (docs/KEYPAD.md): Go shows the window and sends the action, even from another program.
   useEffect(
     () =>
@@ -128,15 +134,23 @@ function Menu({ info, onChoose }: { info: OverlayInfo | null; onChoose: (id: Mod
   )
 }
 
-/** MX Keypad shortcuts (docs/KEYPAD.md): only says something when one could not be registered. */
+/** MX Keypad (docs/KEYPAD.md): whether it is plugged in, and any fallback shortcut that failed. */
 function KeypadStatus({ info }: { info: OverlayInfo | null }) {
-  const keys = info?.keypad ?? []
-  const failed = keys.filter((k) => !k.ok)
-  if (failed.length === 0) return null
+  const failed = (info?.keypad ?? []).filter((k) => !k.ok)
   return (
-    <p role="status" className="text-lg text-amber-300">
-      Keypad: {failed.map((k) => k.shortcut).join(', ')} could not be registered (another program uses them).
-    </p>
+    <>
+      {info?.keypadConnected && (
+        <p role="status" className="text-lg text-emerald-300">
+          MX Keypad connected: keys 1–9 work from any program.
+        </p>
+      )}
+      {failed.length > 0 && (
+        <p role="status" className="text-lg text-amber-300">
+          Keypad shortcuts {failed.map((k) => k.shortcut).join(', ')} could not be registered (another program uses
+          them).
+        </p>
+      )}
+    </>
   )
 }
 
