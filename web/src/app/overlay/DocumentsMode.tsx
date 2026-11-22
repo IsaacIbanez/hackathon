@@ -4,6 +4,7 @@ import { captureStill, openCamera, startFramingGuide, type FramingGuide } from '
 import { GuidedReader } from '../../document/index.ts'
 import { Speaker } from '../../input/voice/speaker.ts'
 import { blobToDataURL, desktop, errorText } from './desktop.ts'
+import { SummaryPanel } from './SummaryPanel.tsx'
 
 // Option 2 (Pau B1 + Didac B2): the camera with the spoken framing guide takes the photo on its own
 // when the paper is still (Enter takes it now), the reading service reads it and the guided reader
@@ -132,6 +133,7 @@ export function DocumentsMode() {
         <>
           <p className="text-lg text-slate-400">Enter = read another paper.</p>
           <GuidedReader doc={doc} autoPlay />
+          <SummaryPanel doc={doc} />
         </>
       )}
     </div>

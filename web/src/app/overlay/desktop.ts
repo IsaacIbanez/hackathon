@@ -2,6 +2,7 @@
 // does not depend on the generated wailsjs/ (and the overlay still loads in a plain browser, where
 // every call fails with a clear message).
 import type { DocumentPayload } from '../../api'
+import type { SummaryResult } from './summary.ts'
 
 export interface OverlayInfo {
   hotkey: string
@@ -25,12 +26,14 @@ interface GoBindings {
   StartGestures(): Promise<void>
   StopGestures(): Promise<void>
   GesturesRunning(): Promise<boolean>
+  Summarize(text: string, lang: string): Promise<string>
 }
 
-interface GoApp extends Omit<GoBindings, 'OverlayInfo' | 'ReadPhoto' | 'OpenAndReadFile'> {
+interface GoApp extends Omit<GoBindings, 'OverlayInfo' | 'ReadPhoto' | 'OpenAndReadFile' | 'Summarize'> {
   OverlayInfo(): Promise<OverlayInfo>
   ReadPhoto(photo: string): Promise<DocumentPayload>
   OpenAndReadFile(): Promise<FileDocument>
+  Summarize(text: string, lang: string): Promise<SummaryResult>
 }
 
 type WailsWindow = Window & {
@@ -49,6 +52,7 @@ export function desktop(): GoApp {
     OverlayInfo: async () => JSON.parse(await app.OverlayInfo()) as OverlayInfo,
     ReadPhoto: async (photo) => JSON.parse(await app.ReadPhoto(photo)) as DocumentPayload,
     OpenAndReadFile: async () => JSON.parse(await app.OpenAndReadFile()) as FileDocument,
+    Summarize: async (text, lang) => JSON.parse(await app.Summarize(text, lang)) as SummaryResult,
   }
 }
 
