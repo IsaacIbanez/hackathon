@@ -43,6 +43,13 @@ function trace(msg: string): void {
 
 export function useVoiceCommand(run: (action: KeypadAction) => void) {
   const [status, setStatus] = useState<VoiceStatus>({ phase: 'idle' })
+  // What was heard, or an error, stays a few seconds and then goes away on its own: it must not
+  // cover the screen (or the small camera bubble) until the next command.
+  useEffect(() => {
+    if (status.phase !== 'heard' && status.phase !== 'error') return
+    const t = setTimeout(() => setStatus({ phase: 'idle' }), status.phase === 'heard' ? 4000 : 7000)
+    return () => clearTimeout(t)
+  }, [status])
   const [recorder] = useState(() => new MicRecorder())
   const [speaker] = useState(() => new Speaker())
   const runRef = useRef(run)
@@ -144,6 +151,14 @@ export function useVoiceCommand(run: (action: KeypadAction) => void) {
 
 /** A banner with what the voice command is doing; nothing when idle. */
 export function VoiceBanner({ status }: { status: VoiceStatus }) {
+  // In a small window (the camera bubble, the summary bubble) a slim line at the bottom instead of
+  // the big pill, so the camera stays visible.
+  const [small, setSmall] = useState(isSmallWindow)
+  useEffect(() => {
+    const onResize = () => setSmall(isSmallWindow())
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
   if (status.phase === 'idle') return null
   const text = {
     recording: 'Recording… press key 7 to stop.',
@@ -157,11 +172,28 @@ export function VoiceBanner({ status }: { status: VoiceStatus }) {
       : status.phase === 'error'
         ? 'var(--color-warn)'
         : 'var(--color-edge)'
+  if (small) {
+    return (
+      <p
+        role="status"
+        aria-live="assertive"
+        className="pointer-events-none fixed inset-x-2 bottom-2 z-50 flex items-center gap-2 truncate rounded-chip bg-surface px-2 py-1 text-meta"
+        style={{ boxShadow: `inset 0 0 0 1px ${color}` }}
+      >
+        {status.phase === 'recording' ? (
+          <Icon name="mic" size={16} className="shrink-0 text-accent" />
+        ) : (
+          <span className="size-2 shrink-0 rounded-full" style={{ background: color }} aria-hidden="true" />
+        )}
+        <span className="truncate">{text}</span>
+      </p>
+    )
+  }
   return (
     <p
       role="status"
       aria-live="assertive"
-      className="glass fixed top-6 left-1/2 z-50 flex max-w-[90vw] -translate-x-1/2 items-center gap-3 rounded-full px-6 py-3 text-lead"
+      className="glass pointer-events-none fixed top-6 left-1/2 z-50 flex max-w-[90vw] -translate-x-1/2 items-center gap-3 rounded-full px-6 py-3 text-lead"
       style={{ borderColor: color, animation: 'rise var(--duration-base) var(--ease-soft)' }}
     >
       {status.phase === 'recording' ? (
@@ -172,4 +204,9 @@ export function VoiceBanner({ status }: { status: VoiceStatus }) {
       {text}
     </p>
   )
+}
+
+/** The window is a small bubble (camera or summary), not the layer or the normal window. */
+function isSmallWindow(): boolean {
+  return window.innerWidth < 720 || window.innerHeight < 420
 }
