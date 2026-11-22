@@ -37,6 +37,8 @@ export function gestureRoot(): HTMLDivElement | null {
     onCursorMode: (on) => void app.SetCompact(on).catch(() => {}),
     // Three fingers: read aloud the text selected in the program in front.
     onReadSelection: () => void readSelection(),
+    // "Close assistant" in the gesture menu.
+    onQuit: () => void app.Quit().catch(() => {}),
     // The bubble dodges the gesture cursor: clicks on it would go to this window, not to the
     // program below. It jumps to the other bottom corner when the cursor comes near.
     onPointer: (p) => {
@@ -106,6 +108,9 @@ const speaker = new Speaker()
 async function readSelection(): Promise<void> {
   try {
     const text = await desktop().ReadSelection()
+    // WebView2 lists the voices only after a moment: without them the default (often English)
+    // voice reads, whatever the language. Wait for them first.
+    await voicesReady()
     if (text) speaker.speak({ text, lang: guessLang(text) })
   } catch (e) {
     const msg = errorText(e)
@@ -122,4 +127,18 @@ export function guessLang(text: string): string {
   const en = words.filter((w) => ['the', 'and', 'of', 'to', 'is', 'you', 'that', 'for'].includes(w)).length
   const es = words.filter((w) => ['el', 'la', 'de', 'que', 'y', 'los', 'en', 'por', 'es'].includes(w)).length
   return en > es ? 'en-US' : 'es-ES'
+}
+
+/** Resolves when the system voices are listed (at most ~1.5 s). */
+function voicesReady(): Promise<void> {
+  const synth = window.speechSynthesis
+  if (!synth || synth.getVoices().length > 0) return Promise.resolve()
+  return new Promise((resolve) => {
+    const done = () => {
+      synth.removeEventListener('voiceschanged', done)
+      resolve()
+    }
+    synth.addEventListener('voiceschanged', done)
+    setTimeout(done, 1500)
+  })
 }

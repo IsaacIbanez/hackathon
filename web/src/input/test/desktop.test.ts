@@ -81,7 +81,7 @@ test("new actions go to the helper: brightness, microphone, power and apps", () 
 test("menu: the main page has volume, brightness, microphone, apps and computer", () => {
   const pc = menuPage({ id: "main" }, "pc");
   // Power (Computer ▸) is not offered unless allowed (R2).
-  assert.deepEqual(cellsOf(pc).sort(), ["down", "left", "right", "up", "up_left", "up_right"]);
+  assert.deepEqual(cellsOf(pc).sort(), ["down", "down_left", "left", "right", "up", "up_left", "up_right"]);
   const withPower = menuPage({ id: "main" }, "pc", [], false, true);
   assert.equal(withPower.down_right?.kind === "page" && withPower.down_right.page.id, "computer");
   assert.equal(pc.up_left?.kind === "action" && pc.up_left.action, "keyboard");
@@ -94,7 +94,9 @@ test("menu: the main page has volume, brightness, microphone, apps and computer"
   const call = menuPage({ id: "main" }, "call");
   assert.equal(call.left?.kind === "action" && call.left.action, "mic_mute"); // always the system microphone
   assert.equal(call.up_left?.kind === "action" && call.up_left.action, "raise_hand");
-  assert.equal(call.down_left?.kind === "action" && call.down_left.action, "leave_call");
+  // No "Leave call" any more: "Close assistant" quits the app, in every context.
+  assert.equal(call.down_left?.kind, "quit");
+  assert.equal(menuPage({ id: "main" }, "pc").down_left?.kind, "quit");
 });
 
 test("menu: power actions need two confirmations, in different corners (R2)", () => {

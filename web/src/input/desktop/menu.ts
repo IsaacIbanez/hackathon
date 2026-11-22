@@ -30,6 +30,8 @@ export type MenuItem =
   | { kind: "app"; id: string | null; label: string }
   /** Closes the menu without doing anything. */
   | { kind: "close"; label: string }
+  /** Closes the assistant (the whole app). */
+  | { kind: "quit"; label: string }
   /** Turns cursor mode (the gesture mouse) on or off. */
   | { kind: "cursor"; label: string };
 
@@ -76,11 +78,10 @@ export function menuPage(
         // Power (suspend, restart, shut down) only when allowed: a gesture once suspended the computer.
         ...(powerOn ? { down_right: { kind: "page", page: { id: "computer" }, label: "Computer ▸" } as MenuItem } : {}),
         up_right: { kind: "cursor", label: cursorOn ? "Cursor off" : "Cursor mode" },
+        // Close the assistant (quits the app), in every context.
+        down_left: { kind: "quit", label: "Close assistant" },
         ...(context === "call"
-          ? {
-              up_left: { kind: "action", action: "raise_hand", label: "Raise hand" },
-              down_left: { kind: "action", action: "leave_call", label: "Leave call" },
-            }
+          ? { up_left: { kind: "action", action: "raise_hand", label: "Raise hand" } as MenuItem }
           : { up_left: KEYBOARD }),
       };
     case "computer":

@@ -25,6 +25,8 @@ export interface GestureControlOptions {
    * volume/brightness is being adjusted (the desktop app then spreads its window over the screen).
    */
   onScreenOverlay?: (need: boolean) => void;
+  /** "Close assistant" in the gesture menu: quit the app (the desktop app does it). */
+  onQuit?: () => void;
   /** Three fingers: read the text selected in the program in front aloud (the app does it). */
   onReadSelection?: () => void;
   /** Called when cursor mode is turned on or off (the desktop app moves out of the way when on). */
@@ -253,6 +255,11 @@ export function mountGestureControl(
         break;
       case "close":
         toast("Cancelled");
+        break;
+      case "quit":
+        toast("Closing the assistant");
+        if (options.onQuit) options.onQuit();
+        else toast("Close the window to quit", true);
         break;
       case "cursor":
         setCursor(!mouseOn());
