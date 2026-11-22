@@ -179,6 +179,28 @@ Puertos: 8765 app · 8766 captura de Pau (pruebas) · 8767 Gesture Control (Nil)
 ### Reparto
 El reparto por persona y las tareas T1–T19 se cerraron con la integración del 2026-11-21 (rama `integration/proyecto-unificado`). **El reparto se redefinirá** después de la lluvia de ideas (`docs/ideas/`). El plan por persona anterior está íntegro en `docs/historial/plan_por_agente.md` y el estado real de cada pieza, en `docs/ESTADO_PROYECTO.md`. *Nota (2026-11-21): el reparto ya no se decide desde arriba. Cada persona define el suyo con su agente en `docs/briefs/` (ver «Al empezar una sesión»). Este plan y sus interfaces siguen valiendo mientras ningún brief los cambie.*
 
+## Al coger una tarea
+Desde el 2026-11-22 el trabajo está en `TAREAS.md` (N1–N9), con una ficha por tarea en `docs/tareas/<ID>.md`.
+1. **Lee solo la ficha de tu tarea** (`docs/tareas/<ID>.md`) y lo que ella enlaza. No explores el resto del repo: ahorra tokens.
+2. **Antes de preguntar, resuelve lo que puedas leyendo el repo.** Lo que encuentres, apúntalo en el brief como «estado actual», no como pregunta.
+3. **Haz las «Preguntas abiertas» a tu persona:**
+   - en tandas pequeñas, de 3 a 5 preguntas, en español;
+   - con una herramienta de preguntas con opciones si la tienes (en Claude Code, `AskUserQuestion`);
+   - pon primero la opción que recomiendas.
+4. **Si la persona no sabe algo,** sugiérele preguntar a los compañeros de «A quién más preguntar» de la ficha y apunta la respuesta en el brief.
+5. **No escribas código sin un brief confirmado.**
+   - Redáctalo: objetivo, alcance, fuera de alcance, criterios de «hecho» medibles, carpetas que tocas, contrato que usas o cambias, riesgos y preguntas abiertas.
+   - Enséñaselo a la persona.
+   - Guárdalo, cuando lo confirme, en `docs/briefs/<ID>.md`, en un commit propio solo de documentación.
+6. **El contrato (`api/`) solo se cambia aparte:** un PR pequeño, revisado por otra persona antes de construir encima. Mientras, trabaja contra el mock o un falso.
+7. **Toca solo las carpetas de tu brief.** Si necesitas una carpeta de otra persona, pídeselo y apúntalo como dependencia.
+8. **Si la persona cambia de idea,** actualiza primero el brief y después el código.
+
+Relación con lo anterior:
+- `docs/arranque/` y `docs/briefs/<persona>.md` (de «Al empezar una sesión», #39) siguen valiendo como contexto de cada persona.
+- Para trabajar en una tarea manda su ficha y el brief de la tarea, `docs/briefs/<ID>.md`.
+- Las secciones «Plan actual» y «Roles y carpetas» describen el reparto anterior: **úsalas solo como mapa de quién conoce cada parte.** El reparto vigente es el de `TAREAS.md`.
+
 ## Decisiones
 - 2026-11-21 — **App overlay** (rama `overlay`, detalle en `docs/OVERLAY.md`):
   - la app de escritorio es una ventana siempre encima que se abre desde cualquier programa con **Ctrl+Alt+Espacio** (`LAUZHACK_HOTKEY`; el MX Keypad envía la misma combinación desde Logi Options+);
