@@ -14,7 +14,7 @@ Este archivo lo leen todos los agentes (Claude Code, Gemini CLI) al empezar. Es 
 1. Primero el bucle de cámara funcionando de punta a punta.
 2. Después gestos y voz.
 3. Accesibilidad como capa final, pero con lo barato desde el principio (HTML semántico, texto grande, salida por voz).
-4. Fuera de alcance por ahora: ratón háptico (MX Master 4) y keypad de Logitech.
+4. Fuera de alcance por ahora: ratón háptico (MX Master 4). El **MX Keypad sí se usa** (N2, `docs/KEYPAD.md`).
 
 ## Equipo
 Cuatro personas, cada una con una cuenta de Claude Pro y una de Gemini Plus (ver `ROSTER.md`). Cada persona supervisa **un agente principal (Claude)** y usa Gemini como segunda opción: una tarea paralela pequeña o la revisión del PR de otra persona. Una persona no puede supervisar bien más de uno o dos agentes a la vez.
@@ -95,6 +95,8 @@ backend/cmd/llmcheck       prueba rápida del cliente de modelos con la clave re
 backend/mock               respuestas de ejemplo (fixtures) (A)
 backend/ws                 WebSocket (A)
 backend/session            lógica real: una sesión compartida, prompts, respuestas locales (A)
+backend/summary            resumen con IA del texto seleccionado (opción 4 del overlay; Didac)
+backend/scanner            cliente Go del servicio de lectura: /scan, /document, páginas de PDF (A/B2)
 backend/llm                modelos, caché, coste (A)
 backend/ocr                comprensión de documentos (B2)
 web/src/api                tipos TypeScript generados del contrato (A; no editar types.ts)
@@ -107,10 +109,11 @@ docs/                      documentación: ESTADO_PROYECTO.md (estado real), PIT
 docs/ideas/                lluvia de ideas (IDEAS.md) y agrupación de duplicados
 docs/historial/            estado, tareas y plan por agente anteriores (solo consulta)
 docs/arranque/             guion de entrevista de cada persona (cada agente lee solo el suyo)
-docs/briefs/               brief confirmado de cada persona (plantilla en README.md)
-adapters/desktop/          Gesture Control: gestos → teclas reales del sistema, puerto 8767 (C)
-app_overlay.go             overlay: bindings de las opciones (A; docs/OVERLAY.md)
-backend/overlay            atajo global y procesos auxiliares del overlay (A)
+docs/briefs/               brief confirmado de cada persona o tarea (plantilla en README.md)
+docs/tareas/               ficha de cada tarea N1–N9 del tablero (TAREAS.md)
+adapters/desktop/          Gesture Control solo (task gestures, puerto 8767); su lógica, en adapters/desktop/control (C)
+app_overlay.go             overlay: bindings de las opciones (A; docs/OVERLAY.md); app_pdf.go visor de PDF; app_summary.go resumen
+backend/overlay            atajos globales, MX Keypad por USB (keypadhid*), selección de otros programas, procesos auxiliares (A)
 web/src/app/overlay        menú y opciones del overlay (A)
 ```
 ## Cómo probar
@@ -127,7 +130,12 @@ web/src/app/overlay        menú y opciones del overlay (A)
 3. **Interfaz en el navegador:** `cd web` y `VITE_WS_URL=ws://127.0.0.1:8765/ws npm run dev` (PowerShell: `$env:VITE_WS_URL="ws://127.0.0.1:8765/ws"; npm run dev`). «Developer tools» → **Send sample document** para probar sin scanner; «Turn on hand gestures» para los gestos (guía paso a paso: `docs/PROBAR_GESTOS.md`).
 4. **Scanner (B):** envía tu `document` con `POST /message` → guía `docs/INTEGRACION_SCANNER.md`, ejemplo `python api/examples/send_message.py --demo-ocr`.
 5. **App de escritorio (ejecutable):** `wails build` → `build/bin/lauzhack.exe` (doble clic). Busca el `.env` en la carpeta actual, junto al `.exe` y hasta 3 carpetas por encima (la raíz del repo). Log en `build/bin/lauzhack.log`. «Developer tools» enseña qué soporta la ventana (voces en español, dictado, cámara).
-6. **Overlay:** `task overlay` (o `wails build`) → `build/bin/lauzhack.exe`, un solo ejecutable con Gesture Control dentro; Ctrl+Alt+Espacio lo abre. Ver `docs/OVERLAY.md`.
+6. **Overlay:** `task overlay` (o `wails build`) → `build/bin/lauzhack.exe`, un solo ejecutable con Gesture Control dentro; Ctrl+Alt+Espacio o la tecla 1 del MX Keypad lo abre. Ver `docs/OVERLAY.md` y `docs/KEYPAD.md`.
+   - **Opciones 2 y 3** (papel y archivo): la app arranca `scanner/service.py` con `scanner/pdf/.venv` si existe; si no, con el Python del sistema, que suele fallar con `No module named 'cv2'` (`build/bin/reading-service.log`). Instálalo una vez con `powershell -ExecutionPolicy Bypass -File scanner\pdf\scripts\install.ps1`, que también instala Tesseract (hace falta para el papel y los PDF escaneados).
+   - **Visto en la prueba del 2026-11-22:**
+     - si otro programa tiene Ctrl+Alt+Espacio, usa la tecla 1 del keypad o Ctrl+Alt+Shift+1;
+     - con los gestos, el menú llegó a **suspender el ordenador** (`did: suspend` en el log) y la pinza del volumen dio saltos hasta 0 % (código de Nil: pendiente de avisarle);
+     - silenciar el micro solo actúa sobre una llamada de Google Meet abierta.
 7. **Antes del PR:** `task check`.
 
 Puertos: 8765 app/servidor real · 8766 `scanner/capturar.py --servidor` · 8080 mock. Guion de la demo: `docs/PITCH.md`.
@@ -202,6 +210,25 @@ Relación con lo anterior:
 - Las secciones «Plan actual» y «Roles y carpetas» describen el reparto anterior: **úsalas solo como mapa de quién conoce cada parte.** El reparto vigente es el de `TAREAS.md`.
 
 ## Decisiones
+- 2026-11-22 — **MX Keypad (N2, Isaac; `docs/KEYPAD.md`, brief `docs/briefs/N2.md`):**
+  - **Lectura directa por USB, sin Logi Options+ ni SDK:** el keypad (VID 046D, PID C354) envía `13 ff 02 00 <contador> 01 <tecla>` en una colección HID del fabricante. Comprobado con el keypad real.
+  - **Respaldo:** la tecla N tiene el atajo global Ctrl+Alt+Shift+N.
+  - **Las teclas, decididas por Isaac:**
+    1. abrir/cerrar la app;
+    2. empezar a grabar una orden de voz;
+    3. parar la grabación;
+    4. leer papel;
+    5. leer archivo;
+    6. leer/pausa;
+    7. resumir la selección;
+    8. gestos;
+    9. menú.
+  - **Órdenes de voz** (teclas 2 y 3): Go transcribe la grabación con `POST /transcribe` (modelo de audio barato) y la frase se convierte en una acción del keypad (`web/src/app/overlay/voiceCommand.ts`, en español, catalán e inglés).
+  - Funciona con otro programa delante: Go muestra el overlay y envía `overlay:keypad`. El contrato no cambia.
+- 2026-11-22 — **Visor de PDF que lee el PDF entero en voz alta (N4, Didac; brief `docs/briefs/N4.md`):**
+  - lee página a página, con parar (X), velocidad, páginas e ir a página (`web/src/document/PdfViewer.tsx`, `pdfReader.ts`);
+  - el servicio de lectura da cada página (imagen y líneas, con OCR para las escaneadas, sin límite de páginas) y Go la pasa con `app_pdf.go`;
+  - documentos de prueba nuevos: 40 páginas y 3 páginas escaneadas.
 - 2026-11-22 — **Gesture Control dentro del overlay** (Nil, rama `feature/T6-overlay-unified`): un solo ejecutable. El programa de gestos pasa a ser un paquete (`adapters/desktop/control`) que la app usa en su propio proceso; la página de la cámara (`mountGestureControl`) se monta en la opción 1 y habla con Go por el binding `GestureCall` (la misma API, sin HTTP, puerto ni token). Con los gestos activos, ocultar el overlay lo encoge a una burbuja de cámara en una esquina (una ventana oculta frenaría la cámara). `gesture-control` sigue existiendo para usarlo solo (`task gestures`, o en Linux, donde la cámara no funciona dentro de Wails).
 - 2026-11-22 — **Opción 4 del overlay: resumir el texto seleccionado en cualquier programa** (Didac, rama `feature/didac-resumir-seleccion`, `docs/OVERLAY.md`).
   - Funcionamiento: Go recuerda la ventana que había delante al abrir el overlay, copia su selección con Ctrl+C, la resume con el **modelo barato** (2–3 frases, con alternativa local a 0 $) y deja el resumen en el portapapeles, en voz alta y en una burbuja junto al cursor.
@@ -209,7 +236,7 @@ Relación con lo anterior:
   - **Es la implementación del resumen que se queda** (decisión de Isaac y Didac): sustituye a la N7 de Isaac, que se había fusionado (#48) y se retiró de `main` (revert de de357f8; el keypad N2 se queda). Resumir el documento abierto (opciones 2 y 3) queda pendiente, sobre `backend/summary`.
   - El contrato no cambia.
 - 2026-11-21 — **App overlay** (rama `overlay`, detalle en `docs/OVERLAY.md`):
-  - la app de escritorio es una ventana siempre encima que se abre desde cualquier programa con **Ctrl+Alt+Espacio** (`LAUZHACK_HOTKEY`; el MX Keypad envía la misma combinación desde Logi Options+);
+  - la app de escritorio es una ventana siempre encima que se abre desde cualquier programa con **Ctrl+Alt+Espacio** (`LAUZHACK_HOTKEY`; el MX Keypad, desde el 2026-11-22, por USB: ver la decisión N2);
   - opciones: **1** gestos (Nil; desde el 2026-11-22 va dentro de la app, ver la decisión siguiente), **2** leer un papel (Pau y Didac: cámara → servicio de lectura → lectura guiada) y **3** leer un archivo del PC (Didac: PDF, imágenes, TXT/MD → lectura guiada);
   - la app arranca y para el servicio de lectura y Gesture Control;
   - ninguna opción usa IA y el contrato no cambia.

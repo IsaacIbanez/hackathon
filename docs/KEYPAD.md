@@ -7,26 +7,50 @@ El **MX Keypad** (MX Creative Console) controla la app **sin instalar nada**: se
 **Respaldo:** cada acción tiene también un atajo **Ctrl+Alt+Shift + tecla**, registrado en Windows de forma global. Sirve con Logi Options+, con el keypad por Bluetooth o por el receptor Bolt (sin probar), o con un teclado normal.
 
 ## Teclas (página 1)
-| Tecla | Acción | Atajo de respaldo | Qué hace en la app |
-|---|---|---|---|
-| 1 | Abrir/cerrar el overlay | Ctrl+Alt+Shift+O | lo mismo que Ctrl+Alt+Espacio |
-| 2 | Gestos | Ctrl+Alt+Shift+1 | abre la opción 1 |
-| 3 | Leer papel | Ctrl+Alt+Shift+2 | abre la opción 2 |
-| 4 | Leer archivo | Ctrl+Alt+Shift+3 | abre la opción 3 |
-| 5 | Volver al menú | Ctrl+Alt+Shift+B | vuelve al menú (no oculta la ventana) |
-| 6 | Leer/pausa | Ctrl+Alt+Shift+P | `Espacio` en el lector guiado |
-| 7 | Anterior | Ctrl+Alt+Shift+← | `←` en el lector guiado |
-| 8 | Siguiente | Ctrl+Alt+Shift+→ | `→` en el lector guiado |
-| 9 | Repetir | Ctrl+Alt+Shift+R | `R` en el lector guiado |
+Decidido por Isaac el 2026-11-22. El atajo de respaldo de la tecla N es siempre **Ctrl+Alt+Shift+N**.
 
-Las teclas 6–9 actúan sobre el documento abierto (opciones 2 y 3). En el menú no hacen nada.
+| Tecla | Acción | Qué hace en la app |
+|---|---|---|
+| 1 | **Abrir/cerrar la app** | muestra u oculta el overlay desde cualquier programa (como Ctrl+Alt+Espacio) |
+| 2 | **Empezar a grabar** una orden de voz | pitido de inicio y aviso rojo «Recording…» |
+| 3 | **Parar la grabación** | pitido de fin; se transcribe (unos 2 s) y la app hace la orden |
+| 4 | Leer papel | abre la opción 2 (cámara) |
+| 5 | Leer archivo | abre la opción 3 (PDF, imagen, texto) |
+| 6 | Leer/pausa | `Espacio` en el lector abierto |
+| 7 | Resumir la selección | opción 4: resume el texto seleccionado en el programa de delante |
+| 8 | Gestos | abre la opción 1 |
+| 9 | Volver al menú | vuelve al menú (no oculta la ventana) |
+
+## Órdenes de voz (teclas 2 y 3)
+- **Cómo funciona:**
+  - pulsa la 2, di la orden y pulsa la 3;
+  - Go la transcribe (`POST /transcribe`, el modelo de audio barato: unos 2 s y 0,00006 $; en `LLM_PROFILE=dev`, el mismo orden de modelos de `LLM_TRANSCRIBE_MODELS`);
+  - la frase se convierte en una acción del keypad.
+- **La app responde siempre:**
+  - repite lo que ha oído en pantalla;
+  - si no lo entiende, dice «No sé hacer: …».
+- **Límite:** a los 30 s la grabación para sola.
+- **Necesita la clave** (`OPENROUTER_API_KEY`). Sin ella, lo dice.
+
+| Dices (español, catalán o inglés) | Hace |
+|---|---|
+| «lee el documento», «escanea el papel», «llegeix el paper» | leer papel (opción 2) |
+| «abre un archivo», «léeme el PDF» | leer archivo (opción 3) |
+| «resume», «resumen» | resumir la selección (opción 4) |
+| «gestos» | opción 1 |
+| «menú», «vuelve», «atrás» | menú |
+| «siguiente», «anterior», «repite» | en el lector |
+| «pausa», «lee», «continúa» | leer/pausa |
+| «oculta», «cierra» | oculta la app |
+
+Las frases están en `web/src/app/overlay/voiceCommand.ts`, con tests.
 
 ## Usarlo
 1. Enchufa el MX Keypad por USB.
 2. Arranca la app (`task overlay` → `build/bin/lauzhack.exe`). En el log (`build/bin/lauzhack.log`) debe salir `MX Keypad read directly: connected=true`; se puede enchufar también con la app abierta (lo busca cada 2 s).
-3. Prueba: con otro programa delante, pulsa la tecla 3 (leer papel). El overlay debe aparecer en esa opción.
+3. Prueba: con otro programa delante, pulsa la tecla 4 (leer papel). El overlay debe aparecer en esa opción. Después, tecla 2, di «abre un archivo» y tecla 3.
 
-**Comprobado el 2026-11-22 con el keypad real, sin Options+:** las 9 teclas llegaron con su acción, dos rondas seguidas. Sin keypad se puede probar con las combinaciones de respaldo desde el teclado.
+**Comprobado el 2026-11-22 con el keypad real, sin Options+:** las 9 teclas llegaron con su acción, dos rondas seguidas (con la tabla anterior; las teclas físicas son las mismas). **Sin probar todavía:** las órdenes de voz con micrófono real. Sin keypad se puede probar con las combinaciones de respaldo desde el teclado.
 
 **Con Logi Options+** (opcional): en la página 1, asigna a cada tecla **Acción → Atajo de teclado** con la combinación de la tabla. Si Options+ se queda el keypad para él, la app sigue funcionando por los atajos.
 
@@ -58,7 +82,7 @@ Las teclas 6–9 actúan sobre el documento abierto (opciones 2 y 3). En el men�
   3. una fila en esta tabla.
 
 ## Pendiente (opcional)
-- Página 2: subir y bajar el volumen de la voz y, cuando existan, resumir (N7) y modo cursor (N5).
+- Página 2: subir y bajar el volumen (también como orden de voz) y el modo cursor (N5).
 - Dial de la MX Creative Console para el volumen.
 - Probar con la app completa: tecla pulsada desde otro programa → overlay, y desenchufar y volver a enchufar.
 - Páginas del keypad: el cambio de página no envía nada que hayamos visto. Sin probar si la página 2 manda otros números.
