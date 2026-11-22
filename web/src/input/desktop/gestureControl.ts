@@ -10,7 +10,7 @@
 import { actionFor, MAPS, type Action } from "../actions.ts";
 import { areaPoint, HandInteraction, POINTER_AREA, type WakeIssue } from "../interaction.ts";
 import { createTracker } from "../tracker.ts";
-import { CONNECTIONS, L, type HandEvent, type HandFrame, type LevelTarget, type MenuSector, type MouseAction } from "../types.ts";
+import { CONNECTIONS, L, type HandEvent, type HandFrame, type LevelTarget, type MenuSector, type MouseAction, type Point } from "../types.ts";
 import { latestOnly, OS_ACTIONS, toScreen, type ActionOptions, type CallAppId, type HelperClient } from "./client.ts";
 import { MARKUP } from "./markup.ts";
 import "./gestureControl.css";
@@ -26,6 +26,8 @@ export interface GestureControlOptions {
   onScreenOverlay?: (need: boolean) => void;
   /** Called when cursor mode is turned on or off (the desktop app moves out of the way when on). */
   onCursorMode?: (on: boolean) => void;
+  /** Where cursor mode moves the mouse ([0, 1] over the screen), e.g. to keep a window out of its way. */
+  onPointer?: (screen: Point) => void;
 }
 
 export interface GestureControlHandle {
@@ -48,6 +50,9 @@ export function mountGestureControl(
 ): GestureControlHandle {
   root.classList.add("gc");
   root.innerHTML = MARKUP;
+  // A gesture right click over this page must not open the browser's context menu.
+  const noMenu = (e: Event) => e.preventDefault();
+  root.addEventListener("contextmenu", noMenu);
   const $ = <T extends HTMLElement>(id: string) => root.querySelector(`#${id}`) as T;
   const video = $<HTMLVideoElement>("video");
   const canvas = $<HTMLCanvasElement>("canvas");
@@ -259,7 +264,11 @@ export function mountGestureControl(
 
     if (e.type === "pointer") {
       // A failing mouse (a missing tool on Linux, for example) must not fail silently.
-      if (mouseOn()) void helper.pointer(toScreen(e.image)).catch((err: Error) => pointerError(err));
+      if (mouseOn()) {
+        const screenPoint = toScreen(e.image);
+        void helper.pointer(screenPoint).catch((err: Error) => pointerError(err));
+        options.onPointer?.(screenPoint);
+      }
       return;
     }
     if (e.type === "scroll") {
@@ -503,6 +512,7 @@ export function mountGestureControl(
       const stream = video.srcObject as MediaStream | null;
       for (const t of stream?.getTracks() ?? []) t.stop();
       video.srcObject = null;
+      root.removeEventListener("contextmenu", noMenu);
       root.classList.remove("gc", "compact", "screen");
       document.documentElement.classList.remove("gc-see-through");
       root.innerHTML = "";

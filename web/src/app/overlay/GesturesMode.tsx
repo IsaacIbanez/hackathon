@@ -20,23 +20,33 @@ export function GesturesMode() {
   useEffect(() => {
     if (!root.current || !inDesktopApp()) return
     const app = desktop()
+    let compact = false
+    let tMoved = -Infinity
     const helper = new HelperClient('', bindingFetch((m, p, b) => app.GestureCall(m, p, b)))
     let handle: GestureControlHandle | null = mountGestureControl(root.current, helper, {
       unreachable: 'Gesture Control did not answer inside the app (see build/bin/lauzhack.log).',
       // From the bubble, the menu and the volume/brightness control take the whole screen.
       onScreenOverlay: (need) => void app.SetScreenOverlay(need).catch(() => {}),
       // Cursor mode: get out of the way (the bubble) so the whole screen can be used with the mouse.
-      onCursorMode: (on) => {
-        if (on) void app.SetCompact(true).catch(() => {})
+      // Cursor mode on: the window becomes the bubble, out of the way; off: it comes back.
+      onCursorMode: (on) => void app.SetCompact(on).catch(() => {}),
+      // The bubble dodges the gesture cursor: clicks on it would go to this window, not to the
+      // program below. It jumps to the other bottom corner when the cursor comes near.
+      onPointer: (p) => {
+        if (!compact || performance.now() - tMoved < 800 || !nearThisWindow(p)) return
+        tMoved = performance.now()
+        void app.MoveBubble().catch(() => {})
       },
     })
     void app.SetGesturesActive(true).catch((e) => setError(errorText(e)))
     const offCompact = onDesktopEvent('overlay:compact', () => {
+      compact = true
       handle?.setScreen(false)
       handle?.setCompact(true)
     })
     const offScreen = onDesktopEvent('overlay:screen', () => handle?.setScreen(true))
     const offExpanded = onDesktopEvent('overlay:expanded', () => {
+      compact = false
       handle?.setScreen(false)
       handle?.setCompact(false)
     })
@@ -83,4 +93,16 @@ export function GesturesMode() {
       <div ref={root} />
     </div>
   )
+}
+
+/** Whether a screen point ([0, 1] over the screen) is on this window or within ~15 % of it. */
+function nearThisWindow(p: { x: number; y: number }): boolean {
+  const sw = window.screen.width || 1
+  const sh = window.screen.height || 1
+  const m = 0.15
+  const left = window.screenX / sw - m
+  const right = (window.screenX + window.outerWidth) / sw + m
+  const top = window.screenY / sh - m
+  const bottom = (window.screenY + window.outerHeight) / sh + m
+  return p.x >= left && p.x <= right && p.y >= top && p.y <= bottom
 }

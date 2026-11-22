@@ -42,6 +42,7 @@ type overlayState struct {
 	gesturesOn bool // option 1 is showing the camera
 	compact    bool // shrunk to a camera bubble in a corner instead of hidden
 	screen     bool // from the bubble: see-through over the whole screen while the gesture menu is open
+	leftCorner bool // the bubble sits in the bottom-left corner (it dodges the gesture cursor)
 	// The program that was active before the full-screen menu: it gets the focus back afterwards,
 	// so the gestures' keys (Enter, shortcuts) go to it and not to this window.
 	before uintptr
@@ -336,10 +337,7 @@ func (a *App) setCompact(ctx context.Context, on bool) {
 	wruntime.WindowSetAlwaysOnTop(ctx, true)
 	if on {
 		wruntime.WindowSetSize(ctx, compactWidth, compactHeight)
-		if sw, sh := currentScreen(ctx); sw > 0 {
-			// Above the taskbar, in the corner.
-			wruntime.WindowSetPosition(ctx, sw-compactWidth-compactMargin, sh-compactHeight-3*compactMargin)
-		}
+		a.placeBubble(ctx)
 		wruntime.EventsEmit(ctx, "overlay:compact")
 		return
 	}
@@ -411,9 +409,37 @@ func (a *App) SetScreenOverlay(on bool) {
 	}
 	wruntime.WindowUnfullscreen(ctx)
 	wruntime.WindowSetSize(ctx, compactWidth, compactHeight)
-	if sw, sh := currentScreen(ctx); sw > 0 {
-		wruntime.WindowSetPosition(ctx, sw-compactWidth-compactMargin, sh-compactHeight-3*compactMargin)
-	}
+	a.placeBubble(ctx)
 	wruntime.EventsEmit(ctx, "overlay:compact")
 	overlay.RestoreForeground(before)
+}
+
+// placeBubble puts the bubble above the taskbar, in the bottom-right or bottom-left corner.
+func (a *App) placeBubble(ctx context.Context) {
+	sw, sh := currentScreen(ctx)
+	if sw == 0 {
+		return
+	}
+	a.overlay.mu.Lock()
+	left := a.overlay.leftCorner
+	a.overlay.mu.Unlock()
+	x := sw - compactWidth - compactMargin
+	if left {
+		x = compactMargin
+	}
+	wruntime.WindowSetPosition(ctx, x, sh-compactHeight-3*compactMargin)
+}
+
+// MoveBubble moves the camera bubble to the other bottom corner. The page calls it when the gesture
+// cursor comes near the bubble: clicks on it would go to this window instead of the program below.
+func (a *App) MoveBubble() {
+	o := &a.overlay
+	o.mu.Lock()
+	if !o.compact || o.screen {
+		o.mu.Unlock()
+		return
+	}
+	o.leftCorner = !o.leftCorner
+	o.mu.Unlock()
+	a.placeBubble(a.ctx)
 }
