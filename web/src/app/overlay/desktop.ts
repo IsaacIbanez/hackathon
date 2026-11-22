@@ -70,6 +70,8 @@ interface GoBindings {
   MoveBubble(): Promise<void>
   /** The text selected in the program in front (errors start with "no_selection:"). */
   ReadSelection(): Promise<string>
+  /** Deletes the text selected in the program in front (only if there is a selection). */
+  DeleteSelection(): Promise<number>
   OpenFileForReading(): Promise<string>
   PDFPage(id: string, page: number): Promise<string>
   SummarizeSelection(): Promise<string>

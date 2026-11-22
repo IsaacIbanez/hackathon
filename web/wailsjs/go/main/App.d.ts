@@ -3,6 +3,8 @@
 
 export function CloseSummary():Promise<void>;
 
+export function DeleteSelection():Promise<number>;
+
 export function EnsureReadingService():Promise<string>;
 
 export function GestureCall(arg1:string,arg2:string,arg3:string):Promise<string>;

@@ -44,6 +44,7 @@ Las teclas 2–5 coinciden con los números de las opciones en pantalla; Gesture
 | «siguiente», «anterior», «repite» | en el lector |
 | «pausa», «lee», «continúa» | leer/pausa |
 | «oculta», «cierra» | oculta la app |
+| «borra el texto», «elimina la selección», «esborra», «delete» | **borra el texto seleccionado** en el programa de delante. Antes comprueba que hay texto seleccionado (lo copia); si no lo hay, no borra nada y dice «No hay texto seleccionado». El portapapeles se queda como estaba |
 
 Las frases están en `web/src/app/overlay/voiceCommand.ts`, con tests.
 

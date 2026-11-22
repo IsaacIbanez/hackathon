@@ -60,6 +60,17 @@ export function useVoiceCommand(run: (action: KeypadAction) => void) {
         speaker.speak({ text: 'No te he oído.', lang: LANG })
       } else if (!action) {
         speaker.speak({ text: `No sé hacer: ${text}`, lang: LANG })
+      } else if (action === 'delete-selection') {
+        // Only now, after a command that is clearly "delete", is anything deleted, and only text
+        // that is really selected (Go checks it first).
+        try {
+          const n = await desktop().DeleteSelection()
+          speaker.speak({ text: n === 1 ? 'Borrado un carácter.' : `Texto borrado: ${n} caracteres.`, lang: LANG })
+        } catch (e) {
+          const msg = errorText(e)
+          if (msg.includes('no_selection')) speaker.speak({ text: 'No hay texto seleccionado. Selecciona el texto y repite la orden.', lang: LANG })
+          else throw e
+        }
       } else {
         const done = DONE_SPEECH[action]
         if (done) speaker.speak({ text: done, lang: LANG })

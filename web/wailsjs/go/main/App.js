@@ -6,6 +6,10 @@ export function CloseSummary() {
   return window['go']['main']['App']['CloseSummary']();
 }
 
+export function DeleteSelection() {
+  return window['go']['main']['App']['DeleteSelection']();
+}
+
 export function EnsureReadingService() {
   return window['go']['main']['App']['EnsureReadingService']();
 }

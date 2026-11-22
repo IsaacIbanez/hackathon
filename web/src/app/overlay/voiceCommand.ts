@@ -15,8 +15,10 @@ export function normalize(text: string): string {
     .trim()
 }
 
-// Checked in order: the first pattern that matches wins (more specific ones first).
+// Checked in order: the first pattern that matches wins (more specific ones first). Deleting goes
+// first, so "borra el texto del archivo" deletes and does not open a file.
 const RULES: { action: KeypadAction; pattern: RegExp }[] = [
+  { action: 'delete-selection', pattern: /\b(borra|borrar|borralo|borrala|elimina|eliminar|suprime|suprimir|esborra|esborrar|suprimeix|delete|erase)\b/ },
   { action: 'summarize', pattern: /\b(resum\w*|summar\w*)\b/ },
   { action: 'read-file', pattern: /\b(archivo|fichero|fitxer|file|pdf)\b/ },
   { action: 'documents', pattern: /\b(papel|paper|documento|document|hoja|carta|escane\w*|scan\w*|camara|camera)\b/ },
