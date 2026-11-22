@@ -80,7 +80,10 @@ test("new actions go to the helper: brightness, microphone, power and apps", () 
 
 test("menu: the main page has volume, brightness, microphone, apps and computer", () => {
   const pc = menuPage({ id: "main" }, "pc");
-  assert.deepEqual(cellsOf(pc).sort(), ["down", "down_right", "left", "right", "up", "up_left", "up_right"]);
+  // Power (Computer ▸) is not offered unless allowed (R2).
+  assert.deepEqual(cellsOf(pc).sort(), ["down", "left", "right", "up", "up_left", "up_right"]);
+  const withPower = menuPage({ id: "main" }, "pc", [], false, true);
+  assert.equal(withPower.down_right?.kind === "page" && withPower.down_right.page.id, "computer");
   assert.equal(pc.up_left?.kind === "action" && pc.up_left.action, "keyboard");
   assert.equal(pc.up_right?.kind, "cursor");
   assert.equal(menuPage({ id: "main" }, "pc", [], true).up_right?.label, "🖱️ Cursor off");

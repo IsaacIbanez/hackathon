@@ -60,6 +60,8 @@ export function menuPage(
   context: DesktopContext,
   launchers: readonly Launcher[] = [],
   cursorOn = false,
+  /** Whether suspend, restart and shut down are allowed (off by default: the helper's status). */
+  powerOn = false,
 ): MenuLayout {
   switch (page.id) {
     case "main":
@@ -69,7 +71,8 @@ export function menuPage(
         // The system microphone: it works with any app (👍 toggles the call app's own mute).
         left: { kind: "action", action: "mic_mute", label: "🎙️ Microphone" },
         right: { kind: "page", page: { id: "apps" }, label: "🚀 Apps ▸" },
-        down_right: { kind: "page", page: { id: "computer" }, label: "⏻ Computer ▸" },
+        // Power (suspend, restart, shut down) only when allowed: a gesture once suspended the computer.
+        ...(powerOn ? { down_right: { kind: "page", page: { id: "computer" }, label: "⏻ Computer ▸" } as MenuItem } : {}),
         up_right: { kind: "cursor", label: cursorOn ? "🖱️ Cursor off" : "🖱️ Cursor mode" },
         ...(context === "call"
           ? {

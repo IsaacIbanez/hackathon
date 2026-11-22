@@ -36,6 +36,8 @@ export interface HelperStatus {
   apps: { id: CallAppId; name: string }[];
   /** Apps the helper can open (its apps.json); empty when none is configured. */
   launchers?: { id: string; name: string }[];
+  /** Suspend, restart and shut down are allowed (LAUZHACK_GESTURES_POWER=1). */
+  power?: boolean;
 }
 
 export interface ActionOptions {

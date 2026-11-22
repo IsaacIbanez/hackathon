@@ -11,6 +11,8 @@ type Options struct {
 	Width  int    // screen size when it can't be detected (0: detect)
 	Height int    //
 	Apps   string // path to apps.json ("" searches the usual places, see LoadLaunchers)
+	// AllowPower enables suspend, restart and shut down (off by default, see Executor.AllowPower).
+	AllowPower bool
 }
 
 // New builds a Server that acts on this computer (or only logs, with DryRun). Assets, Token and
@@ -29,6 +31,7 @@ func New(o Options) *Server {
 			GOOS:       runtime.GOOS,
 			FocusDelay: 250 * time.Millisecond,
 			Launchers:  launchers,
+			AllowPower: o.AllowPower,
 		},
 		Status: Status{
 			Platform:  runtime.GOOS,
@@ -36,6 +39,7 @@ func New(o Options) *Server {
 			DryRun:    o.DryRun,
 			Apps:      CallApps,
 			Launchers: ToLauncherInfos(launchers),
+			Power:     o.AllowPower,
 		},
 	}
 }

@@ -100,6 +100,10 @@ export interface InteractionOptions {
    * of the hand must not restart the confirmation.
    */
   levelStillBand: number;
+  /** A level reading that moves more than this (0–1) from the last one is a glitch… */
+  levelMaxJump: number;
+  /** …unless it stays this many frames in a row (a real fast movement). */
+  levelJumpFrames: number;
   /** Time the pinch must be held to start controlling the level. */
   levelStartMs: number;
   /** After choosing "adjust volume" in the menu, time to pinch before cancelling. */
@@ -190,6 +194,8 @@ export const DEFAULT_OPTIONS: InteractionOptions = {
   levelHysteresis: 0.25,
   levelConfirmMs: 1200,
   levelStillBand: 0.06,
+  levelMaxJump: 0.25,
+  levelJumpFrames: 3,
   levelStartMs: 150,
   fistReach: 0.9,
   levelArmMs: 8000,
@@ -357,6 +363,8 @@ export class HandInteraction {
   private menuPressFrames = 0;
   private clickPressFrames = 0;
   private scrollRef: number | null = null;
+  private levelRaw: number | null = null;
+  private levelJumps = 0;
   private menuTouchReady = false;
   private tMenuTouch = 0;
   private menuTapSector: MenuSector | null = null;
@@ -860,6 +868,8 @@ export class HandInteraction {
       this.tPinchStart = null;
       this.levelArmedAt = null;
       this.fSeparation.reset();
+      this.levelRaw = null;
+      this.levelJumps = 0;
     } else if (this.opts.useFist && diag.reach < this.opts.fistReach) {
       // Fist: finish. Tolerate brief detection glitches.
       if (t - this.level.tLastValid <= 200) return true;
@@ -868,6 +878,15 @@ export class HandInteraction {
       return false;
     }
 
+    // A reading far from the last ones is a detection glitch (a finger lost for a frame), not the
+    // hand: it is ignored unless it stays (a real, fast movement). Without this the volume jumped
+    // 20 → 100 → 50 → 0 % in a second (R2).
+    const raw = Math.min(1, Math.max(0, (diag.separation - this.opts.levelZero) / (this.opts.levelFull - this.opts.levelZero || 1)));
+    if (this.level && this.levelRaw !== null && Math.abs(raw - this.levelRaw) > this.opts.levelMaxJump) {
+      if (++this.levelJumps < this.opts.levelJumpFrames) return true;
+    }
+    this.levelJumps = 0;
+    this.levelRaw = raw;
     const sep = this.fSeparation.filter(diag.separation, t);
     const { levelZero, levelFull } = this.opts;
     const continuous = Math.min(1, Math.max(0, (sep - levelZero) / (levelFull - levelZero || 1)));

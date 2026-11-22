@@ -65,6 +65,7 @@ export function mountGestureControl(
   const interaction = new HandInteraction({ requireWake: true, mouseClicks: false, menuArea: POINTER_AREA });
   let stopped = false;
   let screenNeeded = false;
+  let powerOn = false;
   let tracker: Tracker | null = null;
   let tDrawn = -Infinity;
   const DRAW_MS = 1000 / 32;
@@ -104,7 +105,7 @@ export function mountGestureControl(
   const enabled = () => $<HTMLInputElement>("enabled").checked;
   const mouseOn = () => $<HTMLInputElement>("mouse").checked;
   const app = () => $<HTMLSelectElement>("app").value as CallAppId;
-  const layout = () => menuPage(page, context, launchers, mouseOn());
+  const layout = () => menuPage(page, context, launchers, mouseOn(), powerOn);
 
   /**
    * Cursor mode: ☝️ moves the mouse, the middle finger on the thumb clicks (twice: right click;
@@ -156,6 +157,7 @@ export function mountGestureControl(
   }
 
   // System calls for volume and brightness can be slower than the hand: only the newest value is sent.
+  const lastLevel: Record<LevelTarget, number | null> = { volume: null, brightness: null };
   const sendLevel: Record<LevelTarget, (v: number) => void> = {
     volume: latestOnly((v: number) => perform("volume", { value: v })),
     brightness: latestOnly((v: number) => perform("brightness", { value: v })),
@@ -292,7 +294,11 @@ export function mountGestureControl(
     if (!action) return;
     if (e.type === "level") {
       toast(`${e.target === "brightness" ? "🔆" : "🔊"} ${Math.round(e.value * 100)} %`);
-      sendLevel[e.target](e.value);
+      // The system value follows the hand at most 20 % per update; the confirmed value is exact.
+      const last = lastLevel[e.target];
+      const v = e.phase === "end" || last === null ? e.value : last + Math.max(-0.2, Math.min(0.2, e.value - last));
+      lastLevel[e.target] = e.phase === "end" ? null : v;
+      sendLevel[e.target](v);
       return;
     }
     // Clicks come from the click gesture (with "Move the mouse"), not from holding the pointer still.
@@ -329,7 +335,7 @@ export function mountGestureControl(
   function paintGuide() {
     const m = MAPS[context];
     $("contextName").textContent = context === "call" ? "Video call" : "Computer";
-    const menu = Object.values(menuPage({ id: "main" }, context, launchers))
+    const menu = Object.values(menuPage({ id: "main" }, context, launchers, false, powerOn))
       .map((i) => i!.label.replace(/^\S+\s/, "").replace(" ▸", ""))
       .join(", ");
     const rows: [string, string | null][] = [
@@ -509,6 +515,7 @@ export function mountGestureControl(
     try {
       const s = await helper.status();
       launchers = s.launchers ?? [];
+      powerOn = s.power === true;
       statusText = `${s.dryRun ? "Dry run — nothing is pressed · " : ""}${s.desktop}`;
       $("status").textContent = statusText;
       $("dryrun").hidden = !s.dryRun;
@@ -525,7 +532,7 @@ export function mountGestureControl(
   let cameraRun = 0;
   let drawing = false;
 
-  async function startCamera() {
+  async function startCamera(attempt = 0) {
     const run = ++cameraRun;
     const stale = () => stopped || run !== cameraRun;
     showCameraMessage(null);
@@ -575,6 +582,14 @@ export function mountGestureControl(
       showSpeed(statusText);
     } catch (e) {
       if (stale()) return;
+      // Coming back from another option, its camera may take a moment to be released: try again.
+      if ((e as { name?: string })?.name === "NotReadableError" && attempt < 4) {
+        showCameraMessage("📷 Waiting for the camera…");
+        setTimeout(() => {
+          if (!stale()) void startCamera(attempt + 1);
+        }, 700);
+        return;
+      }
       const text = cameraErrorText(e);
       showCameraMessage(text);
       $("status").textContent = `Camera: ${text}`;

@@ -32,6 +32,7 @@ func main() {
 	dryRun := flag.Bool("dry-run", false, "log the actions instead of performing them")
 	screen := flag.String("screen", "", "screen size WIDTHxHEIGHT when it can't be detected (Linux Wayland)")
 	appsFile := flag.String("apps", "", "path to apps.json configuration file")
+	power := flag.Bool("power", false, "allow suspend, restart and shut down from the gesture menu")
 	flag.Parse()
 
 	host, _, err := net.SplitHostPort(*addr)
@@ -44,7 +45,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	srv := control.New(control.Options{DryRun: *dryRun, Width: w, Height: h, Apps: *appsFile})
+	srv := control.New(control.Options{DryRun: *dryRun, Width: w, Height: h, Apps: *appsFile, AllowPower: *power})
 	srv.Token = newToken()
 	srv.Assets = assets
 

@@ -423,7 +423,10 @@ func newGestureControl() *control.Server {
 		}
 	}
 	dry := os.Getenv("LAUZHACK_GESTURES_DRY_RUN") == "1"
-	g := control.New(control.Options{DryRun: dry, Width: w, Height: h, Apps: os.Getenv("LAUZHACK_APPS")})
+	// Suspend, restart and shut down only with LAUZHACK_GESTURES_POWER=1 (R2: a gesture suspended
+	// the computer by accident).
+	power := os.Getenv("LAUZHACK_GESTURES_POWER") == "1"
+	g := control.New(control.Options{DryRun: dry, Width: w, Height: h, Apps: os.Getenv("LAUZHACK_APPS"), AllowPower: power})
 	log.Printf("overlay: gestures act through %s", g.Status.Desktop)
 	return g
 }

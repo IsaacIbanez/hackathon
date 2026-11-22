@@ -56,6 +56,9 @@ type Executor struct {
 	// Pause between focusing a window and sending its shortcut (the window needs a moment).
 	FocusDelay time.Duration
 	Launchers  []Launcher
+	// AllowPower enables suspend, restart and shut down. Off by default: a gesture once suspended
+	// the computer by accident during a test (R2).
+	AllowPower bool
 }
 
 // Do performs the request and returns a short human-readable description of what was done.
@@ -93,6 +96,9 @@ func (e *Executor) Do(r Request) (string, error) {
 			return "microphone toggled", nil
 		}
 	case "suspend", "restart", "shutdown":
+		if !e.AllowPower {
+			return "", fmt.Errorf("%w: power actions are off (start with LAUZHACK_GESTURES_POWER=1 to allow them)", ErrUnsupported)
+		}
 		if !r.Confirm {
 			return "", ErrNeedsConfirm
 		}

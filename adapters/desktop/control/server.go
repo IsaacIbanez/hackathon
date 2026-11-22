@@ -22,6 +22,8 @@ type Status struct {
 	DryRun    bool           `json:"dryRun"`
 	Apps      []CallApp      `json:"apps"`
 	Launchers []LauncherInfo `json:"launchers"`
+	// Power: suspend, restart and shut down are allowed (the page only offers them then).
+	Power bool `json:"power"`
 }
 
 // Server serves the gesture page and the local API that acts on the computer (standalone program),

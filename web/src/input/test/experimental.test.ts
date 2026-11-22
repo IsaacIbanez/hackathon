@@ -534,3 +534,20 @@ test("menu: with menuArea (the Gesture Control window), the bottom row is reache
   const choose = simulate(new HandInteraction({ menuArea: POINTER_AREA }), frames).find((e) => e.type === "menu" && e.phase === "choose");
   assert.ok(choose && choose.type === "menu" && choose.sector === "down");
 });
+
+test("level: a one-frame glitch in the pinch doesn't move the volume (R2)", () => {
+  const ctl = armed();
+  const frames = [
+    ...repeat(makeHand(SHAPES.pinch), 8),
+    ...Array.from({ length: 10 }, (_, i) => openPinch(0.01 * (i + 1))), // opens to ~0.1
+    ...repeat(openPinch(0.1), 5),
+    openPinch(0.3), // a finger misdetected for one frame: looks wide open
+    ...repeat(openPinch(0.1), 5),
+    makeHand(SHAPES.pinch), // and for one frame closed
+    ...repeat(openPinch(0.1), 5),
+  ];
+  const values = simulate(ctl, frames).flatMap((e) => (e.type === "level" ? [e.value] : []));
+  const max = Math.max(...values);
+  assert.ok(max <= 0.4, `values ${values.join(", ")}`);
+  for (let i = 1; i < values.length; i++) assert.ok(Math.abs(values[i] - values[i - 1]) <= 0.2, `jump ${values[i - 1]} → ${values[i]}`);
+});
