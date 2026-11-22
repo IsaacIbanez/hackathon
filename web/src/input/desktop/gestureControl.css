@@ -99,7 +99,7 @@ html.gc-see-through .gc.screen { visibility: visible; }
 .gc.gc-panel { max-width: none; min-width: 0; padding: 0; margin: 0; background: transparent; }
 .gc.gc-panel > :not(.stage) { display: none; }
 .gc.gc-panel .stage { border-radius: 0; box-shadow: none; }
-.gc.gc-panel:not(.expanded) #sleep, .gc.gc-panel:not(.expanded) #action, .gc.gc-panel:not(.expanded) #level { display: none; }
+.gc.gc-panel:not(.expanded):not(.screen) #sleep, .gc.gc-panel:not(.expanded):not(.screen) #action, .gc.gc-panel:not(.expanded):not(.screen) #level { display: none; }
 .gc.gc-panel.expanded:not(.compact):not(.screen) { position: fixed; inset: 0; z-index: 40; background: var(--bg); }
 .gc.gc-panel.expanded:not(.compact):not(.screen) .stage { height: 100vh; }
 .gc.gc-panel.expanded:not(.compact):not(.screen) canvas { height: 100%; }

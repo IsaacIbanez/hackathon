@@ -172,7 +172,7 @@ export function mountGestureControl(
   }
 
   function goBack(t: number) {
-    if (page.id === "confirm") {
+    if (page.id === "confirm" || page.id === "confirm2") {
       showPage({ id: "computer" });
       reopening = true;
       try {
@@ -372,8 +372,9 @@ export function mountGestureControl(
       op.classList.toggle("chosen", shownChoice?.sector === s);
       op.style.setProperty("--p", open?.sector === s ? String(open.progress) : "0");
     }
-    const titles: Record<MenuPage["id"], string> = { main: "Menu", computer: "Computer", apps: "Apps", confirm: "Are you sure?" };
-    $("menuTitle").textContent = page.id === "confirm" ? `${powerLabel(page.action)}?` : titles[page.id];
+    const titles: Record<MenuPage["id"], string> = { main: "Menu", computer: "Computer", apps: "Apps", confirm: "Are you sure?", confirm2: "Really?" };
+    $("menuTitle").textContent =
+      page.id === "confirm" ? `${powerLabel(page.action)}?` : page.id === "confirm2" ? `Really ${powerLabel(page.action).toLowerCase()}?` : titles[page.id];
     const p = interaction.pointer;
     const cursor = $("cursor");
     cursor.hidden = !(open && p);

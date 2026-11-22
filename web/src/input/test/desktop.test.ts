@@ -97,17 +97,20 @@ test("menu: the main page has volume, brightness, microphone, apps and computer"
   assert.equal(call.down_left?.kind === "action" && call.down_left.action, "leave_call");
 });
 
-test("menu: power actions always ask first, and only ↓ confirms", () => {
+test("menu: power actions need two confirmations, in different corners (R2)", () => {
   const computer = menuPage({ id: "computer" }, "pc");
   for (const item of Object.values(computer)) assert.notEqual(item?.kind, "power");
   for (const action of ["suspend", "restart", "shutdown"] as const) {
     const go = Object.values(computer).find((i) => i?.kind === "page" && i.page.id === "confirm" && i.page.action === action);
     assert.ok(go, action);
+    // First "yes" (↓) leads to a second page, not to the action.
     const confirm = menuPage({ id: "confirm", action }, "pc");
-    const yes = Object.entries(confirm).filter(([, i]) => i?.kind === "power");
-    assert.deepEqual(yes.map(([s]) => s), ["down"]);
-    assert.equal(Object.keys(confirm).length, 2, "confirm should have only 2 options (down to confirm, up to go back), not 4");
-    assert.deepEqual(confirm.up, { kind: "page", page: { id: "computer" }, label: "↩ Back" });
+    assert.ok(Object.values(confirm).every((i) => i?.kind !== "power"));
+    assert.deepEqual(confirm.down, { kind: "page", page: { id: "confirm2", action }, label: confirm.down!.label });
+    // The final "yes" is in the top-left corner, far from the first one.
+    const confirm2 = menuPage({ id: "confirm2", action }, "pc");
+    const yes = Object.entries(confirm2).filter(([, i]) => i?.kind === "power");
+    assert.deepEqual(yes.map(([s]) => s), ["up_left"]);
   }
 });
 

@@ -13,7 +13,9 @@ export type MenuPage =
   | { id: "computer" }
   | { id: "apps" }
   /** "Are you sure?" before a power action. */
-  | { id: "confirm"; action: PowerAction };
+  | { id: "confirm"; action: PowerAction }
+  /** Second "are you sure?": power needs two confirmations in different corners. */
+  | { id: "confirm2"; action: PowerAction };
 
 export type MenuItem =
   /** Performs a computer or video-call action. */
@@ -92,7 +94,15 @@ export function menuPage(
       const p = POWER[page.action];
       return {
         up: { kind: "page", page: { id: "computer" }, label: "↩ Back" },
-        down: { kind: "power", action: page.action, label: `✔ Yes, ${p.name.toLowerCase()}` },
+        down: { kind: "page", page: { id: "confirm2", action: page.action }, label: `✔ Yes, ${p.name.toLowerCase()}` },
+      };
+    }
+    case "confirm2": {
+      // The final "yes" is in the opposite top corner from the first one: two deliberate moves.
+      const p = POWER[page.action];
+      return {
+        down: { kind: "page", page: { id: "computer" }, label: "↩ Cancel" },
+        up_left: { kind: "power", action: page.action, label: `✔ Sure: ${p.name.toLowerCase()} now` },
       };
     }
     case "apps": {
