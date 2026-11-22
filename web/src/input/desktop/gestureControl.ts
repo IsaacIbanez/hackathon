@@ -34,6 +34,11 @@ export interface GestureControlOptions {
   onQuit?: () => void;
   /** "Close gestures" turned Gesture Control off (false), or a click on the camera view back on (true). */
   onGestures?: (on: boolean) => void;
+  /**
+   * If given, "Close gestures" calls it instead of turning the gestures and the camera off: the
+   * desktop app uses it to go back to the overlay while the camera keeps running.
+   */
+  onCloseGestures?: () => void;
   /** Three fingers: read the text selected in the program in front aloud (the app does it). */
   onReadSelection?: () => void;
   /** Called when cursor mode is turned on or off (the desktop app moves out of the way when on). */
@@ -274,7 +279,8 @@ export function mountGestureControl(
         else toast("Close the window to quit", true);
         break;
       case "gestures_off":
-        setGestures(false);
+        if (options.onCloseGestures) options.onCloseGestures();
+        else setGestures(false);
         break;
       case "cursor":
         setCursor(!mouseOn());

@@ -67,12 +67,12 @@ func desiredShape(in windowInputs) windowShape {
 
 // windowControl holds the inputs and the shape the window has now.
 type windowControl struct {
-	mu         sync.Mutex
-	in         windowInputs
-	shape      windowShape
-	leftCorner bool    // the camera bubble sits in the bottom-left corner (it dodges the gesture cursor)
-	before     uintptr // the program in front before the gesture menu screen: it gets the focus back
-	applying   sync.Mutex
+	mu          sync.Mutex
+	in          windowInputs
+	shape       windowShape
+	rightCorner bool    // the camera bubble sits top right instead of top left (it dodges the gesture cursor)
+	before      uintptr // the program in front before the gesture menu screen: it gets the focus back
+	applying    sync.Mutex
 }
 
 // setWindow changes the inputs (under the lock) and applies the resulting shape. raise: also bring the

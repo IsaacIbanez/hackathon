@@ -51,6 +51,9 @@ export function gestureRoot(): HTMLDivElement | null {
       }
       return true
     },
+    // "Close gestures" (Isaac, 2026-11-22): for now it only brings the overlay back, from the bubble
+    // or over it; the camera and the gestures keep running.
+    onCloseGestures: () => void app.SetCompact(false).catch(() => {}),
     // "Close app" in the gesture menu.
     onQuit: () => void app.Quit().catch(() => {}),
     // "Close gestures": only the camera stops; the app stays. From the bubble, the window comes back
@@ -61,7 +64,7 @@ export function gestureRoot(): HTMLDivElement | null {
       if (!on && compact) void app.SetCompact(false).catch(() => {})
     },
     // The bubble dodges the gesture cursor: clicks on it would go to this window, not to the
-    // program below. It jumps to the other bottom corner when the cursor comes near.
+    // program below. It jumps to the other top corner when the cursor is on it.
     onPointer: (p) => {
       if (!compact || performance.now() - tMoved < 800 || !nearThisWindow(p)) return
       tMoved = performance.now()
@@ -85,6 +88,15 @@ export function gestureRoot(): HTMLDivElement | null {
     if (compact) void app.SetCompact(false)
   })
   return root
+}
+
+/**
+ * Turns the gestures on again after "Close gestures" in the menu, as a click on the camera view does
+ * (opening Gesture Control means the person wants them).
+ */
+export function turnGesturesOn(): void {
+  if (gesturesOn || !root) return
+  root.querySelector<HTMLElement>('#nocam')?.click()
 }
 
 /** Shows the page as the small top-left panel or as the full Gesture Control page. */
@@ -111,11 +123,11 @@ export function resumeCamera(): void {
   if (gesturesOn) void desktop().SetGesturesActive(true).catch(() => {})
 }
 
-/** Whether a screen point ([0, 1] over the screen) is on this window or within ~15 % of it. */
+/** Whether a screen point ([0, 1] over the screen) is on this window (or just at its edge). */
 function nearThisWindow(p: { x: number; y: number }): boolean {
   const sw = window.screen.width || 1
   const sh = window.screen.height || 1
-  const m = 0.15
+  const m = 0.02
   const left = window.screenX / sw - m
   const right = (window.screenX + window.outerWidth) / sw + m
   const top = window.screenY / sh - m

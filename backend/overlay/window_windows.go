@@ -28,11 +28,11 @@ const (
 	swpNoActivate           = 0x0010
 )
 
-// PlaceInCorner moves this app's window titled title to the bottom-left or bottom-right corner of
-// its screen's work area (above the taskbar), margin pixels (at 100 % scaling) from the edges.
+// PlaceInCorner moves this app's window titled title to a corner of its screen's work area (inside
+// the taskbar): left or right, top or bottom, margin pixels (at 100 % scaling) from the edges.
 // Everything is measured in real pixels, so it lands in the corner with any display scaling.
 // false if the window wasn't found.
-func PlaceInCorner(title string, left bool, margin int) bool {
+func PlaceInCorner(title string, left, top bool, margin int) bool {
 	t, err := syscall.UTF16PtrFromString(title)
 	if err != nil {
 		return false
@@ -68,6 +68,9 @@ func PlaceInCorner(title string, left bool, margin int) bool {
 		x = mi.Work.Left + m
 	}
 	y := mi.Work.Bottom - h - m
+	if top {
+		y = mi.Work.Top + m
+	}
 	procSetWindowPos.Call(hwnd, 0, uintptr(x), uintptr(y), 0, 0, swpNoSize|swpNoZOrder|swpNoActivate)
 	return true
 }

@@ -8,7 +8,7 @@ import { SummarizeMode } from './SummarizeMode.tsx'
 import { desktop, inDesktopApp, onDesktopEvent, type OverlayInfo } from './desktop.ts'
 import { MENU_PANELS, TOOLBAR, type OverlayContext, type OverlayView } from './extensions.ts'
 import { GestureSlot } from './GestureSlot.tsx'
-import { pauseCamera, resumeCamera } from './gestureHost.ts'
+import { pauseCamera, resumeCamera, turnGesturesOn } from './gestureHost.ts'
 import { keypadCommand, pressKey, type KeypadAction } from './keypad.ts'
 import { Hub } from './Hub.tsx'
 import { MODES, modeForKey, type ModeId } from './modes.ts'
@@ -145,12 +145,24 @@ export function Overlay() {
     return () => window.removeEventListener('keydown', onKey)
   }, [view])
 
-  // The see-through layer over the whole screen for the menu and the reading tools; a normal window
-  // for Gesture Control (its clicks must reach the programs below). The summary bubble sizes itself.
+  // Gesture Control has no page of its own in the app (Isaac, 2026-11-22): opening it (menu, keypad,
+  // voice) turns the gestures on and shrinks the overlay to the small camera bubble in the top-left
+  // corner, so its clicks reach the programs below. The overlay comes back on the menu.
   useEffect(() => {
-    if (!inDesktopApp() || view === 'summarize') return
+    if (!inDesktopApp() || view !== 'gestures') return
+    turnGesturesOn()
+    setView('menu')
     void desktop()
-      .SetLayer(view !== 'gestures')
+      .SetCompact(true)
+      .catch(() => {})
+  }, [view])
+
+  // The see-through layer over the whole screen for the menu and the reading tools. The summary
+  // bubble sizes itself.
+  useEffect(() => {
+    if (!inDesktopApp() || view === 'summarize' || view === 'gestures') return
+    void desktop()
+      .SetLayer(true)
       .catch(() => {})
   }, [view])
 
