@@ -3,8 +3,10 @@
 package overlay
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"sync"
 	"syscall"
@@ -15,6 +17,9 @@ import (
 
 var (
 	procSetForegroundWindow        = user32.NewProc("SetForegroundWindow")
+	procGetClassNameW              = user32.NewProc("GetClassNameW")
+	procQueryFullProcessImageName  = kernel32.NewProc("QueryFullProcessImageNameW")
+	procGetAncestor                = user32.NewProc("GetAncestor")
 	procIsWindow                   = user32.NewProc("IsWindow")
 	procGetClipboardSequenceNumber = user32.NewProc("GetClipboardSequenceNumber")
 	procOpenClipboard              = user32.NewProc("OpenClipboard")
@@ -43,6 +48,7 @@ const (
 	vkRWin        = 0x5C
 	vkC           = 0x43
 	vkDelete      = 0x2E
+	gaRootOwner   = 3 // GetAncestor: the top of the owner chain
 )
 
 var (
@@ -50,16 +56,89 @@ var (
 	target   uintptr // the other program's window that was in front when the overlay opened
 )
 
-// RememberTarget stores the window in front, unless it is the overlay itself. Call it when the
-// shortcut is pressed, before the overlay takes the focus.
+// RememberTarget stores the window in front, unless it is the overlay itself or part of the
+// Windows shell (taskbar, desktop). Call it when the shortcut is pressed, before the overlay takes
+// the focus.
 func RememberTarget() {
 	h, _, _ := procGetForegroundWindow.Call()
 	if h == 0 || ForegroundIsOurs() {
 		return
 	}
+	// A dialog or popup counts as its program's main window: Windows 11 Notepad, for example,
+	// puts a hidden #32770 window in front for a moment when it loses the focus.
+	if root, _, _ := procGetAncestor.Call(h, gaRootOwner); root != 0 {
+		h = root
+	}
+	if v, _, _ := procIsWindowVisible.Call(h); v == 0 || isShellWindowClass(windowClass(h)) {
+		return
+	}
 	targetMu.Lock()
+	changed := target != h
 	target = h
 	targetMu.Unlock()
+	if changed {
+		log.Printf("overlay: selection target -> %s", TargetDescription())
+	}
+}
+
+// WatchTarget keeps RememberTarget up to date until ctx ends, checking the window in front 4 times
+// a second. Without it the target was only known when the overlay was opened with the shortcut or
+// the keypad: opened at startup, from the camera bubble or from the fist menu, option 4 had no
+// window to copy from and always said that nothing was selected.
+func WatchTarget(ctx context.Context) {
+	go func() {
+		t := time.NewTicker(250 * time.Millisecond)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				RememberTarget()
+			}
+		}
+	}()
+}
+
+// windowClass is the window's class name ("" if it can't be read).
+func windowClass(h uintptr) string {
+	buf := make([]uint16, 256)
+	n, _, _ := procGetClassNameW.Call(h, uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)))
+	return string(utf16.Decode(buf[:n]))
+}
+
+// TargetDescription names the remembered window for the log ("none" if there is none).
+func TargetDescription() string {
+	targetMu.Lock()
+	h := target
+	targetMu.Unlock()
+	if h == 0 {
+		return "none"
+	}
+	return describe(h)
+}
+
+// processName is the executable that owns the window ("?" if it can't be read).
+func processName(h uintptr) string {
+	var pid uint32
+	procGetWindowThreadProcessId.Call(h, uintptr(unsafe.Pointer(&pid)))
+	p, err := syscall.OpenProcess(0x1000, false, pid) // PROCESS_QUERY_LIMITED_INFORMATION
+	if err != nil {
+		return "?"
+	}
+	defer syscall.CloseHandle(p)
+	buf := make([]uint16, 512)
+	n := uint32(len(buf))
+	if r, _, _ := procQueryFullProcessImageName.Call(uintptr(p), 0, uintptr(unsafe.Pointer(&buf[0])), uintptr(unsafe.Pointer(&n))); r == 0 {
+		return "?"
+	}
+	path := syscall.UTF16ToString(buf[:n])
+	for i := len(path) - 1; i >= 0; i-- {
+		if path[i] == '\\' {
+			return path[i+1:]
+		}
+	}
+	return path
 }
 
 // CopySelection copies the selected text of the target window: the window in front if it is
@@ -72,6 +151,11 @@ func CopySelection() (string, error) {
 		h = target
 		targetMu.Unlock()
 		if h == 0 {
+			// Nothing was seen in front since the app started (the text was selected before
+			// opening it): the other program's window highest on screen is the best guess.
+			h = topOtherWindow()
+		}
+		if h == 0 {
 			return "", ErrNoTarget
 		}
 		if ok, _, _ := procIsWindow.Call(h); ok == 0 {
@@ -80,6 +164,7 @@ func CopySelection() (string, error) {
 		procSetForegroundWindow.Call(h)
 		time.Sleep(150 * time.Millisecond) // let the program take the focus before Ctrl+C
 	}
+	fg, _, _ := procGetForegroundWindow.Call() // where Ctrl+C really goes, for the error
 	before, _, _ := procGetClipboardSequenceNumber.Call()
 	sendCtrlC()
 	deadline := time.Now().Add(900 * time.Millisecond)
@@ -89,12 +174,20 @@ func CopySelection() (string, error) {
 			time.Sleep(30 * time.Millisecond) // some programs write several formats in a row
 			text, ok := ClipboardText()
 			if !ok || text == "" {
-				return "", ErrNoSelection
+				return "", fmt.Errorf("%w (the clipboard got no text from %s)", ErrNoSelection, describe(fg))
 			}
 			return text, nil
 		}
 	}
-	return "", ErrNoSelection
+	return "", fmt.Errorf("%w (Ctrl+C went to %s)", ErrNoSelection, describe(fg))
+}
+
+// describe names a window for the log: handle, class and program.
+func describe(h uintptr) string {
+	if h == 0 {
+		return "no window"
+	}
+	return fmt.Sprintf("%#x (%s, %s)", h, windowClass(h), processName(h))
 }
 
 // DeleteSelection deletes the text selected in the target window (the one CopySelection uses) with
@@ -248,6 +341,50 @@ func ourWindow() uintptr {
 	})
 	procEnumWindows.Call(cb, 0)
 	return found
+}
+
+var (
+	procIsIconic         = user32.NewProc("IsIconic")
+	procGetWindowLongPtr = user32.NewProc("GetWindowLongPtrW")
+
+	topOtherMu    sync.Mutex
+	topOtherFound uintptr
+	// One callback for the process: syscall.NewCallback slots are limited and never freed.
+	topOtherCallback = syscall.NewCallback(func(h, _ uintptr) uintptr {
+		var pid uint32
+		procGetWindowThreadProcessId.Call(h, uintptr(unsafe.Pointer(&pid)))
+		if int(pid) == os.Getpid() {
+			return 1
+		}
+		if v, _, _ := procIsWindowVisible.Call(h); v == 0 {
+			return 1
+		}
+		if min, _, _ := procIsIconic.Call(h); min != 0 {
+			return 1
+		}
+		if n, _, _ := procGetWindowTextLength.Call(h); n == 0 {
+			return 1
+		}
+		const gwlExStyle, wsExToolWindow = ^uintptr(19), 0x80 // GWL_EXSTYLE = -20
+		if ex, _, _ := procGetWindowLongPtr.Call(h, gwlExStyle); ex&wsExToolWindow != 0 {
+			return 1
+		}
+		if isShellWindowClass(windowClass(h)) {
+			return 1
+		}
+		topOtherFound = h
+		return 0 // stop: EnumWindows goes from the top of the screen down
+	})
+)
+
+// topOtherWindow is the highest visible, not minimised window of another program with a title
+// (0 if there is none). Tool windows, the taskbar and the desktop do not count.
+func topOtherWindow() uintptr {
+	topOtherMu.Lock()
+	defer topOtherMu.Unlock()
+	topOtherFound = 0
+	procEnumWindows.Call(topOtherCallback, 0)
+	return topOtherFound
 }
 
 // PlaceNearCursor resizes this app's window to width×height (logical pixels, scaled with the

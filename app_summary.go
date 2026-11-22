@@ -36,6 +36,9 @@ type SummaryResult struct {
 // Errors start with "no_selection:" when there was nothing to copy.
 func (a *App) SummarizeSelection() (string, error) {
 	text, err := overlay.CopySelection()
+	if err != nil {
+		log.Printf("summary: no text copied from %s: %v", overlay.TargetDescription(), err)
+	}
 	if errors.Is(err, overlay.ErrNoSelection) || errors.Is(err, overlay.ErrNoTarget) {
 		a.showBubble()
 		return "", errors.New("no_selection: Select some text in another program first, then open the overlay and press 4.")

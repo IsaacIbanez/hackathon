@@ -62,6 +62,9 @@ func (a *App) startOverlay(ctx context.Context) {
 	a.window.mu.Unlock()
 	o.reading = overlay.NewReadingService()
 	o.gestures = newGestureControl()
+	// Option 4 copies the selection from the last other program in front, however the overlay
+	// was opened (startup, camera bubble, fist menu, shortcut or keypad).
+	overlay.WatchTarget(ctx)
 	h, err := overlay.HotkeyFromEnv()
 	if err != nil {
 		log.Printf("overlay: %v; using %s", err, overlay.DefaultHotkey)

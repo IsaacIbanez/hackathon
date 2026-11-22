@@ -93,6 +93,18 @@ For each bug: symptom → how to reproduce it → cause → fix → how it was c
     - with the `.exe` and the fake service on 8770: PDF Scanner shows «an older reading service is answering on port 8770… Close it… then try again».
 - **Everything in English** (2026-11-22, asked for by Pau): `README.md` rewritten in English, every live `*.md` (all but `docs/historial/`) translated keeping its file name, and Spanish comments, logs and interface text in the code translated. Spanish data that is there on purpose (test sentences, language detection, prompts) stays. The language rule in `AGENTS.md`, `CLAUDE.md` and `GEMINI.md` now says everything in the repo is in English.
 
+- **AI Summary did not find the selected text** (Isaac's `backend/overlay` and Didac's `app_summary.go`, with Pau's permission).
+  - **Symptom:** «Summarize» always said that nothing was selected; the log had no `summary: N chars` line at all.
+  - **Reproduce:** select text in another program, open the overlay without the shortcut or the keypad (it opens at startup, or by clicking the camera bubble, or from the fist menu) and press 4.
+  - **Cause:**
+    - the program to copy from was only remembered when the shortcut or a keypad key was pressed; opened any other way, there was no target;
+    - Windows 11 Notepad puts a hidden `#32770` window of its own in front for a moment, and that one was taken as the target;
+    - the taskbar or quick settings could be taken as the target too.
+  - **Fix:** `overlay.WatchTarget` remembers the last other program in front 4 times a second. A dialog counts as its program's main window (`GA_ROOTOWNER`). Invisible windows, the taskbar, the desktop, Alt+Tab, Start and quick settings are skipped (`isShellWindowClass`, with a test). If nothing was seen since startup, the other program's window highest on screen is used. The log now says which window it copied from and where the Ctrl+C went (`summary: no text copied from …`, `overlay: selection target -> …`).
+  - **Checked:**
+    - `task check` and `go vet` (Windows and Linux);
+    - with the `.exe`: the target is now the right Notepad window in both cases (before: `none`, or Notepad's `#32770`);
+    - **still to test by hand:** the summary coming out. The automatic test could not get past this point: a modal «Open» dialog, left open by an earlier test run, blocked Notepad, and then the screen stopped refreshing (locked or asleep), so the simulated keys reached no window.
 - **Seen in passing (pending):**
   - On a 1536 px screen **the overlay's panels** (Transcribe, PDF Scanner…) overflow on the right and cut off text and buttons: it belongs to the overlay's design (Isaac).
   - An old `server.exe` (`go run ./backend/cmd/server`) was holding 8765: the app uses another port, but the manual tests against 8765 were talking to the old code.
