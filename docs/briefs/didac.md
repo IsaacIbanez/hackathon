@@ -1,5 +1,5 @@
 # Brief de Didac (P2): lectura guiada
-Confirmado por Didac el 2026-11-21. Última revisión: 2026-11-21 (sin «¿Qué significa?»).
+Confirmado por Didac el 2026-11-21. Última revisión: 2026-11-22 (segunda funcionalidad: resumir la selección, al final).
 
 ## Objetivo
 Una persona con baja visión escucha un documento escaneado **línea a línea sin perderse**:
@@ -93,6 +93,27 @@ Todo va en `web/src/document/`.
 ## Preguntas abiertas
 - ¿Sustituye a `DocumentText` o conviven? Lo decide Isaac.
 
+## Segunda funcionalidad: resumir el texto seleccionado (2026-11-22)
+Acordada en una entrevista corta con Didac. Detalle y pruebas en `docs/OVERLAY.md`, «Opción 4».
+
+- **Objetivo:** resumir en 2–3 frases sencillas el texto seleccionado en cualquier programa.
+- **Disparador:** la opción 4 del overlay; más adelante, también el cursor de la mano de Nil (preparado: `TriggerSummary`).
+- **Salida:** burbuja junto al cursor, voz y portapapeles.
+- **Motor:** el modelo barato de `backend/llm`, con caché y coste en `stats`. Sin clave o si falla, resumen local a 0 $.
+- **Textos largos:** hasta 12 000 caracteres; más, se corta y se avisa.
+- **Privacidad:** aviso «resumido en la nube»; el texto no se guarda.
+- **Carpetas:**
+  - mías: `backend/summary/`;
+  - del overlay (rol A, como en la opción 3): `app_summary.go`, `backend/overlay/selection*.go` y `web/src/app/overlay/SummarizeMode.tsx`, más pequeños cambios en `Overlay.tsx`, `modes.ts`, `desktop.ts`, `app.go` y `app_overlay.go`.
+- **Criterios de hecho:**
+  - [x] un texto seleccionado en otra ventana se resume en menos de 5 s por menos de 0,001 $ (medido: 1,3 s y 0,0001 $);
+  - [x] el resumen queda en el portapapeles y se oye;
+  - [x] sin selección, lo avisa;
+  - [x] Esc devuelve el foco al programa;
+  - [x] tests de `backend/summary`;
+  - [ ] probado desde el cursor de la mano.
+
 ## Cambios del brief
 - 2026-11-21 — Primera versión, tras la entrevista.
+- 2026-11-22 — Segunda funcionalidad: resumir el texto seleccionado (opción 4 del overlay).
 - 2026-11-21 — Quitado «¿Qué significa?» (botón, teclas E y Num0, `onAsk`), por decisión de Didac. Isaac cambiará la entrada para que pida el documento que se va a leer.
