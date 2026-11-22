@@ -1,74 +1,136 @@
-/* Gesture Control camera page, scoped under .gc so it can live inside the desktop app. */
-.gc { color-scheme: dark; --bg: #0b0d12; --surface: #141821; --surface-2: #1b2030; --border: #262d3c; --text: #e9edf5; --muted: #8e98ab; --accent: #ffd23f; --accent-ink: #1a1400; --cyan: #4cc9f0; --ok: #3ddc97; --bad: #ff5d5d; font: clamp(15px, 0.55vw + 9px, 24px)/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--text); background: var(--bg); max-width: min(100%, calc(72vh * 16 / 9)); min-width: min(100%, 720px); margin: 0 auto; padding: 14px; }
+/* Gesture Control camera page, scoped under .gc so it can live inside the desktop app.
+   Halo design (docs/DISENO.md): the overlay's tokens from web/src/index.css, with the same values as
+   fallbacks so the stand-alone page (task gestures) looks the same without index.css. Gesture
+   Control's colour is --color-hand; the keyboard focus and what is chosen use --color-mark. */
+.gc {
+  color-scheme: dark;
+  --ink: var(--color-ink, #0a1128);
+  --text: var(--color-snow, #f3f6ff);
+  --muted: var(--color-mist, #b4bfdc);
+  --line: var(--color-line, rgb(196 210 255 / 0.18));
+  --mark: var(--color-mark, #ffd84d);
+  --hand: var(--color-hand, #49e3c4);
+  --hand-2: var(--color-hand-2, #7c8cff);
+  --glass: rgb(16 24 50 / 0.9);
+  --glass-strong: rgb(16 24 50 / 0.96);
+  --bad: #ff6b7a;
+  /* Kept for the code that reads them. */
+  --bg: var(--ink); --surface: var(--glass); --surface-2: rgb(255 255 255 / 0.08); --border: var(--line);
+  --accent: var(--hand); --accent-ink: var(--ink); --ok: var(--hand); --cyan: var(--mark);
+  font: 400 clamp(18px, 0.6vw + 11px, 28px)/1.45 var(--font-sans, "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif);
+  -webkit-font-smoothing: antialiased;
+  color: var(--text); background: var(--ink);
+  max-width: min(100%, calc(72vh * 16 / 9)); min-width: min(100%, 720px); margin: 0 auto; padding: 16px;
+}
 .gc, .gc * { box-sizing: border-box; }
 /* Gesture clicks over the page must not select text. */
 .gc { user-select: none; -webkit-user-select: none; }
 .gc button, .gc select, .gc input { font: inherit; color: inherit; }
-.gc header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
-.gc .brand { display: flex; align-items: center; gap: 10px; }
-.gc .logo { width: 2.2em; height: 2.2em; border-radius: 10px; display: grid; place-items: center; font-size: 1.25em; background: linear-gradient(135deg, var(--accent), #ff9f1c); }
-.gc h1 { font-size: 1.15em; margin: 0; }
-.gc #status { margin: 0; font-size: .85em; color: var(--muted); }
-.gc #status.error { color: var(--bad); }
-.gc .power { display: flex; align-items: center; gap: 8px; font-weight: 700; cursor: pointer; }
-.gc .power input { appearance: none; width: 52px; height: 30px; border-radius: 999px; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--border); position: relative; cursor: pointer; transition: background .2s; }
-.gc .power input::after { content: ""; position: absolute; top: 4px; left: 4px; width: 22px; height: 22px; border-radius: 50%; background: #cfd6e4; transition: transform .2s; }
-.gc .power input:checked { background: var(--ok); }
-.gc .power input:checked::after { transform: translateX(22px); background: #08130d; }
-.gc .stage { container-type: inline-size; position: relative; border-radius: 16px; overflow: hidden; background: #000; box-shadow: 0 0 0 1px var(--border); }
+.gc button:focus-visible, .gc select:focus-visible, .gc input:focus-visible, .gc label:focus-within {
+  outline: 4px solid var(--mark); outline-offset: 3px; }
+
+/* Header: the tool's icon in its colour, its name and what it is doing. */
+.gc header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+.gc .brand { display: flex; align-items: center; gap: 14px; }
+.gc .logo { width: 2.6em; height: 2.6em; border-radius: 50%; display: grid; place-items: center; font-size: 1em;
+  font-weight: 700; letter-spacing: .02em; color: var(--ink);
+  background: radial-gradient(circle at 35% 30%, var(--hand), var(--hand-2)); box-shadow: 0 0 0 3px rgb(73 227 196 / 0.25); }
+.gc h1 { font-size: 1.4em; font-weight: 700; margin: 0; }
+.gc #status { margin: 0; font-size: .9em; color: var(--muted); }
+.gc #status.error { color: var(--bad); font-weight: 700; }
+
+/* On/off: a large switch with its word next to it. */
+.gc .power { display: flex; align-items: center; gap: 10px; font-weight: 700; cursor: pointer; min-height: 48px;
+  padding: 0 .9em; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-2); }
+.gc .power input { appearance: none; width: 60px; height: 34px; border-radius: 999px; background: rgb(255 255 255 / 0.12);
+  box-shadow: inset 0 0 0 1px var(--line); position: relative; cursor: pointer; transition: background .2s; margin: 0; }
+.gc .power input::after { content: ""; position: absolute; top: 4px; left: 4px; width: 26px; height: 26px; border-radius: 50%;
+  background: var(--muted); transition: transform .2s; }
+.gc .power input:checked { background: var(--hand); }
+.gc .power input:checked::after { transform: translateX(26px); background: var(--ink); }
+
+/* The camera. */
+.gc .stage { container-type: inline-size; position: relative; border-radius: 1.5rem; overflow: hidden; background: #000;
+  border: 1px solid var(--line); box-shadow: 0 40px 90px -30px rgb(0 0 0 / 0.75); }
 .gc canvas { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; transform: scaleX(-1); }
 .gc video { position: absolute; inset: 0; width: 100%; opacity: 0; pointer-events: none; }
 .gc .stage.off canvas { filter: grayscale(1) brightness(.5); }
-.gc #action { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); white-space: nowrap; font-size: clamp(13px, 3cqw, 40px); font-weight: 800; color: var(--accent-ink); background: var(--accent); padding: 6px 16px; border-radius: 999px; }
-.gc #action:empty { display: none; }
-.gc #action.error { background: var(--bad); color: #fff; }
-.gc #menu { position: absolute; inset: 0; display: grid; background: #0b0d12a6; grid-template: "ul up ur" 1fr "left center right" 1fr "dl down dr" 1fr / 1fr 1fr 1fr; }
-.gc #menu[hidden] { display: none; }
-.gc #menu .op { --p: 0; margin: 8px; display: flex; align-items: center; justify-content: center; text-align: center; border-radius: 14px; font-size: clamp(11px, 3.4cqw, 46px); font-weight: 800; background: #141821ee; box-shadow: 0 0 0 2px #ffffff22; background-image: linear-gradient(90deg, #ffd23f55 calc(var(--p) * 100%), transparent 0); }
-.gc #menu .op.active { box-shadow: 0 0 0 3px var(--accent); color: var(--accent); }
-.gc #menu .op.chosen { background: var(--accent); color: var(--accent-ink); }
-.gc #menu .center { grid-area: center; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #cfd6e4; font-size: clamp(9px, 1.8cqw, 24px); }
-.gc #menu .center strong { font-size: clamp(12px, 3cqw, 38px); color: var(--text); }
 .gc .stage.asleep canvas { filter: brightness(.45); }
-.gc #sleep { --p: 0; position: absolute; top: 12px; left: 50%; transform: translateX(-50%); white-space: nowrap; max-width: calc(100% - 24px); overflow: hidden; text-overflow: ellipsis; font-size: clamp(12px, 2.6cqw, 34px); font-weight: 800; padding: 6px 16px; border-radius: 999px; background: #141821ee; box-shadow: 0 0 0 2px #ffffff22; background-image: linear-gradient(90deg, #3ddc9766 calc(var(--p) * 100%), transparent 0); }
+
+/* What the last gesture did: a pill in the tool's colour. */
+.gc #action { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); white-space: nowrap;
+  font-size: clamp(15px, 3.2cqw, 44px); font-weight: 700; color: var(--ink); background: var(--hand);
+  padding: .25em .9em; border-radius: 999px; box-shadow: 0 10px 30px -10px rgb(0 0 0 / 0.8); }
+.gc #action:empty { display: none; }
+.gc #action.error { background: var(--bad); color: var(--ink); }
+
+/* Fist menu: glass tiles around the hand; the one pointed at gets the tool's colour, the chosen one
+   is filled in yellow (what is chosen, like what is being read). */
+.gc #menu { position: absolute; inset: 0; display: grid; background: rgb(6 10 24 / 0.62);
+  grid-template: "ul up ur" 1fr "left center right" 1fr "dl down dr" 1fr / 1fr 1fr 1fr; }
+.gc #menu[hidden] { display: none; }
+.gc #menu .op { --p: 0; margin: 10px; display: flex; align-items: center; justify-content: center; text-align: center;
+  border-radius: 1.5rem; font-size: clamp(13px, 3.6cqw, 48px); font-weight: 700; line-height: 1.15; padding: .2em;
+  background: var(--glass); border: 1px solid var(--line); backdrop-filter: blur(18px);
+  background-image: linear-gradient(90deg, rgb(73 227 196 / 0.4) calc(var(--p) * 100%), transparent 0); }
+.gc #menu .op:empty { visibility: hidden; }
+.gc #menu .op.active { border: 4px solid var(--hand); color: var(--text); }
+.gc #menu .op.chosen { background: var(--mark); color: var(--ink); border-color: var(--mark); }
+.gc #menu .center { grid-area: center; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; color: var(--muted); font-size: clamp(11px, 2cqw, 26px); }
+.gc #menu .center strong { font-size: clamp(14px, 3.2cqw, 40px); color: var(--text); }
+
+/* Wake-up hint: glass pill that fills while the open palm is held. */
+.gc #sleep { --p: 0; position: absolute; top: 14px; left: 50%; transform: translateX(-50%); white-space: nowrap;
+  max-width: calc(100% - 28px); overflow: hidden; text-overflow: ellipsis; font-size: clamp(14px, 2.8cqw, 36px);
+  font-weight: 700; padding: .25em .9em; border-radius: 999px; background: var(--glass-strong); border: 1px solid var(--line);
+  background-image: linear-gradient(90deg, rgb(73 227 196 / 0.45) calc(var(--p) * 100%), transparent 0); }
 .gc #sleep[hidden] { display: none; }
-.gc #cursor { position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; background: var(--bad); border: 3px solid #fff; pointer-events: none; }
+.gc #cursor { position: absolute; width: 24px; height: 24px; margin: -12px 0 0 -12px; border-radius: 50%;
+  background: var(--mark); border: 3px solid var(--ink); box-shadow: 0 0 0 3px var(--mark); pointer-events: none; }
 .gc #cursor[hidden] { display: none; }
-.gc .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 12px 0; }
-.gc .seg { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--surface); box-shadow: 0 0 0 1px var(--border); }
-.gc .seg button { border: 0; background: none; padding: 7px 14px; border-radius: 999px; cursor: pointer; color: var(--muted); font-weight: 600; white-space: nowrap; }
-.gc .seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
-.gc select { background: var(--surface); border: 0; box-shadow: 0 0 0 1px var(--border); border-radius: 999px; padding: 8px 12px; }
-.gc .check { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); cursor: pointer; }
-.gc .check input { accent-color: var(--accent); width: 16px; height: 16px; }
-.gc button:focus-visible, .gc select:focus-visible, .gc input:focus-visible { outline: 3px solid var(--cyan); outline-offset: 2px; }
-.gc .card { background: var(--surface); border-radius: 14px; padding: 12px 14px; box-shadow: 0 0 0 1px var(--border); margin-bottom: 10px; }
-.gc .card h2 { margin: 0 0 6px; font-size: .8em; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+
+/* Mode, call app and cursor mode: pill controls, at least 48 px high. */
+.gc .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 14px 0; }
+.gc .seg { display: inline-flex; padding: 4px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); }
+.gc .seg button { border: 0; background: none; min-height: 44px; padding: .4em 1.1em; border-radius: 999px; cursor: pointer;
+  color: var(--muted); font-weight: 700; white-space: nowrap; }
+.gc .seg button:hover { color: var(--text); background: rgb(255 255 255 / 0.08); }
+.gc .seg button[aria-pressed="true"] { background: var(--hand); color: var(--ink); }
+.gc select { min-height: 48px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: .4em 1em; }
+.gc select option { background: var(--ink); color: var(--text); }
+.gc .check { display: inline-flex; align-items: center; gap: 10px; color: var(--muted); cursor: pointer; min-height: 48px; }
+.gc .check input { accent-color: var(--hand); width: 24px; height: 24px; margin: 0; }
+
+/* Guide and log: glass panels with the large Halo radius. */
+.gc .card { background: var(--glass); border: 1px solid var(--line); border-radius: 2rem; padding: 16px 22px; margin-bottom: 12px;
+  backdrop-filter: blur(18px); box-shadow: 0 1px 0 rgb(255 255 255 / 0.06) inset; }
+.gc .card h2 { margin: 0 0 8px; font-size: .85em; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
 .gc table { width: 100%; border-collapse: collapse; }
-.gc td { padding: 5px 4px; border-top: 1px solid var(--border); }
+.gc td { padding: 7px 6px; border-top: 1px solid var(--line); }
 .gc tr:first-child td { border-top: 0; }
-.gc td:last-child { color: var(--accent); font-weight: 600; }
-.gc ol { list-style: none; margin: 0; padding: 0; max-height: 10em; overflow: auto; font-size: .87em; font-variant-numeric: tabular-nums; }
-.gc ol li { padding: 4px 0; border-top: 1px solid var(--border); color: #cfd6e4; }
+.gc td:last-child { color: var(--hand); font-weight: 700; }
+.gc ol { list-style: none; margin: 0; padding: 0; max-height: 10em; overflow: auto; font-size: .9em; font-variant-numeric: tabular-nums; }
+.gc ol li { padding: 6px 0; border-top: 1px solid var(--line); color: var(--text); }
 .gc ol li:first-child { border-top: 0; }
-.gc ol:empty::before { content: "Nothing yet — try a gesture."; color: var(--muted); }
-.gc .hint { color: var(--muted); font-size: .85em; margin: 0; }
+.gc ol:empty::before { content: "Nothing yet. Try a gesture."; color: var(--muted); }
+.gc .hint { color: var(--muted); font-size: .9em; margin: 0; }
 
 /* Compact: the desktop app shrinks to a camera bubble in a corner (only the camera stays). */
-.gc.compact { max-width: none; padding: 0; position: fixed; inset: 0; z-index: 50; }
+.gc.compact { max-width: none; padding: 0; position: fixed; inset: 0; z-index: 50; background: transparent; }
 .gc.compact > :not(.stage) { display: none; }
-.gc.compact .stage { border-radius: 0; height: 100vh; box-shadow: none; }
+.gc.compact .stage { border-radius: 1.25rem; height: 100vh; border: 3px solid var(--hand); box-shadow: none; }
 .gc.compact canvas { height: 100%; width: 100%; object-fit: cover; aspect-ratio: auto; }
-.gc.compact #action, .gc.compact #sleep { padding: 4px 10px; }
-.gc.compact #menu .op { margin: 3px; border-radius: 8px; }
+.gc.compact #action, .gc.compact #sleep { padding: .15em .6em; }
+.gc.compact #menu .op { margin: 4px; border-radius: .75rem; }
 
-/* Volume / brightness while adjusting: value and a bar that fills while the hand holds still. */
-.gc #level { --p: 0; position: absolute; top: 12px; left: 50%; transform: translateX(-50%); white-space: nowrap;
-  font-size: clamp(14px, 3.4cqw, 44px); font-weight: 800; padding: .2em .7em; border-radius: 999px; color: var(--text);
-  background: #141821ee; box-shadow: 0 0 0 2px var(--accent);
-  background-image: linear-gradient(90deg, #3ddc9788 calc(var(--p) * 100%), transparent 0); }
+/* Volume / brightness while adjusting: the value, large, and a bar that fills while the hand holds still. */
+.gc #level { --p: 0; position: absolute; top: 14px; left: 50%; transform: translateX(-50%); white-space: nowrap;
+  font-size: clamp(16px, 3.8cqw, 48px); font-weight: 700; padding: .2em .8em; border-radius: 999px; color: var(--text);
+  background: var(--glass-strong); border: 4px solid var(--hand);
+  background-image: linear-gradient(90deg, rgb(73 227 196 / 0.5) calc(var(--p) * 100%), transparent 0); }
 .gc #level[hidden] { display: none; }
-.gc #level small { font-size: .5em; font-weight: 600; color: #cfd6e4; margin-left: .5em; }
+.gc #level small { font-size: .5em; font-weight: 700; color: var(--muted); margin-left: .5em; }
 
 /* Whole screen, see-through (desktop app): the gesture menu and hints over what is open, with the
    camera small in a corner. Everything else on the page is invisible. */
@@ -77,20 +139,20 @@ html.gc-see-through body { visibility: hidden; }
 html.gc-see-through .gc.screen { visibility: visible; }
 .gc.screen { max-width: none; min-width: 0; padding: 0; position: fixed; inset: 0; z-index: 60; background: transparent; }
 .gc.screen > :not(.stage) { display: none; }
-.gc.screen .stage { height: 100vh; border-radius: 0; background: transparent; box-shadow: none; }
+.gc.screen .stage { height: 100vh; border-radius: 0; background: transparent; border: 0; box-shadow: none; }
 .gc.screen canvas { position: absolute; right: 24px; bottom: 24px; width: min(28vw, 360px); height: auto; aspect-ratio: 16 / 9;
-  border-radius: 14px; box-shadow: 0 0 0 3px var(--accent); }
-.gc.screen #menu { background: #0b0d1259; }
-.gc.screen #menu .op { margin: 2vmin; background: #141821e6; box-shadow: 0 0 0 3px #ffffff33; }
-.gc.screen #menu .center { background: #141821cc; border-radius: 14px; margin: 2vmin; }
-.gc #dryrun { position: absolute; left: 0; right: 0; bottom: 0; z-index: 5; text-align: center; font-weight: 800;
-  font-size: clamp(12px, 2.6cqw, 32px); padding: .3em; color: #fff; background: #c0262dee; }
+  border-radius: 1.25rem; box-shadow: 0 0 0 4px var(--hand); }
+.gc.screen #menu { background: rgb(6 10 24 / 0.4); }
+.gc.screen #menu .op { margin: 2vmin; background: var(--glass); }
+.gc.screen #menu .center { background: var(--glass); border: 1px solid var(--line); border-radius: 1.5rem; margin: 2vmin; }
+.gc #dryrun { position: absolute; left: 0; right: 0; bottom: 0; z-index: 5; text-align: center; font-weight: 700;
+  font-size: clamp(14px, 2.8cqw, 34px); padding: .3em; color: var(--ink); background: var(--color-scan, #ffb547); }
 .gc #dryrun[hidden] { display: none; }
 /* The camera may give 4:3 instead of the 16:9 asked for: crop instead of stretching. */
 .gc canvas { object-fit: cover; }
 /* No camera, camera in use or paused: a message over the camera view, the app keeps working. */
 .gc #nocam { position: absolute; inset: 0; z-index: 4; display: flex; align-items: center; justify-content: center; text-align: center;
-  padding: 1em; font-weight: 800; font-size: clamp(12px, 3cqw, 30px); color: #fff; background: #0b0d12d9; }
+  padding: 1em; font-weight: 700; font-size: clamp(14px, 3.2cqw, 32px); color: var(--text); background: rgb(10 17 40 / 0.88); }
 .gc #nocam[hidden] { display: none; }
 
 /* Desktop app, small camera panel in the top-left corner (N1): only the camera and the hand's
@@ -98,10 +160,14 @@ html.gc-see-through .gc.screen { visibility: visible; }
    whole window, with all its hints. */
 .gc.gc-panel { max-width: none; min-width: 0; padding: 0; margin: 0; background: transparent; }
 .gc.gc-panel > :not(.stage) { display: none; }
-.gc.gc-panel .stage { border-radius: 0; box-shadow: none; }
-.gc.gc-panel:not(.expanded) #sleep, .gc.gc-panel:not(.expanded) #action, .gc.gc-panel:not(.expanded) #level { display: none; }
-.gc.gc-panel.expanded:not(.compact):not(.screen) { position: fixed; inset: 0; z-index: 40; background: var(--bg); }
-.gc.gc-panel.expanded:not(.compact):not(.screen) .stage { height: 100vh; }
+.gc.gc-panel .stage { border-radius: 1rem; border: 2px solid var(--line); box-shadow: none; }
+.gc.gc-panel:not(.expanded):not(.screen) #sleep, .gc.gc-panel:not(.expanded):not(.screen) #action, .gc.gc-panel:not(.expanded):not(.screen) #level { display: none; }
+.gc.gc-panel.expanded:not(.compact):not(.screen) { position: fixed; inset: 0; z-index: 40; background: var(--ink); }
+.gc.gc-panel.expanded:not(.compact):not(.screen) .stage { height: 100vh; border-radius: 0; border: 0; }
 .gc.gc-panel.expanded:not(.compact):not(.screen) canvas { height: 100%; }
 /* The camera works but something else failed (the hand detector): a strip, the image stays visible. */
-.gc #nocam.soft { inset: auto 0 0 0; font-size: clamp(11px, 2.2cqw, 22px); background: #0b0d12cc; }
+.gc #nocam.soft { inset: auto 0 0 0; font-size: clamp(13px, 2.4cqw, 24px); background: rgb(10 17 40 / 0.85); }
+
+@media (prefers-reduced-motion: reduce) {
+  .gc *, .gc *::before, .gc *::after { transition: none !important; animation: none !important; }
+}

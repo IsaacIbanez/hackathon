@@ -29,10 +29,9 @@ export function gestureRoot(): HTMLDivElement | null {
     unreachable: 'Gesture Control did not answer inside the app (see build/bin/lauzhack.log).',
     // The gesture menu and the volume/brightness control need room: from the bubble Go spreads the
     // window over the screen; in the small panel the camera view grows over the window.
-    onScreenOverlay: (need) => {
-      root?.classList.toggle('expanded', need)
-      void app.SetScreenOverlay(need).catch(() => {})
-    },
+    // The gesture menu and the volume/brightness control: Go spreads the window over the whole
+    // screen, see-through, with the camera small in a corner (from the bubble or the normal window).
+    onScreenOverlay: (need) => void app.SetScreenOverlay(need).catch(() => {}),
     // Cursor mode on: the window becomes the bubble, out of the way; off: it comes back.
     onCursorMode: (on) => void app.SetCompact(on).catch(() => {}),
     // The bubble dodges the gesture cursor: clicks on it would go to this window, not to the

@@ -2,7 +2,7 @@
 export const MARKUP = `
     <header>
       <div class="brand">
-        <div class="logo" aria-hidden="true">✋</div>
+        <div class="logo" aria-hidden="true">GC</div>
         <div>
           <h1>Gesture Control</h1>
           <p id="status" role="status">Connecting to the helper…</p>
@@ -16,7 +16,7 @@ export const MARKUP = `
       <canvas id="canvas" aria-label="Camera view with hand tracking"></canvas>
       <div id="action" aria-live="assertive"></div>
       <div id="nocam" role="status" hidden></div>
-      <div id="dryrun" role="alert" hidden>⚠️ SIMULATION — nothing happens on the computer (dry run)</div>
+      <div id="dryrun" role="alert" hidden>SIMULATION — nothing happens on the computer (dry run)</div>
       <div id="sleep" role="status" hidden></div>
       <div id="level" role="status" hidden></div>
       <div id="menu" hidden>
@@ -24,7 +24,7 @@ export const MARKUP = `
         <div class="op" data-s="up" style="grid-area: up"></div>
         <div class="op" data-s="up_right" style="grid-area: ur"></div>
         <div class="op" data-s="left" style="grid-area: left"></div>
-        <div class="center"><strong id="menuTitle">Menu</strong>☝️ Point at an option and tap<br />middle finger on thumb · ✊ closes</div>
+        <div class="center"><strong id="menuTitle">Menu</strong>Point at an option and tap<br />middle finger on thumb · closes</div>
         <div class="op" data-s="right" style="grid-area: right"></div>
         <div class="op" data-s="down_left" style="grid-area: dl"></div>
         <div class="op" data-s="down" style="grid-area: down"></div>
@@ -35,15 +35,15 @@ export const MARKUP = `
 
     <div class="controls">
       <div class="seg" id="context" role="group" aria-label="Mode">
-        <button data-c="call" aria-pressed="true">📞 Video call</button>
-        <button data-c="pc" aria-pressed="false">💻 Computer</button>
+        <button data-c="call" aria-pressed="true">Video call</button>
+        <button data-c="pc" aria-pressed="false">Computer</button>
       </div>
       <select id="app" aria-label="Video call app">
         <option value="meet">Google Meet</option>
         <option value="zoom">Zoom</option>
         <option value="teams">Microsoft Teams</option>
       </select>
-      <label class="check"><input type="checkbox" id="mouse" /> 🖱️ Cursor mode: ☝️ moves the mouse · middle finger on thumb clicks · ✋ up/down scrolls</label>
+      <label class="check"><input type="checkbox" id="mouse" /> Cursor mode: moves the mouse · middle finger on thumb clicks · up/down scrolls</label>
     </div>
 
     <section class="card">

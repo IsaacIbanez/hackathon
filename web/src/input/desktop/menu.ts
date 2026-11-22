@@ -13,7 +13,9 @@ export type MenuPage =
   | { id: "computer" }
   | { id: "apps" }
   /** "Are you sure?" before a power action. */
-  | { id: "confirm"; action: PowerAction };
+  | { id: "confirm"; action: PowerAction }
+  /** Second "are you sure?": power needs two confirmations in different corners. */
+  | { id: "confirm2"; action: PowerAction };
 
 export type MenuItem =
   /** Performs a computer or video-call action. */
@@ -40,9 +42,9 @@ export interface Launcher {
 }
 
 const POWER: Record<PowerAction, { icon: string; name: string }> = {
-  suspend: { icon: "🌙", name: "Suspend" },
-  restart: { icon: "🔄", name: "Restart" },
-  shutdown: { icon: "⏻", name: "Shut down" },
+  suspend: { icon: "", name: "Suspend" },
+  restart: { icon: "", name: "Restart" },
+  shutdown: { icon: "", name: "Shut down" },
 };
 
 /** Cells for apps, in reading order; ↓ is always "Back". */
@@ -51,8 +53,8 @@ export const APP_CELLS: readonly MenuSector[] = ["up_left", "up", "up_right", "l
 /** Empty slots shown while no app is configured. */
 const PLACEHOLDER_SLOTS = 3;
 
-const BACK: MenuItem = { kind: "page", page: { id: "main" }, label: "↩ Back" };
-const KEYBOARD: MenuItem = { kind: "action", action: "keyboard", label: "⌨️ Keyboard" };
+const BACK: MenuItem = { kind: "page", page: { id: "main" }, label: "Back" };
+const KEYBOARD: MenuItem = { kind: "action", action: "keyboard", label: "Keyboard" };
 
 /** The options of a page. The layout is fixed, so each option is always in the same place. */
 export function menuPage(
@@ -60,36 +62,47 @@ export function menuPage(
   context: DesktopContext,
   launchers: readonly Launcher[] = [],
   cursorOn = false,
+  /** Whether suspend, restart and shut down are allowed (off by default: the helper's status). */
+  powerOn = false,
 ): MenuLayout {
   switch (page.id) {
     case "main":
       return {
-        up: { kind: "level", target: "volume", label: "🔊 Volume" },
-        down: { kind: "level", target: "brightness", label: "🔆 Brightness" },
+        up: { kind: "level", target: "volume", label: "Volume" },
+        down: { kind: "level", target: "brightness", label: "Brightness" },
         // The system microphone: it works with any app (👍 toggles the call app's own mute).
-        left: { kind: "action", action: "mic_mute", label: "🎙️ Microphone" },
-        right: { kind: "page", page: { id: "apps" }, label: "🚀 Apps ▸" },
-        down_right: { kind: "page", page: { id: "computer" }, label: "⏻ Computer ▸" },
-        up_right: { kind: "cursor", label: cursorOn ? "🖱️ Cursor off" : "🖱️ Cursor mode" },
+        left: { kind: "action", action: "mic_mute", label: "Microphone" },
+        right: { kind: "page", page: { id: "apps" }, label: "Apps ▸" },
+        // Power (suspend, restart, shut down) only when allowed: a gesture once suspended the computer.
+        ...(powerOn ? { down_right: { kind: "page", page: { id: "computer" }, label: "Computer ▸" } as MenuItem } : {}),
+        up_right: { kind: "cursor", label: cursorOn ? "Cursor off" : "Cursor mode" },
         ...(context === "call"
           ? {
-              up_left: { kind: "action", action: "raise_hand", label: "✋ Raise hand" },
-              down_left: { kind: "action", action: "leave_call", label: "📞 Leave call" },
+              up_left: { kind: "action", action: "raise_hand", label: "Raise hand" },
+              down_left: { kind: "action", action: "leave_call", label: "Leave call" },
             }
           : { up_left: KEYBOARD }),
       };
     case "computer":
       return {
-        up: { kind: "page", page: { id: "confirm", action: "suspend" }, label: `${POWER.suspend.icon} ${POWER.suspend.name}…` },
-        left: { kind: "page", page: { id: "confirm", action: "restart" }, label: `${POWER.restart.icon} ${POWER.restart.name}…` },
-        right: { kind: "page", page: { id: "confirm", action: "shutdown" }, label: `${POWER.shutdown.icon} ${POWER.shutdown.name}…` },
+        up: { kind: "page", page: { id: "confirm", action: "suspend" }, label: `${POWER.suspend.name}…` },
+        left: { kind: "page", page: { id: "confirm", action: "restart" }, label: `${POWER.restart.name}…` },
+        right: { kind: "page", page: { id: "confirm", action: "shutdown" }, label: `${POWER.shutdown.name}…` },
         down: BACK,
       };
     case "confirm": {
       const p = POWER[page.action];
       return {
-        up: { kind: "page", page: { id: "computer" }, label: "↩ Back" },
-        down: { kind: "power", action: page.action, label: `✔ Yes, ${p.name.toLowerCase()}` },
+        up: { kind: "page", page: { id: "computer" }, label: "Back" },
+        down: { kind: "page", page: { id: "confirm2", action: page.action }, label: `Yes, ${p.name.toLowerCase()}` },
+      };
+    }
+    case "confirm2": {
+      // The final "yes" is in the opposite top corner from the first one: two deliberate moves.
+      const p = POWER[page.action];
+      return {
+        down: { kind: "page", page: { id: "computer" }, label: "Cancel" },
+        up_left: { kind: "power", action: page.action, label: `Sure: ${p.name.toLowerCase()} now` },
       };
     }
     case "apps": {

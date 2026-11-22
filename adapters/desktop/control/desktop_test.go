@@ -2,6 +2,7 @@ package control
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -135,9 +136,26 @@ func TestExecutorMicMute(t *testing.T) {
 	}
 }
 
-func TestExecutorPower(t *testing.T) {
+// Power is off unless allowed: not even a confirmed request suspends the computer (R2).
+func TestExecutorPowerOffByDefault(t *testing.T) {
 	d := &DryRun{}
 	e := &Executor{Desktop: d, GOOS: "linux"}
+	for _, action := range []string{"shutdown", "restart", "suspend"} {
+		if _, err := e.Do(Request{Action: action, Confirm: true}); !errors.Is(err, ErrUnsupported) {
+			t.Errorf("%s: expected power to be off, got %v", action, err)
+		}
+	}
+	if len(d.Calls) != 0 {
+		t.Errorf("no desktop calls when power is off: %v", d.Calls)
+	}
+	if New(Options{DryRun: true}).Status.Power {
+		t.Error("status must say power is off by default")
+	}
+}
+
+func TestExecutorPower(t *testing.T) {
+	d := &DryRun{}
+	e := &Executor{Desktop: d, GOOS: "linux", AllowPower: true}
 
 	// Without confirm: must fail with ErrNeedsConfirm and make no desktop calls
 	for _, action := range []string{"shutdown", "restart", "suspend"} {

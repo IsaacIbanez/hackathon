@@ -423,7 +423,10 @@ func newGestureControl() *control.Server {
 		}
 	}
 	dry := os.Getenv("LAUZHACK_GESTURES_DRY_RUN") == "1"
-	g := control.New(control.Options{DryRun: dry, Width: w, Height: h, Apps: os.Getenv("LAUZHACK_APPS")})
+	// Suspend, restart and shut down: on, behind two confirmations in the menu (R2: a gesture
+	// suspended the computer by accident); LAUZHACK_GESTURES_POWER=0 turns them off.
+	power := os.Getenv("LAUZHACK_GESTURES_POWER") != "0"
+	g := control.New(control.Options{DryRun: dry, Width: w, Height: h, Apps: os.Getenv("LAUZHACK_APPS"), AllowPower: power})
 	log.Printf("overlay: gestures act through %s", g.Status.Desktop)
 	return g
 }
@@ -526,19 +529,20 @@ func keepCameraRunning() {
 	_ = os.Setenv(env, "--disable-background-timer-throttling --disable-renderer-backgrounding --disable-backgrounding-occluded-windows")
 }
 
-// SetScreenOverlay, from the camera bubble, spreads the window over the whole screen with a
+// SetScreenOverlay, from the camera bubble or the normal window, spreads the window over the whole screen with a
 // see-through page (true): the gesture menu and the volume/brightness control show on top of what
 // is open, with the camera small in a corner. false goes back to the bubble. The window covers the
 // screen only while the menu or the level control is in use — when the mouse is not needed — so it
-// never takes the clicks meant for other programs. Ignored unless the window is the bubble.
+// never takes the clicks meant for other programs.
 func (a *App) SetScreenOverlay(on bool) {
 	o := &a.overlay
 	o.mu.Lock()
-	if !o.compact || o.screen == on {
+	if o.screen == on {
 		o.mu.Unlock()
 		return
 	}
 	o.screen = on
+	compact := o.compact
 	if on {
 		o.before = overlay.OtherForeground()
 	}
@@ -552,6 +556,13 @@ func (a *App) SetScreenOverlay(on bool) {
 		return
 	}
 	wruntime.WindowUnfullscreen(ctx)
+	if !compact {
+		// Opened from the normal window: back to it.
+		wruntime.WindowSetSize(ctx, overlayWidth, overlayHeight)
+		wruntime.WindowCenter(ctx)
+		wruntime.EventsEmit(ctx, "overlay:expanded")
+		return
+	}
 	wruntime.WindowSetSize(ctx, compactWidth, compactHeight)
 	a.placeBubble(ctx)
 	wruntime.EventsEmit(ctx, "overlay:compact")

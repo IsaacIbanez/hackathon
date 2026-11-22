@@ -80,11 +80,14 @@ test("new actions go to the helper: brightness, microphone, power and apps", () 
 
 test("menu: the main page has volume, brightness, microphone, apps and computer", () => {
   const pc = menuPage({ id: "main" }, "pc");
-  assert.deepEqual(cellsOf(pc).sort(), ["down", "down_right", "left", "right", "up", "up_left", "up_right"]);
+  // Power (Computer ▸) is not offered unless allowed (R2).
+  assert.deepEqual(cellsOf(pc).sort(), ["down", "left", "right", "up", "up_left", "up_right"]);
+  const withPower = menuPage({ id: "main" }, "pc", [], false, true);
+  assert.equal(withPower.down_right?.kind === "page" && withPower.down_right.page.id, "computer");
   assert.equal(pc.up_left?.kind === "action" && pc.up_left.action, "keyboard");
   assert.equal(pc.up_right?.kind, "cursor");
-  assert.equal(menuPage({ id: "main" }, "pc", [], true).up_right?.label, "🖱️ Cursor off");
-  assert.deepEqual(pc.up, { kind: "level", target: "volume", label: "🔊 Volume" });
+  assert.equal(menuPage({ id: "main" }, "pc", [], true).up_right?.label, "Cursor off");
+  assert.deepEqual(pc.up, { kind: "level", target: "volume", label: "Volume" });
   assert.equal(pc.down?.kind === "level" && pc.down.target, "brightness");
   assert.equal(pc.left?.kind === "action" && pc.left.action, "mic_mute"); // the system microphone
   // In a call: the call's own mute, plus raising your hand and leaving the call.
@@ -94,17 +97,20 @@ test("menu: the main page has volume, brightness, microphone, apps and computer"
   assert.equal(call.down_left?.kind === "action" && call.down_left.action, "leave_call");
 });
 
-test("menu: power actions always ask first, and only ↓ confirms", () => {
+test("menu: power actions need two confirmations, in different corners (R2)", () => {
   const computer = menuPage({ id: "computer" }, "pc");
   for (const item of Object.values(computer)) assert.notEqual(item?.kind, "power");
   for (const action of ["suspend", "restart", "shutdown"] as const) {
     const go = Object.values(computer).find((i) => i?.kind === "page" && i.page.id === "confirm" && i.page.action === action);
     assert.ok(go, action);
+    // First "yes" (↓) leads to a second page, not to the action.
     const confirm = menuPage({ id: "confirm", action }, "pc");
-    const yes = Object.entries(confirm).filter(([, i]) => i?.kind === "power");
-    assert.deepEqual(yes.map(([s]) => s), ["down"]);
-    assert.equal(Object.keys(confirm).length, 2, "confirm should have only 2 options (down to confirm, up to go back), not 4");
-    assert.deepEqual(confirm.up, { kind: "page", page: { id: "computer" }, label: "↩ Back" });
+    assert.ok(Object.values(confirm).every((i) => i?.kind !== "power"));
+    assert.deepEqual(confirm.down, { kind: "page", page: { id: "confirm2", action }, label: confirm.down!.label });
+    // The final "yes" is in the top-left corner, far from the first one.
+    const confirm2 = menuPage({ id: "confirm2", action }, "pc");
+    const yes = Object.entries(confirm2).filter(([, i]) => i?.kind === "power");
+    assert.deepEqual(yes.map(([s]) => s), ["up_left"]);
   }
 });
 
