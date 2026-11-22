@@ -21,19 +21,45 @@ Cuatro personas, cada una con una cuenta de Claude Pro y una de Gemini Plus (ver
 
 ## Roles
 - **Humanos:** dan directrices, priorizan, revisan y aprueban merges.
-- **Agentes:** ejecutan la tarea asignada en `TAREAS.md`, documentan su estado en `estado/` y abren un PR.
+- **Agentes:** ejecutan lo que les asigne un humano (el reparto se redefinirá; tablero único en `TAREAS.md`) y abren un PR. El estado por agente anterior está en `docs/historial/estado/`. *Nota: ahora cada agente trabaja también a partir del brief de su persona (ver «Al empezar una sesión»).*
 
 ## Idioma
 - **Código en inglés:** identificadores, comentarios, mensajes de log y de error, nombres de tests, textos de la interfaz, variables de entorno, descripciones del contrato (`api/openapi.yaml`), mensajes de commit y títulos de PR.
-- **En español:** la conversación con el equipo, la documentación (`*.md`, `estado/`, `TAREAS.md`) y los datos de ejemplo que imitan documentos reales en español (fixtures, textos de prueba).
+- **En español:** la conversación con el equipo, la documentación (`*.md`, `docs/`, `TAREAS.md`) y los datos de ejemplo que imitan documentos reales en español (fixtures, textos de prueba).
 - El código que ya existe se pasa a inglés por partes: cada dueño traduce sus carpetas cuando le venga bien, sin mezclarlo con otros cambios. Rol A ya lo ha hecho (#8).
 
+## Al empezar una sesión: entrevista a tu persona
+Desde el 2026-11-21 ya no se reparten tareas cerradas desde arriba. Cada persona trabaja con su propio agente en lo que decida, y el agente **empieza entrevistándola**.
+1. **Identifica a tu persona.** Mira `ROSTER.md`, el mensaje con el que te han abierto y, como historial, tu slot en `docs/historial/estado/` (antes `estado/`). Si no está claro, pregunta primero: «¿Eres Isaac, Didac, Pau o Nil?».
+2. **Busca el brief.** Si existe `docs/briefs/<persona>.md` (`isaac`, `didac`, `pau` o `nil`), léelo y trabaja con él. No repitas la entrevista: pregunta solo lo que falte o haya cambiado.
+   - Si no existe, haz la entrevista con el guion `docs/arranque/<persona>.md`.
+   - Lee **solo el guion de tu persona**, no los de los demás.
+3. **Lee antes de preguntar.** No preguntes lo que ya puedas leer en el repo:
+   - `docs/ESTADO_PROYECTO.md` y `TAREAS.md`;
+   - el contrato (`api/openapi.yaml`);
+   - `docs/ideas/`;
+   - el código de las carpetas implicadas.
+4. **Pregunta en tandas pequeñas.**
+   - De 3 a 5 preguntas por tanda, en español.
+   - Usa una herramienta de preguntas con opciones si la tienes (en Claude Code, `AskUserQuestion`).
+   - Ofrece opciones concretas sacadas del repo, con la que recomiendas primero.
+5. **No escribas código sin un brief confirmado.**
+   - Redáctalo con la plantilla de `docs/briefs/README.md`: objetivo, alcance, fuera de alcance, criterios de «hecho» medibles, carpetas que tocas, mensajes del contrato que consumes o añades, riesgos y preguntas abiertas.
+   - Enséñaselo a la persona y guárdalo en `docs/briefs/<persona>.md` solo cuando lo confirme.
+   - Súbelo en un commit propio (solo documentación). Así lo ven los demás y las sesiones nuevas no vuelven a gastar tokens entrevistando.
+6. **El contrato, aparte.** Si el brief necesita cambiar `api/` (mensajes, endpoints, campos), propón el cambio en un PR separado y pequeño, y que lo vea otra persona antes de construir sobre él. Mientras tanto, trabaja contra el mock o un falso.
+7. **Trabaja solo en tus carpetas y en tu brief.**
+   - Las carpetas son las de «Roles y carpetas», más tu propio `docs/briefs/<persona>.md`.
+   - Si necesitas una carpeta de otra persona, pídeselo a esa persona y apúntalo en el brief como dependencia.
+   - Si la persona cambia de idea, actualiza primero el brief y después el código.
+8. **Rama** (nota provisional): con un brief no hay id de tarea `T<n>`. Usa `feature/<persona>-<nombre-corto>`, por ejemplo con `scripts/nueva-tarea.sh P2-C didac <nombre-corto>`.
+
 ## Reglas de trabajo para los agentes
-1. Al empezar: `git pull`, lee `AGENTS.md`, `TAREAS.md` y tu archivo en `estado/`.
-2. Trabaja solo en la tarea asignada a tu slot. Si necesitas algo de otra tarea, anótalo en tu estado y pregunta a un humano.
+1. Al empezar: `git pull`, lee `AGENTS.md`, `TAREAS.md` (tablero único) y `docs/ESTADO_PROYECTO.md`.
+2. Trabaja solo en la tarea que te haya asignado un humano **o** en el brief confirmado de tu persona (`docs/briefs/<persona>.md`, ver la sección anterior). Si necesitas algo de otra parte, pregunta a un humano.
 3. Rama: `feature/<id-tarea>-<nombre-corto>`. Usa `scripts/nueva-tarea.sh` para crear la rama y tu carpeta de trabajo.
 4. Commits pequeños, con mensaje claro en inglés.
-5. Solo escribes en tu archivo de `estado/` y en tus carpetas de rol. **No edites `TAREAS.md`**: lo actualiza un humano al fusionar (así se evitan conflictos).
+5. Solo escribes en tus carpetas de rol. **No edites `TAREAS.md`**: lo actualiza un humano al fusionar (así se evitan conflictos). Los archivos de estado por agente ya no se usan (historial en `docs/historial/estado/`).
 6. Si cambias una interfaz o un contrato entre módulos, anótalo en "Decisiones".
 7. No mergees a `main` salvo que una persona del equipo te lo pida expresamente. Abre un PR pequeño con: qué hiciste, qué falta, decisiones tomadas y cómo probarlo.
 8. Nunca escribas claves, contraseñas ni datos de cuentas en el repositorio.
@@ -42,7 +68,7 @@ Cuatro personas, cada una con una cuenta de Claude Pro y una de Gemini Plus (ver
 1. El agente termina, hace commit, empuja su rama y abre el PR (pequeño: una tarea o parte de ella).
 2. Revisa otra persona, no el autor, en pocos minutos: CI en verde, solo toca carpetas de su rol y la app arranca (probar la rama, o leer el diff si es corto). Gemini puede hacer una primera revisión.
 3. Se pulsa **Merge** (preferible *squash and merge*) y se borra la rama.
-4. Esa misma persona marca la tarea en `TAREAS.md` (`hecha`) y enlaza el PR.
+4. Esa misma persona actualiza el tablero único de `TAREAS.md` y enlaza el PR.
 5. Los demás hacen `git pull` en `main` y rebasan sus ramas. Si hay conflicto, lo resuelve el agente de la rama atrasada.
 6. Objetivo: fusionar a menudo (cada 30–60 minutos), PRs pequeños y revisiones rápidas.
 7. `task check` (go vet, go test y build del front) debe pasar antes de abrir el PR. Usamos [Task](https://taskfile.dev) (`Taskfile.yml`) en vez de `make` porque en Windows no hay `make`; se instala con `go install github.com/go-task/task/v3/cmd/task@latest`.
@@ -53,7 +79,7 @@ Cuatro personas, cada una con una cuenta de Claude Pro y una de Gemini Plus (ver
 
 ## Cómo ahorrar contexto (tokens)
 - Mantén este archivo corto. Si crece, mueve el detalle a `docs/` y deja solo el enlace.
-- Lee solo lo necesario: `api/` (contrato), tu carpeta de rol y tu archivo de `estado/`. No explores el resto del repo.
+- Lee solo lo necesario: `api/` (contrato), tu carpeta de rol y `docs/ESTADO_PROYECTO.md`. No explores el resto del repo.
 - Trabaja en tareas pequeñas y empieza una sesión nueva por tarea, en vez de arrastrar una conversación larga.
 - Para saber qué hace otro módulo, usa el contrato y el servidor mock, no su código.
 - Cada carpeta tiene un `README.md` (en `api/`, `backend/` y `web/`) con su dueño y qué contiene.
@@ -77,8 +103,15 @@ web/src/camera             cámara, recorte y OCR local (B1)
 web/src/document           vista del documento (B2)
 web/src/input              gestos y voz (C)
 scanner/                   captura MX Brio y OCR a PDF en Python (B; reglas en scanner/AGENTS.md)
-docs/                      documentación: PITCH.md, INTEGRACION_SCANNER.md, PROBAR_GESTOS.md, VOZ.md, IDEAS.md, ARQUITECTURA.md
+docs/                      documentación: ESTADO_PROYECTO.md (estado real), PITCH.md, INTEGRACION_SCANNER.md, PROBAR_GESTOS.md, VOZ.md, ARQUITECTURA.md
+docs/ideas/                lluvia de ideas (IDEAS.md) y agrupación de duplicados
+docs/historial/            estado, tareas y plan por agente anteriores (solo consulta)
+docs/arranque/             guion de entrevista de cada persona (cada agente lee solo el suyo)
+docs/briefs/               brief confirmado de cada persona (plantilla en README.md)
 adapters/desktop/          Gesture Control: gestos → teclas reales del sistema, puerto 8767 (C)
+app_overlay.go             overlay: bindings de las opciones (A; docs/OVERLAY.md)
+backend/overlay            atajo global y procesos auxiliares del overlay (A)
+web/src/app/overlay        menú y opciones del overlay (A)
 ```
 ## Cómo probar
 1. **Clave (una vez):** crea `.env` en la raíz (está en `.gitignore`; la clave se pasa por chat, nunca por git):
@@ -86,7 +119,7 @@ adapters/desktop/          Gesture Control: gestos → teclas reales del sistema
    OPENROUTER_API_KEY=sk-or-v1-...
    LLM_PROFILE=dev
    ```
-   `LLM_PROFILE=dev` usa modelos **gratuitos** (0 $; a veces lentos o saturados). Quítalo solo para la demo.
+   `LLM_PROFILE=dev` pone primero modelos **gratuitos** (a veces lentos o saturados), pero **no garantiza 0 $**: el nivel caro es Haiku (de pago) y `/transcribe` prueba antes Gemini. Para no gastar nada, fija `LLM_CHEAP_MODEL`, `LLM_EXPENSIVE_MODEL` y `LLM_TRANSCRIBE_MODELS` solo con modelos `:free` (ver `docs/ESTADO_PROYECTO.md` §4).
 2. **Servidor:**
    - `task server` → lógica real (sesión + modelos) en `127.0.0.1:8765` (`/ws`, `POST /message`, `POST /scan`, `/health`). Sin el servicio de lectura de Didac, arráncalo con `SCANNER_URL=fixture` y `/scan` responderá con el formulario de ejemplo (con `pageCorners`).
    - `task mock` → respuestas fijas en `localhost:8080`, sin clave ni coste.
@@ -94,7 +127,8 @@ adapters/desktop/          Gesture Control: gestos → teclas reales del sistema
 3. **Interfaz en el navegador:** `cd web` y `VITE_WS_URL=ws://127.0.0.1:8765/ws npm run dev` (PowerShell: `$env:VITE_WS_URL="ws://127.0.0.1:8765/ws"; npm run dev`). «Developer tools» → **Send sample document** para probar sin scanner; «Turn on hand gestures» para los gestos (guía paso a paso: `docs/PROBAR_GESTOS.md`).
 4. **Scanner (B):** envía tu `document` con `POST /message` → guía `docs/INTEGRACION_SCANNER.md`, ejemplo `python api/examples/send_message.py --demo-ocr`.
 5. **App de escritorio (ejecutable):** `wails build` → `build/bin/lauzhack.exe` (doble clic). Busca el `.env` en la carpeta actual, junto al `.exe` y hasta 3 carpetas por encima (la raíz del repo). Log en `build/bin/lauzhack.log`. «Developer tools» enseña qué soporta la ventana (voces en español, dictado, cámara).
-6. **Antes del PR:** `task check`.
+6. **Overlay:** `task overlay` → `build/bin/lauzhack.exe` (y `gesture-control.exe` al lado); Ctrl+Alt+Espacio lo abre. Ver `docs/OVERLAY.md`.
+7. **Antes del PR:** `task check`.
 
 Puertos: 8765 app/servidor real · 8766 `scanner/capturar.py --servidor` · 8080 mock. Guion de la demo: `docs/PITCH.md`.
 
@@ -112,7 +146,7 @@ Detalle en `docs/ARQUITECTURA.md`. Resumen:
 - **Frugalidad** (criterio de AXA): lo caro solo se llama si lo barato duda, y se muestra el coste.
 
 ## Roles y carpetas
-Cada persona es dueña de sus carpetas; no se edita código de otro rol sin avisar.
+Cada persona es dueña de sus carpetas; no se edita código de otro rol sin avisar. *El reparto de esta tabla se redefinirá (ver «Reparto» más abajo). Nota: con el arranque por persona, la tabla sigue diciendo de quién es cada carpeta. Si un brief necesita otras, lo acuerdan las personas.*
 
 | Rol | Persona | Carpetas | Responsabilidad |
 |-----|---------|----------|-----------------|
@@ -142,52 +176,21 @@ Decidido por Isaac el 2026-11-21. La app abre **una sola cámara** (la que haya;
 
 Puertos: 8765 app · 8766 captura de Pau (pruebas) · 8767 Gesture Control (Nil) · 8770 servicio de lectura (Didac) · 8780 app de prueba de Didac · 8080 mock.
 
-### Siguiente tarea de cada uno (actualizado 2026-11-21, 20:30)
-| Quién | Ya hecho | Ahora | Para probar sin los demás |
-|---|---|---|---|
-| **Didac (B2)** | Pipeline foto → PDF + `document`; envío a la app (`scan.py --send`); cámara disponible sin Brio; OCR en paralelo; código en inglés; `scanner/ENTREGA.md` (todo en `feature/B-contexto-scanner`) | ~~Abrir el PR~~ (fusionado, #26). **Ahora** T13: servicio `POST /scan` en 8770 que reciba la foto (su pipeline ya admite `--png`) y devuelva `document()` + `pageCorners`. Después, 2–3 documentos reales anonimizados en `api/fixtures/real/` | `curl --data-binary @foto.png http://127.0.0.1:8770/scan` |
-| **Pau (B1)** | Captura de la MX Brio (#12); **cámara en la app** (`openCamera`, `captureStill`, #31) | **1)** T19: **guía de encuadre por voz y disparo automático** (sus dos ideas mejor valoradas, ver abajo). **2)** Traducir `capturar.py` al inglés **avisando a Didac** (`scan.py` y `demo_app` usan sus nombres) | su página de prueba (`web/src/camera/demo`) |
-| **Nil (C)** | Gestos (#9), voz con Whisper local (#19), arreglo del puntero (#23, de Isaac) | **1)** Arreglar #20 (cabecera `Host`). **2)** T17: **mejorar el reconocimiento de voz** (ver abajo). **3)** T15: acción `scan_document` (frase «lee el documento» y gesto) y puntero con `pageCorners` en `Gestures.tsx`. **4)** MediaPipe y modelos servidos en local para la demo | `docs/PROBAR_GESTOS.md`; las esquinas de un ejemplo de `api/fixtures/real/` |
-| **Isaac (A)** | Contrato, servidor, sesión, modelos, pantalla, puente de gestos, empaquetado, pitch | ~~Fusionar el PR de Didac~~ (#26). ~~T11: contrato 0.5 y `POST /scan`~~ (hecho). ~~T18: `POST /transcribe`~~ (hecho). **Ahora** T14: botón «Read document» y unión en la app | servicios falsos en los tests de Go |
-| **Todos** | — | T16: lluvia de ideas en `docs/IDEAS.md` (3 ideas cada uno como mínimo) | — |
-
-### Guía de encuadre y disparo automático (T19, Pau)
-Para quien no ve, el problema no es leer: es saber si el papel está bien puesto. En local y sin IA, en `web/src/camera`:
-
-```ts
-// Mira el vídeo mientras dura la orden «lee el documento» y va dando avisos hasta que la foto es buena.
-startFramingGuide(video: HTMLVideoElement, opts: {
-  lang: string                                  // "es-ES": textos de los avisos en el idioma del usuario
-  onHint: (hint: FramingHint, text: string) => void   // la app lo dice en voz alta (sin repetir el mismo aviso seguido)
-  onCapture: (still: Blob) => void              // disparo automático: papel quieto + nítido + con luz
-  timeoutMs?: number                            // si no se consigue, se dispara igualmente con la mejor foto (por defecto 8 s)
-}): { stop(): void }
-
-type FramingHint = 'dark' | 'blurry' | 'moving' | 'hold_still' | 'ready'
-```
-- **Quieto:** comparar fotogramas seguidos (diferencia media pequeña durante ~0,7 s). **Nítido** y **con luz:** `frameMetrics` (ya existe).
-- Al disparar: un pitido corto (como los de la voz de Nil) y `onCapture` con la mejor foto (`captureStill`).
-- Lo que depende de la hoja (`cropped`, `too_far`, inclinada) lo dice Go con el `document` que devuelve el escáner; no hace falta detectarla en el navegador.
-- **Lo une Isaac** en la app (T14): la orden «lee el documento» → `startFramingGuide` → `POST /scan` con la foto.
-
-### Voz: reconocimiento mejor que el actual (T17 Nil, T18 Isaac)
-Hoy el dictado usa `whisper-tiny` en la CPU y se equivoca mucho. Medido el 2026-11-21 con la misma frase en español («¿Qué tengo que poner aquí, en la fecha del siniestro? ¿Y dónde firmo?»), detalle en `docs/VOZ.md`:
-
-| Opción | Resultado | Tiempo | Coste |
-|---|---|---|---|
-| `whisper-tiny` local (lo de hoy) | falla («firma» en vez de «firmo») ya con audio limpio | 0,4 s | 0 $ |
-| **`whisper-small` local** (q8) | **exacta** | **1,1 s** (descarga ~250 MB la primera vez) | 0 $ |
-| **`google/gemini-2.5-flash-lite`** (OpenRouter, audio) | **correcta** (solo puntuación) | **2,3 s** | **0,00006 $** |
-| nemotron omni (gratis) / qwen omni | correctas | ~7 s | 0 $ / 0,00006 $ |
-| voxtral-small | cambia palabras | 7,5 s | 0,00056 $ |
-
-**Plan (frugal):** primero en local, y la nube solo si falla.
-- **Nil (T17):** pasar a `whisper-small` (WebGPU si está, si no WASM q8), forzar el idioma, **precargar el modelo al abrir la app** para que la primera pregunta no espere, y dejar `whisper-tiny` para equipos lentos. Si el resultado local sale vacío o con error, usar el respaldo de Isaac.
-- **Isaac (T18):** `POST /transcribe` en Go (audio → texto) con `google/gemini-2.5-flash-lite` y respaldo gratuito; el coste aparece en `stats`.
-
-Sincronización corta cada hora: qué he fusionado y qué necesito del contrato.
+### Reparto
+El reparto por persona y las tareas T1–T19 se cerraron con la integración del 2026-11-21 (rama `integration/proyecto-unificado`). **El reparto se redefinirá** después de la lluvia de ideas (`docs/ideas/`). El plan por persona anterior está íntegro en `docs/historial/plan_por_agente.md` y el estado real de cada pieza, en `docs/ESTADO_PROYECTO.md`. *Nota (2026-11-21): el reparto ya no se decide desde arriba. Cada persona define el suyo con su agente en `docs/briefs/` (ver «Al empezar una sesión»). Este plan y sus interfaces siguen valiendo mientras ningún brief los cambie.*
 
 ## Decisiones
+- 2026-11-21 — **App overlay** (rama `overlay`, detalle en `docs/OVERLAY.md`):
+  - la app de escritorio es una ventana siempre encima que se abre desde cualquier programa con **Ctrl+Alt+Espacio** (`LAUZHACK_HOTKEY`; el MX Keypad envía la misma combinación desde Logi Options+);
+  - opciones: **1** gestos (Nil, lanza `gesture-control.exe`), **2** leer un papel (Pau y Didac: cámara → servicio de lectura → lectura guiada) y **3** leer un archivo del PC (Didac: PDF, imágenes, TXT/MD → lectura guiada);
+  - la app arranca y para el servicio de lectura y Gesture Control;
+  - ninguna opción usa IA y el contrato no cambia.
+  - Motivo: juntar las funcionalidades en un solo ejecutable.
+- 2026-11-21 — **Arranque por persona:** no se reparten más tareas cerradas.
+  - Cada persona trabaja con su agente en lo que decida: Nil, en la cámara y su entorno (voz, cara, manos, teclado); Didac y Pau, en una funcionalidad grande y distinta cada uno; Isaac decide entre el backend, una funcionalidad o ayudar a otra persona.
+  - El agente entrevista primero a su persona (`docs/arranque/<persona>.md`) y deja un brief confirmado en `docs/briefs/<persona>.md`.
+  - Motivo: más autonomía. Con el brief por escrito, las sesiones nuevas no repiten la entrevista.
+- 2026-11-21 — **Proyecto unificado:** todas las ramas integradas en `integration/proyecto-unificado` (merges normales, ver `docs/ESTADO_PROYECTO.md`); las tareas por agente se disuelven: `TAREAS.md` pasa a ser un tablero único sin responsables y el estado y el plan por agente se guardan en `docs/historial/`. El reparto se redefinirá tras la lluvia de ideas (`docs/ideas/`).
 - 2026-11-21 — **API local protegida** (`ws.Guard`): solo responde a `Host` 127.0.0.1 o localhost (sin DNS rebinding) y a los orígenes de la app (Vite, Wails), con CORS para ellos; `POST /message` solo acepta JSON. Los procesos locales (el scanner) no mandan `Origin` y siguen funcionando. Sin esto, cualquier web abierta podía enviarnos documentos o preguntas y gastar IA.
 - 2026-11-21 — **Respaldo de voz hecho (T18):** `POST /transcribe` (WAV → texto, contrato 0.6) con Gemini 2.5 Flash Lite y un respaldo gratuito; `transcribeRemote()` en `web/src/app/transcribe.ts` para el rol C.
 - 2026-11-21 — **Contrato 0.5:** `document.pageCorners` (esquinas de la hoja en la foto: arriba-izq, arriba-der, abajo-der, abajo-izq de la hoja tal como se lee) y `POST /scan` (la app envía la foto; Go la pasa al servicio de lectura en `SCANNER_URL`, por defecto `127.0.0.1:8770/scan`, y dice en voz alta lo que pasa). `SCANNER_URL=fixture` permite probarlo todo sin el servicio.

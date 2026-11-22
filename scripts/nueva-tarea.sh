@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Crea la rama y la carpeta de trabajo (worktree) de un agente.
 # Uso: scripts/nueva-tarea.sh <slot> <id-tarea> <nombre-corto>
-# Ejemplo: scripts/nueva-tarea.sh P2-C1 T3 logica-principal
+# Ejemplo: scripts/nueva-tarea.sh P2-C T3 logica-principal
 set -euo pipefail
 
 if [ $# -ne 3 ]; then

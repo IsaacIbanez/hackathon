@@ -34,6 +34,7 @@ recorta, endereza, gira y limpia, lo **lee (OCR local)** y entrega tres cosas:
 |------|-------|--------|
 | `scanner/capturar.py` | Pau | Captura de la MX Brio: única (≈2,7 s) o modo servidor con la cámara abierta (≈0,4 s/captura, puerto 8766). Ver `scanner/README.md`. |
 | `scanner/scan.py` | Didac | **Conector**: captura → PDF → (opcional) envío a la app. Es lo que hay que llamar desde fuera. |
+| `scanner/service.py` | Didac | **Servicio de lectura** (T13): `POST /scan` en 8770, foto → `document` + `pageCorners` (§5.1). Lo llama Go. También `POST /document`: un archivo del PC (PDF con o sin texto, PNG, JPEG) → sus líneas (`documents.py`, opción «Leer un archivo» del overlay, `docs/OVERLAY.md`). |
 | `scanner/pdf/` | Didac | Paquete `scanner_pdf` (PNG → PDF). Referencia técnica: `scanner/pdf/README.md`. |
 | `scanner/demo_app/` | Didac | **Provisional**: app en el navegador (localhost:8780) para probar. No es parte del producto. |
 | `scanner/capturas/`, `scanner/pdf/output/` | — | Resultados locales (en `.gitignore`: son documentos reales). |
@@ -137,7 +138,35 @@ El contrato no cambia. Ya está implementado: `scan.send_to_app()` y la opción 
   (si `score` < 0,5 la app no gasta IA y da un consejo de encuadre).
 - `imageWidth`, `imageHeight`; `lang` si se pidió un solo idioma.
 
-**Formas de llamarlo desde la app** (de más simple a más integrada):
+### 5.1 Servicio de lectura `POST /scan` (T13, plan actual)
+Con el plan de una sola cámara (`AGENTS.md`, «Plan actual»), la app saca la foto y Go la pasa al
+**servicio de lectura**, que contesta con el `document`:
+```
+scanner\pdf\.venv\Scripts\python scanner\service.py                 # 127.0.0.1:8770 (--port o SCANNER_SERVICE_PORT)
+curl --data-binary @foto.png http://127.0.0.1:8770/scan
+```
+| Petición / respuesta | Detalle |
+|---|---|
+| `POST /scan` | Cuerpo: la foto, PNG o JPEG (el tipo se reconoce por los bytes). Query opcional: `languages=spa+cat+eng`, `digital=1` |
+| `200` | `DocumentPayload` (`blocks`, `quality`, `imageWidth`, `imageHeight`, `lang`) + **`pageCorners`**. Cabeceras `X-Scan-Pdf` (ruta del PDF buscable), `X-Scan-Digital-Pdf` y `X-Scan-Ms` |
+| `422` | `{"error": "page_not_detected", "message", "quality"}`: no hay hoja fiable. Contesta en ≈ 0,2 s (no hace OCR); `quality.issues` dice por qué si puede (`blurry`, `dark`, `glare`…) |
+| `400` / `413` / `503` / `500` | Foto no válida (`input_*`) / más de 40 MB / falta Tesseract (`ocr_unavailable`) / error interno |
+| `GET /health` | `{"ok": true, "tesseract": "5.x", "busy": false}` |
+
+**`pageCorners`** (propuesta para el contrato 0.5; Isaac lo define en T11): `[{x, y}, {x, y}, {x, y}, {x, y}]`,
+normalizados a [0, 1] sobre la **foto recibida**, en el orden **arriba-izquierda, arriba-derecha,
+abajo-derecha y abajo-izquierda del documento** (no de la foto): si la hoja estaba girada, el orden gira con
+ella, así que la esquina 0 es siempre donde empieza la primera línea. La homografía del cuadrado unidad a
+esos 4 puntos lleva cualquier `box` de los bloques a la foto (puntero con el dedo, recuadros sobre el papel):
+```js
+// box en [0,1] sobre la página -> píxeles de la foto (OpenCV.js / cualquier homografía de 4 puntos)
+H = getPerspectiveTransform([[0,0],[1,0],[1,1],[0,1]], pageCorners.map(p => [p.x*w, p.y*h]))
+```
+Medido con la carta real (4K, hoja girada 90°): 200 en 8,0 s, 36 bloques, esquinas y título proyectado
+encima de su línea en la foto. Una petición a la vez (el OCR ya usa la CPU en paralelo); las demás esperan.
+`scan.py --send` también envía ya `pageCorners` (Go ignora los campos que aún no conoce).
+
+**Otras formas de llamarlo** (de más simple a más integrada):
 1. **Proceso por escaneo**: la app lanza `python scanner/scan.py --send --json` cuando el usuario pide
    escanear, y lee el JSON de la salida estándar (rutas de los PDF, avisos). La explicación llega a la
    interfaz por el `POST /message`. Tarda ≈ 2,7 s de captura + ≈ 8 s de PDF en una carta 4K.
@@ -229,7 +258,7 @@ son locales (0 $). Tras la traducción del código (prompt en inglés) se repiti
 15,3 s, solo Haiku, concordancia con el OCR 0,992, 0,0018 $.
 
 ## 9. Calidad y pruebas
-- **Tests**: `scanner/pdf` 77 (`pytest`) y `scanner/` 23 (`unittest`, incluye los de `capturar.py`), sin
+- **Tests**: `scanner/pdf` 81 (`pytest`) y `scanner/` 29 (`unittest`, incluye los de `capturar.py` y el servicio), sin
   cámara y **sin red** (el modelo se simula). Imágenes sintéticas: ningún documento real en el repositorio.
   ```
   cd scanner/pdf && .venv\Scripts\python -m pytest -q

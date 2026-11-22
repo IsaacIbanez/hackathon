@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { HandInteraction } from "../interaction.ts";
 import { actionFor } from "../actions.ts";
 import type { Hand, HandEvent } from "../types.ts";
-import { makeHand, SHAPES } from "./hand.ts";
+import { makeHand, scale, SHAPES } from "./hand.ts";
 
 const STEP = 33; // ~30 fps
 
@@ -71,6 +71,22 @@ test("pointing emits a rate-limited pointer and a dwell selection", () => {
   assert.ok(p.type === "pointer" && p.image.y < 0.48);
 });
 
+test("dwellProgress fills up while pointing still and resets after the selection", () => {
+  const ctl = new HandInteraction();
+  const hand = makeHand(SHAPES.point);
+  const progress: number[] = [];
+  for (let i = 0; i < 40; i++) {
+    const t = i * STEP;
+    ctl.process({ t, hands: [hand] });
+    progress.push(ctl.dwellProgress(t));
+  }
+  const peak = Math.max(...progress);
+  assert.ok(peak > 0.9, `peak ${peak}`);
+  assert.ok(progress[10] > 0 && progress[10] < progress[20], "it grows while holding still");
+  assert.equal(progress.at(-1), 0, "after selecting it goes back to 0");
+  assert.equal(ctl.dwellProgress(40 * STEP + 1000), 0, "and stays 0 when no longer pointing");
+});
+
 test("the pointer is mapped to document coordinates", () => {
   const ctl = new HandInteraction({ pointerLead: 0 });
   // Document spanning x 0.34–0.54 and y 0.38–0.58: the tip (0.44, 0.48) falls in its centre.
@@ -93,4 +109,41 @@ test("losing the hand emits 'hand absent' and resets the gesture", () => {
     e.type === "gesture" ? `gesture:${e.gesture}` : e.type === "hand" ? `hand:${e.present}` : e.type,
   );
   assert.deepEqual(kinds, ["hand:true", "gesture:fist", "gesture:none", "hand:false"]);
+});
+
+// ---- Several hands ----
+
+function simulateMany(ctl: HandInteraction, frames: Hand[][], t0 = 0): HandEvent[] {
+  const events: HandEvent[] = [];
+  const off = ctl.on((e) => events.push(e));
+  frames.forEach((hands, i) => ctl.process({ t: t0 + i * STEP, hands }));
+  off();
+  return events;
+}
+
+test("with two hands in view, the one nearest the camera (largest) is followed", () => {
+  const near = scale(makeHand(SHAPES.thumbs_up), 1.5, -0.25);
+  const far = scale(makeHand(SHAPES.palm), 0.7, 0.25);
+  const ctl = new HandInteraction();
+  const ev = simulateMany(ctl, repeat([far, near], 20));
+  const gestures = ev.filter((e) => e.type === "gesture").map((e) => e.type === "gesture" && e.gesture);
+  assert.deepEqual(gestures, ["thumbs_up"]);
+  assert.equal(ctl.activeHand?.points[0].x, near.points[0].x);
+});
+
+test("a slightly larger second hand doesn't steal the focus; a clearly nearer one does", () => {
+  const ctl = new HandInteraction();
+  const mine = scale(makeHand(SHAPES.thumbs_up), 1.0, -0.25);
+  simulateMany(ctl, repeat([mine], 15));
+  assert.equal(ctl.activeHand?.points[0].x, mine.points[0].x);
+
+  const similar = scale(makeHand(SHAPES.palm), 1.1, 0.25); // only 10 % larger: keep following mine
+  const ev1 = simulateMany(ctl, repeat([mine, similar], 15), 15 * STEP);
+  assert.equal(ctl.activeHand?.points[0].x, mine.points[0].x);
+  assert.ok(!ev1.some((e) => e.type === "gesture" && e.gesture === "palm"));
+
+  const muchNearer = scale(makeHand(SHAPES.palm), 1.6, 0.25); // 60 % larger: it takes over
+  const ev2 = simulateMany(ctl, repeat([mine, muchNearer], 20), 30 * STEP);
+  assert.equal(ctl.activeHand?.points[0].x, muchNearer.points[0].x);
+  assert.ok(ev2.some((e) => e.type === "gesture" && e.gesture === "palm"));
 });

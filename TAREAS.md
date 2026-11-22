@@ -1,31 +1,64 @@
-# TAREAS.md — Tablero de la hackathon
+# TAREAS.md — Tablero único
 
-Estados: `pendiente` → `en curso` → `en revisión` → `hecha`
+Desde la integración del 2026-11-21 (rama `integration/proyecto-unificado`) ya no hay tareas por agente: este es el único tablero, **sin responsables**. El reparto se redefinirá después de la lluvia de ideas (`docs/ideas/`). El tablero anterior T1–T19, con responsables, está íntegro en `docs/historial/TAREAS_por_agente.md`.
 
-Asigna un agente de `ROSTER.md` (por ejemplo `P2-C` o `P2-G`) como responsable.
+Cada línea remite a `docs/ESTADO_PROYECTO.md` (§2, tabla por funcionalidad), donde están las rutas, el origen, la evidencia y lo que falta. «Verificado» significa que se ejecutó en esta integración y se vio funcionar. Lo que pasa sus tests pero necesita hardware, una clave de pago o dependencias que no había se cuenta como **sin verificar**.
 
-| ID | Tarea | Agente responsable | Estado | Rama | PR | Depende de |
-|----|-------|--------------------|--------|------|----|------------|
-| T1 | Definir alcance, arquitectura y reparto | Humanos | hecha | feature/T1-alcance-y-arquitectura | #1 | — |
-| T2 | Esqueleto: monorepo, contrato `api/openapi.yaml`, mensajes WebSocket, CI, `Taskfile.yml` y servidor mock | P1-C (Isaac) — rol A | hecha | feature/T2-contrato, feature/T2-wails-ci | 5acd70f, #2 | T1 |
-| T3 | Prueba de cámara en todos los SO (Wails) según `docs/PRUEBA_WAILS.md` (Windows hecho por Isaac) y qué ofrece el SDK de Logitech para la cámara | P2 o P4 — rol B1 | pendiente | — | — | T1 |
-| T4 | Captura y visión: flujo de cámara, detección y recorte, OCR local | P4 (Pau) — rol B1 | en curso: captura de la MX Brio (única y modo servidor en 8766) fusionada (#12); falta recorte/OCR y enviar `document` con `POST /message` | feature/B-scanner-captura | #12 | T2 |
-| T5 | Comprensión de documentos: pipeline foto → documento (OCR, PDF buscable) | P2 (Didac) — rol B2 | hecha: fusionada en `main` (envío a la app, OCR en paralelo, en inglés, `scanner/ENTREGA.md`) | feature/B-contexto-scanner | #26 | T2 |
-| T6 | Interacción: gestos de mano y voz | P3 (Nil) — rol C | en curso: gestos (#9) y voz con Whisper local (#19) fusionados; Gesture Control (#20) con cambios pedidos | feature/T6-* | #9, #19, #20 | T2 |
-| T7 | Cliente de modelos frugal, caché y contador de coste y latencia | P1-C (Isaac) — rol A | hecha (probada con la clave real) | feature/T7-llm | #3, #7 | T2 |
-| T8 | Integración de punta a punta y pruebas | P1-C (Isaac) — rol A | en curso: la app sirve `/ws` (#4), `stats` (#6) y la lógica real document/pointer/utterance → speak (#10), probada con modelos gratis; falta el criterio de B2 y conectar el scanner de B y los gestos de C | feature/T8-session | #4, #6, #10 | T4–T7 |
-| T9 | Accesibilidad y flujo de la demo | Todos | pendiente | — | — | T8 |
-| T10 | Documentación y presentación | Humanos (borrador: P1-C) | en curso: guion en `docs/PITCH.md` | feature/T10-pitch | — | T9 |
-| T11 | Contrato 0.5 (`document.pageCorners`) y `POST /scan` en Go → servicio de lectura; `SCANNER_URL=fixture` para probar sin él | P1-C (Isaac) — rol A | hecha | feature/T11-scan | #35 | — |
-| T12 | Cámara en la app: `openCamera` (Logitech si está) y `captureStill` (foto más nítida) | P4 (Pau) — rol B1 | hecha | feature/T12-camara | #31 | — |
-| T13 | Servicio de lectura `POST /scan` (8770) que recibe la foto y devuelve `document` + `pageCorners`; 2–3 documentos reales anonimizados en `api/fixtures/real/` | P2 (Didac) — rol B2 | pendiente | — | — | T5 (PR), T11 (contrato) |
-| T14 | Unión en la app: botón «Read document», foto → `/scan`, esquinas al puntero; explicaciones ajustadas al OCR real | P1-C (Isaac) — rol A | pendiente | — | — | T11–T13, T15 |
-| T15 | Orden `scan_document` (voz y gesto), puntero y recuadros sobre el papel real con `pageCorners`; arreglo de #20 (`Host`); MediaPipe en local | P3 (Nil) — rol C | pendiente | — | — | T11 (contrato) |
-| T16 | Lluvia de ideas de funciones en `docs/IDEAS.md` | Todos | pendiente | — | — | — |
-| T17 | Reconocimiento de voz mejor: `whisper-small` local (WebGPU/WASM), idioma forzado, precarga; respaldo T18 si falla (`docs/VOZ.md`) | P3 (Nil) — rol C | pendiente | — | — | — |
-| T18 | `POST /transcribe` en Go: audio → texto con `google/gemini-2.5-flash-lite` (+ respaldo gratuito), coste en `stats`; `transcribeRemote()` para el rol C; API local protegida (Host, Origin, CORS) | P1-C (Isaac) — rol A | hecha | feature/T18-transcribe | #36 | — |
-| T19 | Guía de encuadre por voz y disparo automático (`startFramingGuide` en `web/src/camera`, ver AGENTS.md); traducir `capturar.py` avisando a Didac | P4 (Pau) — rol B1 | pendiente | — | — | T12 |
+## Terminado y verificado
+- Contrato 0.6 (`api/openapi.yaml`) con tipos Go y TypeScript generados y sincronizados.
+- Servidor Go: `/health`, `/ws` con sesión compartida, `POST /message`, `POST /scan`, `POST /transcribe`.
+- Lógica de sesión: explicar el documento, leer el campo señalado en local, responder preguntas, avisos de encuadre locales y eco del documento a la interfaz.
+- API local protegida: `Host`, `Origin`, CORS y `/message` solo JSON.
+- Cliente de modelos: listas de respaldo, caché, contador de coste y `.env`. Verificado con modelos gratuitos fijados a mano (`LLM_PROFILE=dev` no es gratis del todo: escala a Haiku).
+- Servidor mock (`task mock`) y escáner de ejemplo (`SCANNER_URL=fixture`).
+- Conexión Go ↔ servicio de lectura en Python: `/scan` → 8770 → respuesta hablada (camino «sin hoja», 422).
+- App de escritorio (`wails build`): arranca con doble clic, encuentra el `.env`, escribe el log y el diagnóstico de voz y cámara.
+- Gesture Control (`adapters/desktop`), en modo simulación: protección de `Host`, token y página servida.
+- CI: gofmt, `task check` y tipos generados al día (verde en `main`; en esta rama, ver su PR).
 
-Aparcado por ahora (no empezar): ratón háptico MX Master 4 y keypad de Logitech.
+## Terminado sin verificar (código y tests listos; falta hardware, clave o dependencias)
+- Captura de la MX Brio (`scanner/capturar.py`): sin la cámara.
+- Pipeline foto → PDF buscable → `document` con `pageCorners` (`scanner/`): sin Tesseract; 15 tests se saltan.
+- Servicio de lectura, camino con hoja (200 + `pageCorners`): sin Tesseract.
+- PDF digital con modelo de visión (`scanner/pdf/.../vision.py`): usa modelos de pago.
+- Cámara en la app (`openCamera`, `captureStill`) y guía de encuadre con disparo automático (`startFramingGuide`): sin cámara real en esta integración.
+- Gestos con MediaPipe, puente de gestos, puntero (recuadros y punto del dedo sobre el vídeo): sin mano real.
+- Voz: Whisper local en un Worker, medidor de micro, dictado de formularios y lector frase a frase: sin micrófono; los modelos se descargan de Hugging Face.
+- Gesture Control actuando sobre el sistema de verdad (teclas, clics): solo en simulación.
+- Transcripción en la nube con Gemini: no se volvió a llamar porque es de pago; con el modelo gratuito funciona, con errores.
+- Páginas de prueba: Gesture Lab (`web/src/input/demo`), demo de cámara (`web/src/camera/demo`) y `scanner/demo_app` (8780).
+- Linux y macOS: solo se ha probado Windows (el CI compila en Linux).
 
-Reglas: solo se empieza una tarea cuando sus dependencias están en `hecha`. Excepción: T4–T6 pueden empezar contra el servidor mock en cuanto el contrato de T2 esté fusionado. Los prototipos aislados (por ejemplo, una prueba de MediaPipe o de OCR sin conectar al resto) se pueden empezar antes. Los agentes no editan este archivo: al fusionar un PR, quien lo revisa actualiza la fila de la tarea (estado y enlace al PR).
+## Parcial
+- **Unión en la app del flujo «lee el documento».** Están todas las piezas (cámara de la app, guía de encuadre, `POST /scan`, `pageCorners`), pero la interfaz todavía no las llama.
+- **Orden `scan_document`** por voz o gesto: no existe todavía.
+- **Puntero sobre el papel real con `pageCorners`:** el puntero sigue usando la imagen entera de la cámara (`WHOLE_FRAME_AS_SEEN`).
+- **Respaldo de voz en la nube:** el endpoint y `transcribeRemote()` existen, pero el reconocimiento de voz no los usa.
+- **Criterio de escalado al modelo caro:** sigue el provisional (`DefaultDoubt`).
+- **Demo sin red:** MediaPipe, transformers.js y Whisper se descargan de internet.
+- **Documentos reales anonimizados como fixtures del contrato** (`api/fixtures/real/`): hay PDF imprimibles inventados en `scanner/pdf/samples/print/`, pero no `document` JSON reales.
+- **Prueba de Wails y cámara en otros sistemas** (`docs/PRUEBA_WAILS.md`): solo Windows.
+- Accesibilidad, flujo de la demo y pitch (`docs/PITCH.md`): borrador.
+
+## Roto
+- Nada falla en las comprobaciones automáticas ni en las pruebas en ejecución de esta integración. Observaciones que no son fallos:
+  - el modelo gratuito de transcripción cometió errores en una de las dos pruebas;
+  - el servicio de lectura responde 503 sin Tesseract y Go lo dice como error genérico.
+- **Referencias obsoletas tras disolver las tareas por agente:** `README.md`, `INSTRUCCIONES_ARRANQUE.md`, `scripts/ver-estado.sh`, `docs/ARQUITECTURA.md` (§«Cómo se coordinan»), `docs/PRUEBA_WAILS.md` y `docs/INTEGRACION_SCANNER.md` siguen apuntando a `estado/`. Ver `docs/ESTADO_PROYECTO.md` §7.
+
+## Duplicado o alternativo (decisión para humanos; detalle en `docs/ESTADO_PROYECTO.md` §6)
+- Apertura de cámara: `Gestures.tsx` (`getUserMedia`, 1280×720) frente a `web/src/camera` (`openCamera`, la Logitech si está, 4K).
+- Salida de voz: `web/src/app/voice.ts` (sin uso) frente a `web/src/input/voice/speaker.ts` (en uso).
+- Llevar el documento a la app: Python con `scan.py --send` (`POST /message`) frente a la app (`POST /scan` → servicio 8770).
+- Avisos de encuadre: en el navegador (`startFramingGuide`) y en Go (`quality.issues`); el escáner también devuelve 422 cuando no ve la hoja.
+- Del dedo al bloque: `blockAt` en Go y en TypeScript (`pointing.ts`), copias mantenidas a mano, más la homografía del módulo de manos.
+- Modelos de IA: cliente Go (`backend/llm`, contador en `stats`) frente a `scanner/pdf/.../vision.py` (otro cliente, otro `.env`, coste fuera del contador; `LLM_CHEAP_MODEL` es una lista en Go y un único modelo en Python).
+- Reconocimiento de voz: Whisper local frente a `POST /transcribe` (pensados como principal y respaldo; sin conectar).
+- Páginas de prueba: la app, Gesture Lab, la demo de cámara, `scanner/demo_app` y la página de Gesture Control.
+- `scanner/AGENTS.md` y `scanner/AGENTS_B.md` son idénticos.
+- Carpetas previstas que siguen vacías: `backend/ocr/` y `web/src/document/` (la comprensión de documentos vive en `scanner/` y en `backend/session/`).
+
+## Ideas sin decidir
+- Todas las ideas de la lluvia previa, con sus autores, en `docs/ideas/IDEAS.md`; los duplicados agrupados (sin ordenar ni elegir) en `docs/ideas/AGRUPACION.md`.
+
+Aparcado desde el principio (sin cambios): ratón háptico MX Master 4 y keypad de Logitech.

@@ -2,10 +2,10 @@
 
 - **Persona:** Didac
 - **Herramienta:** Claude Code
-- **Tarea actual:** Subproyecto B / scanner: PNG a PDF buscable (`scanner/pdf/`)
-- **Rama:** feature/B-contexto-scanner
-- **Estado:** entregado, en revisión (PR a `main`); documento de entrega en `scanner/ENTREGA.md`
-- **Último cambio:** 2026-11-21 23:30
+- **Tarea actual:** T13: servicio de lectura `POST /scan` (8770) + documentos reales en `api/fixtures/real/`
+- **Rama:** feature/T13-scan-service (sale de `main` tras #26)
+- **Estado:** T5 fusionada (#26). T13: servicio hecho; faltan los documentos reales anonimizados
+- **Último cambio:** 2026-11-21 20:45
 
 ## Hecho
 - `scanner/AGENTS.md` (y copia `AGENTS_B.md`): reglas y contexto del subproyecto scanner.
@@ -64,11 +64,20 @@
   ejemplo en español. Actualizados `ENTREGA.md`, `pdf/README.md` y la sección del scanner de
   `docs/INTEGRACION_SCANNER.md`. Tests 77 + 23; prueba real con la carta: 15,3 s, Haiku, concordancia 0,992, 0,0018 $.
 
+- T13: `scanner/service.py`, servicio de lectura en 127.0.0.1:8770. `POST /scan` (PNG o JPEG) → 200 con el
+  `document` + `pageCorners`; 422 `page_not_detected` en ≈ 0,2 s sin OCR (con `quality.issues`); 400/413/503/500.
+  `Result.page_corners()` en el pipeline: esquinas de la hoja normalizadas sobre la foto, en orden del documento
+  (giran con la página). Carta real 4K girada 90°: 200 en 8,0 s, esquinas y bloques bien proyectados sobre la foto.
+  Tests 81 + 29.
+
 ## Pendiente
+- T13 (segunda parte): 2–3 documentos reales anonimizados en `api/fixtures/real/`.
 - Probar con más documentos en papel reales (formularios) con la MX Brio y calibrar los umbrales de calidad (nitidez, brillo, reflejos).
 - Acordar con el rol A qué dispara el escaneo en la demo (botón, tecla, gesto o automático).
 
 ## Bloqueos y preguntas para humanos
+- **Formato de `pageCorners` (para Isaac, T11):** propongo `[{x, y}] x4` (como `box` y `PointerPayload`), orden
+  TL, TR, BR, BL **del documento**, normalizado sobre la foto. Si el contrato 0.5 lo define distinto, lo adapto.
 - Puertos resueltos: app Go 8765, `capturar.py --servidor` 8766, app de prueba 8780. Envío a la app hecho
   (`POST /message`, `scan.send_to_app`).
 - `capturar.py` (Pau) sigue en español: si lo traduce, actualizar las llamadas de `scan.py` y `demo_app/server.py`.

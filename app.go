@@ -19,6 +19,8 @@ type App struct {
 	ctx    context.Context
 	server *ws.Local
 	hub    *ws.Hub // nil when answering with fixtures
+
+	overlay overlayState // shortcut and helper processes (app_overlay.go)
 }
 
 func NewApp() *App {
@@ -27,6 +29,7 @@ func NewApp() *App {
 
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	a.startOverlay(ctx)
 
 	h, err := a.newHandler()
 	if err != nil {
@@ -46,6 +49,7 @@ func (a *App) startup(ctx context.Context) {
 }
 
 func (a *App) shutdown(context.Context) {
+	a.stopOverlay()
 	if a.server != nil {
 		_ = a.server.Close()
 	}

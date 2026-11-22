@@ -53,6 +53,7 @@ export const DEFAULT_QUESTION: Record<string, string> = {
 };
 
 const NOTHING_HEARD: Record<string, string> = { es: "No te he oído.", en: "I didn't hear anything." };
+const ASKING_INSTEAD: Record<string, string> = { es: "Pregunto:", en: "Asking:" };
 
 let counter = 0;
 function newId(): string {
@@ -106,7 +107,10 @@ export class VoiceInput {
         if (options.fallbackQuestion) {
           this.sendUtterance(options.fallbackQuestion);
           sp?.stop();
-          this.state("heard", options.fallbackQuestion);
+          // Say so clearly: the default question was not something the user said.
+          const nothing = NOTHING_HEARD[base] ?? NOTHING_HEARD.en;
+          const asking = ASKING_INSTEAD[base] ?? ASKING_INSTEAD.en;
+          this.state("heard", `${nothing} ${asking} «${options.fallbackQuestion}»`);
           return { text: "", command: null, sent: options.fallbackQuestion };
         }
         if (wasSpeaking) sp!.resume();
@@ -133,6 +137,11 @@ export class VoiceInput {
     } finally {
       this.busy = false;
     }
+  }
+
+  /** The user says they're done talking (e.g. open palm): use what was heard so far. */
+  finish(): void {
+    this.o.listener.finish();
   }
 
   cancel(): void {

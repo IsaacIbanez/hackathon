@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -22,9 +23,11 @@ func main() {
 	app := NewApp()
 
 	err := wails.Run(&options.App{
-		Title:  "LauzHack project",
-		Width:  1280,
-		Height: 800,
+		// Overlay (docs/OVERLAY.md): always on top; Ctrl+Alt+Space (or an MX Keypad key) shows and hides it.
+		Title:       "LauzHack overlay",
+		Width:       960,
+		Height:      680,
+		AlwaysOnTop: true,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
@@ -51,6 +54,10 @@ func logToFile() {
 	if err != nil {
 		return
 	}
-	log.SetOutput(io.MultiWriter(os.Stderr, f))
+	// The file first: a desktop build has no valid stderr, and io.MultiWriter stops at the first
+	// writer that fails (before this, the log stayed empty in build/bin/lauzhack.exe).
+	log.SetOutput(io.MultiWriter(f, os.Stderr))
+	// A crash (panic) is written there too, instead of disappearing with the missing console.
+	_ = debug.SetCrashOutput(f, debug.CrashOptions{})
 	log.Printf("---- start (%s)", exe)
 }

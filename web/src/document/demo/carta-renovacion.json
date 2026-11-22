@@ -1,0 +1,230 @@
+{
+ "blocks": [
+  {
+   "id": "b1",
+   "text": "Seguros Lumen S.A.",
+   "box": {
+    "x": 0.1866,
+    "y": 0.0544,
+    "w": 0.2439,
+    "h": 0.0165
+   },
+   "confidence": 0.917
+  },
+  {
+   "id": "b2",
+   "text": "Calle Ficticia 10, 08000 Barcelona Tel. 900 000 000",
+   "box": {
+    "x": 0.1866,
+    "y": 0.0764,
+    "w": 0.3547,
+    "h": 0.0091
+   },
+   "confidence": 0.932
+  },
+  {
+   "id": "b3",
+   "text": "Sra. Carmen Ruiz Prado",
+   "box": {
+    "x": 0.5389,
+    "y": 0.142,
+    "w": 0.1999,
+    "h": 0.01
+   },
+   "confidence": 0.915
+  },
+  {
+   "id": "b4",
+   "text": "Calle de los Almendros 7, 2.* B",
+   "box": {
+    "x": 0.5389,
+    "y": 0.1585,
+    "w": 0.2535,
+    "h": 0.0114
+   },
+   "confidence": 0.921
+  },
+  {
+   "id": "b5",
+   "text": "08999 Villaejemplo (Barcelona)",
+   "box": {
+    "x": 0.5389,
+    "y": 0.175,
+    "w": 0.2551,
+    "h": 0.0125
+   },
+   "confidence": 0.922
+  },
+  {
+   "id": "b6",
+   "text": "Barcelona, 14 de noviembre de 2026",
+   "box": {
+    "x": 0.106,
+    "y": 0.2158,
+    "w": 0.3007,
+    "h": 0.0111
+   },
+   "confidence": 0.925
+  },
+  {
+   "id": "b7",
+   "text": "Asunto: Renovación de su póliza de hogar n.. HG-2026-004512",
+   "box": {
+    "x": 0.1048,
+    "y": 0.248,
+    "w": 0.599,
+    "h": 0.0134
+   },
+   "confidence": 0.914
+  },
+  {
+   "id": "b8",
+   "text": "Estimada clienta:",
+   "box": {
+    "x": 0.106,
+    "y": 0.2799,
+    "w": 0.1378,
+    "h": 0.0094
+   },
+   "confidence": 0.926
+  },
+  {
+   "id": "b9",
+   "text": "Le informamos de que su póliza de seguro de hogar vence el 31 de diciembre de 2026. Para",
+   "box": {
+    "x": 0.106,
+    "y": 0.305,
+    "w": 0.757,
+    "h": 0.0125
+   },
+   "confidence": 0.929
+  },
+  {
+   "id": "b10",
+   "text": "mantener la cobertura sin interrupciones, la renovación se realizará de forma automática salvo",
+   "box": {
+    "x": 0.106,
+    "y": 0.3227,
+    "w": 0.7715,
+    "h": 0.0123
+   },
+   "confidence": 0.925
+  },
+  {
+   "id": "b11",
+   "text": "que nos comunique lo contrario antes del 15 de diciembre de 2026.",
+   "box": {
+    "x": 0.1052,
+    "y": 0.3406,
+    "w": 0.5494,
+    "h": 0.012
+   },
+   "confidence": 0.927
+  },
+  {
+   "id": "b12",
+   "text": "La prima anual para el próximo periodo será de 284,60 euros, que se cargará en la cuenta",
+   "box": {
+    "x": 0.106,
+    "y": 0.366,
+    "w": 0.7384,
+    "h": 0.0123
+   },
+   "confidence": 0.926
+  },
+  {
+   "id": "b13",
+   "text": "bancaria que figura en su póliza el día 2 de enero de 2027. Este importe incluye la actualización",
+   "box": {
+    "x": 0.106,
+    "y": 0.3834,
+    "w": 0.7832,
+    "h": 0.0125
+   },
+   "confidence": 0.926
+  },
+  {
+   "id": "b14",
+   "text": "del capital asegurado del continente y del contenido.",
+   "box": {
+    "x": 0.1052,
+    "y": 0.4014,
+    "w": 0.4285,
+    "h": 0.0123
+   },
+   "confidence": 0.925
+  },
+  {
+   "id": "b15",
+   "text": "Si desea modificar las coberturas o tiene cualquier duda, puede llamarnos al 900 000 000 de",
+   "box": {
+    "x": 0.1056,
+    "y": 0.4267,
+    "w": 0.7586,
+    "h": 0.0123
+   },
+   "confidence": 0.928
+  },
+  {
+   "id": "b16",
+   "text": "lunes a viernes, de 9 a 18 horas, o escribirnos a clientes@seguroslumen.example.",
+   "box": {
+    "x": 0.1056,
+    "y": 0.4441,
+    "w": 0.6735,
+    "h": 0.0125
+   },
+   "confidence": 0.873
+  },
+  {
+   "id": "b17",
+   "text": "Atentamente,",
+   "box": {
+    "x": 0.1048,
+    "y": 0.4746,
+    "w": 0.108,
+    "h": 0.0111
+   },
+   "confidence": 0.9
+  },
+  {
+   "id": "b18",
+   "text": "Jorge Martin Vidal",
+   "box": {
+    "x": 0.1052,
+    "y": 0.6021,
+    "w": 0.1346,
+    "h": 0.0111
+   },
+   "confidence": 0.919
+  },
+  {
+   "id": "b19",
+   "text": "Departamento de Atención al Cliente",
+   "box": {
+    "x": 0.106,
+    "y": 0.6172,
+    "w": 0.2725,
+    "h": 0.0114
+   },
+   "confidence": 0.925
+  },
+  {
+   "id": "b20",
+   "text": "Documento de prueba con datos inventados (LauzHack 2026). No es un documento real.",
+   "box": {
+    "x": 0.235,
+    "y": 0.9527,
+    "w": 0.5292,
+    "h": 0.0088
+   },
+   "confidence": 0.922
+  }
+ ],
+ "quality": {
+  "score": 1.0,
+  "issues": []
+ },
+ "imageWidth": 2481,
+ "imageHeight": 3508
+}
