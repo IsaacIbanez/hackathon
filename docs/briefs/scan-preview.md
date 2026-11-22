@@ -1,6 +1,11 @@
 # Brief: PDF Scanner con vista previa del PDF (Didac)
 Confirmado por Didac el 2026-11-22. Rama `feature/didac-scan-preview`.
 
+## Estado (2026-11-22)
+**⚠ Aún no funciona bien.** El código está en `main` (tests en verde), pero el escaneo todavía no es como la primera versión que hicimos: un PDF buscable y un PDF digital a partir de la foto. La vista previa nueva **no se ha probado con la cámara en el `.exe`**. Pendiente:
+- probarlo de punta a punta con el `.exe` y la cámara (cerrar antes cualquier `scanner/service.py` viejo en el puerto 8770, o la app lo reutiliza y no encuentra las rutas nuevas);
+- volver a dejarlo como la primera versión.
+
 ## Objetivo
 Que el resultado del PDF Scanner vuelva a ser **el PDF**: tras la foto, la app enseña la vista previa del PDF generado y un botón para leerlo en voz alta. Hoy se salta el PDF y lee el texto en voz alta nada más escanear (`GuidedReader` con `autoPlay` en `DocumentsMode.tsx`).
 

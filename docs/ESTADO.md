@@ -8,7 +8,7 @@ El **overlay «Halo»** (`task overlay` → `build/bin/lauzhack.exe`): Ctrl+Alt+
 | Herramienta | Qué hace | Estado |
 |---|---|---|
 | **Gesture Control** (centro, tecla 8) | Gestos con la mano → acciones del PC y de las videollamadas; menú del puño, volumen y brillo con la pinza; burbuja de cámara | En Halo y seguro (acciones de energía desactivadas, pinza sin saltos). Comprobado por Pau con el `.exe` y la mano |
-| **PDF Scanner** (tecla 4) | Papel ante la cámara → guía de encuadre por voz → foto → OCR → lectura guiada en voz alta | Medido y mejorado (N3: 75 % de palabras, 4,3 s). **Falta de punta a punta con la MX Brio en el `.exe`** (R3) |
+| **PDF Scanner** (tecla 4) | Papel ante la cámara → guía de encuadre por voz → foto → OCR → **vista previa del PDF** en el visor, que solo se lee al pulsar Espacio; PDF digital con el botón «Make digital PDF» (Didac, `docs/briefs/scan-preview.md`) | Medido y mejorado (N3: 75 % de palabras, 4,3 s). **⚠ Aún no funciona bien:** el escaneo no es como la primera versión que hicimos (PDF buscable + PDF digital), y la vista previa nueva **no se ha probado con la cámara en el `.exe`**. **Falta de punta a punta con la MX Brio en el `.exe`** (R3) |
 | **Read Text** (tecla 5) | Abre un PDF, una imagen o un texto y lo lee línea a línea | Probado |
 | **Visor de PDF** | Lee el PDF entero en voz alta, página a página (N4) | Hecho; algunas partes, con el estilo viejo (R1) |
 | **AI Summary** (tecla 7) | Resume el texto seleccionado en cualquier programa, en una burbuja junto al cursor | Probado (modelo barato) |
