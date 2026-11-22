@@ -66,3 +66,18 @@ pruébalo con el .exe; abre un PR y, con el CI en verde, fusiónalo tú mismo a 
 
 ## Registro (lo rellena el agente)
 Por cada fallo: síntoma → cómo reproducirlo → causa → arreglo → cómo se ha comprobado (con el `.exe`).
+
+- **Transcribe sin clave reintentaba en bucle.**
+  - **Síntoma:** sin `TOGETHER_API_KEY`, el log repetía `captions: no_key` cada segundo.
+  - **Reproducir:** un servidor sin `.env` (`backend/cmd/server` desde una carpeta vacía) y dos conexiones a `/captions`: cada una recibe `no_key` (`retryable: false`) y se cierra.
+  - **Causa:** el cliente (`LiveCaptions.tsx`) tomaba ese cierre por una caída y reconectaba al cabo de 1 s, y ponía el contador de reintentos a 0 en cada conexión, así que nunca llegaba al límite de 3.
+  - **Arreglo:** `web/src/captions/reconnect.ts` (función pura y con tests).
+    - Un error definitivo (`no_key`, clave rechazada, tope de coste) no se reintenta: se para el micro, Go cierra la sesión y guarda el `.txt`, y se dice una sola vez qué hacer.
+    - El contador solo vuelve a 0 con `ready`: 3 reintentos (1, 2 y 4 s) y después se ofrece Whisper local.
+  - **Comprobado:**
+    - tests de `reconnect.ts` (200 en verde);
+    - con el `.exe` y una clave no válida: **un solo** `captions:` en el log en 10 s (antes, uno por segundo), el aviso «Together AI refused the key. Check TOGETHER_API_KEY…» y el botón «Use local Whisper»;
+    - el caso sin clave no se puede montar con el `.exe` (Windows no admite una variable vacía y la app lee el `.env`), así que se comprobó con el servidor y los tests.
+- **Visto de paso (pendiente):**
+  - En una pantalla de 1536 px el panel de Transcribe se sale por la derecha y corta «Start».
+  - Un `server.exe` viejo (`go run ./backend/cmd/server`) ocupaba el 8765: la app usa otro puerto, pero las pruebas a mano contra el 8765 hablaban con el código viejo.

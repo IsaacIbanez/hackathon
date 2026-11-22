@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { WhisperListener } from '../input/voice/index.ts'
 import { AudioCapture, canCaptureCallAudio, listMicrophones, preferredMicrophone, type Microphone } from './audio.ts'
 import { captionsBaseUrl, CaptionsConnection } from './client.ts'
+import { afterClose, fatalMessage, GO_RETRY_MS, isFatal } from './reconnect.ts'
 import { addLocalLine, applyEvent, clock, emptyState, transcriptFileName, transcriptText, type CaptionsEvent, type CaptionsState } from './transcript.ts'
 
 const SPOKEN = [
@@ -42,8 +43,6 @@ const PEOPLE = [
   [6, '6'],
 ] as const
 
-/** Client-side retries when Go itself is not reachable (Go retries the speech service). */
-const GO_RETRY_MS = [1000, 2000, 4000]
 
 type Phase = 'idle' | 'connecting' | 'live' | 'local' | 'finishing' | 'ended'
 type Banner = { kind: 'info' | 'warn' | 'error'; text: string } | null
@@ -92,6 +91,8 @@ export function LiveCaptions({ onClose }: LiveCaptionsProps) {
   const connIndex = useRef(0)
   const connOffset = useRef(0)
   const goRetries = useRef(0)
+  const fatal = useRef(false) // Go said it cannot go on: no reconnection
+  const live = useRef(false) // this connection got 'ready'
   const userStopped = useRef(false)
   const whisper = useRef<WhisperListener | null>(null)
   const localOn = useRef(false)
@@ -145,6 +146,10 @@ export function LiveCaptions({ onClose }: LiveCaptionsProps) {
     setCallAudio(false)
     setLevel(0)
   }
+  const stopAudio = useRef(releaseAudio)
+  useEffect(() => {
+    stopAudio.current = releaseAudio
+  })
 
   const handleEvent = useCallback((raw: CaptionsEvent) => {
     // Ids and times are per Go session; after a reconnection to Go they start again.
@@ -153,6 +158,8 @@ export function LiveCaptions({ onClose }: LiveCaptionsProps) {
     if (ev.type === 'final' && ev.start !== undefined) ev.start += connOffset.current
     switch (ev.type) {
       case 'ready':
+        live.current = true
+        goRetries.current = 0
         setPhase('live')
         setBanner(null)
         setOfferLocal(false)
@@ -161,13 +168,15 @@ export function LiveCaptions({ onClose }: LiveCaptionsProps) {
         const msg = ev.message ?? 'Unknown error'
         if (ev.code === 'translation' || ev.code === 'diarization') {
           setNotice(msg)
-        } else if (ev.code === 'limit_reached') {
-          setBanner({ kind: 'warn', text: msg })
-        } else if (ev.retryable) {
-          setBanner({ kind: 'warn', text: msg })
+        } else if (!isFatal(ev.code, ev.retryable)) {
+          setBanner({ kind: 'warn', text: msg }) // Go is retrying the speech service
         } else {
-          setBanner({ kind: 'error', text: msg })
-          setOfferLocal(true)
+          // Shown once, and the session ends: Go saves the transcript; nothing reconnects.
+          fatal.current = true
+          setBanner({ kind: ev.code === 'limit_reached' ? 'warn' : 'error', text: fatalMessage(ev.code, msg) })
+          if (ev.code !== 'limit_reached') setOfferLocal(true)
+          stopAudio.current()
+          conn.current?.stop()
         }
         break
       }
@@ -179,34 +188,37 @@ export function LiveCaptions({ onClose }: LiveCaptionsProps) {
     const base = await captionsBaseUrl()
     connIndex.current += 1
     connOffset.current = (Date.now() - startedAt.current.getTime()) / 1000
+    live.current = false
     conn.current = new CaptionsConnection(base, langRef.current, targetRef.current, peopleRef.current, {
-      onOpen: () => {
-        goRetries.current = 0
-      },
+      onOpen: () => {},
       onEvent: handleEvent,
-      onClose: (opened) => {
+      onClose: () => {
         conn.current = null
-        if (userStopped.current || localOn.current) {
+        // The retry counter is only reset by 'ready' (reconnect.ts): a server that accepts and then
+        // closes at once used to loop forever.
+        const next = afterClose({
+          stopped: userStopped.current || localOn.current,
+          fatal: fatal.current,
+          live: live.current,
+          retries: goRetries.current,
+        })
+        if (next.do === 'end') {
+          if (fatal.current) releaseAudio()
           setPhase((p) => (p === 'local' ? p : 'ended'))
           return
         }
-        if (!opened && goRetries.current >= GO_RETRY_MS.length) {
+        if (next.do === 'give-up') {
           releaseAudio()
           setPhase('ended')
-          setBanner({ kind: 'error', text: `Cannot reach the captions server (${base}). Is the app's server running?` })
+          setBanner({ kind: 'error', text: `Cannot reach the captions server (${base}). Restart the app, or use local Whisper.` })
           setOfferLocal(true)
           return
         }
-        if (!opened || capture.current) {
-          const wait = GO_RETRY_MS[Math.min(goRetries.current, GO_RETRY_MS.length - 1)]
-          goRetries.current += 1
-          setBanner({ kind: 'warn', text: `Lost the captions server, retrying (${goRetries.current}/${GO_RETRY_MS.length})…` })
-          setTimeout(() => {
-            if (!userStopped.current && !localOn.current) void reconnect.current()
-          }, wait)
-          return
-        }
-        setPhase('ended')
+        goRetries.current = next.retries
+        setBanner({ kind: 'warn', text: `Lost the captions server, retrying (${next.retries}/${GO_RETRY_MS.length})…` })
+        setTimeout(() => {
+          if (!userStopped.current && !localOn.current) void reconnect.current()
+        }, next.waitMs)
       },
     })
   }, [handleEvent])
@@ -218,6 +230,7 @@ export function LiveCaptions({ onClose }: LiveCaptionsProps) {
   const start = async () => {
     userStopped.current = false
     localOn.current = false
+    fatal.current = false
     goRetries.current = 0
     startedAt.current = new Date()
     setCaptions(emptyState())
