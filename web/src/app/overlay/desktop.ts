@@ -11,6 +11,17 @@ export interface OverlayInfo {
   keypad?: { shortcut: string; action: string; ok: boolean }[] | null
   /** The MX Keypad is plugged in and read directly over USB (no Logi Options+ needed). */
   keypadConnected?: boolean
+  /** R4: the running build (to spot an old .exe), what is missing, and a second copy of the app. */
+  version?: { commit: string; modified: boolean; commitTime: string; built: string }
+  problems?: { what: string; fix: string }[] | null
+  anotherInstance?: boolean
+}
+
+/** "abc1234+ · built 2026-11-22 03:40": the build in one line (empty when unknown). */
+export function versionLabel(info: OverlayInfo | null): string {
+  const v = info?.version
+  if (!v) return ''
+  return `${v.commit}${v.modified ? '+' : ''}${v.built ? ` · built ${v.built}` : ''}`
 }
 
 /** What option 3 opened (app_pdf.go): a PDF for the viewer, or the lines of another file. */

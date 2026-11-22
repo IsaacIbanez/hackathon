@@ -4,7 +4,7 @@ import { DocumentsMode } from './DocumentsMode.tsx'
 import { GesturesMode } from './GesturesMode.tsx'
 import { ReadFileMode } from './ReadFileMode.tsx'
 import { SummarizeMode } from './SummarizeMode.tsx'
-import { desktop, inDesktopApp, onDesktopEvent, type OverlayInfo } from './desktop.ts'
+import { desktop, inDesktopApp, onDesktopEvent, versionLabel, type OverlayInfo } from './desktop.ts'
 import { MENU_PANELS, TOOLBAR, type OverlayContext, type OverlayView } from './extensions.ts'
 import { GestureSlot } from './GestureSlot.tsx'
 import { pauseCamera, resumeCamera } from './gestureHost.ts'
@@ -163,7 +163,7 @@ export function Overlay() {
   const banner = (
     <>
       <VoiceBanner status={voice.status} />
-      {view !== 'summarize' && <Toolbar ctx={ctx} />}
+      {view !== 'summarize' && <Toolbar ctx={ctx} info={info} />}
       {cameraShown && <CameraPanel hidden={cameraHidden} onToggle={toggleCameraPanel} />}
     </>
   )
@@ -276,11 +276,19 @@ function CameraPanel({ hidden, onToggle }: { hidden: boolean; onToggle: () => vo
 }
 
 /** Buttons for what the keys do (extensions.ts, N1), top right: the overlay works with the mouse only. */
-function Toolbar({ ctx }: { ctx: OverlayContext }) {
+function Toolbar({ ctx, info }: { ctx: OverlayContext; info: OverlayInfo | null }) {
   const buttons = TOOLBAR.filter((b) => b.show?.(ctx) ?? true)
-  if (buttons.length === 0) return null
+  const version = versionLabel(info)
+  const problems = info?.problems ?? []
+  if (buttons.length === 0 && !version) return null
   return (
-    <nav aria-label="Window" className="glass fixed top-5 right-5 z-30 flex gap-1 rounded-full p-1.5">
+    <div className="fixed top-5 right-5 z-30 flex max-w-[30rem] flex-col items-end gap-2">
+    <nav aria-label="Window" className="glass flex items-center gap-1 rounded-full p-1.5">
+      {version && (
+        <span className="px-2 text-sm text-[var(--color-mist)]" title={`Build of commit ${version} (R4: tells an old .exe apart)`}>
+          {version}
+        </span>
+      )}
       {buttons.map((b) => (
         <button
           key={b.id}
@@ -295,5 +303,16 @@ function Toolbar({ ctx }: { ctx: OverlayContext }) {
         </button>
       ))}
     </nav>
+    {(info?.anotherInstance || problems.length > 0) && (
+      <div role="status" className="glass rounded-2xl px-4 py-3 text-base text-[var(--color-scan)]">
+        {info?.anotherInstance && <p>Another copy of the app is running: close it, or keys and camera will clash.</p>}
+        {problems.map((p) => (
+          <p key={p.what}>
+            {p.what} <span className="text-[var(--color-mist)]">{p.fix}.</span>
+          </p>
+        ))}
+      </div>
+    )}
+    </div>
   )
 }

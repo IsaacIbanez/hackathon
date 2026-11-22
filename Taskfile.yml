@@ -35,10 +35,24 @@ tasks:
     cmds:
       - wails dev {{.GOTAGS}}
 
+  setup:
+    desc: Installs everything the app needs, once per machine (R4) - the scanner (Python env, Tesseract) and the web dependencies
+    cmds:
+      - cmd: powershell -ExecutionPolicy Bypass -File scanner/pdf/scripts/install.ps1
+        platforms: [windows]
+      - cmd: bash scanner/pdf/scripts/install.sh
+        platforms: [linux, darwin]
+      - cmd: npm ci
+        dir: web
+
   overlay:
     desc: Builds the overlay app (build/bin/lauzhack.exe), with Gesture Control inside (docs/OVERLAY.md)
+    vars:
+      COMMIT:
+        sh: git describe --always --dirty
     cmds:
-      - wails build {{.GOTAGS}}
+      # The commit goes into the .exe (shown in the log and the toolbar, R4): wails build does not stamp it.
+      - wails build {{.GOTAGS}} -ldflags "-X github.com/IsaacIbanez/hackathon/backend/overlay.StampedCommit={{.COMMIT}}"
 
   gestures:
     desc: Builds Gesture Control on its own (build/bin/gesture-control), for using it without the overlay
