@@ -86,3 +86,5 @@ html.gc-see-through .gc.screen { visibility: visible; }
 .gc #dryrun { position: absolute; left: 0; right: 0; bottom: 0; z-index: 5; text-align: center; font-weight: 800;
   font-size: clamp(12px, 2.6cqw, 32px); padding: .3em; color: #fff; background: #c0262dee; }
 .gc #dryrun[hidden] { display: none; }
+/* The camera may give 4:3 instead of the 16:9 asked for: crop instead of stretching. */
+.gc canvas { object-fit: cover; }
