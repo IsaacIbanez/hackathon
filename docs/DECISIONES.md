@@ -4,7 +4,7 @@ Registro completo, de la más nueva a la más antigua. Movido desde `AGENTS.md` 
 
 - 2026-11-22 — **Escaneo medido y mejorado (N3, Pau; `docs/medidas/N3.md`):**
   - El servicio de lectura responde en cuanto el `document` está listo; el PDF buscable y el PDF digital se terminan en segundo plano.
-  - El PDF digital va activado por defecto (`?digital=0` o `SCANNER_DIGITAL=0` lo quitan).
+  - El PDF digital va **desactivado** por defecto, porque usa un modelo de pago en cada escaneo (arreglo R3). Se activa con `?digital=1` o `SCANNER_DIGITAL=1`.
   - Sin hoja detectada pero con texto sobre papel, el servicio devuelve el `document` sin `pageCorners` (opcional en el contrato) en vez de 422.
 - 2026-11-22 — **Subtítulos en directo (Pau; brief `docs/briefs/pau.md`, `web/src/captions/README.md`):**
   - El navegador manda el audio (PCM 16 kHz) a Go por `GET /captions` (WebSocket); Go lo pasa a Together AI: subtítulos en directo y diarización por lotes con Parakeet v3; idioma, barbarismos entre comillas y traducción con Qwen3.5-9B (sin razonamiento).
