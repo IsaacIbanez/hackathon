@@ -18,6 +18,10 @@ export function HideOverlay() {
   return window['go']['main']['App']['HideOverlay']();
 }
 
+export function MakeDigitalPDF(arg1) {
+  return window['go']['main']['App']['MakeDigitalPDF'](arg1);
+}
+
 export function MoveBubble() {
   return window['go']['main']['App']['MoveBubble']();
 }
@@ -46,8 +50,20 @@ export function ReadPhoto(arg1) {
   return window['go']['main']['App']['ReadPhoto'](arg1);
 }
 
+export function ReadSelection() {
+  return window['go']['main']['App']['ReadSelection']();
+}
+
 export function ReportDiagnostics(arg1) {
   return window['go']['main']['App']['ReportDiagnostics'](arg1);
+}
+
+export function ScanPDF(arg1, arg2) {
+  return window['go']['main']['App']['ScanPDF'](arg1, arg2);
+}
+
+export function ScanPaper(arg1) {
+  return window['go']['main']['App']['ScanPaper'](arg1);
 }
 
 export function SetCompact(arg1) {
@@ -72,6 +88,10 @@ export function SummarizeSelection() {
 
 export function TriggerSummary() {
   return window['go']['main']['App']['TriggerSummary']();
+}
+
+export function WindowShape() {
+  return window['go']['main']['App']['WindowShape']();
 }
 
 export function WsURL() {

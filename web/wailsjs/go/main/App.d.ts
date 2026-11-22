@@ -9,6 +9,8 @@ export function GestureCall(arg1:string,arg2:string,arg3:string):Promise<string>
 
 export function HideOverlay():Promise<void>;
 
+export function MakeDigitalPDF(arg1:string):Promise<string>;
+
 export function MoveBubble():Promise<void>;
 
 export function OpenAndReadFile():Promise<string>;
@@ -23,7 +25,13 @@ export function Quit():Promise<void>;
 
 export function ReadPhoto(arg1:string):Promise<string>;
 
+export function ReadSelection():Promise<string>;
+
 export function ReportDiagnostics(arg1:string):Promise<void>;
+
+export function ScanPDF(arg1:string,arg2:string):Promise<string>;
+
+export function ScanPaper(arg1:string):Promise<string>;
 
 export function SetCompact(arg1:boolean):Promise<void>;
 
@@ -36,5 +44,7 @@ export function SetScreenOverlay(arg1:boolean):Promise<void>;
 export function SummarizeSelection():Promise<string>;
 
 export function TriggerSummary():Promise<void>;
+
+export function WindowShape():Promise<string>;
 
 export function WsURL():Promise<string>;

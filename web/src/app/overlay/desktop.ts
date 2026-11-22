@@ -34,6 +34,15 @@ export interface SummaryResult {
   copied: boolean
 }
 
+/** A camera photo read by the reading service (app_scanpdf.go). No scanId: there is no PDF to show. */
+export interface ScannedPaper {
+  scanId: string
+  document: DocumentPayload
+}
+
+/** The PDFs of a scan: the searchable one (always) and the digital one (only on request, paid model). */
+export type ScanPdfKind = 'searchable' | 'digital'
+
 export interface FileDocument {
   name: string
   cancelled: boolean
@@ -47,6 +56,9 @@ interface GoBindings {
   Quit(): Promise<void>
   EnsureReadingService(): Promise<string>
   ReadPhoto(photo: string): Promise<string>
+  ScanPaper(photo: string): Promise<string>
+  ScanPDF(scanId: string, kind: ScanPdfKind): Promise<string>
+  MakeDigitalPDF(scanId: string): Promise<string>
   OpenAndReadFile(): Promise<string>
   /** Gesture Control's API in-process: {"status", "body"} as JSON text. */
   GestureCall(method: string, path: string, body: string): Promise<string>
@@ -68,12 +80,26 @@ interface GoBindings {
 }
 
 interface GoApp
-  extends Omit<GoBindings, 'OverlayInfo' | 'ReadPhoto' | 'OpenAndReadFile' | 'OpenFileForReading' | 'PDFPage' | 'SummarizeSelection'> {
+  extends Omit<
+    GoBindings,
+    | 'OverlayInfo'
+    | 'ReadPhoto'
+    | 'ScanPaper'
+    | 'ScanPDF'
+    | 'MakeDigitalPDF'
+    | 'OpenAndReadFile'
+    | 'OpenFileForReading'
+    | 'PDFPage'
+    | 'SummarizeSelection'
+  > {
   OpenFileForReading(): Promise<OpenedFile>
   PDFPage(id: string, page: number): Promise<PdfPageData>
   OverlayInfo(): Promise<OverlayInfo>
   SummarizeSelection(): Promise<SummaryResult>
   ReadPhoto(photo: string): Promise<DocumentPayload>
+  ScanPaper(photo: string): Promise<ScannedPaper>
+  ScanPDF(scanId: string, kind: ScanPdfKind): Promise<PdfSource>
+  MakeDigitalPDF(scanId: string): Promise<PdfSource>
   OpenAndReadFile(): Promise<FileDocument>
 }
 
@@ -92,6 +118,9 @@ export function desktop(): GoApp {
     ...app,
     OverlayInfo: async () => JSON.parse(await app.OverlayInfo()) as OverlayInfo,
     ReadPhoto: async (photo) => JSON.parse(await app.ReadPhoto(photo)) as DocumentPayload,
+    ScanPaper: async (photo) => JSON.parse(await app.ScanPaper(photo)) as ScannedPaper,
+    ScanPDF: async (scanId, kind) => JSON.parse(await app.ScanPDF(scanId, kind)) as PdfSource,
+    MakeDigitalPDF: async (scanId) => JSON.parse(await app.MakeDigitalPDF(scanId)) as PdfSource,
     OpenAndReadFile: async () => JSON.parse(await app.OpenAndReadFile()) as FileDocument,
     OpenFileForReading: async () => JSON.parse(await app.OpenFileForReading()) as OpenedFile,
     PDFPage: async (id, page) => JSON.parse(await app.PDFPage(id, page)) as PdfPageData,

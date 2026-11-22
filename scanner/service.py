@@ -9,7 +9,8 @@ POST /scan   body: the photo (PNG or JPEG; the type is sniffed from the bytes, C
              query: `languages=spa+cat+eng`, `digital=1` (also the digital PDF; slower, uses the vision model)
   200  DocumentPayload (blocks, quality, imageWidth, imageHeight, lang) + `pageCorners`: the 4 sheet corners
        on the photo, normalised, document top-left first ([{x, y}] x4, TL, TR, BR, BL).
-       Headers: X-Scan-Pdf (searchable PDF path), X-Scan-Digital-Pdf (if requested), X-Scan-Ms (total time).
+       Headers: X-Scan-Id (for GET /scan/<id>/pdf), X-Scan-Folder, X-Scan-Ms (total time). The PDFs are
+       finished in the background, after the answer: ask for them with GET /scan/<id>/pdf.
   422  {"error": "page_not_detected", "message", "quality"}: no sheet found with confidence. `quality.issues`
        says why when it can (too_far, blurry, dark...), so the app can tell the person how to hold the paper.
   400  {"error": "input_*", "message"}: not a PNG/JPEG, unreadable, too small...
@@ -21,6 +22,12 @@ POST /pdf?name=file.pdf   body: a PDF -> {id, name, pages, lang}: kept open (the
 GET  /pdf/<id>/page/<n>/lines   -> {page, ocr, lines: [{id, text, box, confidence}]} (n from 0; OCR if scanned)
 GET  /pdf/<id>/page/<n>.jpg?width=1100   -> the page as a JPEG.  404: unknown PDF or page.
      (PDF viewer that reads a whole PDF aloud, task N4: pdf_pages.py, docs/briefs/N4.md)
+GET  /scan/<id>/pdf?kind=searchable|digital&wait=60   -> {id, name, pages, lang}: waits for that scan's PDF
+     and opens it like POST /pdf (the PDF Scanner shows it in the PDF viewer and reads it on demand).
+     404 scan_not_found | pdf_not_made (e.g. no digital PDF yet)  504 pdf_not_ready (still being made).
+POST /scan/<id>/digital   (no body) -> {id, name, pages, lang}: makes the digital PDF of that scan now, only
+     when the person asks (it uses the paid vision model, ~0.002 USD a page; without a key, the local OCR).
+     422 digital_not_made (with the reason: no text, not light paper...).
 GET  /health  {"ok": true, "tesseract": "5.x", "busy": false}
 
 Only listens on 127.0.0.1. One scan at a time (the OCR already uses the CPU in parallel); others wait.
@@ -31,12 +38,15 @@ from __future__ import annotations
 
 import argparse
 import re
+import shutil
 import json
 import logging
 import os
 import sys
 import threading
 import time
+from collections import OrderedDict
+from dataclasses import dataclass, field
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -63,6 +73,9 @@ OUTPUT_DIR = ROOT / "pdf" / "output"
 MAX_BODY = 40 * 1024 * 1024        # a 4K PNG is ~10-20 MB
 MAX_PDF_BODY = 200 * 1024 * 1024   # POST /pdf: long PDFs are read page by page
 PDF_PAGE = re.compile(r"^/pdf/([0-9a-f]+)/page/(\d+)(/lines|\.jpg)$")
+SCAN_PDF = re.compile(r"^/scan/([A-Za-z0-9_-]+)/(pdf|digital)$")
+KEEP_SCANS = 10                     # the last scans whose PDFs can still be asked for
+PDF_WAIT_S = 60.0                   # GET /scan/<id>/pdf waits at most this for the PDF
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 JPEG_SIGNATURE = b"\xff\xd8\xff"
 NO_PAGE_MESSAGE = "No sheet found: hold the whole page flat inside the frame, at 30-40 cm"
@@ -108,6 +121,16 @@ def respond(result: Result) -> tuple[int, dict]:
     return 200, doc
 
 
+@dataclass
+class ScanJob:
+    """One scan whose PDFs are finished in the background (`done` once convert() has returned)."""
+    done: threading.Event = field(default_factory=threading.Event)
+    result: Result | None = None
+    digital_pdf: str | None = None
+    opened: dict = field(default_factory=dict)          # kind -> {id, name, pages, lang} in self.pdfs
+    digital_lock: threading.Lock = field(default_factory=threading.Lock)
+
+
 class ScanService:
     """The work behind the HTTP handler (also usable without HTTP, e.g. in tests)."""
 
@@ -117,6 +140,18 @@ class ScanService:
         self.lock = threading.Lock()
         self.busy = False
         self.pdfs = pdf_pages.PdfStore(self.output_dir, to_png, self.lock)
+        self.scans: OrderedDict[str, ScanJob] = OrderedDict()
+        self._scans_lock = threading.Lock()
+
+    def _job(self, scan_id: str) -> ScanJob | None:
+        with self._scans_lock:
+            return self.scans.get(scan_id)
+
+    def _remember(self, scan_id: str, job: ScanJob) -> None:
+        with self._scans_lock:
+            self.scans[scan_id] = job
+            while len(self.scans) > KEEP_SCANS:
+                self.scans.popitem(last=False)
 
     def scan(self, data: bytes, query: dict | None = None) -> tuple[int, dict, Result | None]:
         try:
@@ -134,6 +169,8 @@ class ScanService:
                          "quality": {"score": quality["score"], "issues": quality["issues"]}}, None
         name = datetime.now().strftime("scan-%Y%m%d-%H%M%S-%f")[:-3]
         options = self.options(query or {})
+        job = ScanJob()
+        self._remember(name, job)
         # The answer goes out as soon as the document is ready (after the OCR); the searchable and the
         # digital PDF are finished in the background (N3: the digital one took 6-30 s more). The lock
         # (one OCR at a time) is released at that moment too, so the next photo does not wait for them.
@@ -148,17 +185,20 @@ class ScanService:
 
         def document_ready(res: Result):
             state["answer"] = respond(res)
-            state["result"] = res
+            state["result"] = job.result = res   # the same object convert() finishes and returns
             release()
             ready.set()
 
         def work():
             try:
-                state["final"] = convert(png, self.output_dir, options, name=name, metadata={"source": "scan-service"})
+                state["final"] = job.result = convert(png, self.output_dir, options, name=name,
+                                                      metadata={"source": "scan-service"})
+                job.digital_pdf = job.result.digital_pdf
             except Exception as e:  # convert reports its errors; this is only a safety net
                 log.exception("Unexpected failure")
                 state["crash"] = e
             finally:
+                job.done.set()
                 release()
                 ready.set()
 
@@ -175,6 +215,80 @@ class ScanService:
         result = state["final"]
         status, body = respond(result)
         return status, body, result
+
+    def scan_id(self, result: Result | None) -> str | None:
+        """The id of the scan that gave `result` (for GET /scan/<id>/pdf)."""
+        with self._scans_lock:
+            for scan_id, job in reversed(self.scans.items()):
+                if result is not None and job.result is result:
+                    return scan_id
+        return None
+
+    def scan_pdf(self, scan_id: str, kind: str = "searchable", wait: float = PDF_WAIT_S) -> tuple[int, dict]:
+        """Waits for a scan's PDF (searchable or digital) and opens it in the PDF store (like POST /pdf)."""
+        if kind not in ("searchable", "digital"):
+            return 400, {"error": "bad_kind", "message": "kind is searchable or digital"}
+        job = self._job(scan_id)
+        if job is None:
+            return 404, {"error": "scan_not_found", "message": "Unknown or old scan: scan the paper again"}
+        if not job.done.wait(wait):
+            return 504, {"error": "pdf_not_ready", "message": "The PDF is still being made: ask again"}
+        known = job.opened.get(kind)
+        if known:
+            try:
+                self.pdfs.get(known["id"])
+                return 200, known
+            except KeyError:  # pushed out of the store by newer PDFs: open it again
+                pass
+        result = job.result
+        path = None if result is None else (result.pdf if kind == "searchable" else job.digital_pdf)
+        if not path or not Path(path).is_file():
+            reason = result.error.get("message") if result is not None and result.error else None
+            return 404, {"error": "pdf_not_made", "message": reason or f"This scan has no {kind} PDF"}
+        info = self.pdfs.open(Path(path).read_bytes(),
+                              f"{scan_id}.pdf" if kind == "searchable" else f"{scan_id}-digital.pdf")
+        job.opened[kind] = info
+        return 200, info
+
+    def make_digital(self, scan_id: str) -> tuple[int, dict]:
+        """Makes the digital PDF of a scan now, from its original photo, and opens it. Only on request:
+        it uses the paid vision model (off by default since R3)."""
+        job = self._job(scan_id)
+        if job is None:
+            return 404, {"error": "scan_not_found", "message": "Unknown or old scan: scan the paper again"}
+        if not job.done.wait(PDF_WAIT_S):
+            return 504, {"error": "pdf_not_ready", "message": "The scan is not finished yet: ask again"}
+        with job.digital_lock:  # two clicks make it once
+            if not job.digital_pdf:
+                if job.result is None or not job.result.folder:
+                    return 404, {"error": "pdf_not_made", "message": "This scan failed: scan the paper again"}
+                folder = Path(job.result.folder)
+                original = folder / "original.png"
+                if not original.is_file():
+                    return 404, {"error": "scan_not_found", "message": "The scan's photo is gone: scan again"}
+                options = self.options({})
+                options.digital = True
+                with self.lock:  # one OCR at a time, as POST /scan
+                    self.busy = True
+                    try:
+                        digital = convert(original.read_bytes(), self.output_dir, options, name=f"{scan_id}-digital",
+                                          metadata={"source": "scan-service", "digital_of": scan_id})
+                    finally:
+                        self.busy = False
+                made = digital.digital_pdf and Path(digital.digital_pdf).is_file()
+                if made:
+                    # Next to the searchable one, in the scan's own folder; the extra folder goes.
+                    target = folder / f"{scan_id}-digital.pdf"
+                    shutil.copyfile(digital.digital_pdf, target)
+                    job.digital_pdf = str(target)
+                    log.info("digital PDF of %s: %s", scan_id, (digital.digital or {}).get("method", "?"))
+                reason = (digital.digital or {}).get("reason") or (digital.error or {}).get("message")
+                if digital.folder:
+                    shutil.rmtree(digital.folder, ignore_errors=True)
+                if not made:
+                    return 422, {"error": "digital_not_made",
+                                 "message": f"The digital PDF could not be made: {reason or 'no text found'}"}
+        return self.scan_pdf(scan_id, "digital", 0)
 
     def document(self, data: bytes, query: dict | None = None) -> tuple[int, dict]:
         """A file from the computer -> its lines (documents.py)."""
@@ -216,6 +330,18 @@ def make_handler(service: ScanService):
             u = urlparse(self.path)
             if u.path == "/health":
                 return self._json(200, {"ok": True, "tesseract": TESSERACT_VERSION, "busy": service.busy})
+            m = SCAN_PDF.match(u.path)
+            if m and m.group(2) == "pdf":
+                query = {k: v[0] for k, v in parse_qs(u.query).items()}
+                t0 = time.perf_counter()
+                try:
+                    wait = min(float(query.get("wait", PDF_WAIT_S)), PDF_WAIT_S)
+                    status, body = service.scan_pdf(m.group(1), query.get("kind", "searchable"), wait)
+                except Exception as e:  # never leave Go without an answer
+                    log.exception("Unexpected failure")
+                    return self._json(500, {"error": "internal", "message": f"{type(e).__name__}: {e}"})
+                log.info("GET %s -> %s in %d ms", self.path, status, round((time.perf_counter() - t0) * 1000))
+                return self._json(status, body)
             m = PDF_PAGE.match(u.path)
             if not m:
                 return self._json(404, {"error": "not_found"})
@@ -242,6 +368,16 @@ def make_handler(service: ScanService):
 
         def do_POST(self):
             u = urlparse(self.path)
+            m = SCAN_PDF.match(u.path)
+            if m and m.group(2) == "digital":
+                t0 = time.perf_counter()
+                try:
+                    status, body = service.make_digital(m.group(1))
+                except Exception as e:  # never leave Go without an answer
+                    log.exception("Unexpected failure")
+                    return self._json(500, {"error": "internal", "message": f"{type(e).__name__}: {e}"})
+                log.info("POST %s -> %s in %d ms", u.path, status, round((time.perf_counter() - t0) * 1000))
+                return self._json(status, body)
             if u.path not in ("/scan", "/document", "/pdf"):
                 return self._json(404, {"error": "not_found"})
             length = int(self.headers.get("Content-Length") or 0)
@@ -277,6 +413,9 @@ def make_handler(service: ScanService):
                 return self._json(500, {"error": "internal", "message": f"{type(e).__name__}: {e}"})
             ms = round((time.perf_counter() - t0) * 1000)
             headers = {"X-Scan-Ms": str(ms)}
+            scan_id = service.scan_id(result)
+            if scan_id:
+                headers["X-Scan-Id"] = scan_id   # GET /scan/<id>/pdf
             if result is not None and result.folder:
                 headers["X-Scan-Folder"] = Path(result.folder).as_posix()   # the PDFs end up here
             if result is not None and result.pdf:

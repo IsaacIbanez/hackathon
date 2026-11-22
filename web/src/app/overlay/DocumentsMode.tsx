@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import type { DocumentPayload } from '../../api'
 import { captureStill, openCamera, startFramingGuide, type FramingGuide } from '../../camera/index.ts'
-import { GuidedReader } from '../../document/index.ts'
+import { GuidedReader, PdfViewer, type PdfSource } from '../../document/index.ts'
 import { Speaker } from '../../input/voice/speaker.ts'
-import { blobToDataURL, desktop, errorText } from './desktop.ts'
+import { blobToDataURL, desktop, errorText, type ScanPdfKind } from './desktop.ts'
 import { Status } from './ui.tsx'
 
 // Option 2 (Pau B1 + Didac B2): the camera with the spoken framing guide takes the photo on its own
-// when the paper is still (Enter takes it now), the reading service reads it and the guided reader
-// reads it aloud. Local and free: no model is called.
+// when the paper is still (Enter takes it now) and the reading service reads it. The result is the
+// scan's PDF, shown in the PDF viewer (N4); it is read aloud only when the person asks (Space or the
+// button). The digital PDF is made only on request: it uses the paid vision model (docs/briefs/scan-preview.md).
 
 const LANG = 'es-ES'
 const SAY = {
@@ -16,9 +17,13 @@ const SAY = {
   reading: 'Un momento, estoy leyendo el documento.',
   noPage: 'No encuentro la hoja. Ponla entera delante de la cámara, plana, y pulsa Intro para repetir.',
   failed: 'No he podido leer el documento.',
+  ready: 'Ya está. Pulsa Espacio para escucharlo.',
+  digitalReady: 'El PDF digital está listo. Pulsa Espacio para escucharlo.',
 }
 
-type Phase = 'starting' | 'framing' | 'reading' | 'done' | 'error'
+const PDF_LABEL: Record<ScanPdfKind, string> = { searchable: 'Scanned PDF', digital: 'Digital PDF' }
+
+type Phase = 'starting' | 'framing' | 'reading' | 'pdf' | 'done' | 'error'
 
 export function DocumentsMode() {
   const videoRef = useRef<HTMLVideoElement | null>(null)
@@ -28,7 +33,16 @@ export function DocumentsMode() {
   const [phase, setPhase] = useState<Phase>('starting')
   const [message, setMessage] = useState('Starting the camera…')
   const [doc, setDoc] = useState<DocumentPayload | null>(null)
+  const [scanId, setScanId] = useState('')
+  const [pdfs, setPdfs] = useState<Partial<Record<ScanPdfKind, PdfSource>>>({})
+  const [shown, setShown] = useState<ScanPdfKind>('searchable')
+  const [digitalBusy, setDigitalBusy] = useState(false)
   const [attempt, setAttempt] = useState(0)
+  // Answers that arrive after "Read another paper" belong to the old paper: they are dropped.
+  const attemptRef = useRef(attempt)
+  useEffect(() => {
+    attemptRef.current = attempt
+  }, [attempt])
 
   const stopCamera = () => {
     guideRef.current?.stop()
@@ -42,13 +56,35 @@ export function DocumentsMode() {
     setPhase('reading')
     setMessage('Reading the document…')
     speaker.speak({ text: SAY.reading, lang: LANG })
+    const mine = attemptRef.current
     try {
-      const result = await desktop().ReadPhoto(await blobToDataURL(photo))
-      speaker.stop()
-      setDoc(result)
+      const { scanId: id, document } = await desktop().ScanPaper(await blobToDataURL(photo))
+      if (mine !== attemptRef.current) return
+      setDoc(document)
+      setScanId(id)
+      if (!id) {
+        // No PDF to show (SCANNER_URL=fixture): the lines, read only on request.
+        speaker.speak({ text: SAY.ready, lang: LANG })
+        setPhase('done')
+        setMessage(`Done: ${document.blocks.length} lines. Space reads them aloud.`)
+        return
+      }
+      setPhase('pdf')
+      setMessage('Making the PDF…')
+      try {
+        const pdf = await desktop().ScanPDF(id, 'searchable')
+        if (mine !== attemptRef.current) return
+        setPdfs({ searchable: pdf })
+        setShown('searchable')
+        setMessage('Done: this is the PDF of your paper. Space reads it aloud.')
+      } catch (e) {
+        if (mine !== attemptRef.current) return
+        setMessage(`The PDF could not be made (${errorText(e)}). The text is below: Space reads it aloud.`)
+      }
+      speaker.speak({ text: SAY.ready, lang: LANG })
       setPhase('done')
-      setMessage(`Done: ${result.blocks.length} lines. Listen below, or read another paper.`)
     } catch (e) {
+      if (mine !== attemptRef.current) return
       const text = errorText(e)
       const noPage = text.startsWith('no_page')
       setPhase('error')
@@ -104,8 +140,33 @@ export function DocumentsMode() {
     guideRef.current?.stop()
     void readRef.current(await captureStill(videoRef.current))
   }
+  const makeDigital = async () => {
+    if (!scanId || digitalBusy) return
+    const mine = attemptRef.current
+    setDigitalBusy(true)
+    setMessage('Making the digital PDF with the AI vision model. This takes up to half a minute…')
+    try {
+      const pdf = await desktop().MakeDigitalPDF(scanId)
+      if (mine !== attemptRef.current) return
+      setPdfs((p) => ({ ...p, digital: pdf }))
+      setShown('digital')
+      setMessage('Done: this is the digital PDF. Space reads it aloud.')
+      speaker.speak({ text: SAY.digitalReady, lang: LANG })
+    } catch (e) {
+      if (mine !== attemptRef.current) return
+      setMessage(`The digital PDF could not be made (${errorText(e)}). The scanned PDF is still here.`)
+    } finally {
+      setDigitalBusy(false)
+    }
+  }
+
   const again = () => {
+    speaker.stop()
     setDoc(null)
+    setScanId('')
+    setPdfs({})
+    setShown('searchable')
+    setDigitalBusy(false)
     setPhase('starting')
     setMessage('Starting the camera…')
     setAttempt((a) => a + 1)
@@ -149,12 +210,33 @@ export function DocumentsMode() {
       )}
       {phase === 'done' && (
         <>
-          <div>
+          <div className="flex flex-wrap items-center gap-3">
             <button type="button" onClick={again} className="btn">
               Read another paper <span className="kbd">Enter</span>
             </button>
+            {(Object.keys(pdfs) as ScanPdfKind[]).length > 1 &&
+              (['searchable', 'digital'] as const).map((kind) => (
+                <button
+                  key={kind}
+                  type="button"
+                  aria-pressed={shown === kind}
+                  onClick={() => setShown(kind)}
+                  className={shown === kind ? 'btn btn-primary' : 'btn'}
+                >
+                  {PDF_LABEL[kind]}
+                </button>
+              ))}
+            {pdfs.searchable && !pdfs.digital && (
+              <button type="button" disabled={digitalBusy} onClick={() => void makeDigital()} className="btn">
+                {digitalBusy ? 'Making the digital PDF…' : 'Make digital PDF'}
+              </button>
+            )}
           </div>
-          <GuidedReader doc={doc} autoPlay />
+          {pdfs[shown] ? (
+            <PdfViewer key={pdfs[shown].id} pdf={pdfs[shown]} loadPage={(n) => desktop().PDFPage(pdfs[shown]!.id, n)} />
+          ) : (
+            <GuidedReader doc={doc} />
+          )}
         </>
       )}
     </div>

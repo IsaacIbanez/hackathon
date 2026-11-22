@@ -241,3 +241,70 @@ class TestPdfPages(ServiceServer):
         ids = [self.open_pdf("01-carta-renovacion.pdf")["id"] for _ in range(4)]
         self.assertEqual(self.get(f"/pdf/{ids[0]}/page/0/lines")[0], 404)
         self.assertEqual(self.get(f"/pdf/{ids[-1]}/page/0/lines")[0], 200)
+
+
+class TestScanPdf(unittest.TestCase):
+    """GET /scan/<id>/pdf and POST /scan/<id>/digital: the PDF Scanner shows the scan's PDF (preview)
+    and makes the digital one only on request. The digital PDF uses the local OCR here (no paid model)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        options = lambda q: Options(save_intermediates=False, digital_ai=False)  # noqa: E731
+        cls.service = service.ScanService(Path(cls.tmp.name), options)
+        cls.server = ThreadingHTTPServer(("127.0.0.1", 0), service.make_handler(cls.service))
+        threading.Thread(target=cls.server.serve_forever, daemon=True).start()
+        cls.url = f"http://127.0.0.1:{cls.server.server_address[1]}"
+        cls.photo = synthetic.with_shadow(synthetic.on_desk(synthetic.page(), synthetic.PERSPECTIVE_CORNERS))
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.server.shutdown()
+        cls.server.server_close()
+        cls.tmp.cleanup()
+
+    def call(self, path: str, body: bytes | None = None):
+        req = urllib.request.Request(self.url + path, data=body, method="POST" if body is not None else "GET")
+        try:
+            with urllib.request.urlopen(req, timeout=120) as r:
+                return r.status, json.load(r), dict(r.headers)
+        except urllib.error.HTTPError as e:
+            return e.code, json.load(e), dict(e.headers)
+
+    def test_unknown_scan(self):
+        self.assertEqual(self.call("/scan/scan-nope/pdf")[:2], (404, {"error": "scan_not_found",
+                                                                     "message": "Unknown or old scan: scan the paper again"}))
+        self.assertEqual(self.call("/scan/scan-nope/digital", b"")[1]["error"], "scan_not_found")
+        status, body = self.service.scan_pdf("scan-nope", "other")
+        self.assertEqual((status, body["error"]), (400, "bad_kind"))
+
+    def test_no_sheet_has_no_scan_id(self):
+        blank = np.full((1440, 1920, 3), 40, np.uint8)
+        status, _, headers = self.call("/scan", synthetic.png(blank))
+        self.assertEqual(status, 422)
+        self.assertNotIn("X-Scan-Id", headers)
+
+    @unittest.skipUnless(TESSERACT, "needs Tesseract")
+    def test_scan_then_pdf_then_digital(self):
+        status, body, headers = self.call("/scan", synthetic.png(self.photo))
+        self.assertEqual(status, 200, body)
+        scan_id = headers["X-Scan-Id"]
+        # The searchable PDF: the call waits until it is written, then it reads like any open PDF.
+        status, info, _ = self.call(f"/scan/{scan_id}/pdf")
+        self.assertEqual(status, 200, info)
+        self.assertEqual((info["name"], info["pages"]), (f"{scan_id}.pdf", 1))
+        self.assertEqual(self.call(f"/scan/{scan_id}/pdf")[1]["id"], info["id"])  # opened once
+        with urllib.request.urlopen(f"{self.url}/pdf/{info['id']}/page/0/lines", timeout=120) as r:
+            lines = json.load(r)["lines"]
+        self.assertIn("siniestro", " ".join(line["text"] for line in lines).lower())
+        # No digital PDF until it is asked for (paid model, off by default since R3).
+        self.assertEqual(self.call(f"/scan/{scan_id}/pdf?kind=digital")[1]["error"], "pdf_not_made")
+        status, digital, _ = self.call(f"/scan/{scan_id}/digital", b"")
+        self.assertEqual(status, 200, digital)
+        self.assertEqual(digital["name"], f"{scan_id}-digital.pdf")
+        self.assertNotEqual(digital["id"], info["id"])
+        folder = Path(self.tmp.name) / scan_id
+        self.assertTrue((folder / f"{scan_id}-digital.pdf").is_file())
+        self.assertFalse((Path(self.tmp.name) / f"{scan_id}-digital").exists())  # no extra folder left
+        # Asking again gives the same digital PDF without making it twice.
+        self.assertEqual(self.call(f"/scan/{scan_id}/digital", b"")[1]["id"], digital["id"])

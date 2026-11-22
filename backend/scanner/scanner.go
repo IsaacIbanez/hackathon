@@ -54,34 +54,41 @@ func New() *Client {
 
 // Scan sends the photo and returns the document read from it.
 func (c *Client) Scan(ctx context.Context, photo []byte, contentType string) (gen.DocumentPayload, error) {
+	doc, _, err := c.ScanWithID(ctx, photo, contentType)
+	return doc, err
+}
+
+// ScanWithID is Scan plus the scan's id (header X-Scan-Id), used to ask for its PDFs (ScanPDF).
+// The id is empty when the service did not keep the scan (an older service, or no sheet).
+func (c *Client) ScanWithID(ctx context.Context, photo []byte, contentType string) (gen.DocumentPayload, string, error) {
 	var doc gen.DocumentPayload
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.URL, bytes.NewReader(photo))
 	if err != nil {
-		return doc, err
+		return doc, "", err
 	}
 	req.Header.Set("Content-Type", contentType)
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
 		if ctx.Err() != nil {
-			return doc, ctx.Err()
+			return doc, "", ctx.Err()
 		}
-		return doc, fmt.Errorf("%w: %v", ErrUnavailable, err)
+		return doc, "", fmt.Errorf("%w: %v", ErrUnavailable, err)
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
 	if err != nil {
-		return doc, fmt.Errorf("%w: reading the answer: %v", ErrUnavailable, err)
+		return doc, "", fmt.Errorf("%w: reading the answer: %v", ErrUnavailable, err)
 	}
 	switch resp.StatusCode {
 	case http.StatusOK:
 		if err := json.Unmarshal(body, &doc); err != nil {
-			return doc, fmt.Errorf("scanner: answer is not a DocumentPayload: %w", err)
+			return doc, "", fmt.Errorf("scanner: answer is not a DocumentPayload: %w", err)
 		}
-		return doc, nil
+		return doc, resp.Header.Get("X-Scan-Id"), nil
 	case http.StatusUnprocessableEntity:
-		return doc, fmt.Errorf("%w: %s", ErrNoPage, short(body))
+		return doc, "", fmt.Errorf("%w: %s", ErrNoPage, short(body))
 	default:
-		return doc, fmt.Errorf("scanner: HTTP %d: %s", resp.StatusCode, short(body))
+		return doc, "", fmt.Errorf("scanner: HTTP %d: %s", resp.StatusCode, short(body))
 	}
 }
 
