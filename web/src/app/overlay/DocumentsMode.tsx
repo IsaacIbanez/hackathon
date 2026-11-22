@@ -12,7 +12,8 @@ import { Status } from './ui.tsx'
 // - the scanned PDF: the photo as a searchable PDF (ready right after the text is read);
 // - the AI version: the document rebuilt as a clean digital PDF by the vision model (~30 s more,
 //   paid: about 0.03 USD a scan).
-// Both are shown in the PDF viewer (N4), which reads aloud only when asked.
+// Both are shown in the PDF viewer (N4), which reads aloud only when asked; «Download PDF» saves a copy
+// of the one on screen.
 
 const PDF_LABEL: Record<ScanPdfKind, string> = { searchable: 'Scanned PDF', digital: 'AI version' }
 
@@ -27,6 +28,8 @@ export function DocumentsMode() {
   const [pdfs, setPdfs] = useState<Partial<Record<ScanPdfKind, PdfSource>>>({})
   const [shown, setShown] = useState<ScanPdfKind>('searchable')
   const [aiState, setAiState] = useState<'idle' | 'making' | 'failed'>('idle')
+  const [scanId, setScanId] = useState<string | null>(null)
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'failed'>('idle')
   const [attempt, setAttempt] = useState(0)
   // Answers that arrive after "Read another paper" belong to the old paper: they are dropped.
   const attemptRef = useRef(attempt)
@@ -71,6 +74,7 @@ export function DocumentsMode() {
         setMessage(`Done: ${document.blocks.length} lines. Space reads them aloud.`)
         return
       }
+      setScanId(id)
       setMessage('Making the scanned PDF…')
       try {
         const pdf = await desktop().ScanPDF(id, 'searchable')
@@ -128,9 +132,26 @@ export function DocumentsMode() {
     void read(await captureStill(videoRef.current))
   }
 
+  /** Saves a copy of the PDF on screen where the person picks («Save as» dialog). */
+  const savePdf = async () => {
+    if (!scanId || saveState === 'saving') return
+    const kind = shown
+    setSaveState('saving')
+    try {
+      const path = await desktop().SaveScanPDF(scanId, kind)
+      setSaveState('idle')
+      if (path) setMessage(`${PDF_LABEL[kind]} saved in ${path}`)
+    } catch (e) {
+      setSaveState('failed')
+      setMessage(`The PDF could not be saved (${errorText(e)}).`)
+    }
+  }
+
   const again = () => {
     setDoc(null)
     setPdfs({})
+    setScanId(null)
+    setSaveState('idle')
     setShown('searchable')
     setAiState('idle')
     setPhase('starting')
@@ -157,7 +178,7 @@ export function DocumentsMode() {
   const kinds = (['searchable', 'digital'] as const).filter((k) => pdfs[k])
   return (
     <div className="flex h-full flex-col gap-4">
-      <Status tone={phase === 'error' || aiState === 'failed' ? 'warn' : 'info'}>{message}</Status>
+      <Status tone={phase === 'error' || aiState === 'failed' || saveState === 'failed' ? 'warn' : 'info'}>{message}</Status>
       {(phase === 'starting' || phase === 'framing' || phase === 'reading') && (
         <div className="relative min-h-[18rem] flex-1 overflow-hidden rounded-card border border-edge bg-ink">
           <video ref={videoRef} muted playsInline className="h-full w-full object-contain" />
@@ -195,6 +216,16 @@ export function DocumentsMode() {
                   {PDF_LABEL[kind]}
                 </button>
               ))}
+            {scanId && pdfs[shown] && (
+              <button
+                type="button"
+                onClick={() => void savePdf()}
+                disabled={saveState === 'saving'}
+                className="btn text-lead"
+              >
+                {saveState === 'saving' ? 'Saving…' : 'Download PDF'}
+              </button>
+            )}
             {aiState === 'making' && <span className="text-body text-fg-muted">Making the AI version…</span>}
             <button type="button" onClick={again} className="btn ml-auto text-lead">
               Read another paper <span className="kbd">Enter</span>

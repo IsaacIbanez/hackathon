@@ -3,10 +3,14 @@ package scanner
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
+	"regexp"
 	"time"
 )
 
@@ -74,4 +78,33 @@ func (c *Client) pdfInfo(ctx context.Context, h *http.Client, req *http.Request)
 		return info, fmt.Errorf("reading service: bad PDF answer: %w", err)
 	}
 	return info, nil
+}
+
+// scanIDPattern is what the reading service names a scan (scan-20261122-105429-367); anything else
+// could leave the output folder.
+var scanIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+
+// ScanPDFFile is where the reading service (scanner/service.py) leaves a scan's PDF on disk, under
+// the repository root: scanner/pdf/output/<scan>/<scan>.pdf, and <scan>-digital.pdf for the AI version.
+func ScanPDFFile(root, scanID, kind string) (string, error) {
+	if root == "" {
+		return "", errors.New("scanner/service.py was not found next to the app, so its PDFs cannot be found")
+	}
+	if !scanIDPattern.MatchString(scanID) {
+		return "", fmt.Errorf("bad scan id %q", scanID)
+	}
+	var name string
+	switch kind {
+	case PDFSearchable:
+		name = scanID + ".pdf"
+	case PDFDigital:
+		name = scanID + "-digital.pdf"
+	default:
+		return "", fmt.Errorf("bad PDF kind %q (searchable or digital)", kind)
+	}
+	path := filepath.Join(root, "scanner", "pdf", "output", scanID, name)
+	if _, err := os.Stat(path); err != nil {
+		return "", fmt.Errorf("the PDF is no longer on disk (%s): scan the paper again", path)
+	}
+	return path, nil
 }

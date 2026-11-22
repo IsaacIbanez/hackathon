@@ -63,6 +63,8 @@ interface GoBindings {
   ScanPaper(photo: string): Promise<string>
   ScanPDF(scanId: string, kind: ScanPdfKind): Promise<string>
   MakeDigitalPDF(scanId: string): Promise<string>
+  /** Saves a copy of a scan's PDF with a «Save as» dialog: the saved path, or "" if cancelled. */
+  SaveScanPDF(scanId: string, kind: ScanPdfKind): Promise<string>
   OpenAndReadFile(): Promise<string>
   /** Gesture Control's API in-process: {"status", "body"} as JSON text. */
   GestureCall(method: string, path: string, body: string): Promise<string>

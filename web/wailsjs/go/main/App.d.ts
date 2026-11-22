@@ -35,6 +35,8 @@ export function ReadSelection():Promise<string>;
 
 export function ReportDiagnostics(arg1:string):Promise<void>;
 
+export function SaveScanPDF(arg1:string,arg2:string):Promise<string>;
+
 export function ScanPDF(arg1:string,arg2:string):Promise<string>;
 
 export function ScanPaper(arg1:string):Promise<string>;
