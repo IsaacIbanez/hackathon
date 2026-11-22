@@ -68,6 +68,7 @@ main.go, app*.go, wails.json   raíz (lo exige Wails): app_overlay.go (overlay),
 api/                 contrato: openapi.yaml, fixtures/, gen/ (tipos Go generados)
 backend/llm          modelos, caché, coste · backend/session  sesión, prompts, /scan, /transcribe
 backend/summary      resumen de la selección (opción AI Summary)
+backend/captions     subtítulos en directo: GET /captions (Together AI); página en web/src/captions
 backend/scanner      cliente Go del servicio de lectura · backend/overlay  atajos, keypad USB, selección, procesos
 backend/ws           WebSocket · backend/mock y backend/cmd/{mock,server,llmcheck}
 web/src/app          pantallas comunes; web/src/app/overlay  menú y herramientas del overlay
@@ -88,7 +89,7 @@ docs/                OVERLAY, DISENO, KEYPAD, COMO_PROBAR, DECISIONES, PITCH, AR
 |---|---|
 | Isaac (A) | `api/`, `backend/` (salvo `backend/summary`), `web/src/app/`, raíz Go, CI, `docs/` |
 | Didac (B2) | `scanner/` (pipeline y servicio), `web/src/document/`, `backend/summary`, diseño del overlay |
-| Pau (B1) | `web/src/camera/`, `scanner/capturar.py` |
+| Pau (B1) | `web/src/camera/`, `scanner/capturar.py`, `scanner/benchmark/`, `backend/captions/`, `web/src/captions/` |
 | Nil (C) | `web/src/input/`, `web/src/app/Gestures.tsx`, `adapters/desktop/`, `GesturesMode.tsx` |
 
 No edites código de otra persona sin avisarla.
@@ -104,6 +105,7 @@ No edites código de otra persona sin avisarla.
 - **Gesture Control** va dentro de la app: un solo ejecutable (Nil).
 - **MX Keypad:** se lee por USB, sin Options+; atajos de respaldo Ctrl+Alt+Shift+N (`docs/KEYPAD.md`, Isaac).
   - Teclas: 1 abrir/cerrar · 2 y 3 grabar y parar una orden de voz · 4 papel · 5 archivo · 6 leer/pausa · 7 resumen · 8 gestos · 9 menú.
+- **Subtítulos en directo** (`GET /captions`, Pau): micro o llamada → Together AI; quién habla, idioma, barbarismos entre comillas y traducción; `.txt` guardado. Clave `TOGETHER_API_KEY` en `.env`, tope de 1 $ por sesión (`web/src/captions/README.md`).
 - **AI Summary:** resume el texto seleccionado en cualquier programa, con el modelo barato. Es el resumen que se queda (Didac).
 - **Visor de PDF:** lee el PDF entero en voz alta, página a página (N4, Didac).
 - **API local protegida** (`ws.Guard`): solo 127.0.0.1 o localhost y los orígenes de la app.

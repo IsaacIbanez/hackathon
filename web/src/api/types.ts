@@ -91,6 +91,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/captions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Live captions WebSocket (speech to text, speakers and translation)
+         * @description Upgrade to WebSocket. Separate from `/ws`: it carries audio, not contract envelopes.
+         *     Go relays the audio to a streaming speech-to-text service (Together AI realtime,
+         *     `CAPTIONS_ASR_MODEL`), labels speakers with a batch diarization pass every ~15 s and
+         *     once more over the whole recording when the client stops, and sends each final
+         *     sentence to a small language model (`CAPTIONS_TRANSLATE_MODEL`) that finds its main
+         *     language (people may speak different languages), wraps words from another language in
+         *     double quotes (barbarisms such as "el \"meeting\"") and translates it. It saves the
+         *     transcript as a `.txt` file outside the repository. The API key (`TOGETHER_API_KEY`)
+         *     stays in Go.
+         *
+         *     Client -> server:
+         *     - binary frames: raw PCM, signed 16-bit little-endian, 16 kHz, mono (~100 ms each);
+         *     - text frames: `CaptionsClientMessage` (`config` changes the target language live,
+         *       `stop` ends the session: Go finishes the transcript, sends `saved` and closes).
+         *
+         *     Server -> client: text frames with one `CaptionsEvent` each.
+         *
+         *     The session stops by itself when its cost reaches `CAPTIONS_LIMIT_USD` (default 1 USD):
+         *     `error` with code `limit_reached`, then `saved`.
+         */
+        get: operations["openCaptions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ws": {
         parameters: {
             query?: never;
@@ -127,6 +165,61 @@ export interface components {
             costUsd: number;
             /** Format: int64 */
             latencyMs: number;
+        };
+        /** @description Text frame from the client on `/captions`. */
+        CaptionsClientMessage: {
+            /** @enum {string} */
+            type: "config" | "stop";
+            /**
+             * @description `config` only: new target language (ISO 639-1) or `none`.
+             * @example en
+             */
+            target?: string;
+        };
+        /**
+         * @description Text frame from Go on `/captions`. Which fields are set depends on `type`:
+         *     - `ready` {model, lang, target}: connected to the speech-to-text service.
+         *     - `partial` {text}: the sentence being spoken; each one replaces the previous.
+         *     - `final` {id, start, text, lang?}: a finished sentence; `start` = seconds since the
+         *       session began; `lang` = its main language (ISO 639-1), when already known. Words from
+         *       another language come in double quotes.
+         *     - `revise` {id, text, lang}: a better text or language for sentence `id` (e.g. after
+         *       learning who said it); replaces the previous one.
+         *     - `speaker` {id, speaker}: who said sentence `id` ("Speaker 1"...). May arrive several
+         *       times for the same `id` (live estimate first, whole-recording pass at the end).
+         *     - `translation` {id, lang, text}: translation of sentence `id`.
+         *     - `cost` {costUsd, limitUsd}: running cost of this session.
+         *     - `saved` {path}: the transcript file was written (every minute and when stopping).
+         *     - `error` {code, message, retryable}: `no_key`, `upstream`, `limit_reached`,
+         *       `translation` and `diarization` (the last two are not fatal).
+         */
+        CaptionsEvent: {
+            /** @enum {string} */
+            type: "ready" | "partial" | "final" | "revise" | "speaker" | "translation" | "cost" | "saved" | "error";
+            /** @example s3 */
+            id?: string;
+            text?: string;
+            /**
+             * Format: double
+             * @example 12.4
+             */
+            start?: number;
+            /** @example Speaker 1 */
+            speaker?: string;
+            /** @example en */
+            lang?: string;
+            /** @example en */
+            target?: string;
+            model?: string;
+            /** Format: double */
+            costUsd?: number;
+            /** Format: double */
+            limitUsd?: number;
+            path?: string;
+            /** @enum {string} */
+            code?: "no_key" | "upstream" | "limit_reached" | "translation" | "diarization";
+            message?: string;
+            retryable?: boolean;
         };
         /** @enum {string} */
         MessageType: "document" | "pointer" | "utterance" | "speak" | "stats";
@@ -466,6 +559,31 @@ export interface operations {
             };
             /** @description No audio model answered */
             502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    openCaptions: {
+        parameters: {
+            query?: {
+                /** @description Spoken language, ISO 639-1 (`es`, `en`...) or `auto` (default). */
+                lang?: string;
+                /** @description Translate final sentences to this ISO 639-1 language; `none` (default) = no translation. */
+                target?: string;
+                /** @description How many people talk, if known (1-10); it helps telling them apart. 0 or absent = unknown. */
+                speakers?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Switching protocols to WebSocket */
+            101: {
                 headers: {
                     [name: string]: unknown;
                 };

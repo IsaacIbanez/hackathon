@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/IsaacIbanez/hackathon/api/gen"
+	"github.com/IsaacIbanez/hackathon/backend/captions"
 	"github.com/IsaacIbanez/hackathon/backend/scanner"
 	"github.com/IsaacIbanez/hackathon/backend/ws"
 )
@@ -25,6 +26,7 @@ const MaxPhotoBytes = 40 << 20
 //	POST /message  one contract envelope as the body (for the scanner); answers 202
 //	POST /scan     a camera photo: Go has it read by the reading service; answers 202
 //	POST /transcribe?lang=es-ES  a WAV recording -> {"text": ...} (cloud backup of the voice)
+//	GET  /captions WebSocket: live captions with speakers and translation (backend/captions)
 //
 // The hub is returned so the caller can Close it on shutdown.
 func NewMux(model Model, cfg Config) (http.Handler, *ws.Hub) {
@@ -46,6 +48,7 @@ func NewMux(model Model, cfg Config) (http.Handler, *ws.Hub) {
 	mux.HandleFunc("POST /transcribe", func(w http.ResponseWriter, r *http.Request) {
 		handleTranscribe(w, r, sess, hub)
 	})
+	mux.Handle("GET /captions", captions.New(captions.FromEnv(), OriginPatterns))
 	return ws.Guard(mux, OriginPatterns), hub
 }
 

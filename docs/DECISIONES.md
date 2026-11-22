@@ -2,6 +2,15 @@
 
 Registro completo, de la más nueva a la más antigua. Movido desde `AGENTS.md` el 2026-11-22 para ahorrar tokens: `AGENTS.md` solo resume las vigentes. **Si tomas una decisión que cambia una interfaz o el contrato, añádela aquí arriba** (una entrada corta) y, si afecta al trabajo diario, una línea en «Decisiones vigentes» de `AGENTS.md`.
 
+- 2026-11-22 — **Escaneo medido y mejorado (N3, Pau; `docs/medidas/N3.md`):**
+  - El servicio de lectura responde en cuanto el `document` está listo; el PDF buscable y el PDF digital se terminan en segundo plano.
+  - El PDF digital va activado por defecto (`?digital=0` o `SCANNER_DIGITAL=0` lo quitan).
+  - Sin hoja detectada pero con texto sobre papel, el servicio devuelve el `document` sin `pageCorners` (opcional en el contrato) en vez de 422.
+- 2026-11-22 — **Subtítulos en directo (Pau; brief `docs/briefs/pau.md`, `web/src/captions/README.md`):**
+  - El navegador manda el audio (PCM 16 kHz) a Go por `GET /captions` (WebSocket); Go lo pasa a Together AI: subtítulos en directo y diarización por lotes con Parakeet v3; idioma, barbarismos entre comillas y traducción con Qwen3.5-9B (sin razonamiento).
+  - Contrato 0.8, solo añade: `GET /captions`, `CaptionsEvent` (con `revise`), `speakers`.
+  - Carpetas de Pau: `backend/captions/` (de Isaac solo se toca el registro de la ruta en `mux.go`) y `web/src/captions/`.
+  - Clave `TOGETHER_API_KEY` solo en `.env`; coste visible con tope por sesión (`CAPTIONS_LIMIT_USD`, 1 $); si Together falla, se ofrece el Whisper local de Nil.
 - 2026-11-22 — **Diseño final del overlay, «Halo»** (Didac, `docs/DISENO.md`).
   - Una capa a pantalla completa y sin marco, como Xbox Game Bar.
   - Gesture Control en el círculo grande del centro, y PDF Scanner, Read Text, AI Summary y Transcribe (*Coming soon*) en un arco por encima.
