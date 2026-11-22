@@ -170,8 +170,14 @@ func (windowsDesktop) SetBrightness(v float64) error {
 	return nil
 }
 
-func (windowsDesktop) ToggleMicMute() (string, error) {
-	const ps = `
+// micScript reads (toggle false) or flips (toggle true) the mute of the default capture device and
+// prints the state after: "muted" or "unmuted".
+func micScript(toggle bool) string {
+	call := "$false"
+	if toggle {
+		call = "$true"
+	}
+	return `
 $csharp = @'
 using System;
 using System.Runtime.InteropServices;
@@ -198,7 +204,7 @@ interface IMMDeviceEnumerator {
 class MMDeviceEnumerator {}
 
 public class AudioCapture {
-    public static string ToggleMute() {
+    public static string Mute(bool toggle) {
         var enumerator = (IMMDeviceEnumerator)(new MMDeviceEnumerator());
         IMMDevice dev;
         enumerator.GetDefaultAudioEndpoint(1, 1, out dev);
@@ -207,16 +213,37 @@ public class AudioCapture {
         dev.Activate(ref IID_IAudioEndpointVolume, 23, IntPtr.Zero, out ep);
         bool muted;
         ep.GetMute(out muted);
-        Guid empty = Guid.Empty;
-        ep.SetMute(!muted, ref empty);
-        return (!muted) ? "muted" : "unmuted";
+        if (toggle) {
+            Guid empty = Guid.Empty;
+            ep.SetMute(!muted, ref empty);
+            muted = !muted;
+        }
+        return muted ? "muted" : "unmuted";
     }
 }
 '@
 Add-Type -TypeDefinition $csharp -ErrorAction Stop
-[AudioCapture]::ToggleMute()
+[AudioCapture]::Mute(` + call + `)
 `
-	out, err := runPowerShell(ps)
+}
+
+// MicMuted reads the default microphone's mute (the menu shows it before any toggle).
+func (windowsDesktop) MicMuted() (bool, error) {
+	out, err := runPowerShell(micScript(false))
+	if err != nil {
+		return false, fmt.Errorf("microphone state: %w", err)
+	}
+	switch {
+	case strings.Contains(out, "unmuted"):
+		return false, nil
+	case strings.Contains(out, "muted"):
+		return true, nil
+	}
+	return false, fmt.Errorf("microphone state: unexpected answer %q", strings.TrimSpace(out))
+}
+
+func (windowsDesktop) ToggleMicMute() (string, error) {
+	out, err := runPowerShell(micScript(true))
 	if err != nil {
 		return "", fmt.Errorf("microphone toggle failed: %w", err)
 	}

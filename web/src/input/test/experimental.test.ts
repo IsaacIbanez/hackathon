@@ -558,3 +558,15 @@ test("three fingers held: reads the selected text aloud, in any context", () => 
   assert.ok(g);
   for (const c of ["pc", "call", "document"] as const) assert.equal(actionFor(g, c), "read_selection");
 });
+
+test("wakeNow wakes the gestures once they fell asleep (opening Gesture Control)", () => {
+  const ctl = new HandInteraction({ requireWake: true, sleepMs: 500 });
+  simulate(ctl, [...repeat(makeHand(WAKE_PALM), 60), ...repeat(null, 60)]);
+  assert.equal(ctl.isAwake, false, "asleep after a while without a hand");
+  const modes: boolean[] = [];
+  ctl.on((e) => e.type === "mode" && modes.push(e.awake));
+  ctl.wakeNow(9000);
+  assert.ok(ctl.isAwake);
+  ctl.wakeNow(9001); // already awake: no second event
+  assert.deepEqual(modes, [true]);
+});

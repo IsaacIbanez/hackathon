@@ -830,6 +830,11 @@ export class HandInteraction {
     this.emit({ type: "mode", awake: true, t });
   }
 
+  /** Wakes the gestures now (the person opened Gesture Control), as a wake palm would. */
+  wakeNow(t: number = this.tLastHand): void {
+    if (!this.awake) this.wake(t, this.currentPose);
+  }
+
   private sleep(t: number): void {
     this.awake = false;
     this.releaseMouse(t);

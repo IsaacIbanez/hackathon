@@ -56,7 +56,7 @@ El menú se presenta en una rejilla 3×3 de pantalla (con el centro vacío):
 - **Tirar atrás (navegación):** un pulgar hacia abajo 👎 mantenido ~0,3 s o un barrido lateral ✋← permite retroceder de página en el menú (o cerrarlo desde la página principal).
 - **Página principal:**
   - ↑ 🔊 Volume y ↓ 🔆 Brightness: activan el control de nivel por pinza (🤏 abrir o cerrar dedos pulgar e índice, fijándolo al quedarse quieto).
-  - ↖ Close gestures: apaga solo el control por gestos (la cámara); la app sigue abierta. Para volver a encenderlo, haz clic en la vista de la cámara. Desde la burbuja, la ventana vuelve a su tamaño normal.
+  - ↖ Main menu: vuelve al menú principal del overlay (las opciones grandes) sin apagar los gestos; desde la burbuja, la ventana vuelve a su tamaño. Con el modo cursor se puede elegir allí una opción.
   - ← Close app (en rojo): cierra toda la aplicación.
   - ↙ Microphone: interruptor del micrófono del sistema (`mic_mute`). Elegirlo no cierra el menú; la opción pasa a «Mic: muted» o «Mic: on».
   - ↗ Cursor mode: activa o desactiva el ratón por gestos.

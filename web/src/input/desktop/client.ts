@@ -88,6 +88,18 @@ export class HelperClient {
     return (await r.json()) as HelperStatus;
   }
 
+  /** Whether the system microphone is muted now; null if the helper cannot tell (unsupported, error). */
+  async micMuted(): Promise<boolean | null> {
+    try {
+      const r = await this.request("/api/mic", "GET");
+      if (!r.ok) return null;
+      const data = (await r.json()) as { muted?: unknown };
+      return typeof data.muted === "boolean" ? data.muted : null;
+    } catch {
+      return null;
+    }
+  }
+
   /** Performs an action; returns what the helper did. Throws with the helper's message on error. */
   async action(action: Action, options: ActionOptions = {}): Promise<string> {
     const r = await this.request("/api/action", "POST", { action, ...options });

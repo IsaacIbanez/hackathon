@@ -8,13 +8,13 @@ Responsable: **Nil**. Plan común y reglas: `docs/demo/README.md`.
 | Seguimiento de la mano y gestos (MediaPipe) | `web/src/input/` |
 | Página de Gesture Control, menú del puño, modo cursor, nivel de volumen y brillo | `web/src/input/desktop/` (`gestureControl.ts`, `menu.ts`, `menuView.ts`, `gestureControl.css`) |
 | El ayudante que pulsa teclas y mueve el ratón de verdad | `adapters/desktop/` |
-| La cámara única compartida con PDF Scanner, la burbuja y «Close gestures» | `web/src/app/overlay/gestureHost.ts` (de Isaac: avísale si lo tocas) |
+| La cámara única compartida con PDF Scanner, la burbuja y «Main menu» | `web/src/app/overlay/gestureHost.ts` (de Isaac: avísale si lo tocas) |
 
 ## Qué tiene que funcionar en la demo
 1. **Tecla 6** (Gesture Control): el overlay se reduce a la burbuja de cámara arriba a la izquierda y los gestos funcionan.
 2. **La burbuja** solo salta a la otra esquina de arriba cuando el cursor de la mano se pone encima.
 3. **Menú del puño:** se abre, cada opción se elige al mantener el gesto y se cierra sin dejar la ventana rara.
-   - «Close gestures» vuelve al overlay **sin** apagar la cámara.
+   - «Main menu» (antes «Close gestures») vuelve al menú principal del overlay **sin** apagar la cámara ni los gestos.
    - «Close app» cierra.
 4. **Modo cursor:** mover el ratón con el dedo y hacer clic en botones del overlay. El más importante es «Take photo» de PDF Scanner.
 5. **Tres dedos** leen en voz alta el texto seleccionado en otro programa; deslizar atrás vuelve a empezar y deslizar adelante termina.
@@ -52,3 +52,18 @@ pruébalo con el .exe; abre un PR y, con el CI en verde, fusiónalo tú mismo a 
 
 ## Registro (lo rellena el agente)
 Por cada fallo: síntoma → cómo reproducirlo → causa → arreglo → cómo se ha comprobado (con el `.exe`).
+
+**1. «Close gestures» dejaba los gestos activos (2026-11-22)**
+- Síntoma: tras «Close gestures» el overlay volvía, pero la mano seguía disparando acciones. Quedaba además código viejo que apagaba la cámara.
+- Arreglo: «Close gestures» duerme los gestos (`HandInteraction.sleepNow`), apaga el modo cursor y vuelve al overlay; la cámara sigue encendida. Una palma abierta o abrir Gesture Control (tecla 6, `wakeNow`) los despierta.
+- Comprobado: test nuevo en `experimental.test.ts`, `tsc`, 199 tests. Falta el `.exe` (lo prueba Nil en Windows).
+
+**2. «Microphone» no mostraba el estado real (2026-11-22)**
+- Síntoma: la opción decía «Microphone» hasta pulsarla. Además, tras pulsarla en Windows tampoco cambiaba: el ayudante responde «microphone on» y la página buscaba «unmuted».
+- Arreglo: el ayudante tiene `GET /api/mic` (`{"muted": true|false}`, `Desktop.MicMuted` en Windows, Linux y macOS). La página lo lee al arrancar y al abrir el menú (como mucho cada 2 s); tras pulsar, usa la respuesta del ayudante (`micStateOf`). Si falla, vuelve a leer el estado real. Silenciado, avisa de que las órdenes de voz no oirán.
+- Comprobado: `TestServerMicState` (Go), tests de `micStateOf` y `micMuted` (web), `go vet` Linux y Windows, 201 tests. Falta el `.exe` (Nil en Windows).
+
+**3. «Close gestures» pasa a ser «Main menu» (2026-11-22, pedido por Nil tras probarlo)**
+- Síntoma: hacía falta volver al menú general del overlay sin desactivar los gestos por completo; el arreglo 1 los dormía.
+- Arreglo: ↖ «Main menu» muestra el menú principal del overlay (`gestures:main-menu` → `view = "menu"`) y, desde la burbuja, devuelve la ventana. Los gestos y el modo cursor siguen activos. Se quita `sleepNow`; queda `wakeNow` para la tecla 6.
+- Comprobado: tests actualizados, `tsc`, 201 tests, build web. Falta el `.exe` (Nil en Windows).

@@ -210,6 +210,30 @@ func (d *linuxDesktop) SetBrightness(v float64) error {
 	return fmt.Errorf("%w: install brightnessctl, light or xrandr", ErrUnsupported)
 }
 
+func (d *linuxDesktop) MicMuted() (bool, error) {
+	switch {
+	case has("wpctl"):
+		out, err := exec.Command("wpctl", "get-volume", "@DEFAULT_AUDIO_SOURCE@").Output()
+		if err != nil {
+			return false, fmt.Errorf("wpctl: %v", err)
+		}
+		return strings.Contains(string(out), "[MUTED]"), nil
+	case has("pactl"):
+		out, err := exec.Command("pactl", "get-source-mute", "@DEFAULT_SOURCE@").Output()
+		if err != nil {
+			return false, fmt.Errorf("pactl: %v", err)
+		}
+		return strings.Contains(strings.ToLower(string(out)), "yes"), nil
+	case has("amixer"):
+		out, err := exec.Command("amixer", "sget", "Capture").CombinedOutput()
+		if err != nil {
+			return false, fmt.Errorf("amixer: %v: %s", err, strings.TrimSpace(string(out)))
+		}
+		return strings.Contains(string(out), "[off]"), nil
+	}
+	return false, fmt.Errorf("%w: install wpctl, pactl or amixer", ErrUnsupported)
+}
+
 func (d *linuxDesktop) ToggleMicMute() (string, error) {
 	switch {
 	case has("wpctl"):
