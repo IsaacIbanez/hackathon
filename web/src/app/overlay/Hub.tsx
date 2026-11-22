@@ -56,6 +56,17 @@ export function Hub({
         // Right of the camera panel, so it never covers the first line.
         style={{ left: `max(3rem, 9vw, ${gutterLeft + 32}px)` }}
       >
+        {(info?.problems?.length ?? 0) > 0 && (
+          // What a tool needs and is missing on this computer (app_checks.go), with what to do.
+          <ul role="alert" aria-label="Missing on this computer" className="mb-6 space-y-2">
+            {info!.problems!.map((p) => (
+              <li key={p} className="flex items-start gap-3 text-body text-warn">
+                <Icon name="alert" size={22} className="mt-0.5 shrink-0" />
+                <span>{p}</span>
+              </li>
+            ))}
+          </ul>
+        )}
         <nav aria-label="Tools" className="print-list">
           {lines.map((l, i) => (
             <button

@@ -8,6 +8,7 @@ import (
 
 	"github.com/IsaacIbanez/hackathon/backend/llm"
 	"github.com/IsaacIbanez/hackathon/backend/mock"
+	"github.com/IsaacIbanez/hackathon/backend/overlay"
 	"github.com/IsaacIbanez/hackathon/backend/session"
 	"github.com/IsaacIbanez/hackathon/backend/ws"
 )
@@ -31,7 +32,10 @@ func NewApp() *App {
 
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	// Before taking the keypad and the shortcuts: is another copy of the app already running?
+	another := overlay.AnotherInstance()
 	a.startOverlay(ctx)
+	defer a.checkStartup(another)
 
 	h, err := a.newHandler()
 	if err != nil {
