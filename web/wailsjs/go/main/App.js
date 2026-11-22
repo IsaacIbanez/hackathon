@@ -42,6 +42,10 @@ export function StopGestures() {
   return window['go']['main']['App']['StopGestures']();
 }
 
+export function Summarize(arg1, arg2) {
+  return window['go']['main']['App']['Summarize'](arg1, arg2);
+}
+
 export function WsURL() {
   return window['go']['main']['App']['WsURL']();
 }

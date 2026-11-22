@@ -2,10 +2,15 @@
 // does not depend on the generated wailsjs/ (and the overlay still loads in a plain browser, where
 // every call fails with a clear message).
 import type { DocumentPayload } from '../../api'
+import type { SummaryResult } from './summary.ts'
 
 export interface OverlayInfo {
   hotkey: string
   hotkeyOk: boolean
+  /** MX Keypad shortcuts (docs/KEYPAD.md) and whether each could be registered. */
+  keypad?: { shortcut: string; action: string; ok: boolean }[] | null
+  /** The MX Keypad is plugged in and read directly over USB (no Logi Options+ needed). */
+  keypadConnected?: boolean
 }
 
 export interface FileDocument {
@@ -28,12 +33,14 @@ interface GoBindings {
   SetCompact(on: boolean): Promise<void>
   SetScreenOverlay(on: boolean): Promise<void>
   MoveBubble(): Promise<void>
+  Summarize(text: string, lang: string): Promise<string>
 }
 
-interface GoApp extends Omit<GoBindings, 'OverlayInfo' | 'ReadPhoto' | 'OpenAndReadFile'> {
+interface GoApp extends Omit<GoBindings, 'OverlayInfo' | 'ReadPhoto' | 'OpenAndReadFile' | 'Summarize'> {
   OverlayInfo(): Promise<OverlayInfo>
   ReadPhoto(photo: string): Promise<DocumentPayload>
   OpenAndReadFile(): Promise<FileDocument>
+  Summarize(text: string, lang: string): Promise<SummaryResult>
 }
 
 type WailsWindow = Window & {
@@ -52,11 +59,12 @@ export function desktop(): GoApp {
     OverlayInfo: async () => JSON.parse(await app.OverlayInfo()) as OverlayInfo,
     ReadPhoto: async (photo) => JSON.parse(await app.ReadPhoto(photo)) as DocumentPayload,
     OpenAndReadFile: async () => JSON.parse(await app.OpenAndReadFile()) as FileDocument,
+    Summarize: async (text, lang) => JSON.parse(await app.Summarize(text, lang)) as SummaryResult,
   }
 }
 
-/** Subscribes to an event from Go (overlay:shown, overlay:hidden); a no-op outside the app. */
-export function onDesktopEvent(name: string, cb: () => void): () => void {
+/** Subscribes to an event from Go (overlay:shown, overlay:hidden, overlay:keypad); a no-op outside the app. */
+export function onDesktopEvent(name: string, cb: (...data: unknown[]) => void): () => void {
   const on = (window as WailsWindow).runtime?.EventsOn
   return on ? on(name, cb) : () => {}
 }

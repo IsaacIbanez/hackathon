@@ -52,10 +52,20 @@ func (c *Client) ReadFile(ctx context.Context, name string, data []byte) (gen.Do
 	return c.readDocument(ctx, name, ct, data)
 }
 
+// fileName is the last element of a path written with either separator. The file dialog gives
+// Windows paths (C:\docs\letter.pdf); filepath.Base only knows the separator of the OS it runs on,
+// so on Linux it kept the whole path.
+func fileName(path string) string {
+	if i := strings.LastIndexAny(path, `/\`); i >= 0 {
+		return path[i+1:]
+	}
+	return path
+}
+
 // readDocument posts the file to the reading service's POST /document.
 func (c *Client) readDocument(ctx context.Context, name, contentType string, data []byte) (gen.DocumentPayload, error) {
 	var doc gen.DocumentPayload
-	endpoint := strings.TrimSuffix(c.URL, "/scan") + "/document?name=" + url.QueryEscape(filepath.Base(name))
+	endpoint := strings.TrimSuffix(c.URL, "/scan") + "/document?name=" + url.QueryEscape(fileName(name))
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(data))
 	if err != nil {
 		return doc, err
