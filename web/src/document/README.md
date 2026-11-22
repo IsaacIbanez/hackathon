@@ -4,7 +4,7 @@ Lee en voz alta el documento escaneado **línea a línea**, sin ayuda de nadie:
 - La línea que suena se resalta en letra grande y se mantiene centrada en pantalla.
 - La lectura es **local y gratuita**: usa la voz del sistema (Web Speech API) y ningún modelo. No envía nada a Go.
 
-Brief: `docs/briefs/didac.md`.
+Brief: `docs/historial/briefs/didac.md`.
 
 ## Uso
 ```tsx
