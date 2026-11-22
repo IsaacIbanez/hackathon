@@ -11,6 +11,8 @@ export interface OverlayInfo {
   keypad?: { shortcut: string; action: string; ok: boolean }[] | null
   /** The MX Keypad is plugged in and read directly over USB (no Logi Options+ needed). */
   keypadConnected?: boolean
+  /** What a tool needs and is missing on this computer, each with what to do (app_checks.go). */
+  problems?: string[]
 }
 
 /** What option 3 opened (app_pdf.go): a PDF for the viewer, or the lines of another file. */

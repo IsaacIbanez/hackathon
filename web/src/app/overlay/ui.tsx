@@ -4,7 +4,7 @@ import type { CSSProperties, ReactNode } from 'react'
 // 1.8 stroke, round caps), the panel every tool opens in, and the base controls (IconButton, Switch, Tag).
 // Tokens and the CSS classes behind them live in web/src/index.css.
 
-export type IconName = 'hand' | 'scan' | 'read' | 'ai' | 'voice' | 'back' | 'power' | 'keypad' | 'mic' | 'play' | 'hide'
+export type IconName = 'hand' | 'scan' | 'read' | 'ai' | 'voice' | 'back' | 'power' | 'keypad' | 'mic' | 'play' | 'hide' | 'alert'
 
 const PATHS: Record<IconName, ReactNode> = {
   // An open hand.
@@ -71,6 +71,13 @@ const PATHS: Record<IconName, ReactNode> = {
     <>
       <path d="M4 5l8 7-8 7z" />
       <path d="M16 5v14M20 5v14" />
+    </>
+  ),
+  // Something is missing: a triangle with an exclamation mark.
+  alert: (
+    <>
+      <path d="M12 3.5 2.5 20h19z" />
+      <path d="M12 10v4.5M12 17.5v.01" />
     </>
   ),
   // Hide: the layer goes down to the bottom edge.

@@ -41,8 +41,8 @@ Responsable: **Isaac**. Plan común y reglas: `docs/demo/README.md`. Isaac tambi
 
 ## Hecho cuando
 - [ ] PR #54 probado con voz real y en `main`.
-- [ ] El menú avisa al arrancar de cada cosa que falte, con qué hacer.
-- [ ] La segunda copia de la app avisa en vez de fallar en silencio.
+- [x] El menú avisa al arrancar de cada cosa que falte, con qué hacer.
+- [x] La segunda copia de la app avisa en vez de fallar en silencio.
 - [ ] `docs/PITCH.md` reescrito y ensayado dos veces seguidas con el `.exe` de `main`.
 
 ## Prompt para tu agente
@@ -61,5 +61,7 @@ pruébalo con el .exe; abre un PR y, con el CI en verde, fusiónalo tú mismo a 
 
 ## Registro (lo rellena el agente)
 Por cada fallo: síntoma → cómo reproducirlo → causa → arreglo → cómo se ha comprobado (con el `.exe`).
+- 2026-11-22, avisos al arrancar: si faltaba una clave, el entorno del escáner o Tesseract, la app no lo decía hasta que la herramienta fallaba (Transcribe reintentaba cada segundo; el servicio moría con `No module named cv2`) → reproducido con el `.exe` y el `.env` sin `TOGETHER_API_KEY` → `backend/overlay/checks.go` (`StartupProblems`, función pura con tests) y `app_checks.go`: cada problema sale en el log (`startup:`) y en el menú, en color de aviso, con qué hacer (por ejemplo, el comando exacto de `install.ps1`). Comprobado con el `.exe`: avisa de `TOGETHER_API_KEY`.
+- 2026-11-22, segunda copia: con dos copias abiertas, la segunda se iba a otro puerto en silencio y las dos se peleaban por el keypad y la cámara → reproducido abriendo dos `.exe` → mutex de Windows `Local\LauzHackOverlay` (`instance_windows.go`): la segunda copia lo dice en el log y en el menú. Comprobado con dos `.exe` a la vez.
 
 **Aviso de Nil (2026-11-22):** he tocado `web/src/app/overlay/gestureHost.ts`. «Close gestures» ahora también duerme los gestos (la cámara sigue encendida) y `turnGesturesOn()` los despierta con `handle.wakeGestures()` en vez de simular un clic en la vista de la cámara. Detalle en el Registro de `docs/demo/NIL.md`.
