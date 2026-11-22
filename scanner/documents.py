@@ -29,31 +29,36 @@ MIN_TEXT_CHARS = 3      # fewer characters than this on a PDF page: it is a scan
 RENDER_DPI = 300
 
 
+def layout_lines(layout) -> list[dict] | None:
+    """A pdfminer page layout's text lines [{text, box}] (box normalised to that page), or None if the page
+    has (almost) no text, i.e. it is a scan."""
+    from pdfminer.layout import LTTextContainer, LTTextLine
+
+    w, h = float(layout.width) or 1.0, float(layout.height) or 1.0
+    lines = []
+    for element in layout:
+        if not isinstance(element, LTTextContainer):
+            continue
+        for line in element:
+            if not isinstance(line, LTTextLine):
+                continue
+            text = " ".join(line.get_text().split())
+            if not text:
+                continue
+            x0, y0, x1, y1 = line.bbox
+            lines.append({"text": text, "box": {
+                "x": max(0.0, x0 / w), "y": max(0.0, (h - y1) / h),
+                "w": max(0.0, min(1.0, (x1 - x0) / w)), "h": max(0.0, min(1.0, (y1 - y0) / h))}})
+    chars = sum(len(line["text"]) for line in lines)
+    return lines if chars >= MIN_TEXT_CHARS else None
+
+
 def _pdf_text_pages(data: bytes) -> list[list[dict] | None]:
     """Per page, its text lines [{text, box}] (box normalised to that page), or None if it has no text."""
     from pdfminer.high_level import extract_pages
-    from pdfminer.layout import LAParams, LTTextContainer, LTTextLine
+    from pdfminer.layout import LAParams
 
-    pages: list[list[dict] | None] = []
-    for layout in extract_pages(io.BytesIO(data), laparams=LAParams(), maxpages=MAX_PAGES):
-        w, h = float(layout.width) or 1.0, float(layout.height) or 1.0
-        lines = []
-        for element in layout:
-            if not isinstance(element, LTTextContainer):
-                continue
-            for line in element:
-                if not isinstance(line, LTTextLine):
-                    continue
-                text = " ".join(line.get_text().split())
-                if not text:
-                    continue
-                x0, y0, x1, y1 = line.bbox
-                lines.append({"text": text, "box": {
-                    "x": max(0.0, x0 / w), "y": max(0.0, (h - y1) / h),
-                    "w": max(0.0, min(1.0, (x1 - x0) / w)), "h": max(0.0, min(1.0, (y1 - y0) / h))}})
-        chars = sum(len(line["text"]) for line in lines)
-        pages.append(lines if chars >= MIN_TEXT_CHARS else None)
-    return pages
+    return [layout_lines(layout) for layout in extract_pages(io.BytesIO(data), laparams=LAParams(), maxpages=MAX_PAGES)]
 
 
 def _render_pdf_page(data: bytes, index: int) -> bytes:

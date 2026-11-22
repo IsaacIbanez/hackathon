@@ -163,3 +163,75 @@ class TestDocumentEndpoint(ServiceServer):
     def test_not_a_document(self):
         status, body, _ = self.post(b"hello, not a pdf", "/document?name=x.bin", "application/octet-stream")
         self.assertEqual(status, 400, body)
+
+
+SAMPLES = Path(__file__).resolve().parent / "pdf" / "samples" / "print"
+
+
+class TestPdfPages(ServiceServer):
+    """POST /pdf and GET /pdf/<id>/page/<n>: a PDF read page by page (task N4)."""
+
+    def get(self, path: str):
+        try:
+            with urllib.request.urlopen(self.url + path, timeout=120) as r:
+                return r.status, r.read(), dict(r.headers)
+        except urllib.error.HTTPError as e:
+            return e.code, e.read(), dict(e.headers)
+
+    def open_pdf(self, name: str) -> dict:
+        status, body, _ = self.post((SAMPLES / name).read_bytes(), f"/pdf?name={name}", "application/pdf")
+        self.assertEqual(status, 200, body)
+        return body
+
+    def test_long_pdf_has_no_page_limit(self):
+        info = self.open_pdf("04-condiciones-40-paginas.pdf")
+        self.assertEqual(info["pages"], 40)
+        self.assertEqual(info["lang"], "es-ES")
+        status, raw, _ = self.get(f"/pdf/{info['id']}/page/39/lines")      # the last page, beyond the old 30
+        self.assertEqual(status, 200, raw)
+        page = json.loads(raw)
+        self.assertFalse(page["ocr"])
+        texts = [line["text"] for line in page["lines"]]
+        self.assertIn("Página 40 de 40", " ".join(texts))
+        self.assertTrue(texts[0].startswith("S"))                      # reading order: the logo letter first
+        ys = [line["box"]["y"] for line in page["lines"]]
+        self.assertEqual(ys, sorted(ys))
+        for line in page["lines"]:
+            self.assertTrue(all(0 <= line["box"][k] <= 1 for k in "xywh"), line)
+            self.assertTrue(line["id"].startswith("p40-l"))
+
+    def test_page_image(self):
+        info = self.open_pdf("01-carta-renovacion.pdf")
+        status, jpg, headers = self.get(f"/pdf/{info['id']}/page/0.jpg?width=600")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["Content-Type"], "image/jpeg")
+        img = cv2.imdecode(np.frombuffer(jpg, np.uint8), cv2.IMREAD_COLOR)
+        self.assertEqual(img.shape[1], 600)
+        self.assertAlmostEqual(img.shape[0] / img.shape[1], 297 / 210, places=2)
+
+    def test_catalan_is_detected(self):
+        self.assertEqual(self.open_pdf("03-avis-rebut-ca.pdf")["lang"], "ca-ES")
+
+    @unittest.skipUnless(TESSERACT, "needs Tesseract")
+    def test_scanned_page_goes_through_ocr(self):
+        info = self.open_pdf("05-escaneado-3-paginas.pdf")
+        self.assertEqual(info["pages"], 3)
+        status, raw, _ = self.get(f"/pdf/{info['id']}/page/1/lines")
+        page = json.loads(raw)
+        self.assertEqual(status, 200, page)
+        self.assertTrue(page["ocr"])
+        self.assertIn("SINIESTRO", " ".join(line["text"] for line in page["lines"]).upper())
+
+    def test_errors(self):
+        status, body, _ = self.post(b"not a pdf", "/pdf?name=x.pdf", "application/pdf")
+        self.assertEqual((status, body["error"]), (400, "input_not_pdf"))
+        info = self.open_pdf("01-carta-renovacion.pdf")
+        status, raw, _ = self.get(f"/pdf/{info['id']}/page/5/lines")
+        self.assertEqual((status, json.loads(raw)["error"]), (404, "page_not_found"))
+        status, raw, _ = self.get("/pdf/0123abcd/page/0/lines")
+        self.assertEqual((status, json.loads(raw)["error"]), (404, "pdf_not_open"))
+
+    def test_only_the_last_pdfs_stay_open(self):
+        ids = [self.open_pdf("01-carta-renovacion.pdf")["id"] for _ in range(4)]
+        self.assertEqual(self.get(f"/pdf/{ids[0]}/page/0/lines")[0], 404)
+        self.assertEqual(self.get(f"/pdf/{ids[-1]}/page/0/lines")[0], 200)
