@@ -21,6 +21,9 @@ MIN_SIDE_STEP = 18.0       # minimum contrast across each side (grey levels)
 MIN_CONTENT = 0.002        # fraction of letter pixels inside: empty desk ~0, letter with small text > 0.005
 CANNY_LOW, CANNY_HIGH = 40, 120   # fixed thresholds: thresholds derived from the median brightness were
                            # far too high on a white desk and the document outline disappeared
+MAX_DARK_HOLE = 0.15       # share of a light quadrilateral covered by large dark areas. A sheet only has
+                           # letters and thin lines; a quad that took in the dark jacket next to the sheet
+                           # had ~45 % (N3 benchmark, MX Brio): cropping it read 2-6 % of the words
 MAX_SIDE_RATIO = 1.75      # longer / shorter opposite side; a sheet tilted ~45 degrees gives ~1.7.
                            # More = a clipped shape (e.g. a panel cut by a drawing or a hand)
 WEBCAM_DIAGONAL_FOV = 78.0 # degrees; focal length assumed when the perspective does not allow estimating it
@@ -237,6 +240,8 @@ def _score(quad: np.ndarray, gray: np.ndarray, edges: np.ndarray, letters: np.nd
     content = _content(quad, letters)
     if content < MIN_CONTENT:
         return 0.0
+    if _dark_hole(quad, gray) > MAX_DARK_HOLE:
+        return 0.0               # a light sheet plus a piece of dark table or clothes next to it
     angles = 1.0 - max(0.0, worst - 0.2) / 0.4   # up to ~78/102 degrees scores in full
     size = min(1.0, area / 0.25)
     return float(0.20 * support + 0.10 * min(1.0, contrast / 80.0) + 0.25 * min(1.0, step / 60.0)
@@ -283,6 +288,76 @@ def _content(quad: np.ndarray, letters: np.ndarray) -> float:
     inside = cv2.erode(inside, np.ones((side, side), np.uint8)) > 0
     n = int(inside.sum())
     return float(letters[inside].sum()) / n if n else 0.0
+
+
+def _dark_hole(quad: np.ndarray, gray: np.ndarray) -> float:
+    """Share of a light quadrilateral covered by large dark areas (letters and lines removed by an
+    opening). 0 for dark quadrilaterals (a dark poster or a phone screen is all dark on purpose)."""
+    inside = np.zeros(gray.shape, np.uint8)
+    cv2.fillConvexPoly(inside, quad.astype(np.int32), 255)
+    side = max(3, int(0.02 * min(gray.shape)))
+    inside = cv2.erode(inside, np.ones((side, side), np.uint8)) > 0
+    values = gray[inside]
+    if values.size < 100:
+        return 0.0
+    light = float(np.percentile(values, 90))
+    if light < 120 or float(np.median(values)) < 120:
+        return 0.0               # a dark document (poster, screen), not a light sheet
+    dark = ((gray < light * 0.55) & inside).astype(np.uint8)
+    k = max(5, int(0.04 * min(gray.shape)))     # wider than any letter or line
+    dark = cv2.morphologyEx(dark, cv2.MORPH_OPEN, np.ones((k, k), np.uint8))
+    return float(dark[inside].mean())
+
+
+def text_region(img: np.ndarray, margin: float = 0.03) -> tuple[np.ndarray, list[int], float | None]:
+    """When no sheet was found: the main block of text (the group with most letters, with a margin)
+    and its resolution estimated from the letter height. Returns (crop, [x0, y0, x1, y1], dpi or None).
+
+    OCR on a whole 4K frame read the cans, cables and keyboards around the paper, and could not
+    upscale the small letters (size cap); the text block alone can be upscaled to ~300 DPI.
+    """
+    gray, scale = image.gray_1600(img)
+    letters = (image.letter_mask(gray) > 0).astype(np.uint8)
+    # Only letters on a light background (printed paper): the letter detector also fires on fleece,
+    # hair or a crowd behind a sheet held in the hand (measured: the crop went to the jacket).
+    background = cv2.dilate(gray, np.ones((15, 15), np.uint8))   # the paper around each letter
+    letters &= (background >= max(100.0, 0.85 * float(np.percentile(background, 85)))).astype(np.uint8)
+    if letters.sum() < 200:
+        return img, [0, 0, img.shape[1], img.shape[0]], None
+    # Already a page (a scan, a cropped photo): its border is paper as light as the paper around the
+    # letters, so there is nothing around it to remove (the margins and the signature must stay).
+    # A white desk is darker than the paper on it (measured: ~10 %).
+    paper = float(np.median(background[letters > 0]))
+    b = max(2, int(0.04 * min(gray.shape)))
+    ring = np.concatenate([background[:b].ravel(), background[-b:].ravel(),
+                           background[:, :b].ravel(), background[:, -b:].ravel()])
+    if float(np.median(ring)) >= 0.95 * paper and float((ring >= 0.85 * paper).mean()) > 0.9:
+        return img, [0, 0, img.shape[1], img.shape[0]], None
+    k = max(9, int(0.03 * max(gray.shape)))
+    blocks = cv2.morphologyEx(cv2.dilate(letters, np.ones((k // 3, k // 3), np.uint8)), cv2.MORPH_CLOSE,
+                              np.ones((k, k), np.uint8))
+    n, labels, stats, _ = cv2.connectedComponentsWithStats(blocks, connectivity=8)
+    if n <= 1:
+        return img, [0, 0, img.shape[1], img.shape[0]], None
+    counts = np.bincount(labels[letters > 0], minlength=n)
+    counts[0] = 0
+    # Every block with a fair share of the letters: a form is split into several blocks by its boxes.
+    keep = np.flatnonzero(counts >= 0.15 * counts.max())
+    x = int(stats[keep, 0].min())
+    y = int(stats[keep, 1].min())
+    w = int((stats[keep, 0] + stats[keep, 2]).max()) - x
+    h = int((stats[keep, 1] + stats[keep, 3]).max()) - y
+    m = margin * max(gray.shape)
+    x0, y0 = int(max(0, (x - m) / scale)), int(max(0, (y - m) / scale))
+    x1 = int(min(img.shape[1], (x + w + m) / scale))
+    y1 = int(min(img.shape[0], (y + h + m) / scale))
+    # Letter height -> DPI: the median letter blob (lower case and capitals of body text) is ~2 mm.
+    _, _, cstats, _ = cv2.connectedComponentsWithStats((letters * np.isin(labels, keep)).astype(np.uint8), connectivity=8)
+    heights = cstats[1:, cv2.CC_STAT_HEIGHT]
+    dpi = None
+    if heights.size >= 20:
+        dpi = float(np.clip(np.median(heights) / scale / (2.0 / 25.4), 72.0, 400.0))
+    return img[y0:y1, x0:x1], [x0, y0, x1, y1], dpi
 
 
 def _contrast(quad: np.ndarray, gray: np.ndarray) -> float:

@@ -69,9 +69,12 @@ NO_PAGE_MESSAGE = "No sheet found: hold the whole page flat inside the frame, at
 
 
 def default_options(query: dict) -> Options:
-    """Options for one request. No intermediates: only the photo, the PDFs and result.json are kept."""
-    return Options(languages=query.get("languages", "spa+cat+eng"), digital=query.get("digital") == "1",
-                   save_intermediates=False)
+    """Options for one request. No intermediates: only the photo, the PDFs and result.json are kept.
+
+    The digital PDF (vision model, ~0.002 USD a page) is on by default (task N3): it is made in the
+    background and does not delay the answer. `digital=0` or SCANNER_DIGITAL=0 turn it off."""
+    digital = query.get("digital", os.environ.get("SCANNER_DIGITAL", "1")) == "1"
+    return Options(languages=query.get("languages", "spa+cat+eng"), digital=digital, save_intermediates=False)
 
 
 def to_png(data: bytes) -> bytes:
@@ -97,9 +100,12 @@ def respond(result: Result) -> tuple[int, dict]:
         return (400 if code.startswith("input_") else 500), {"error": code, "message": result.error["message"]}
     if any(w.startswith("no_ocr_layer:ocr_unavailable") for w in result.warnings):
         return 503, {"error": "ocr_unavailable", "message": "Tesseract is not installed (scanner/pdf/scripts/install.*)"}
-    if not result.page_corners():
-        return 422, {"error": "page_not_detected", "message": NO_PAGE_MESSAGE, "quality": result.document()["quality"]}
-    return 200, result.document()
+    doc = result.document()
+    if not result.page_corners() and not doc.get("blocks"):
+        return 422, {"error": "page_not_detected", "message": NO_PAGE_MESSAGE, "quality": doc["quality"]}
+    # Without corners but with text (sheet on a white desk or held in the hand: the main block of text
+    # was read, N3): the document goes without pageCorners, which the contract makes optional.
+    return 200, doc
 
 
 class ScanService:
@@ -120,20 +126,53 @@ class ScanService:
             return 400, {"error": e.code, "message": e.message}, None
         # Fast answer when there is no sheet (~0.2 s instead of the whole OCR): the app can ask the
         # person to hold the paper again right away.
-        if not geometry.detect_page(photo).found:
+        if not geometry.detect_page(photo).found and geometry.text_region(photo)[0] is photo:
             # Without a sheet the DPI is unknown: a neutral value, so only the photo's own issues show.
             quality = image.evaluate_quality(photo, area_fraction=None, touches_border=False, max_angle=None,
                                              effective_dpi=300.0)
             return 422, {"error": "page_not_detected", "message": NO_PAGE_MESSAGE,
                          "quality": {"score": quality["score"], "issues": quality["issues"]}}, None
         name = datetime.now().strftime("scan-%Y%m%d-%H%M%S-%f")[:-3]
-        with self.lock:
-            self.busy = True
-            try:
-                result = convert(png, self.output_dir, self.options(query or {}), name=name,
-                                 metadata={"source": "scan-service"})
-            finally:
+        options = self.options(query or {})
+        # The answer goes out as soon as the document is ready (after the OCR); the searchable and the
+        # digital PDF are finished in the background (N3: the digital one took 6-30 s more). The lock
+        # (one OCR at a time) is released at that moment too, so the next photo does not wait for them.
+        ready, released = threading.Event(), threading.Event()
+        state: dict = {}
+
+        def release():
+            if not released.is_set():
+                released.set()
                 self.busy = False
+                self.lock.release()
+
+        def document_ready(res: Result):
+            state["answer"] = respond(res)
+            state["result"] = res
+            release()
+            ready.set()
+
+        def work():
+            try:
+                state["final"] = convert(png, self.output_dir, options, name=name, metadata={"source": "scan-service"})
+            except Exception as e:  # convert reports its errors; this is only a safety net
+                log.exception("Unexpected failure")
+                state["crash"] = e
+            finally:
+                release()
+                ready.set()
+
+        options.on_document = document_ready
+        self.lock.acquire()
+        self.busy = True
+        threading.Thread(target=work, name=f"scan-{name}", daemon=True).start()
+        ready.wait()
+        if "answer" in state:
+            status, body = state["answer"]
+            return status, body, state["result"]
+        if "crash" in state:
+            raise state["crash"]
+        result = state["final"]
         status, body = respond(result)
         return status, body, result
 
@@ -238,6 +277,8 @@ def make_handler(service: ScanService):
                 return self._json(500, {"error": "internal", "message": f"{type(e).__name__}: {e}"})
             ms = round((time.perf_counter() - t0) * 1000)
             headers = {"X-Scan-Ms": str(ms)}
+            if result is not None and result.folder:
+                headers["X-Scan-Folder"] = Path(result.folder).as_posix()   # the PDFs end up here
             if result is not None and result.pdf:
                 headers["X-Scan-Pdf"] = Path(result.pdf).as_posix()
             if result is not None and result.digital_pdf:

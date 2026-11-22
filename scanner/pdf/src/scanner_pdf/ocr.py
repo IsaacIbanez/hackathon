@@ -28,7 +28,7 @@ from .errors import ScannerError
 WINDOWS_PATHS = (r"C:\Program Files\Tesseract-OCR\tesseract.exe", r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe")
 LOCAL_TESSDATA = Path(__file__).resolve().parents[2] / "tessdata"   # scanner/pdf/tessdata (ignored by git)
 OSD_CONFIDENCE = 2.5    # OSD on the text crop: trusted from here (measured failure at 1.96)
-UPRIGHT_WORDS = 15      # confident words in the crop to accept the orientation as upright
+SIDEWAYS_BELOW = 8      # words read upright and upside down below which 90/270 are tried too
 OCR_DPI = 300.0         # resolution Tesseract reads best at
 MAX_UPSCALE = 3.0       # do not upscale more (cost ~ factor^2 and it invents no detail)
 MAX_OCR_MEGAPIXELS = 8.5   # largest image Tesseract reads: a whole 4K frame (8.3 MP) is not upscaled
@@ -92,44 +92,51 @@ def resolve_languages(requested: str, available: list[str]) -> tuple[str, list[s
 def orient(img: np.ndarray) -> tuple[np.ndarray, int, float | None]:
     """Rotates the page 90/180/270 degrees if needed. Returns (image, degrees, OSD confidence).
 
-    Measured with real captures (portrait sheet photographed in landscape, letter and poster upside
-    down): OSD on the whole downscaled page fails a lot; on a native-resolution crop of the area with
-    most letters it is right with high confidence (8-15) in ~0.5 s. So:
-    1. OSD on that crop; if it is confident (>= OSD_CONFIDENCE), follow it.
-    2. If in doubt, actually read: first as is (usually it is already upright and it stops there);
-       if it does not read well, the OSD suggestion, 180 and the rest, stopping as soon as one clearly wins.
+    1. OSD on native-resolution crops of the areas with most letters (several: when the sheet was not
+       found, the area with most "letters" can be a drink can or a keyboard); if one is confident
+       (>= OSD_CONFIDENCE), follow it (~0.5 s per crop).
+    2. Otherwise, actually read the whole page, scaled so its letters are ~28 px, upright and upside
+       down; the sideways orientations only if neither reads anything. The most words wins.
+
+    Measured with the N3 benchmark (24 MX Brio photos of 3 printed letters, half of them upside down):
+    the old step 2 read one 800 px crop, at native size and confidence >= 80, and gave 0-2 words in
+    every orientation for grey, blurry or far text, so pages stayed upside down (2-10 % of their words
+    read). Reading the whole page picked the right side 9 of 9 times (e.g. 85 words vs 8), in ~1-1.7 s.
     """
-    crop = _text_crop(img, 800)
-    if crop is None:
+    crops = _text_crops(img, 800)
+    if not crops:
         return img, 0, None  # no letters to look at
     osd_degrees, confidence = 0, None
-    try:
-        osd = pytesseract.image_to_osd(_to_rgb(crop), output_type=pytesseract.Output.DICT, timeout=30)
-        osd_degrees, confidence = int(osd.get("rotate", 0)) % 360, float(osd.get("orientation_conf", 0.0))
-    except Exception:
-        pass  # little text in the crop: decide by reading
-    if confidence is not None and confidence >= OSD_CONFIDENCE:
-        return rotate(img, osd_degrees), osd_degrees, confidence
+    for crop in crops:
+        try:
+            osd = pytesseract.image_to_osd(_to_rgb(crop), output_type=pytesseract.Output.DICT, timeout=30)
+        except Exception:
+            continue  # little text in this crop
+        degrees, conf = int(osd.get("rotate", 0)) % 360, float(osd.get("orientation_conf", 0.0))
+        if confidence is None or conf > confidence:
+            osd_degrees, confidence = degrees, conf
+        if conf >= OSD_CONFIDENCE:
+            return rotate(img, degrees), degrees, conf
 
-    upright = _confident_words(crop)
-    if upright >= UPRIGHT_WORDS:
+    page = _reading_size(img)
+    counts = {d: _confident_words(rotate(page, d), 50) for d in (0, 180)}
+    if max(counts.values()) < SIDEWAYS_BELOW:
+        counts.update({d: _confident_words(rotate(page, d), 50) for d in (90, 270)})
+    best = max(counts, key=lambda d: (counts[d], d == 0, d == osd_degrees))
+    if best == 0 or counts[best] <= counts[0]:
         return img, 0, confidence
-    best, best_n = 0, upright
-    tried = 0
-    for degrees in dict.fromkeys([osd_degrees, 180, 90, 270]):
-        if degrees == 0:
-            continue
-        n = _confident_words(rotate(crop, degrees))
-        tried += 1
-        if n > best_n:
-            best, best_n = degrees, n
-        if best and best_n >= max(UPRIGHT_WORDS, 2 * upright + 3):
-            break
-        if tried >= 2 and best_n <= 2:
-            break  # unreadable in every orientation (blurry photo): do not spend more time
-    if best and best_n >= 2 * upright + 3:
-        return rotate(img, best), best, confidence
-    return img, 0, confidence
+    return rotate(img, best), best, confidence
+
+
+def _reading_size(img: np.ndarray, target: float = 28.0, cap: int = 2200) -> np.ndarray:
+    """The page scaled so its median letter is ~`target` px tall, with a longer side of at most `cap`."""
+    gray, scale = image.gray_1600(img)
+    _, _, stats, _ = cv2.connectedComponentsWithStats((image.letter_mask(gray) > 0).astype(np.uint8), connectivity=8)
+    heights = stats[1:, cv2.CC_STAT_HEIGHT]
+    letter = float(np.median(heights)) / scale if heights.size else target
+    f = min(target / max(1.0, letter), cap / max(img.shape[:2]))
+    interp = cv2.INTER_AREA if f < 1 else cv2.INTER_CUBIC
+    return cv2.resize(img, None, fx=f, fy=f, interpolation=interp)
 
 
 def rotate(img: np.ndarray, degrees: int) -> np.ndarray:
@@ -150,15 +157,40 @@ def _text_crop(img: np.ndarray, side: int = 1000) -> np.ndarray | None:
     return img[y0:y0 + side, x0:x0 + side]
 
 
-def _confident_words(img: np.ndarray) -> int:
-    """Words of 3+ letters read with high confidence (English is enough: same alphabet). Only to compare."""
+def _text_crops(img: np.ndarray, side: int = 1000, count: int = 3) -> list[np.ndarray]:
+    """Up to `count` square crops, at native resolution, of the areas with most letters, apart from
+    each other (each one blanks its surroundings before looking for the next)."""
+    gray, scale = image.gray_1600(img)
+    side = min(side, *img.shape[:2])
+    k = max(3, int(side * scale))
+    density = cv2.boxFilter(image.letter_mask(gray), -1, (k, k))
+    crops = []
+    for _ in range(count):
+        if float(density.max()) < 0.005:
+            break
+        y, x = np.unravel_index(int(np.argmax(density)), density.shape)
+        y0 = int(np.clip(y / scale - side / 2, 0, img.shape[0] - side))
+        x0 = int(np.clip(x / scale - side / 2, 0, img.shape[1] - side))
+        crops.append(img[y0:y0 + side, x0:x0 + side])
+        density[max(0, y - k):y + k, max(0, x - k):x + k] = 0
+    return crops
+
+
+def _confident_words(img: np.ndarray, min_conf: float = 60.0) -> int:
+    """Words of 3+ letters read with fair confidence (English is enough: same alphabet). Only to compare
+    orientations. The contrast is stretched first: grey, blurry camera text (a far sheet) gave 1-2 words
+    at >= 80 in every orientation (N3 benchmark), so the page stayed upside down."""
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if img.ndim == 3 else img
+    lo, hi = np.percentile(gray, (2, 98))
+    if hi - lo > 10:
+        gray = np.clip((gray.astype(np.float32) - lo) * (255.0 / (hi - lo)), 0, 255).astype(np.uint8)
     try:
-        d = pytesseract.image_to_data(_to_rgb(img), lang="eng", config="--psm 6",
-                                      output_type=pytesseract.Output.DICT, timeout=2)
+        d = pytesseract.image_to_data(gray, lang="eng", config="--psm 6",
+                                      output_type=pytesseract.Output.DICT, timeout=3)
     except Exception:
         return 0
     return sum(1 for w, c in zip(d["text"], d["conf"])
-               if float(c) >= 80 and sum(ch.isalpha() for ch in str(w)) >= 3)
+               if float(c) >= min_conf and sum(ch.isalpha() for ch in str(w)) >= 3)
 
 
 def recognize(img: np.ndarray, languages: str, dpi: float, level: str = "line", timeout: int = 180) -> OcrResult:

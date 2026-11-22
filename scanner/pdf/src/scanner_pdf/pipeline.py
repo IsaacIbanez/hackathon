@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
@@ -45,6 +46,9 @@ class Options:
     digital_ai: bool = True              # the digital PDF uses a vision model (OpenRouter) if there is a key; otherwise local OCR
     save_intermediates: bool = True
     title: str | None = None
+    # Called with the Result as soon as the contract `document` is ready (after the OCR), before the
+    # PDFs: the reading service answers then and the PDFs are finished in the background.
+    on_document: Callable[[Result], None] | None = field(default=None, repr=False, compare=False)
 
     def validate(self) -> None:
         if self.mode not in image.MODES:
@@ -167,7 +171,7 @@ def convert(source: str | Path | bytes, output_dir: str | Path, options: Options
                 corrected, degrees, conf = ocr.orient(corrected)
             page = ocr.rotate(page, degrees)
             r.page["rotation_degrees"], r.page["rotation_confidence"] = degrees, conf
-        dpi = _dpi(page, paper, op, inp.dpi)
+        dpi = _dpi(page, paper, op, inp.dpi or r.page.get("dpi_estimate"))
         height, width = page.shape[:2]
         r.page.update({"width_px": width, "height_px": height, "dpi": [round(dpi[0], 2), round(dpi[1], 2)],
                        "paper": paper, "size_mm": [round(width / dpi[0] * 25.4, 1), round(height / dpi[1] * 25.4, 1)]})
@@ -213,6 +217,7 @@ def convert(source: str | Path | bytes, output_dir: str | Path, options: Options
                 blocks = res.blocks
                 r.ocr = {"engine": f"tesseract {tess.version}", "psm": res.psm, "passes": res.passes,
                          "words": res.words, "mean_confidence": res.mean_confidence, "blocks": blocks}
+                _document_ready(op, r)
                 with t("text_layer"):
                     final_pdf = pdf.overlay_text(base, res.text_pdf, op.title or name)
             except ScannerError as e:
@@ -249,6 +254,16 @@ def convert(source: str | Path | bytes, output_dir: str | Path, options: Options
 
 
 # ---------------------------------------------------------------- steps
+
+def _document_ready(op: Options, r: Result) -> None:
+    """Tells the caller the document is ready (Options.on_document); its failures never stop the scan."""
+    if op.on_document is None:
+        return
+    try:
+        op.on_document(r)
+    except Exception:
+        log.exception("on_document failed")
+
 
 def _digital_document(r: Result, op: Options, page: np.ndarray, res, dpi: float, folder: Path,
                       name: str, layout_future: Future | None = None) -> None:
@@ -350,6 +365,16 @@ def _prepare_geometry(img: np.ndarray, op: Options, r: Result, folder: Path) -> 
         if paper:
             aspect = _paper_aspect(paper, landscape=aspect > 1)
         return geometry.rectify(img, det.corners, aspect), paper
+
+    # No sheet in a camera photo: read only the main block of text (not the objects around the paper)
+    # at a resolution estimated from its letters, so the OCR can upscale it.
+    if det is not None and op.crop:
+        crop, box, dpi = geometry.text_region(img)
+        if crop is not img:
+            r.page["text_region"] = box
+            if dpi:
+                r.page["dpi_estimate"] = round(dpi, 1)
+            return crop, None
 
     # No crop: the image is treated as the page (e.g. the capture comes already cropped).
     # Strict tolerance: a 4:3 frame without a sheet must not become "Letter".
