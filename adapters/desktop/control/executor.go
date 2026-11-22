@@ -18,6 +18,10 @@ type Desktop interface {
 	MouseDown() error
 	MouseUp() error
 	RightClick() error
+	// Scroll turns the mouse wheel: positive notches scroll up, negative down.
+	Scroll(notches int) error
+	// OnScreenKeyboard opens the system's on-screen keyboard (to type with the gesture mouse).
+	OnScreenKeyboard() error
 	// SetVolume sets the system output volume, from 0 to 1.
 	SetVolume(v float64) error
 	SetBrightness(v float64) error
@@ -72,6 +76,8 @@ func (e *Executor) Do(r Request) (string, error) {
 			val = 0.05
 		}
 		return fmt.Sprintf("brightness %d %%", int(val*100+0.5)), e.Desktop.SetBrightness(val)
+	case "keyboard":
+		return "on-screen keyboard", e.Desktop.OnScreenKeyboard()
 	case "mic_mute":
 		state, err := e.Desktop.ToggleMicMute()
 		if err != nil {
@@ -151,6 +157,10 @@ func (e *Executor) Mouse(action string) error {
 		return e.Desktop.Click()
 	case "right_click":
 		return e.Desktop.RightClick()
+	case "scroll_up":
+		return e.Desktop.Scroll(1)
+	case "scroll_down":
+		return e.Desktop.Scroll(-1)
 	default:
 		return fmt.Errorf("unknown mouse action %q", action)
 	}
@@ -181,6 +191,8 @@ func (d *DryRun) Click() error                  { return d.record("click") }
 func (d *DryRun) MouseDown() error              { return d.record("mouse down") }
 func (d *DryRun) MouseUp() error                { return d.record("mouse up") }
 func (d *DryRun) RightClick() error             { return d.record("mouse right_click") }
+func (d *DryRun) Scroll(n int) error            { return d.record(fmt.Sprintf("scroll %d", n)) }
+func (d *DryRun) OnScreenKeyboard() error       { return d.record("keyboard") }
 func (d *DryRun) SetVolume(v float64) error     { return d.record(fmt.Sprintf("volume %.2f", v)) }
 func (d *DryRun) SetBrightness(v float64) error { return d.record(fmt.Sprintf("brightness %.2f", v)) }
 func (d *DryRun) ToggleMicMute() (string, error) {

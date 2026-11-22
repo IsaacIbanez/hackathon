@@ -15,3 +15,9 @@ func ForegroundIsOurs() bool { return true }
 func Listen(h Hotkey, _ func()) (stop func(), err error) {
 	return func() {}, errors.New("system-wide hotkey not implemented on " + runtime.GOOS + ": " + h.String())
 }
+
+// OtherForeground is only known on Windows.
+func OtherForeground() uintptr { return 0 }
+
+// RestoreForeground is only implemented on Windows.
+func RestoreForeground(uintptr) {}

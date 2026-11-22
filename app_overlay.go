@@ -42,6 +42,9 @@ type overlayState struct {
 	gesturesOn bool // option 1 is showing the camera
 	compact    bool // shrunk to a camera bubble in a corner instead of hidden
 	screen     bool // from the bubble: see-through over the whole screen while the gesture menu is open
+	// The program that was active before the full-screen menu: it gets the focus back afterwards,
+	// so the gestures' keys (Enter, shortcuts) go to it and not to this window.
+	before uintptr
 }
 
 // startOverlay registers the shortcut; the window starts visible so the person sees it once.
@@ -394,6 +397,10 @@ func (a *App) SetScreenOverlay(on bool) {
 		return
 	}
 	o.screen = on
+	if on {
+		o.before = overlay.OtherForeground()
+	}
+	before := o.before
 	o.mu.Unlock()
 	ctx := a.ctx
 	if on {
@@ -408,4 +415,5 @@ func (a *App) SetScreenOverlay(on bool) {
 		wruntime.WindowSetPosition(ctx, sw-compactWidth-compactMargin, sh-compactHeight-3*compactMargin)
 	}
 	wruntime.EventsEmit(ctx, "overlay:compact")
+	overlay.RestoreForeground(before)
 }

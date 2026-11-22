@@ -8,8 +8,8 @@ const near = (a: { x: number; y: number }, x: number, y: number) =>
 
 test("toScreen mirrors the image and uses the central part of the camera", () => {
   // Image right edge (user's left) → screen left; the margin maps to the screen edges.
-  near(toScreen({ x: 0.78, y: 0.22 }), 0, 0);
-  near(toScreen({ x: 0.22, y: 0.78 }), 1, 1);
+  near(toScreen({ x: 0.74, y: 0.26 }), 0, 0);
+  near(toScreen({ x: 0.26, y: 0.74 }), 1, 1);
   near(toScreen({ x: 0.5, y: 0.5 }), 0.5, 0.5);
   // Beyond the margin it clamps instead of leaving the screen.
   near(toScreen({ x: 1, y: 1 }), 0, 1);
@@ -79,7 +79,10 @@ test("new actions go to the helper: brightness, microphone, power and apps", () 
 
 test("menu: the main page has volume, brightness, microphone, apps and computer", () => {
   const pc = menuPage({ id: "main" }, "pc");
-  assert.deepEqual(cellsOf(pc).sort(), ["down", "down_right", "left", "right", "up"]);
+  assert.deepEqual(cellsOf(pc).sort(), ["down", "down_right", "left", "right", "up", "up_left", "up_right"]);
+  assert.equal(pc.up_left?.kind === "action" && pc.up_left.action, "keyboard");
+  assert.equal(pc.up_right?.kind, "cursor");
+  assert.equal(menuPage({ id: "main" }, "pc", [], true).up_right?.label, "🖱️ Cursor off");
   assert.deepEqual(pc.up, { kind: "level", target: "volume", label: "🔊 Volume" });
   assert.equal(pc.down?.kind === "level" && pc.down.target, "brightness");
   assert.equal(pc.left?.kind === "action" && pc.left.action, "mic_mute"); // the system microphone
@@ -106,6 +109,7 @@ test("menu: power actions always ask first, and only ↓ confirms", () => {
 
 test("menu: apps come from the helper; without any, placeholder slots", () => {
   const empty = menuPage({ id: "apps" }, "pc", []);
+  assert.equal(empty.up_left?.kind === "action" && empty.up_left.action, "keyboard"); // always first
   const slots = Object.values(empty).filter((i) => i?.kind === "app");
   assert.equal(slots.length, 3);
   assert.ok(slots.every((i) => i?.kind === "app" && i.id === null));
@@ -114,7 +118,7 @@ test("menu: apps come from the helper; without any, placeholder slots", () => {
   const many = Array.from({ length: 9 }, (_, i) => ({ id: `app${i}`, name: `App ${i}` }));
   const full = menuPage({ id: "apps" }, "pc", many);
   const ids = APP_CELLS.map((c) => full[c]).map((i) => i?.kind === "app" && i.id);
-  assert.deepEqual(ids, ["app0", "app1", "app2", "app3", "app4", "app5", "app6"]); // the rest don't fit
+  assert.deepEqual(ids, [false, "app0", "app1", "app2", "app3", "app4", "app5"]); // keyboard first; the rest don't fit
   assert.equal(full.down?.kind, "page"); // ↓ is always Back
 });
 

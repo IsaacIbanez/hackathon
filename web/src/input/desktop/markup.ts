@@ -41,7 +41,7 @@ export const MARKUP = `
         <option value="zoom">Zoom</option>
         <option value="teams">Microsoft Teams</option>
       </select>
-      <label class="check"><input type="checkbox" id="mouse" checked /> Move the mouse with ☝️ (middle/heart finger + thumb clicks)</label>
+      <label class="check"><input type="checkbox" id="mouse" /> 🖱️ Cursor mode: ☝️ moves the mouse · middle finger on thumb clicks · ✋ up/down scrolls</label>
     </div>
 
     <section class="card">

@@ -128,7 +128,34 @@ func LoadLaunchers(flagPath string, goos string) []Launcher {
 		}
 		return valid
 	}
-	return nil
+	return DefaultLaunchers(goos)
+}
+
+// DefaultLaunchers are the apps offered when there is no apps.json: a web browser, the files, a
+// calculator and a text editor, with the commands of each system. Only the ones whose program
+// exists are offered on Linux.
+func DefaultLaunchers(goos string) []Launcher {
+	home, _ := os.UserHomeDir()
+	all := []Launcher{
+		{ID: "browser", Name: "🌐 Web browser", Open: "https://www.google.com"},
+		{ID: "files", Name: "📁 Files", Windows: []string{"explorer.exe"}, Linux: []string{"xdg-open", home}, Mac: []string{"open", home}},
+		{ID: "calculator", Name: "🧮 Calculator", Windows: []string{"calc.exe"}, Linux: []string{"gnome-calculator"}, Mac: []string{"open", "-a", "Calculator"}},
+		{ID: "notes", Name: "📝 Text editor", Windows: []string{"notepad.exe"}, Linux: []string{"gnome-text-editor"}, Mac: []string{"open", "-a", "TextEdit"}},
+	}
+	var out []Launcher
+	for _, l := range all {
+		argv, err := l.Argv(goos)
+		if err != nil {
+			continue
+		}
+		if goos == "linux" {
+			if _, err := exec.LookPath(argv[0]); err != nil {
+				continue
+			}
+		}
+		out = append(out, l)
+	}
+	return out
 }
 
 // ToLauncherInfos converts launchers to a slice of LauncherInfo for the Status response.

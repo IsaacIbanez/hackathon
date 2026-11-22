@@ -123,6 +123,8 @@ export interface InteractionOptions {
   clickReach: number;
   /** Consecutive frames the fingers must touch before it counts (one noisy frame is not a click). */
   clickFrames: number;
+  /** With mouseClicks: moving the open palm up or down this much (image height) scrolls one notch. */
+  scrollStep: number;
   /** Holding the fingers together longer than this is a drag (button held), not a tap. */
   dragMs: number;
   /** A second tap within this time after the first one makes a right click. */
@@ -191,6 +193,7 @@ export const DEFAULT_OPTIONS: InteractionOptions = {
   clickRelease: 0.5,
   clickReach: 0.9,
   clickFrames: 2,
+  scrollStep: 0.04,
   dragMs: 300,
   doubleTapMs: 350,
   palmMustFaceCamera: true,
@@ -280,7 +283,7 @@ interface LevelState {
 }
 
 /** Events that count as activity (they keep the system awake). */
-const ACTIVITY = new Set<HandEvent["type"]>(["gesture", "swipe", "select", "level", "menu", "head", "pointer", "mouse"]);
+const ACTIVITY = new Set<HandEvent["type"]>(["gesture", "swipe", "select", "level", "menu", "head", "pointer", "mouse", "scroll"]);
 
 export class HandInteraction {
   private opts: InteractionOptions;
@@ -344,6 +347,7 @@ export class HandInteraction {
   private menuTouching = false;
   private menuPressFrames = 0;
   private clickPressFrames = 0;
+  private scrollRef: number | null = null;
   private menuTouchReady = false;
   private tMenuTouch = 0;
   private menuTapSector: MenuSector | null = null;
@@ -594,6 +598,24 @@ export class HandInteraction {
     if (!swiped) this.stabilizeGesture(t, pose, center, hand, aspect);
     this.updatePointer(t, hand, pose, aspect);
     if (this.opts.mouseClicks) this.updateClick(t, pose, hand, aspect);
+    this.updateScroll(t, pose, center);
+  }
+
+  /** Cursor mode: the open palm moving up or down turns the mouse wheel, one notch per scrollStep. */
+  private updateScroll(t: number, pose: Gesture, center: Point): void {
+    if (!this.opts.mouseClicks || pose !== "palm") {
+      this.scrollRef = null;
+      return;
+    }
+    if (this.scrollRef === null) {
+      this.scrollRef = center.y;
+      return;
+    }
+    const dy = center.y - this.scrollRef;
+    if (Math.abs(dy) < this.opts.scrollStep) return;
+    this.scrollRef += Math.sign(dy) * this.opts.scrollStep;
+    // Hand up (y decreases) scrolls up.
+    this.emit({ type: "scroll", direction: dy < 0 ? "up" : "down", t });
   }
 
   // ---------- Stable gestures ----------

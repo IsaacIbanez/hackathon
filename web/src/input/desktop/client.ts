@@ -23,6 +23,7 @@ export const OS_ACTIONS: ReadonlySet<Action> = new Set<Action>([
   "restart",
   "shutdown",
   "open_app",
+  "keyboard",
 ]);
 
 export type CallAppId = "meet" | "zoom" | "teams";
@@ -51,9 +52,9 @@ export interface ActionOptions {
  * Maps the pointer from camera-image coordinates to the screen. The image is mirrored for the user,
  * and only the central part of the camera is used (`margin` on each side) so the screen edges can
  * be reached without leaving the camera's field of view. A larger margin means less hand movement
- * for the same cursor movement (0.22: the central 56 % of the image covers the whole screen).
+ * for the same cursor movement (0.26: the central 48 % of the image covers the whole screen).
  */
-export function toScreen(p: Point, mirror = true, margin = 0.22): Point {
+export function toScreen(p: Point, mirror = true, margin = 0.26): Point {
   const x = mirror ? 1 - p.x : p.x;
   const clamp = (v: number) => Math.min(1, Math.max(0, v));
   const span = 1 - 2 * margin;
@@ -97,7 +98,7 @@ export class HelperClient {
   }
 
   /** Presses or releases the mouse button, clicks or right-clicks at the current cursor position. */
-  mouse(action: MouseAction): Promise<void> {
+  mouse(action: MouseAction | "scroll_up" | "scroll_down"): Promise<void> {
     const next = this.buttons.then(async () => {
       const r = await this.request("/api/mouse", "POST", { action });
       if (!r.ok) {

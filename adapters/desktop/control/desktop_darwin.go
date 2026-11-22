@@ -168,3 +168,12 @@ func (d *macDesktop) OpenApp(argv []string) error {
 func (d *macDesktop) FocusWindow(app CallApp) error {
 	return osascript(fmt.Sprintf(`tell application "%s" to activate`, app.MacApp))
 }
+
+func (d *macDesktop) Scroll(int) error {
+	return fmt.Errorf("%w: scrolling with gestures is not available on macOS yet", ErrUnsupported)
+}
+
+// OnScreenKeyboard opens the Accessibility Keyboard settings (macOS has no command to show it).
+func (d *macDesktop) OnScreenKeyboard() error {
+	return exec.Command("open", "x-apple.systempreferences:com.apple.preference.universalaccess?Keyboard").Run()
+}

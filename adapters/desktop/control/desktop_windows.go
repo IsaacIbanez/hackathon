@@ -38,6 +38,9 @@ const (
 	mouseLeftUp    = 0x0004
 	mouseRightDown = 0x0008
 	mouseRightUp   = 0x0010
+	mouseWheel     = 0x0800
+	wheelDelta     = 120
+	createNoWindow = 0x08000000
 	vkVolumeDown   = 0xAE
 	vkVolumeUp     = 0xAF
 	vkMenu         = 0x12 // Alt
@@ -123,6 +126,24 @@ func (windowsDesktop) SetVolume(v float64) error {
 	return nil
 }
 
+// hidden runs a console program without opening a console window: from the desktop app (which
+// has no console) every PowerShell call would otherwise flash a window and take the focus.
+func hidden(cmd *exec.Cmd) *exec.Cmd {
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: createNoWindow}
+	return cmd
+}
+
+func (windowsDesktop) Scroll(n int) error {
+	procMouseEvent.Call(mouseWheel, 0, 0, uintptr(uint32(int32(n*wheelDelta))), 0)
+	return nil
+}
+
+// OnScreenKeyboard opens osk.exe. It must go through the shell ("start"): osk asks for UI access,
+// and starting it directly fails with "the requested operation requires elevation".
+func (windowsDesktop) OnScreenKeyboard() error {
+	return hidden(exec.Command("cmd.exe", "/c", "start", "", "osk.exe")).Run()
+}
+
 func runPowerShell(script string) (string, error) {
 	utf16Runes := utf16.Encode([]rune(script))
 	b := make([]byte, len(utf16Runes)*2)
@@ -131,7 +152,7 @@ func runPowerShell(script string) (string, error) {
 		b[i*2+1] = byte(v >> 8)
 	}
 	encoded := base64.StdEncoding.EncodeToString(b)
-	cmd := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded)
+	cmd := hidden(exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded))
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("powershell: %v: %s", err, strings.TrimSpace(string(out)))
@@ -169,6 +190,7 @@ interface IMMDevice {
 
 [Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
 interface IMMDeviceEnumerator {
+    int EnumAudioEndpoints(); // first method of the interface (unused): the order must match
     int GetDefaultAudioEndpoint(int dataFlow, int role, out IMMDevice ppDevice);
 }
 
@@ -210,9 +232,9 @@ Add-Type -TypeDefinition $csharp -ErrorAction Stop
 func (windowsDesktop) Power(kind string) error {
 	switch kind {
 	case "shutdown":
-		return exec.Command("shutdown", "/s", "/t", "0").Run()
+		return hidden(exec.Command("shutdown", "/s", "/t", "0")).Run()
 	case "restart":
-		return exec.Command("shutdown", "/r", "/t", "0").Run()
+		return hidden(exec.Command("shutdown", "/r", "/t", "0")).Run()
 	case "suspend":
 		ps := "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.Application]::SetSuspendState('Suspend', $false, $false)"
 		_, err := runPowerShell(ps)

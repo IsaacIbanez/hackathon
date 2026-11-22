@@ -11,6 +11,15 @@ Lo normal es usarlo como **opción 1 del overlay** (`task overlay` → `build/bi
 - con los gestos activos, el atajo del overlay (o **M**) encoge la ventana a una **burbuja de cámara** en una esquina en vez de ocultarla; el atajo o un doble clic la devuelven;
 - opciones por variables de entorno: `LAUZHACK_GESTURES_DRY_RUN=1`, `LAUZHACK_SCREEN=1920x1080` y `LAUZHACK_APPS=<ruta de apps.json>`.
 
+## Modo cursor (usar el ordenador con la mano)
+Se activa en el menú (✊ → «🖱️ Cursor mode») o con el interruptor de la ventana. Dentro del overlay, al activarlo la ventana se aparta a la burbuja.
+- ☝️ apuntar mueve el ratón (la parte central de la cámara, un 48 %, cubre toda la pantalla);
+- punta del corazón sobre el pulgar: clic; dos toques rápidos: clic derecho; mantener: arrastrar;
+- ✋ palma abierta hacia arriba o abajo: rueda del ratón (scroll);
+- «⌨️ Keyboard» (menú principal en modo Ordenador, o primera opción de «Apps»): abre el teclado en pantalla para escribir con el ratón (Windows: `osk.exe`; Linux: `onboard`, si está instalado; macOS: abre los ajustes del teclado de accesibilidad).
+
+Sin `apps.json`, «Apps» ofrece por defecto navegador, archivos, calculadora y editor de texto.
+
 ## Cómo se arranca solo (sin el overlay)
 `task gestures` compila `build/bin/gesture-control`. A mano, desde la raíz del repositorio:
 

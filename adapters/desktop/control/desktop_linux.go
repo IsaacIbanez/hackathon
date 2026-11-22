@@ -278,3 +278,29 @@ func (d *linuxDesktop) FocusWindow(app CallApp) error {
 	}
 	return ErrUnsupported
 }
+
+func (d *linuxDesktop) Scroll(n int) error {
+	if n == 0 {
+		return nil
+	}
+	if !d.wayland && has("xdotool") {
+		button := "4" // wheel up
+		if n < 0 {
+			button, n = "5", -n
+		}
+		return run("xdotool", "click", "--repeat", fmt.Sprint(n), button)
+	}
+	if has("ydotool") {
+		return run("ydotool", "mousemove", "--wheel", "-x", "0", "-y", fmt.Sprint(n))
+	}
+	return fmt.Errorf("%w: install xdotool (X11) or ydotool (Wayland)", ErrUnsupported)
+}
+
+func (d *linuxDesktop) OnScreenKeyboard() error {
+	for _, kb := range []string{"onboard", "florence", "wvkbd-mobintl", "squeekboard"} {
+		if has(kb) {
+			return openProcess([]string{kb})
+		}
+	}
+	return fmt.Errorf("%w: install an on-screen keyboard (onboard)", ErrUnsupported)
+}

@@ -91,3 +91,11 @@ test("click: with the mouse on, holding the pointer still doesn't 'select' (no d
   assert.ok(!ev.some((e) => e.type === "select"));
   assert.ok(simulate(new HandInteraction(), repeat(rest, 60)).some((e) => e.type === "select"));
 });
+
+test("scroll: with the mouse on, the open palm moving up or down turns the wheel", () => {
+  const palmAt = (dy: number) => makeHand({ ...SHAPES.palm, dy });
+  const up = Array.from({ length: 12 }, (_, i) => palmAt(-0.01 * i)); // the hand rises ~0.11
+  const scrolls = simulate(withMouse(), up).flatMap((e) => (e.type === "scroll" ? [e.direction] : []));
+  assert.deepEqual(scrolls, ["up", "up"]);
+  assert.ok(!simulate(new HandInteraction(), up).some((e) => e.type === "scroll"), "only in cursor mode");
+});

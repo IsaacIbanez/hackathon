@@ -13,6 +13,8 @@ func (otherDesktop) Click() error                   { return ErrUnsupported }
 func (otherDesktop) MouseDown() error               { return ErrUnsupported }
 func (otherDesktop) MouseUp() error                 { return ErrUnsupported }
 func (otherDesktop) RightClick() error              { return ErrUnsupported }
+func (otherDesktop) Scroll(int) error               { return ErrUnsupported }
+func (otherDesktop) OnScreenKeyboard() error        { return ErrUnsupported }
 func (otherDesktop) SetVolume(float64) error        { return ErrUnsupported }
 func (otherDesktop) SetBrightness(float64) error    { return ErrUnsupported }
 func (otherDesktop) ToggleMicMute() (string, error) { return "", ErrUnsupported }

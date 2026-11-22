@@ -33,6 +33,7 @@ export type Action =
   | "restart"
   | "shutdown"
   | "open_app"
+  | "keyboard"
   // Video call
   | "toggle_mic"
   | "toggle_camera"

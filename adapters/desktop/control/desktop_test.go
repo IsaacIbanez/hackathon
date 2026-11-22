@@ -447,3 +447,35 @@ func TestNewDryRun(t *testing.T) {
 		t.Errorf("got %+v", s.Status)
 	}
 }
+
+func TestScrollAndKeyboard(t *testing.T) {
+	d := &DryRun{}
+	e := &Executor{Desktop: d, GOOS: "windows"}
+	for _, a := range []string{"scroll_up", "scroll_down"} {
+		if err := e.Mouse(a); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := e.Do(Request{Action: "keyboard"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(d.Calls, "|"); got != "scroll 1|scroll -1|keyboard" {
+		t.Errorf("got %s", got)
+	}
+}
+
+// Without an apps.json there are still apps to open, with a command for each system.
+func TestDefaultLaunchers(t *testing.T) {
+	for _, goos := range []string{"windows", "darwin"} {
+		ls := DefaultLaunchers(goos)
+		if len(ls) != 4 {
+			t.Fatalf("%s: %d launchers", goos, len(ls))
+		}
+		if _, err := ValidateLaunchers(ls, goos); err != nil {
+			t.Errorf("%s: %v", goos, err)
+		}
+	}
+	if argv, _ := DefaultLaunchers("windows")[0].Argv("windows"); argv[0] != "explorer.exe" {
+		t.Errorf("browser on windows: %v", argv)
+	}
+}

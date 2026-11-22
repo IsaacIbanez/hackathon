@@ -24,6 +24,8 @@ export interface GestureControlOptions {
    * volume/brightness is being adjusted (the desktop app then spreads its window over the screen).
    */
   onScreenOverlay?: (need: boolean) => void;
+  /** Called when cursor mode is turned on or off (the desktop app moves out of the way when on). */
+  onCursorMode?: (on: boolean) => void;
 }
 
 export interface GestureControlHandle {
@@ -51,7 +53,7 @@ export function mountGestureControl(
   const canvas = $<HTMLCanvasElement>("canvas");
   const ctx = canvas.getContext("2d")!;
 
-  const interaction = new HandInteraction({ requireWake: true, mouseClicks: true });
+  const interaction = new HandInteraction({ requireWake: true, mouseClicks: false });
   let stopped = false;
   let screenNeeded = false;
   let tracker: { stop(): void } | null = null;
@@ -91,7 +93,19 @@ export function mountGestureControl(
   const enabled = () => $<HTMLInputElement>("enabled").checked;
   const mouseOn = () => $<HTMLInputElement>("mouse").checked;
   const app = () => $<HTMLSelectElement>("app").value as CallAppId;
-  const layout = () => menuPage(page, context, launchers);
+  const layout = () => menuPage(page, context, launchers, mouseOn());
+
+  /**
+   * Cursor mode: ☝️ moves the mouse, the middle finger on the thumb clicks (twice: right click;
+   * holding: drag) and the open palm moving up or down scrolls. Off, pointing does nothing.
+   */
+  function setCursor(on: boolean) {
+    $<HTMLInputElement>("mouse").checked = on;
+    interaction.configure({ mouseClicks: on });
+    toast(on ? "🖱️ Cursor mode on" : "🖱️ Cursor mode off");
+    paintGuide();
+    options.onCursorMode?.(on);
+  }
 
   function toast(text: string, error = false) {
     const el = $("action");
@@ -215,6 +229,9 @@ export function mountGestureControl(
       case "close":
         toast("Cancelled");
         break;
+      case "cursor":
+        setCursor(!mouseOn());
+        break;
     }
   }
 
@@ -233,6 +250,10 @@ export function mountGestureControl(
 
     if (e.type === "pointer") {
       if (mouseOn()) void helper.pointer(toScreen(e.image)).catch(() => {});
+      return;
+    }
+    if (e.type === "scroll") {
+      if (mouseOn()) helper.mouse(e.direction === "up" ? "scroll_up" : "scroll_down").catch((err: Error) => toast(`Scroll: ${err.message}`, true));
       return;
     }
     if (e.type === "mouse") {
@@ -266,10 +287,7 @@ export function mountGestureControl(
     $("stage").classList.toggle("off", !enabled());
   });
 
-  $("mouse").addEventListener("change", () => {
-    interaction.configure({ mouseClicks: mouseOn() });
-    paintGuide();
-  });
+  $("mouse").addEventListener("change", () => setCursor(mouseOn()));
 
   for (const b of root.querySelectorAll<HTMLButtonElement>("#context button")) {
     b.addEventListener("click", () => {
@@ -297,8 +315,11 @@ export function mountGestureControl(
       ["✊ Fist (hold) → ☝️ point + tap middle finger on thumb", `Menu: ${menu}`],
       ["✊ again, inside the menu", "Close the menu"],
       ["👎 Thumbs down / ✋← Swipe, in menu", "Go back / close"],
-      ["☝️ Point", mouseOn() ? "Move the mouse" : "Move the mouse (turn on “Move the mouse”)"],
-      ["☝️ + heart finger on thumb (middle fingertip)", "Click · twice quickly: right click · hold: drag"],
+      ["🖱️ Cursor mode (menu, or the switch below)", mouseOn() ? "On" : "Off"],
+      ["☝️ Point (cursor mode)", "Move the mouse"],
+      ["☝️ + middle fingertip on the thumb (cursor mode)", "Click · twice quickly: right click · hold: drag"],
+      ["✋ Open palm up / down (cursor mode)", "Scroll"],
+      ["⌨️ Keyboard (menu)", "On-screen keyboard, to type with the mouse"],
     ];
     $("guide").innerHTML = rows.map(([g, a]) => `<tr><td>${g}</td><td>${a ?? "—"}</td></tr>`).join("");
   }

@@ -27,7 +27,9 @@ export type MenuItem =
   /** Opens an app from the helper's list; id null is an empty slot. */
   | { kind: "app"; id: string | null; label: string }
   /** Closes the menu without doing anything. */
-  | { kind: "close"; label: string };
+  | { kind: "close"; label: string }
+  /** Turns cursor mode (the gesture mouse) on or off. */
+  | { kind: "cursor"; label: string };
 
 export type MenuLayout = Partial<Record<MenuSector, MenuItem>>;
 
@@ -50,9 +52,15 @@ export const APP_CELLS: readonly MenuSector[] = ["up_left", "up", "up_right", "l
 const PLACEHOLDER_SLOTS = 3;
 
 const BACK: MenuItem = { kind: "page", page: { id: "main" }, label: "↩ Back" };
+const KEYBOARD: MenuItem = { kind: "action", action: "keyboard", label: "⌨️ Keyboard" };
 
 /** The options of a page. The layout is fixed, so each option is always in the same place. */
-export function menuPage(page: MenuPage, context: DesktopContext, launchers: readonly Launcher[] = []): MenuLayout {
+export function menuPage(
+  page: MenuPage,
+  context: DesktopContext,
+  launchers: readonly Launcher[] = [],
+  cursorOn = false,
+): MenuLayout {
   switch (page.id) {
     case "main":
       return {
@@ -65,12 +73,13 @@ export function menuPage(page: MenuPage, context: DesktopContext, launchers: rea
             : { kind: "action", action: "mic_mute", label: "🎙️ Microphone" },
         right: { kind: "page", page: { id: "apps" }, label: "🚀 Apps ▸" },
         down_right: { kind: "page", page: { id: "computer" }, label: "⏻ Computer ▸" },
+        up_right: { kind: "cursor", label: cursorOn ? "🖱️ Cursor off" : "🖱️ Cursor mode" },
         ...(context === "call"
           ? {
               up_left: { kind: "action", action: "raise_hand", label: "✋ Raise hand" },
               down_left: { kind: "action", action: "leave_call", label: "📞 Leave call" },
             }
-          : {}),
+          : { up_left: KEYBOARD }),
       };
     case "computer":
       return {
@@ -88,10 +97,13 @@ export function menuPage(page: MenuPage, context: DesktopContext, launchers: rea
     }
     case "apps": {
       const layout: MenuLayout = { down: BACK };
-      const slots: MenuItem[] =
-        launchers.length > 0
-          ? launchers.slice(0, APP_CELLS.length).map((l) => ({ kind: "app", id: l.id, label: l.name }))
-          : Array.from({ length: PLACEHOLDER_SLOTS }, (_, i) => ({ kind: "app", id: null, label: `App ${i + 1} · not set` }));
+      // The on-screen keyboard is always the first one (in a call the main page has no room for it).
+      const slots: MenuItem[] = [
+        KEYBOARD,
+        ...(launchers.length > 0
+          ? launchers.slice(0, APP_CELLS.length - 1).map((l): MenuItem => ({ kind: "app", id: l.id, label: l.name }))
+          : Array.from({ length: PLACEHOLDER_SLOTS }, (_, i): MenuItem => ({ kind: "app", id: null, label: `App ${i + 1} · not set` }))),
+      ];
       slots.forEach((item, i) => (layout[APP_CELLS[i]] = item));
       return layout;
     }

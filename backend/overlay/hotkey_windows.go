@@ -105,3 +105,22 @@ func ForegroundIsOurs() bool {
 	procGetWindowThreadProcessId.Call(h, uintptr(unsafe.Pointer(&pid)))
 	return int(pid) == os.Getpid()
 }
+
+var procSetForegroundWindow = user32.NewProc("SetForegroundWindow")
+
+// OtherForeground returns the active window when it belongs to another program (0 if it is ours
+// or there is none), to give it the focus back later with RestoreForeground.
+func OtherForeground() uintptr {
+	if ForegroundIsOurs() {
+		return 0
+	}
+	h, _, _ := procGetForegroundWindow.Call()
+	return h
+}
+
+// RestoreForeground gives the focus back to a window saved with OtherForeground.
+func RestoreForeground(h uintptr) {
+	if h != 0 {
+		procSetForegroundWindow.Call(h)
+	}
+}

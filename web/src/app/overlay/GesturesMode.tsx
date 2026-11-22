@@ -25,6 +25,10 @@ export function GesturesMode() {
       unreachable: 'Gesture Control did not answer inside the app (see build/bin/lauzhack.log).',
       // From the bubble, the menu and the volume/brightness control take the whole screen.
       onScreenOverlay: (need) => void app.SetScreenOverlay(need).catch(() => {}),
+      // Cursor mode: get out of the way (the bubble) so the whole screen can be used with the mouse.
+      onCursorMode: (on) => {
+        if (on) void app.SetCompact(true).catch(() => {})
+      },
     })
     void app.SetGesturesActive(true).catch((e) => setError(errorText(e)))
     const offCompact = onDesktopEvent('overlay:compact', () => {

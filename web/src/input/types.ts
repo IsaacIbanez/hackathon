@@ -102,6 +102,8 @@ export type HandEvent =
    * button held down (drag) until released.
    */
   | { type: "mouse"; action: MouseAction; t: number }
+  /** Mouse wheel (only with `mouseClicks`): the open palm moved up or down, one event per notch. */
+  | { type: "scroll"; direction: "up" | "down"; t: number }
   /** Menu opened with ✊ (fist); an option is chosen by holding the pointer (☝️) over it. */
   | {
       type: "menu";
