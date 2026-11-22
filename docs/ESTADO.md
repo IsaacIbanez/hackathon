@@ -15,6 +15,9 @@ El **overlay** (`task overlay` → `build/bin/lauzhack.exe`): Ctrl+Alt+Espacio o
 | **Transcribe** | Subtítulos en directo del micro o de una llamada: quién habla, idioma, barbarismos entre comillas, traducción, `.txt` | En `main` desde hoy (`GET /captions`, Together AI). Probado en el navegador; **falta el `.exe`** |
 | **MX Keypad** | Teclas 1–9 → acciones (`docs/KEYPAD.md`) | Hecho; teclas reasignadas por Isaac (`docs/KEYPAD.md`); **falta probar la orden de voz (tecla 7) con micro** (R4) |
 
+## Ahora: pulido para la demo
+Reparto en **`docs/demo/README.md`**: Nil (gestos), Pau (leer papel y Transcribe) e Isaac (arranque, overlay, voz e integración). Cada ficha trae qué revisar, los fallos conocidos y un prompt para su agente. **Falta `TOGETHER_API_KEY`** en el `.env` del portátil de la demo: sin ella, Transcribe no funciona.
+
 ## Fase de arreglos (va antes que cualquier funcionalidad nueva)
 | ID | Arreglo | Persona | Estado |
 |---|---|---|---|
