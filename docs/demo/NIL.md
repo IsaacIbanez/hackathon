@@ -52,3 +52,8 @@ pruébalo con el .exe; abre un PR y, con el CI en verde, fusiónalo tú mismo a 
 
 ## Registro (lo rellena el agente)
 Por cada fallo: síntoma → cómo reproducirlo → causa → arreglo → cómo se ha comprobado (con el `.exe`).
+
+**1. «Close gestures» dejaba los gestos activos (2026-11-22)**
+- Síntoma: tras «Close gestures» el overlay volvía, pero la mano seguía disparando acciones. Quedaba además código viejo que apagaba la cámara.
+- Arreglo: «Close gestures» duerme los gestos (`HandInteraction.sleepNow`), apaga el modo cursor y vuelve al overlay; la cámara sigue encendida. Una palma abierta o abrir Gesture Control (tecla 6, `wakeNow`) los despierta.
+- Comprobado: test nuevo en `experimental.test.ts`, `tsc`, 199 tests. Falta el `.exe` (lo prueba Nil en Windows).

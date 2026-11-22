@@ -61,3 +61,5 @@ pruébalo con el .exe; abre un PR y, con el CI en verde, fusiónalo tú mismo a 
 
 ## Registro (lo rellena el agente)
 Por cada fallo: síntoma → cómo reproducirlo → causa → arreglo → cómo se ha comprobado (con el `.exe`).
+
+**Aviso de Nil (2026-11-22):** he tocado `web/src/app/overlay/gestureHost.ts`. «Close gestures» ahora también duerme los gestos (la cámara sigue encendida) y `turnGesturesOn()` los despierta con `handle.wakeGestures()` en vez de simular un clic en la vista de la cámara. Detalle en el Registro de `docs/demo/NIL.md`.

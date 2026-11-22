@@ -33,11 +33,9 @@ export interface GestureControlOptions {
   onSwipe?: (direction: "left" | "right") => boolean;
   /** "Close app" in the gesture menu: quit the app (the desktop app does it). */
   onQuit?: () => void;
-  /** "Close gestures" turned Gesture Control off (false), or a click on the camera view back on (true). */
-  onGestures?: (on: boolean) => void;
   /**
-   * If given, "Close gestures" calls it instead of turning the gestures and the camera off: the
-   * desktop app uses it to go back to the overlay while the camera keeps running.
+   * "Close gestures": the gestures went to sleep (the camera keeps running, an open palm wakes them).
+   * The desktop app uses it to bring the overlay back.
    */
   onCloseGestures?: () => void;
   /** Three fingers: read the text selected in the program in front aloud (the app does it). */
@@ -57,6 +55,8 @@ export interface GestureControlHandle {
   setCamera(on: boolean, reason?: string): void;
   /** Plays the camera again after the page was moved to another place in the document. */
   resume(): void;
+  /** Wakes the gestures (after "Close gestures", when the person opens Gesture Control again). */
+  wakeGestures(): void;
   /**
    * See-through over the whole screen: only the menu, the hints and a small camera preview are
    * painted; the rest of the page is transparent.
@@ -125,8 +125,6 @@ export function mountGestureControl(
   const app = () => $<HTMLSelectElement>("app").value as CallAppId;
   /** The system microphone, as the helper last said (null: not known yet). */
   let micMuted: boolean | null = null;
-  /** "Close gestures": the camera is off until the camera view is clicked. */
-  let gesturesOff = false;
   const layout = () => menuPage(page, context, launchers, mouseOn(), powerOn, micMuted);
 
   /**
@@ -280,8 +278,7 @@ export function mountGestureControl(
         else toast("Close the window to quit", true);
         break;
       case "gestures_off":
-        if (options.onCloseGestures) options.onCloseGestures();
-        else setGestures(false);
+        closeGestures(e.t);
         break;
       case "cursor":
         setCursor(!mouseOn());
@@ -308,19 +305,15 @@ export function mountGestureControl(
     });
   }
 
-  /** "Close gestures" (off) and a click on the camera view (on): only Gesture Control, not the app. */
-  function setGestures(on: boolean) {
-    if (on === !gesturesOff) return;
-    gesturesOff = !on;
-    if (on) {
-      toast("Gestures on");
-      void startCamera();
-    } else {
-      if (mouseOn()) setCursor(false);
-      stopCamera("Gestures closed. Click here to turn them on again.");
-    }
-    $("nocam").classList.toggle("restart", !on);
-    options.onGestures?.(on);
+  /**
+   * "Close gestures": the gestures go to sleep, cursor mode ends and the app shows the overlay again.
+   * The camera keeps running (nothing to wait for, and option 2 can still borrow it).
+   */
+  function closeGestures(t: number) {
+    if (mouseOn()) setCursor(false);
+    interaction.sleepNow(t);
+    toast("Gestures closed · open palm to wake them");
+    options.onCloseGestures?.();
   }
 
   // ---------- Gestures → actions ----------
@@ -697,11 +690,6 @@ export function mountGestureControl(
     el.classList.toggle("soft", soft);
   }
 
-  // After "Close gestures", a click on the camera view turns them on again.
-  $("nocam").addEventListener("click", () => {
-    if (gesturesOff) setGestures(true);
-  });
-
   showPage({ id: "main" });
   paintGuide();
   void start();
@@ -726,9 +714,12 @@ export function mountGestureControl(
       root.classList.toggle("compact", on);
     },
     setCamera(on: boolean, reason = "Camera paused: another option is using it") {
-      if (stopped || gesturesOff) return;
+      if (stopped) return;
       if (on) void startCamera();
       else stopCamera(reason);
+    },
+    wakeGestures() {
+      interaction.wakeNow();
     },
     resume() {
       // Moving the page in the document can pause the video: play it again.

@@ -199,5 +199,3 @@ html.gc-see-through .gc.screen { visibility: visible; }
 .gc #menu .op.danger.active { border-color: var(--bad); }
 .gc #menu .op.danger.chosen { background-image: linear-gradient(var(--bad), var(--bad)); }
 .gc #menu .op.danger.chosen, .gc #menu .op.danger.chosen .op-icon { color: var(--ink); }
-/* After "Close gestures": the message over the camera view is a button that turns them on again. */
-.gc #nocam.restart { cursor: pointer; }
