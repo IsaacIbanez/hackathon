@@ -32,6 +32,8 @@ export type MenuItem =
   | { kind: "close"; label: string }
   /** Closes the assistant (the whole app). */
   | { kind: "quit"; label: string }
+  /** Turns off only Gesture Control (the camera); the rest of the app keeps running. */
+  | { kind: "gestures_off"; label: string }
   /** Turns cursor mode (the gesture mouse) on or off. */
   | { kind: "cursor"; label: string };
 
@@ -57,6 +59,12 @@ const PLACEHOLDER_SLOTS = 3;
 
 const BACK: MenuItem = { kind: "page", page: { id: "main" }, label: "Back" };
 const KEYBOARD: MenuItem = { kind: "action", action: "keyboard", label: "Keyboard" };
+const RAISE_HAND: MenuItem = { kind: "action", action: "raise_hand", label: "Raise hand" };
+
+/** The microphone option's label: a toggle that shows its state once known (null: not known yet). */
+export function micLabel(muted: boolean | null): string {
+  return muted === null ? "Microphone" : muted ? "Mic: muted" : "Mic: on";
+}
 
 /** The options of a page. The layout is fixed, so each option is always in the same place. */
 export function menuPage(
@@ -66,23 +74,25 @@ export function menuPage(
   cursorOn = false,
   /** Whether suspend, restart and shut down are allowed (off by default: the helper's status). */
   powerOn = false,
+  /** Whether the system microphone is muted, as the helper last said (null: not known yet). */
+  micMuted: boolean | null = null,
 ): MenuLayout {
   switch (page.id) {
     case "main":
       return {
         up: { kind: "level", target: "volume", label: "Volume" },
         down: { kind: "level", target: "brightness", label: "Brightness" },
-        // The system microphone: it works with any app (👍 toggles the call app's own mute).
-        left: { kind: "action", action: "mic_mute", label: "Microphone" },
+        // Turns off only the gestures (the camera); the overlay stays.
+        up_left: { kind: "gestures_off", label: "Close gestures" },
+        // Close the whole app, in every context (shown in red).
+        left: { kind: "quit", label: "Close app" },
+        // The system microphone: it works with any app (👍 toggles the call app's own mute). A toggle:
+        // choosing it keeps the menu open and flips its label.
+        down_left: { kind: "action", action: "mic_mute", label: micLabel(micMuted) },
         right: { kind: "page", page: { id: "apps" }, label: "Apps ▸" },
         // Power (suspend, restart, shut down) only when allowed: a gesture once suspended the computer.
         ...(powerOn ? { down_right: { kind: "page", page: { id: "computer" }, label: "Computer ▸" } as MenuItem } : {}),
         up_right: { kind: "cursor", label: cursorOn ? "Cursor off" : "Cursor mode" },
-        // Close the assistant (quits the app), in every context.
-        down_left: { kind: "quit", label: "Close assistant" },
-        ...(context === "call"
-          ? { up_left: { kind: "action", action: "raise_hand", label: "Raise hand" } as MenuItem }
-          : { up_left: KEYBOARD }),
       };
     case "computer":
       return {
@@ -108,11 +118,12 @@ export function menuPage(
     }
     case "apps": {
       const layout: MenuLayout = { down: BACK };
-      // The on-screen keyboard is always the first one (in a call the main page has no room for it).
+      // The on-screen keyboard is always the first one, then "Raise hand" in a call.
+      const fixed: MenuItem[] = context === "call" ? [KEYBOARD, RAISE_HAND] : [KEYBOARD];
       const slots: MenuItem[] = [
-        KEYBOARD,
+        ...fixed,
         ...(launchers.length > 0
-          ? launchers.slice(0, APP_CELLS.length - 1).map((l): MenuItem => ({ kind: "app", id: l.id, label: l.name }))
+          ? launchers.slice(0, APP_CELLS.length - fixed.length).map((l): MenuItem => ({ kind: "app", id: l.id, label: l.name }))
           : Array.from({ length: PLACEHOLDER_SLOTS }, (_, i): MenuItem => ({ kind: "app", id: null, label: `App ${i + 1} · not set` }))),
       ];
       slots.forEach((item, i) => (layout[APP_CELLS[i]] = item));

@@ -30,8 +30,10 @@ export interface GestureControlOptions {
    * nothing else): the app uses it to control a reading in progress.
    */
   onSwipe?: (direction: "left" | "right") => boolean;
-  /** "Close assistant" in the gesture menu: quit the app (the desktop app does it). */
+  /** "Close app" in the gesture menu: quit the app (the desktop app does it). */
   onQuit?: () => void;
+  /** "Close gestures" turned Gesture Control off (false), or a click on the camera view back on (true). */
+  onGestures?: (on: boolean) => void;
   /** Three fingers: read the text selected in the program in front aloud (the app does it). */
   onReadSelection?: () => void;
   /** Called when cursor mode is turned on or off (the desktop app moves out of the way when on). */
@@ -115,7 +117,11 @@ export function mountGestureControl(
   const enabled = () => $<HTMLInputElement>("enabled").checked;
   const mouseOn = () => $<HTMLInputElement>("mouse").checked;
   const app = () => $<HTMLSelectElement>("app").value as CallAppId;
-  const layout = () => menuPage(page, context, launchers, mouseOn(), powerOn);
+  /** The system microphone, as the helper last said (null: not known yet). */
+  let micMuted: boolean | null = null;
+  /** "Close gestures": the camera is off until the camera view is clicked. */
+  let gesturesOff = false;
+  const layout = () => menuPage(page, context, launchers, mouseOn(), powerOn, micMuted);
 
   /**
    * Cursor mode: ☝️ moves the mouse, the middle finger on the thumb clicks (twice: right click;
@@ -221,6 +227,10 @@ export function mountGestureControl(
     if (e.phase !== "choose" || !e.sector) return;
     const item = layout()[e.sector];
     if (!item) return;
+    if (item.kind === "action" && item.action === "mic_mute") {
+      toggleMic(e.t);
+      return;
+    }
     if (item.kind === "page") {
       showPage(item.page);
       reopening = true;
@@ -241,10 +251,7 @@ export function mountGestureControl(
         break;
       case "action":
         toast(label(item.action));
-        void perform(item.action).then((did) => {
-          // The helper says whether the microphone ended up muted.
-          if (did && item.action === "mic_mute") toast(`${did}`);
-        });
+        void perform(item.action);
         break;
       case "power":
         toast(`${powerLabel(item.action)}…`);
@@ -266,10 +273,47 @@ export function mountGestureControl(
         if (options.onQuit) options.onQuit();
         else toast("Close the window to quit", true);
         break;
+      case "gestures_off":
+        setGestures(false);
+        break;
       case "cursor":
         setCursor(!mouseOn());
         break;
     }
+  }
+
+  /** The microphone is a toggle: the menu stays open and the option shows the new state. */
+  function toggleMic(t: number) {
+    reopening = true;
+    try {
+      interaction.reopenMenu(t);
+    } finally {
+      reopening = false;
+    }
+    if (!enabled()) return;
+    if (micMuted !== null) micMuted = !micMuted; // shown at once, corrected by the helper's answer
+    void perform("mic_mute").then((did) => {
+      if (!did) return;
+      // The helper says whether the microphone ended up muted.
+      if (/unmuted/i.test(did)) micMuted = false;
+      else if (/muted/i.test(did)) micMuted = true;
+      toast(micMuted === null ? did : micMuted ? "Microphone muted" : "Microphone on");
+    });
+  }
+
+  /** "Close gestures" (off) and a click on the camera view (on): only Gesture Control, not the app. */
+  function setGestures(on: boolean) {
+    if (on === !gesturesOff) return;
+    gesturesOff = !on;
+    if (on) {
+      toast("Gestures on");
+      void startCamera();
+    } else {
+      if (mouseOn()) setCursor(false);
+      stopCamera("Gestures closed. Click here to turn them on again.");
+    }
+    $("nocam").classList.toggle("restart", !on);
+    options.onGestures?.(on);
   }
 
   // ---------- Gestures → actions ----------
@@ -373,7 +417,7 @@ export function mountGestureControl(
       ["Point (cursor mode)", "Move the mouse"],
       ["+ middle fingertip on the thumb (cursor mode)", "Click · twice quickly: right click · hold: drag"],
       ["Open palm up / down (cursor mode)", "Scroll"],
-      ["Keyboard (menu)", "On-screen keyboard, to type with the mouse"],
+      ["Keyboard (menu ▸ Apps)", "On-screen keyboard, to type with the mouse"],
     ];
     $("guide").innerHTML = rows.map(([g, a]) => `<tr><td>${g}</td><td>${a ?? "—"}</td></tr>`).join("");
   }
@@ -393,6 +437,7 @@ export function mountGestureControl(
       op.textContent = text ?? "";
       op.classList.toggle("active", open?.sector === s);
       op.classList.toggle("chosen", shownChoice?.sector === s);
+      op.classList.toggle("danger", !!text && options[s]?.kind === "quit");
       op.style.setProperty("--p", open?.sector === s ? String(open.progress) : "0");
     }
     const titles: Record<MenuPage["id"], string> = { main: "Menu", computer: "Computer", apps: "Apps", confirm: "Are you sure?", confirm2: "Really?" };
@@ -641,6 +686,11 @@ export function mountGestureControl(
     el.classList.toggle("soft", soft);
   }
 
+  // After "Close gestures", a click on the camera view turns them on again.
+  $("nocam").addEventListener("click", () => {
+    if (gesturesOff) setGestures(true);
+  });
+
   showPage({ id: "main" });
   paintGuide();
   void start();
@@ -665,7 +715,7 @@ export function mountGestureControl(
       root.classList.toggle("compact", on);
     },
     setCamera(on: boolean, reason = "Camera paused: another option is using it") {
-      if (stopped) return;
+      if (stopped || gesturesOff) return;
       if (on) void startCamera();
       else stopCamera(reason);
     },

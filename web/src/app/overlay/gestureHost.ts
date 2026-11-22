@@ -18,6 +18,8 @@ let handle: GestureControlHandle | null = null
 let compact = false
 let tMoved = -Infinity
 let paused = false
+/** false after "Close gestures" in the menu, until the camera view is clicked. */
+let gesturesOn = true
 
 /** The page's root, built and started the first time (null outside the desktop app). */
 export function gestureRoot(): HTMLDivElement | null {
@@ -49,8 +51,15 @@ export function gestureRoot(): HTMLDivElement | null {
       }
       return true
     },
-    // "Close assistant" in the gesture menu.
+    // "Close app" in the gesture menu.
     onQuit: () => void app.Quit().catch(() => {}),
+    // "Close gestures": only the camera stops; the app stays. From the bubble, the window comes back
+    // (a bubble without gestures is no use). A click on the camera view turns them on again.
+    onGestures: (on) => {
+      gesturesOn = on
+      void app.SetGesturesActive(on && !paused).catch(() => {})
+      if (!on && compact) void app.SetCompact(false).catch(() => {})
+    },
     // The bubble dodges the gesture cursor: clicks on it would go to this window, not to the
     // program below. It jumps to the other bottom corner when the cursor comes near.
     onPointer: (p) => {
@@ -99,7 +108,7 @@ export function resumeCamera(): void {
   if (!handle || !paused) return
   paused = false
   handle.setCamera(true)
-  void desktop().SetGesturesActive(true).catch(() => {})
+  if (gesturesOn) void desktop().SetGesturesActive(true).catch(() => {})
 }
 
 /** Whether a screen point ([0, 1] over the screen) is on this window or within ~15 % of it. */
